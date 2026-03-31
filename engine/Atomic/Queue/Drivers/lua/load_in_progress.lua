@@ -1,0 +1,58 @@
+-- KEYS[1]: {queue}.idx.pending key
+-- KEYS[2]: {queue}.idx.running key
+-- ARGV[1]: prefix
+-- ARGV[2]: limit
+
+local pending_idx_key = KEYS[1]
+local running_idx_key = KEYS[2]
+local prefix = ARGV[1]
+local limit = tonumber(ARGV[2])
+
+local results = {}
+
+local running_uuids = redis.call('ZRANGE', running_idx_key, 0, limit - 1)
+for _, uuid in ipairs(running_uuids) do
+    local registry_key = prefix .. 'registry.' .. uuid
+    local job_data = redis.call('HGETALL', registry_key)
+
+    if #job_data > 0 then
+        local job = {}
+        for i = 1, #job_data, 2 do
+            job[job_data[i]] = job_data[i + 1]
+        end
+
+        job.status = 'in_progress'
+
+        if job.payload then
+            job.payload = cjson.decode(job.payload)
+        end
+
+        table.insert(results, {uuid, cjson.encode(job)})
+    end
+end
+
+local remaining = limit - #results
+if remaining > 0 then
+    local pending_uuids = redis.call('ZRANGE', pending_idx_key, 0, remaining - 1)
+    for _, uuid in ipairs(pending_uuids) do
+        local registry_key = prefix .. 'registry.' .. uuid
+        local job_data = redis.call('HGETALL', registry_key)
+
+        if #job_data > 0 then
+            local job = {}
+            for i = 1, #job_data, 2 do
+                job[job_data[i]] = job_data[i + 1]
+            end
+
+            job.status = 'pending'
+
+            if job.payload then
+                job.payload = cjson.decode(job.payload)
+            end
+
+            table.insert(results, {uuid, cjson.encode(job)})
+        end
+    end
+end
+
+return results

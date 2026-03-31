@@ -1,0 +1,324 @@
+<?php
+declare(strict_types=1);
+namespace Engine\Atomic\CLI;
+
+if (!defined( 'ATOMIC_START' ) ) exit;
+
+use DB\Cortex;
+use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
+use Engine\Atomic\Core\Migrations;
+use Engine\Atomic\Core\ID;
+use Engine\Atomic\Queue\Managers\Manager;
+use Engine\Atomic\Queue\Tests\Test;
+use Engine\Atomic\Queue\Monitor\Monitor;
+use Engine\Atomic\Queue\Worker\Worker;
+
+trait Queue {
+    private const MONITOR_TEST_PID_PLACEHOLDER = -1;
+    private const MONITOR_TEST_DELAY = 0;
+    private const MONITOR_TEST_PRIORITY = 1;
+    private const MONITOR_TEST_TIMEOUT = 30;
+    private const MONITOR_TEST_TTL = 3600;
+
+    public function queue_db() {
+        $atomic = App::instance();
+        (new Migrations)->publish($atomic->get('MIGRATIONS_CORE') . 'atomic_create_queue_tables');
+    }
+    
+    public function queue_worker() {
+        $args = $this->get_cli_args();
+        if (!isset($args[0]) || empty($args[0])) {
+            echo "Usage: php atomic queue/worker <queue_name>\n";
+            return;
+        }
+        $queue_name = $args[0];
+        $queue_manager = new Manager($queue_name);
+        $worker = new Worker($queue_manager);
+        $worker->run();
+    }
+
+    public function queue_monitor() {
+        $queue_monitor = new Monitor();
+        $queue_monitor->run();
+    }
+
+    public function queue_test_monitor(): void
+    {
+        $atomic = App::instance();
+        $args = $this->get_cli_args();
+        $queue_name = $args[0] ?? 'default';
+
+        $driver = (string) $atomic->get('QUEUE_DRIVER');
+        if ($driver === 'database') {
+            $this->seed_monitor_test_cases_db($queue_name);
+            return;
+        }
+
+        if ($driver === 'redis') {
+            $this->seed_monitor_test_cases_redis($queue_name);
+            return;
+        }
+
+        echo "queue/test/monitor is not supported for queue driver '{$driver}'\n";
+    }
+
+    private function seed_monitor_test_cases_db(string $queue_name): void
+    {
+        $atomic = App::instance();
+
+        $queue_manager = new Manager($queue_name);
+        $connection_manager = new ConnectionManager();
+        $sql = $connection_manager->get_db();
+        $jobs_mapper = new Cortex($sql, $atomic->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+
+        $now = \time();
+        $monitor_cases = $this->build_monitor_test_cases($now);
+
+        $created = 0;
+        $failed = 0;
+
+        foreach ($monitor_cases as $case_name => $case) {
+            $result = $this->enqueue_monitor_test_case($queue_manager, $case_name, $case);
+            $uuid = $result['uuid'];
+
+            if (!$result['queued']) {
+                $failed++;
+                echo "Failed to queue monitor test job for case '{$case_name}'\n";
+                continue;
+            }
+
+            $jobs_mapper->load(['uuid = ?', $uuid]);
+            if ($jobs_mapper->dry()) {
+                $failed++;
+                echo "Queued UUID '{$uuid}' but could not reload row for case '{$case_name}'\n";
+                continue;
+            }
+
+            $jobs_mapper->available_at = (int) $case['available_at'];
+            $jobs_mapper->pid = (int) $case['pid'];
+            $jobs_mapper->attempts = (int) $case['attempts'];
+            $jobs_mapper->process_start_ticks = null;
+            $jobs_mapper->save();
+
+            $created++;
+            echo "Queued monitor test case '{$case_name}' with UUID '{$uuid}'\n";
+        }
+
+        $connection_manager->close_sql();
+
+        echo "queue/test/monitor completed for queue '{$queue_name}'. Created: {$created}, Failed: {$failed}\n";
+        echo "Run: php atomic queue/monitor\n";
+    }
+
+    private function seed_monitor_test_cases_redis(string $queue_name): void
+    {
+        $atomic = App::instance();
+        $queue_manager = new Manager($queue_name);
+        $connection_manager = new ConnectionManager();
+        $redis = $connection_manager->get_redis();
+        $prefix = (string) $atomic->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+
+        $pending_key = $prefix . $queue_name . '.idx.pending';
+        $running_key = $prefix . $queue_name . '.idx.running';
+        $pid_map_key = $prefix . 'meta.pid_map';
+
+        $now = \time();
+        $monitor_cases = $this->build_monitor_test_cases($now);
+
+        $created = 0;
+        $failed = 0;
+
+        foreach ($monitor_cases as $case_name => $case) {
+            $result = $this->enqueue_monitor_test_case($queue_manager, $case_name, $case);
+            $uuid = $result['uuid'];
+
+            if (!$result['queued']) {
+                $failed++;
+                echo "Failed to queue monitor test job for case '{$case_name}'\n";
+                continue;
+            }
+
+            $registry_key = $prefix . 'registry.' . $uuid;
+            if (!$redis->exists($registry_key)) {
+                $failed++;
+                echo "Queued UUID '{$uuid}' but missing registry entry for case '{$case_name}'\n";
+                continue;
+            }
+
+            $available_at = (int) $case['available_at'];
+            $pid = (int) $case['pid'];
+
+            $redis->hMSet($registry_key, [
+                'state' => 'running',
+                'pid' => (string) $pid,
+                'process_start_ticks' => '',
+                'available_at' => (string) $available_at,
+                'attempts' => (string) ((int) $case['attempts']),
+                'max_attempts' => (string) ((int) $case['max_attempts']),
+                'retry_delay' => (string) ((int) $case['retry_delay']),
+                'updated_at' => (string) $now,
+            ]);
+
+            $redis->zRem($pending_key, $uuid);
+            $redis->zAdd($running_key, $available_at * 1000, $uuid);
+
+            if (!empty($case['map_pid'])) {
+                $redis->hSet($pid_map_key, (string) $pid, $uuid);
+            }
+
+            $created++;
+            echo "Queued monitor test case '{$case_name}' with UUID '{$uuid}'\n";
+        }
+
+        $connection_manager->close_redis();
+
+        echo "queue/test/monitor completed for queue '{$queue_name}'. Created: {$created}, Failed: {$failed}\n";
+        echo "Run: php atomic queue/monitor\n";
+    }
+
+    private function build_monitor_test_cases(int $now): array
+    {
+        return [
+            'stuck_pid_placeholder' => [
+                'available_at' => $now - 30,
+                'pid' => self::MONITOR_TEST_PID_PLACEHOLDER,
+                'attempts' => 1,
+                'max_attempts' => 3,
+                'retry_delay' => 2,
+                'map_pid' => false,
+            ],
+            'stuck_invalid_pid' => [
+                'available_at' => $now - 30,
+                'pid' => 0,
+                'attempts' => 1,
+                'max_attempts' => 3,
+                'retry_delay' => 2,
+                'map_pid' => false,
+            ],
+            'stuck_inactive_release' => [
+                'available_at' => $now - 30,
+                'pid' => 999991,
+                'attempts' => 1,
+                'max_attempts' => 3,
+                'retry_delay' => 2,
+                'map_pid' => false,
+            ],
+            'stuck_inactive_fail' => [
+                'available_at' => $now - 30,
+                'pid' => 999992,
+                'attempts' => 3,
+                'max_attempts' => 3,
+                'retry_delay' => 2,
+                'map_pid' => false,
+            ],
+            'in_progress_pid_placeholder' => [
+                'available_at' => $now + 90,
+                'pid' => self::MONITOR_TEST_PID_PLACEHOLDER,
+                'attempts' => 1,
+                'max_attempts' => 3,
+                'retry_delay' => 2,
+                'map_pid' => true,
+            ],
+            'in_progress_inactive' => [
+                'available_at' => $now + 90,
+                'pid' => 999993,
+                'attempts' => 1,
+                'max_attempts' => 3,
+                'retry_delay' => 2,
+                'map_pid' => true,
+            ],
+        ];
+    }
+
+    private function enqueue_monitor_test_case(Manager $queue_manager, string $case_name, array $case): array
+    {
+        $uuid = ID::uuid_v4();
+        $queued = $queue_manager->push(
+            [Test::class, 'success'],
+            [
+                'params' => [
+                    'id' => 123,
+                    'type' => 'monitor',
+                    'monitor_case' => $case_name,
+                ],
+                'smth' => 'monitor-test',
+            ],
+            [
+                'delay' => self::MONITOR_TEST_DELAY,
+                'priority' => self::MONITOR_TEST_PRIORITY,
+                'timeout' => self::MONITOR_TEST_TIMEOUT,
+                'max_attempts' => (int) $case['max_attempts'],
+                'retry_delay' => (int) $case['retry_delay'],
+                'ttl' => self::MONITOR_TEST_TTL,
+            ],
+            $uuid
+        );
+
+        return [
+            'uuid' => $uuid,
+            'queued' => (bool) $queued,
+        ];
+    }
+
+    public function queue_retry() {
+        $args = $this->get_cli_args();
+        $queue_manager = new Manager();
+
+        if (!isset($args[0]) || empty($args[0])) {
+            try {
+                $queue_manager->retry();
+                echo "Retried failed jobs\n";
+            } catch (\Throwable $th) {
+                echo "Error retrying failed jobs: " . $th->getMessage() . "\n";
+            }
+            return;
+        }
+
+        $arg = $args[0];
+
+        if (ID::is_valid_uuid_v4($arg)) {
+            try {
+                $result = $queue_manager->retry_by_uuid($arg);
+                if ($result) {
+                    echo "Successfully retried failed job with UUID '{$arg}'\n";
+                } else {
+                    echo "Could not retry failed job with UUID '{$arg}' - it may not exist\n";
+                }
+            } catch (\Throwable $th) {
+                echo "Error retrying job by UUID: " . $th->getMessage() . "\n";
+            }
+            return;
+        }
+
+        $queue_name = $arg;
+        try {
+            $queue_manager_by_name = new Manager($queue_name);
+            $queue_manager_by_name->retry();
+            echo "Retried failed jobs for queue '{$queue_name}'\n";
+        } catch (\Throwable $th) {
+            echo "Could not retry queue '{$queue_name}': " . $th->getMessage() . "\n";
+        }
+    }
+
+    public function queue_delete_job() 
+    {
+        $args = $this->get_cli_args();
+        if (!isset($args[0]) || empty($args[0])) {
+            echo "Usage: php atomic queue/delete <job_uuid>\n";
+            return;
+        }
+        $uuid = $args[0];
+        $queue_manager = new Manager();
+        try {
+            $deleted = $queue_manager->delete_job($uuid);
+            if ($deleted) {
+                echo "Successfully deleted job with UUID '{$uuid}'\n";
+            } else {
+                echo "Could not delete job with UUID '{$uuid}' - it may not exist or it may be currently running\n";
+            }
+        } catch (\Throwable $th) {
+            echo "Error deleting job: " . $th->getMessage() . "\n";
+        }
+    }
+}

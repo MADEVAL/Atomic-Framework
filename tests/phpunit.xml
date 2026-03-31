@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         displayDetailsOnTestsThatTriggerWarnings="true"
+         failOnRisky="false"
+         failOnWarning="true">
+    <testsuites>
+        <testsuite name="Engine">
+            <directory>Engine</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>../engine/Atomic</directory>
+        </include>
+    </source>
+</phpunit>

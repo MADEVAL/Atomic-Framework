@@ -1,0 +1,33 @@
+{
+  "name": "atomic/framework",
+  "description": "Atomic Framework – power in minimalism",
+  "type": "library",
+  "license": "GPL v2",
+  "require": {
+    "php": ">=8.1",
+    "bcosca/fatfree-core": "dev-master#6872dcfb0906d092e1cb37fd7c2abbadc61ecbd0",
+    "globus-studio/cortex-atomic": "^2.0",
+    "mobiledetect/mobiledetectlib": "^4.8",
+    "google/apiclient": "^2.15",
+    "workerman/workerman": "^5.1",
+    "workerman/redis": "^2.0"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "autoload": {
+    "psr-4": {
+      "Engine\\Atomic\\": "engine/Atomic/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^12.5"
+  }
+}
