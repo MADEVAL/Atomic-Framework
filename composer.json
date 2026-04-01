@@ -2,13 +2,11 @@
   "name": "atomic/framework",
   "description": "Atomic Framework – power in minimalism",
   "type": "library",
-  "license": "GPL v2",
+  "license": "GPL-3.0-or-later",
   "require": {
     "php": ">=8.1",
     "bcosca/fatfree-core": "dev-master#6872dcfb0906d092e1cb37fd7c2abbadc61ecbd0",
     "globus-studio/cortex-atomic": "^2.0",
-    "mobiledetect/mobiledetectlib": "^4.8",
-    "google/apiclient": "^2.15",
     "workerman/workerman": "^5.1",
     "workerman/redis": "^2.0"
   },
