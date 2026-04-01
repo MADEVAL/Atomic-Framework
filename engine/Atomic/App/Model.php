@@ -29,17 +29,12 @@ abstract class Model extends Cortex
 		}
 		parent::__construct();
 		$saveHandler = function(Cortex $self): bool {
-			foreach ($self->getFieldConfiguration() as $field => $conf) {
-				if (($conf['nullable'] ?? false) && ($self->get($field) === '')) {
-					$self->set($field, null);
-				}
-			}
-			if (method_exists($self, 'normalize_for_presave')) {
-				$self->normalize_for_presave($self);
-			}
+			$self->before_validate();
 			$valid = true;
 			foreach ($self->getFieldConfiguration() as $field => $conf) {
-				// TODO reltype
+				if (in_array($conf['relType'] ?? null, ['has-many', 'belongs-to-many'], true)) {
+					continue;
+				}
 				$val = isset($conf['relType']) ? $self->getRaw($field) : $self->get($field);
 				$res = Validator::validate_model($conf, $val, $field, $self);
 				if (!$res[0]) {
@@ -53,6 +48,8 @@ abstract class Model extends Cortex
 		};
 		$this->beforesave($saveHandler);
 	}
+
+	protected function before_validate(): void {}
 
 	public function get_last_err_code(): false|string {
 		return $this->last_err_code;

@@ -257,7 +257,7 @@ trait ValidatorModelTrait
 	}
 
 	public static function nullable(array $field_conf, mixed $field_val): bool {
-		if (isset($field_conf['nullable']) && $field_conf['nullable'] && ($field_val === null || $field_val === '')) {
+		if (isset($field_conf['nullable']) && $field_conf['nullable'] && $field_val === null) {
 			return true;
 		}
 		return false;
@@ -363,7 +363,7 @@ trait ValidatorModelTrait
 	public static function unique(Cortex $model, mixed $val, string $field): bool
 	{
 		$valid = true;
-		if (empty($val)) return $valid;
+		if ($val === null) return $valid;
 
 		$params = [];
 		$expr_parts = [];

@@ -53,7 +53,6 @@ trait PathResolutionTrait
     {
         $prefix_map = [
             'engine/Atomic/' => 'ATOMIC_FRAMEWORK',
-            'storage/'       => 'ATOMIC_FRAMEWORK',
             'Atomic/'        => 'ATOMIC_ENGINE',
         ];
 

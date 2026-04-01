@@ -169,11 +169,13 @@ class ValidatorModelTraitTest extends TestCase
 
     public function test_nullable(): void
     {
+        // Only null is treated as nullable — nothing else should bypass validation
         $this->assertTrue(Validator::nullable(['nullable' => true], null));
-        $this->assertTrue(Validator::nullable(['nullable' => true], ''));
         $this->assertFalse(Validator::nullable(['nullable' => false], null));
         $this->assertFalse(Validator::nullable(['nullable' => true], 'value'));
-        // PHP-falsy values are NOT considered nullable (only null and '' are)
+        // Empty string must NOT be treated as null — it should fall through to required/type checks
+        $this->assertFalse(Validator::nullable(['nullable' => true], ''));
+        // PHP-falsy values are NOT considered nullable
         $this->assertFalse(Validator::nullable(['nullable' => true], '0'));
         $this->assertFalse(Validator::nullable(['nullable' => true], 0));
         $this->assertFalse(Validator::nullable(['nullable' => true], false));
@@ -351,6 +353,133 @@ class ValidatorModelTraitTest extends TestCase
         $this->assertFalse(Validator::max('abcdef', 5));
         // non-numeric, non-string
         $this->assertFalse(Validator::max(null, 10));
+    }
+
+    // ────────────────────────────────────────
+    //  Nullable: empty string must NOT bypass validation
+    // ────────────────────────────────────────
+
+    public function test_nullable_empty_string_falls_through_to_required(): void
+    {
+        // nullable + required field: empty string should fail required check (not be silently accepted)
+        $conf = ['nullable' => true, 'required' => true, 'type' => 'VARCHAR256'];
+        // nullable returns false for '' so it falls through
+        $this->assertFalse(Validator::nullable($conf, ''));
+        // required catches the empty string
+        $this->assertFalse(Validator::required($conf, ''));
+    }
+
+    public function test_nullable_empty_string_falls_through_to_type_check(): void
+    {
+        // nullable, not required: empty string should still be type-checked
+        $conf = ['nullable' => true, 'type' => 'INT4'];
+        // nullable does NOT absorb ''
+        $this->assertFalse(Validator::nullable($conf, ''));
+        // '' is not a valid integer
+        $this->assertFalse(Validator::validate_integer('', -2147483648, 2147483647));
+    }
+
+    public function test_nullable_null_still_accepted(): void
+    {
+        // Actual null on a nullable field should still pass
+        $this->assertTrue(Validator::nullable(['nullable' => true], null));
+    }
+
+    // ────────────────────────────────────────
+    //  Unique: falsy values must be checked
+    // ────────────────────────────────────────
+
+    private function cortexMock(): \DB\Cortex
+    {
+        return $this->getMockBuilder(\DB\Cortex::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+    }
+
+    public function test_unique_skips_null(): void
+    {
+        $model = $this->cortexMock();
+        // null should skip the uniqueness check entirely (return true)
+        $this->assertTrue(Validator::unique($model, null, 'field'));
+    }
+
+    public function test_unique_checks_zero_int(): void
+    {
+        $model = $this->cortexMock();
+        $model->method('getFieldConfiguration')->willReturn(['field' => []]);
+        $model->method('dry')->willReturn(true);
+        // No duplicate found -> unique
+        $model->method('findone')->willReturn(null);
+
+        $this->assertTrue(Validator::unique($model, 0, 'field'));
+    }
+
+    public function test_unique_checks_zero_string(): void
+    {
+        $model = $this->cortexMock();
+        $model->method('getFieldConfiguration')->willReturn(['field' => []]);
+        $model->method('dry')->willReturn(true);
+        $model->method('findone')->willReturn(null);
+
+        $this->assertTrue(Validator::unique($model, '0', 'field'));
+    }
+
+    public function test_unique_checks_empty_string(): void
+    {
+        $model = $this->cortexMock();
+        $model->method('getFieldConfiguration')->willReturn(['field' => []]);
+        $model->method('dry')->willReturn(true);
+        $model->method('findone')->willReturn(null);
+
+        $this->assertTrue(Validator::unique($model, '', 'field'));
+    }
+
+    public function test_unique_zero_int_duplicate_fails(): void
+    {
+        $model = $this->cortexMock();
+        $model->method('getFieldConfiguration')->willReturn(['field' => []]);
+        $model->method('dry')->willReturn(true);
+        // Duplicate found -> not unique
+        $duplicate = $this->cortexMock();
+        $model->method('findone')->willReturn($duplicate);
+
+        $this->assertFalse(Validator::unique($model, 0, 'field'));
+    }
+
+    public function test_unique_checks_false(): void
+    {
+        $model = $this->cortexMock();
+        $model->method('getFieldConfiguration')->willReturn(['field' => []]);
+        $model->method('dry')->willReturn(true);
+        $model->method('findone')->willReturn(null);
+
+        $this->assertTrue(Validator::unique($model, false, 'field'));
+    }
+
+    public function test_unique_excludes_current_record(): void
+    {
+        $model = $this->cortexMock();
+        $model->method('getFieldConfiguration')->willReturn(['field' => []]);
+        $model->method('dry')->willReturn(false);
+        $model->_id = 42;
+        $model->method('findone')->willReturn(null);
+
+        $this->assertTrue(Validator::unique($model, 'some_value', 'field'));
+    }
+
+    public function test_unique_with_unique_by_compound(): void
+    {
+        $model = $this->cortexMock();
+        $model->method('getFieldConfiguration')->willReturn([
+            'email' => [
+                'unique_by' => ['tenant_id'],
+            ],
+        ]);
+        $model->method('dry')->willReturn(true);
+        $model->method('getRaw')->with('tenant_id')->willReturn(5);
+        $model->method('findone')->willReturn(null);
+
+        $this->assertTrue(Validator::unique($model, 'user@example.com', 'email'));
     }
 
 }

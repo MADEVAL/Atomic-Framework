@@ -122,8 +122,10 @@ abstract class Server
             unset($self->connections[$socket_int]);
         };
 
+        Worker::$daemonize = true;
+
         global $argv;
-        $argv = [$argv[0] ?? 'atomic', 'start'];
+        $argv = [$argv[0] ?? 'atomic', 'start', '-d'];
 
         Worker::runAll();
     }
