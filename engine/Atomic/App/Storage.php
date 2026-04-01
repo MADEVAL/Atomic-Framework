@@ -4,7 +4,7 @@ namespace Engine\Atomic\App;
 
 if (!defined('ATOMIC_START')) exit;
 
-use DB\SQL\Schema;
+use DB\Cortex\Schema\Schema;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Log;
 

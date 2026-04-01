@@ -4,7 +4,7 @@ declare(strict_types=1);
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
-use DB\SQL\Schema;
+use DB\Cortex\Schema\Schema;
 
 return [
     'up' => function () {

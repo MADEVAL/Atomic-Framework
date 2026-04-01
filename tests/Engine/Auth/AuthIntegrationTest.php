@@ -241,9 +241,13 @@ final class AuthIntegrationTest extends TestCase
 
         App::instance($base);
 
-        $this->redis = new \Redis();
-        if (!$this->redis->connect('127.0.0.1', 6379, 1.0)) {
-            self::fail('Redis is required for the integration suite.');
+        if (extension_loaded('redis')) {
+            $this->redis = new \Redis();
+            if (!$this->redis->connect('127.0.0.1', 6379, 1.0)) {
+                self::fail('Cannot connect to Redis at 127.0.0.1:6379.');
+            }
+        } elseif ($driver === 'redis') {
+            self::markTestSkipped('ext-redis not loaded - cannot run Redis driver tests.');
         }
 
         $app = new AppContextAdapter();

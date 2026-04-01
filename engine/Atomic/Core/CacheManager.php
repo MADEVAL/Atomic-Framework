@@ -18,6 +18,11 @@ class CacheManager extends \Prefab
         if (isset($this->hive['redis'])) {
             return $this->hive['redis'];
         }
+
+        if (!extension_loaded('redis')) {
+            throw new \RuntimeException('The redis PHP extension is not loaded.');
+        }
+
         $atomic = App::instance();
         if (empty($config)) {
             $redis_config = $atomic->get('REDIS');

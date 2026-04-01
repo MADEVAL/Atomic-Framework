@@ -2,7 +2,7 @@
 declare(strict_types=1);
 namespace Engine\Atomic\App;
 
-use DB\SQL\Schema;
+use DB\Cortex\Schema\Schema;
 use Engine\Atomic\Enums\Rule;
 
 if (!defined('ATOMIC_START')) exit;

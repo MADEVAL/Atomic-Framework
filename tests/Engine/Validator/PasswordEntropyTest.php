@@ -31,7 +31,7 @@ class PasswordEntropyTest extends TestCase
             // Weak (below 18.0 entropy or < 8 chars)
             'sex (entropy ~8)'           => ['sex', false],          // too short + low entropy
             'secret (entropy ~14)'       => ['secret', false],       // too short (6 chars)
-            'short7ch'                   => ['short7c', false],      // 7 chars — below min length
+            'short7ch'                   => ['short7c', false],      // 7 chars - below min length
 
             // F3 Audit::entropy() uses Shannon entropy based on charset pool × length.
             // 8 chars of any single charset (digits, lowercase, etc.) = 18.0 exactly,

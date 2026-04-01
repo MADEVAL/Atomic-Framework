@@ -4,7 +4,7 @@ namespace Engine\Atomic\Plugins\Monopay\Models;
 
 if (!defined('ATOMIC_START')) exit;
 
-use DB\SQL\Schema;
+use DB\Cortex\Schema\Schema;
 use Engine\Atomic\App\Model;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Enums\Rule;

@@ -64,9 +64,9 @@ $result = Mutex::synchronized('my-task', 300, function() {
 
 Other helper methods:
 
-- `Mutex::get_driver_name(): ?string` — returns the selected driver name (e.g. `'redis'`, `'database'`), or `null` if none.
-- `Mutex::info(): array` — returns `['driver' => string|null, 'initialized' => bool, 'available' => bool]`.
-- `Mutex::reset(): void` and `Mutex::set_driver(MutexDriverInterface $driver): void` — helpers for tests and dependency injection.
+- `Mutex::get_driver_name(): ?string` - returns the selected driver name (e.g. `'redis'`, `'database'`), or `null` if none.
+- `Mutex::info(): array` - returns `['driver' => string|null, 'initialized' => bool, 'available' => bool]`.
+- `Mutex::reset(): void` and `Mutex::set_driver(MutexDriverInterface $driver): void` - helpers for tests and dependency injection.
 
 ## Configuration
 
@@ -242,7 +242,7 @@ if (Mutex::exists('my-task')) {
 2. Verify configuration (REDIS, MEMCACHED, DB settings or `MUTEX.driver`)
 3. Ensure database migration ran (for `db` driver)
 4. Check file permissions (for `file` driver)
-5. Check lock name validity — names must match `/^[A-Za-z0-9:._-]{1,128}$/`. Invalid names cause warnings and operations will fail.
+5. Check lock name validity - names must match `/^[A-Za-z0-9:._-]{1,128}$/`. Invalid names cause warnings and operations will fail.
 
 ### Lock not being released
 

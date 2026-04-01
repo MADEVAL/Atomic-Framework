@@ -47,15 +47,15 @@ final class Shortcode
         $attrPattern = '/(\w+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\']+))|(?:"([^"]*)"|\'([^\']*)\'|([^\s"\']+))/u'; // TODO test
         if (preg_match_all($attrPattern, $attrString, $matches, PREG_SET_ORDER)) { 
             foreach ($matches as $match) { 
-                $attrName           = $match[1];
+                $attrName           = $match[1] ?? '';
 
-                $quot_double        = $match[2];
-                $quot_single        = $match[3];
-                $quot_no            = $match[4];
+                $quot_double        = $match[2] ?? '';
+                $quot_single        = $match[3] ?? '';
+                $quot_no            = $match[4] ?? '';
 
-                $quot_double_alt    = $match[5];
-                $quot_single_alt    = $match[6];
-                $quot_no_alt        = $match[7];                
+                $quot_double_alt    = $match[5] ?? '';
+                $quot_single_alt    = $match[6] ?? '';
+                $quot_no_alt        = $match[7] ?? '';                
 
                 if ($attrName !== '') {
                     $out[$attrName] = $quot_double !== '' ? $quot_double : ($quot_single !== '' ? $quot_single : $quot_no);

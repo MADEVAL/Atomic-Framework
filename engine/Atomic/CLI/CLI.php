@@ -8,11 +8,12 @@ use Engine\Atomic\Core\App;
 
 class CLI { 
     use DB;
-    use Queue;
     use File;
+    use Init;
     use Migrations;
-    use Seeder;
+    use Queue;
     use Scheduler;
+    use Seeder;
 
     protected App $atomic;
 
@@ -22,6 +23,8 @@ class CLI {
 
     public function help(): void {
         echo "Atomic Help\n";
+        echo "  init               - Initialize new project (dirs, .env, keys)\n";
+        echo "  init:key           - Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY\n";
         echo "  help               - View this help\n";
         echo "  migrate            - Create migrations\n";
         echo "  cache clear        - Clear cache\n";

@@ -169,11 +169,11 @@ class ValidatorModelTraitTest extends TestCase
 
     public function test_nullable(): void
     {
-        // Only null is treated as nullable — nothing else should bypass validation
+        // Only null is treated as nullable - nothing else should bypass validation
         $this->assertTrue(Validator::nullable(['nullable' => true], null));
         $this->assertFalse(Validator::nullable(['nullable' => false], null));
         $this->assertFalse(Validator::nullable(['nullable' => true], 'value'));
-        // Empty string must NOT be treated as null — it should fall through to required/type checks
+        // Empty string must NOT be treated as null - it should fall through to required/type checks
         $this->assertFalse(Validator::nullable(['nullable' => true], ''));
         // PHP-falsy values are NOT considered nullable
         $this->assertFalse(Validator::nullable(['nullable' => true], '0'));

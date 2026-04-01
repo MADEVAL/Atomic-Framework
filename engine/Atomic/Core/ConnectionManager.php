@@ -104,6 +104,10 @@ class ConnectionManager
 
     private function open_redis(): ?\Redis
     {
+        if (!extension_loaded('redis')) {
+            return null;
+        }
+
         if ($this->redis) {
             if (!$this->should_health_check($this->redis_last_used_at, self::DEFAULT_REDIS_HEALTHCHECK_INTERVAL)) {
                 $this->redis_last_used_at = $this->now();

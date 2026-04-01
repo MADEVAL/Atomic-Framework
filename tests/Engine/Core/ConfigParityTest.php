@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  *
  * Verifies that ConfigLoader (env-based) and PhpConfigLoader (PHP-based)
  * produce identical F3 hive values when reading the real project .env and config/ files.
- * No mock data — all assertions run against actual configuration.
+ * No mock data - all assertions run against actual configuration.
  */
 class ConfigParityTest extends TestCase
 {
@@ -49,16 +49,20 @@ class ConfigParityTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         $package_dir = realpath(__DIR__ . '/../../../');
-        self::assertNotFalse($package_dir, 'Could not resolve package directory');
+        if ($package_dir === false) {
+            self::markTestSkipped('Could not resolve package directory');
+        }
 
         $src_dir = realpath($package_dir . '/../src');
-        self::assertNotFalse($src_dir, 'Could not resolve project src/ directory');
+        if ($src_dir === false) {
+            self::markTestSkipped('Could not resolve project src/ directory - skipping parity test');
+        }
 
         defined('ATOMIC_DIR')       || define('ATOMIC_DIR', $src_dir);
         defined('ATOMIC_CONFIG')    || define('ATOMIC_CONFIG', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR);
 
         $framework = realpath($package_dir);
-        self::assertNotFalse($framework, 'vendor/atomic/framework not found — run composer install first');
+        self::assertNotFalse($framework, 'vendor/atomic/framework not found - run composer install first');
 
         defined('ATOMIC_FRAMEWORK') || define('ATOMIC_FRAMEWORK', $framework . DIRECTORY_SEPARATOR);
         defined('ATOMIC_ENGINE')    || define('ATOMIC_ENGINE', ATOMIC_FRAMEWORK . 'engine' . DIRECTORY_SEPARATOR);

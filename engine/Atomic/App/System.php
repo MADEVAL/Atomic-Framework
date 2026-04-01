@@ -19,6 +19,16 @@ class System extends Controller
         return $this->cli ??= new CLI();
     }
 
+    public function appInit(): void
+    {
+        $this->cli()->init();
+    }
+
+    public function appInitKey(): void
+    {
+        $this->cli()->initKey();
+    }
+
     public function help(): void
     {
         $this->cli()->help();

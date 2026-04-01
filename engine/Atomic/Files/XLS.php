@@ -6,7 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 // Known limitations:
 // - Number separator (locale-dependent) is not handled
-// - Basic formula evaluation (SUM, etc.) is not supported — formulas return cached values only
+// - Basic formula evaluation (SUM, etc.) is not supported - formulas return cached values only
 class XLS {
     private const OLE2_HEADER = "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1";
     private const FAT_END_MARK = 0xFFFFFFFE;

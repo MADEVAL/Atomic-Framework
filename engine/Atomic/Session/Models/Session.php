@@ -5,7 +5,7 @@ namespace Engine\Atomic\Session\Models;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\App\Model;
-use DB\SQL\Schema;
+use DB\Cortex\Schema\Schema;
 
 class Session extends Model
 {

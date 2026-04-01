@@ -5,7 +5,7 @@ namespace Engine\Atomic\Core;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use DB\Cortex;
-use DB\SQL\Schema;
+use DB\Cortex\Schema\Schema;
 
 class Migrations {
 
@@ -71,7 +71,7 @@ class Migrations {
             $template = <<<PHP
             <?php
             use Engine\Atomic\Core\App;
-            use DB\SQL\Schema;
+            use DB\Cortex\Schema\Schema;
         
             return [
                 'up' => function () {

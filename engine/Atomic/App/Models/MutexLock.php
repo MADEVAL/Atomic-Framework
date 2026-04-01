@@ -12,17 +12,17 @@ class MutexLock extends Model
     
     protected $fieldConf = [
         'name' => [
-            'type' => \DB\SQL\Schema::DT_VARCHAR256,
+            'type' => \DB\Cortex\Schema\Schema::DT_VARCHAR256,
             'unique' => true,
         ],
         'token' => [
-            'type' => \DB\SQL\Schema::DT_VARCHAR128,
+            'type' => \DB\Cortex\Schema\Schema::DT_VARCHAR128,
         ],
         'expires_at' => [
-            'type' => \DB\SQL\Schema::DT_INT,
+            'type' => \DB\Cortex\Schema\Schema::DT_INT,
         ],
         'created_at' => [
-            'type' => \DB\SQL\Schema::DT_INT,
+            'type' => \DB\Cortex\Schema\Schema::DT_INT,
         ],
     ];
 

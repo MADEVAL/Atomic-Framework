@@ -67,13 +67,37 @@ class Transient
             $suffix = ($driver === self::DRIVER_REDIS) ? '*' : '';
             return $cache->reset(self::get_cache_prefix($cache, '') . $suffix);
         }
+
         $cm = CacheManager::instance();
-        $redis = $cm->redis();
-        $redis_res = $redis->reset(self::get_cache_prefix($redis, '') . '*');
-        $memcached = $cm->memcached();
-        $memcached_res = $memcached->reset(self::get_cache_prefix($memcached, ''));
-        $db = $cm->db();
-        $db_res = $db->reset(self::get_cache_prefix($db, ''));
-        return $redis_res || $memcached_res || $db_res;
+        $ok = false;
+
+        try {
+            $redis = $cm->redis();
+            if ($redis->reset(self::get_cache_prefix($redis, '') . '*')) {
+                $ok = true;
+            }
+        } catch (\RuntimeException) {
+            // Redis extension unavailable - skip
+        }
+
+        try {
+            $memcached = $cm->memcached();
+            if ($memcached->reset(self::get_cache_prefix($memcached, ''))) {
+                $ok = true;
+            }
+        } catch (\RuntimeException) {
+            // Memcached extension unavailable - skip
+        }
+
+        try {
+            $db = $cm->db();
+            if ($db->reset(self::get_cache_prefix($db, ''))) {
+                $ok = true;
+            }
+        } catch (\Throwable) {
+            // DB unavailable - skip
+        }
+
+        return $ok;
     }
 }

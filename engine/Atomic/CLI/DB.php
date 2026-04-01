@@ -4,7 +4,7 @@ namespace Engine\Atomic\CLI;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
-use DB\SQL\Schema;
+use DB\Cortex\Schema\Schema;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Migrations;
 
@@ -13,7 +13,7 @@ trait DB {
     {
         $db = App::instance()->get('DB');
 
-        $schema = new \DB\SQL\Schema($db);
+        $schema = new Schema($db);
         $tables = $schema->getTables();
         if (is_array($tables)) {
             foreach ($tables as $table) {
