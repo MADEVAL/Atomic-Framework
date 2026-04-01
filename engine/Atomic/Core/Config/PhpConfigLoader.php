@@ -117,7 +117,7 @@ class PhpConfigLoader {
             'TEMP'                  => $this->fix_path($paths['temp'] ?? 'storage/framework/cache/data/'),
             'LOGS'                  => $this->fix_path($paths['logs'] ?? 'storage/logs/'),
             'LOCALES'               => $this->fix_path($paths['locales'] ?? 'engine/Atomic/Lang/locales/'),
-            'FONTS'                 => $this->fix_path($paths['fonts'] ?? 'storage/framework/fonts/'),
+            'FONTS'                 => $this->fix_path($paths['fonts'] ?? 'engine/Atomic/Files/fonts/'),
             'FONTS_TEMP'            => $this->fix_path($paths['fonts_temp'] ?? 'storage/framework/cache/fonts/'),
             'MIGRATIONS'            => $this->fix_path($paths['migrations'] ?? 'database/migrations/'),
             'MIGRATIONS_BUNDLED'    => $this->fix_path($paths['migrations'] ?? 'database/migrations/') . 'atomic/',

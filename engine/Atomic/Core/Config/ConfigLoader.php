@@ -97,7 +97,7 @@ class ConfigLoader {
             'TEMP'                  => $this->fix_path($this->get_env('TEMP', 'storage/framework/cache/data/')),
             'LOGS'                  => $this->fix_path($this->get_env('LOGS', 'storage/logs/')),
             'LOCALES'               => $this->fix_path($this->get_env('LOCALES', 'engine/Atomic/Lang/locales/')),
-            'FONTS'                 => $this->fix_path($this->get_env('FONTS', 'storage/framework/fonts/')),
+            'FONTS'                 => $this->fix_path($this->get_env('FONTS', 'engine/Atomic/Files/fonts/')),
             'FONTS_TEMP'            => $this->fix_path($this->get_env('FONTS_TEMP', 'storage/framework/cache/fonts/')),
             'MIGRATIONS'            => $this->fix_path($this->get_env('MIGRATIONS', 'database/migrations/')),
             'MIGRATIONS_BUNDLED'    => $this->fix_path($this->get_env('MIGRATIONS', 'database/migrations/') . 'atomic/'),
