@@ -12,6 +12,7 @@ use Engine\Atomic\Core\ExceptionHandlerRegistrar;
 use Engine\Atomic\Core\Prefly;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use Engine\Atomic\App\PluginManager;
+use Engine\Atomic\Theme\Theme;
 
 class App {
     protected static ?self $instance = null;
@@ -35,6 +36,10 @@ class App {
 
     public static function atomic(): \Base {
         return self::instance()->atomic;
+    }
+
+    public static function initTheme(): Theme {
+        return Theme::instance();
     }
 
     public function prefly(): self
@@ -131,6 +136,18 @@ class App {
     }
     
     public function setDB(): self {
+        $cfg      = $this->atomic->get('DB_CONFIG') ?? [];
+        $host     = $cfg['host']     ?? '';
+        $database = $cfg['database'] ?? '';
+        $username = $cfg['username'] ?? '';
+        $password = $cfg['password'] ?? '';
+
+        $configComplete = !empty($host) && !empty($database) && !empty($username) && !empty($password);
+        
+        if (!$configComplete) {
+            return $this;
+        }
+
         if ($this->connection_manager === null) {
             $this->connection_manager = new ConnectionManager();
         }
@@ -223,7 +240,8 @@ class App {
     }
 
     public function run(): void
-    {        if (empty($this->atomic->CLI)) {
+    {        
+        if (empty($this->atomic->CLI)) {
             $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
             $path = parse_url($requestUri, PHP_URL_PATH) ?: '/';
             if ($path !== '/' && substr($path, -1) === '/') {

@@ -34,8 +34,11 @@ class Theme
         $this->themeName = $themeName ?: (string)$this->atomic->get('THEME.envname', 'default');
         // Set UI path to specific theme
         $this->atomic->set('UI',  $this->themeUI . DIRECTORY_SEPARATOR . $this->themeName . DIRECTORY_SEPARATOR);
-        // Update local themeDir 
+        // Update local themeDir
         $this->themeDir  = (string)$this->atomic->get('UI');
+        if (!is_dir($this->themeDir)) {
+            Log::error('Theme directory not found: ' . $this->themeDir);
+        }
         // Core functions file path
         $this->themeCore = $this->themeDir . 'functions.atom.php';
         // Theme data file path
@@ -140,39 +143,32 @@ class Theme
     }
 
     public static function get_header(string $name = 'header', ?array $vars = null): void {
-        $template = \View::instance();
-        $path = 'partials/' . $name . '.atom.php';
-        echo $template->render($path, 'text/html', $vars);
+        echo \View::instance()->render('partials/' . $name . '.atom.php', 'text/html', $vars);
     }
 
     public static function get_footer(string $name = 'footer', ?array $vars = null): void {
-        $template = \View::instance();
-        $path = 'partials/' . $name . '.atom.php';
-        echo $template->render($path, 'text/html', $vars);
+        echo \View::instance()->render('partials/' . $name . '.atom.php', 'text/html', $vars);
     }
 
     public static function get_sidebar(string $name = 'sidebar', ?array $vars = null): void {
-        $template = \View::instance();
-        $path = 'partials/' . $name . '.atom.php';
-        echo $template->render($path, 'text/html', $vars);
+        echo \View::instance()->render('partials/' . $name . '.atom.php', 'text/html', $vars);
     }
 
     public static function get_section(string $name, ?array $vars = null): void {
-        $template = \View::instance();
-        $path = 'partials/' . $name . '.atom.php';
-        echo $template->render($path, 'text/html', $vars);
+        echo \View::instance()->render('partials/' . $name . '.atom.php', 'text/html', $vars);
     }
 
     public static function get_head(?array $vars = null): void {
-        $head = \View::instance();
-        $path = 'partials/head.atom.php';
-        echo $head->render('partials/head.atom.php', 'text/html', $vars);
+        echo \View::instance()->render('partials/head.atom.php', 'text/html', $vars);
     }
 
     public static function get_customHead(?array $vars = null): void {
-        $customhead = \View::instance();
         $path = 'partials/head.custom.atom.php';
-        echo $customhead->render('partials/head.custom.atom.php', 'text/html', $vars);
+        $fullPath = App::instance()->get('UI') . $path;
+        if (!is_file($fullPath)) {
+            return;
+        }
+        echo \View::instance()->render($path, 'text/html', $vars);
     }
    
     public function getThemeMeta(): array
