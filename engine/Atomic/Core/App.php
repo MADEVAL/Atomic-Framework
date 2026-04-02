@@ -38,8 +38,13 @@ class App {
         return self::instance()->atomic;
     }
 
-    public static function initTheme(): Theme {
-        return Theme::instance();
+    public function initTheme(): self
+    {
+        if (AM::instance()->get_isCLI()) {
+            return $this;
+        }
+        Theme::instance();
+        return $this;
     }
 
     public function prefly(): self
