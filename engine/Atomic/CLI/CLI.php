@@ -5,6 +5,8 @@ namespace Engine\Atomic\CLI;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Methods as AM;
+use Engine\Atomic\Core\Log;
 
 class CLI { 
     use DB;
@@ -112,5 +114,58 @@ class CLI {
     public function get_cli_args(): array {
         global $argv;
         return array_slice($argv, 2);
+    }
+
+    public function checkRootWarning(string $rawCommand, string $command): bool {
+        if (!AM::instance()->get_isUserRoot() || !$this->isRootRestrictedCommand($command)) {
+            return false;
+        }
+
+        if (stream_isatty(STDIN)) {
+            $color   = AM::instance()->get_isColorTerminal();
+            $warning = $color ? "\033[1;33m[WARNING]\033[0m" : '[WARNING]';
+            $cmd     = $color ? "\033[1m{$rawCommand}\033[0m" : $rawCommand;
+            echo "{$warning} You are running '{$cmd}' as root.\n";
+            echo "Running as root may cause permission issues.\n";
+            echo "Do you want to continue? [y/N]: ";
+
+            $input = strtolower(trim((string) fgets(STDIN)));
+
+            if ($input !== 'y' && $input !== 'yes') {
+                echo "Aborted.\n";
+                return true;
+            }
+        } else {
+            $msg = "Running '{$rawCommand}' as root in non-interactive mode.";
+            fwrite(STDERR, "[WARNING] {$msg}\n");
+            Log::warning($msg);
+        }
+
+        return false;
+    }
+
+    public function isRootRestrictedCommand(string $command): bool {
+        static $rootRestrictedCommands = [
+            '/init',
+            '/init/key',
+            '/cache/clear',
+            '/db/truncate',
+            '/db/truncate/queue',
+            '/migrations/create',
+            '/migrations/migrate',
+            '/migrations/rollback',
+            '/seed/users',
+            '/seed/roles',
+            '/seed/stores',
+            '/seed/pages',
+            '/seed/products',
+            '/seed/categories',
+            '/redis/clear',
+            '/queue/worker',
+            '/queue/test',
+            '/schedule/work',
+            '/schedule/run',
+        ];
+        return in_array($command, $rootRestrictedCommands, true);
     }
 }

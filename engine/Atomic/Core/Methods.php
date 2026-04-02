@@ -84,6 +84,17 @@ class Methods {
         $debug = $this->atomic->get('DEBUG');
         return $debug > 0;
     }
+    
+    public function get_isUserRoot(): bool
+    {
+        return posix_getuid() === 0;
+    }
+
+    public function get_isColorTerminal(): bool
+    {
+        $term = getenv('TERM');
+        return !empty($term) && $term !== 'dumb';
+    }
 
     public function get_publicDir(): string 
     {

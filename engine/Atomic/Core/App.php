@@ -13,6 +13,7 @@ use Engine\Atomic\Core\Prefly;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\Theme\Theme;
+use Engine\Atomic\CLI\CLI;
 
 class App {
     protected static ?self $instance = null;
@@ -180,20 +181,25 @@ class App {
 
     public function handleCommand(array $argv): int {
         $this->atomic->CLI = true;
+        
         if (count($argv) < 2) {
             echo "Usage: atomic <command> [options]\n";
             return 0;
         }
-        $command = strtolower(trim($argv[1]));
-        $command = str_replace(':', '/', $command);
-        if ($command[0] !== '/') {
-            $command = '/' . $command;
+    
+        $rawCommand = strtolower(trim($argv[1]));
+        $command = '/' . ltrim(str_replace(':', '/', $rawCommand), '/');
+    
+        $cli = new CLI();
+        if ($cli->checkRootWarning($rawCommand, $command)) {
+            return 1;
         }
+    
         $this->atomic->set('PATH', $command);
         $this->atomic->run();
         return 0;
     }
-    
+
     // in base route($pattern,$handler,$ttl=0,$kbps=0)
     public function route(string $pattern, string $handler, array|int $ttlOrMiddleware = 0, int $kbps = 0): void
     {
