@@ -46,13 +46,15 @@ trait Init {
         foreach ($dirs as $dir) {
             $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
             if (!is_dir($path)) {
-                if (@mkdir($path, 0755, true)) {
+                if (mkdir($path, 0755, true)) {
                     $created++;
                 } else {
-                    echo "        WARN: could not create {$dir}\n";
+                    $err = error_get_last()['message'] ?? 'unknown error';
+                    echo "        WARN: could not create {$dir}: {$err}\n";
                 }
             }
         }
+
         echo "        {$created} new director" . ($created === 1 ? 'y' : 'ies') . " created\n\n";
 
         // ── 2. Generate secrets ──
@@ -78,7 +80,7 @@ trait Init {
 
         if (file_exists($envPath)) {
             echo "        .env already exists -- skipped\n";
-            echo "        To regenerate keys, run: php atomic init:key\n\n";
+            echo "        To regenerate keys, run: php atomic init/key\n\n";
         } else {
             $env = $this->buildEnvTemplate($uuid, $appKey, $encKey);
             file_put_contents($envPath, $env);
@@ -114,12 +116,14 @@ trait Init {
         echo "  " . str_repeat('=', 48) . "\n";
         echo "  Done! Next steps:\n";
         echo "    1. Review .env and set DB_DATABASE, DOMAIN, etc.\n";
-        echo "    2. php atomic migrations:migrate\n";
-        echo "    3. php atomic seed:roles\n\n";
+        echo "    2. Set correct ownership for the web server (adjust www-data if needed):\n";
+        echo "       sudo chown -R \$USER:www-data storage public/uploads\n";
+        echo "    3. php atomic migrations/migrate\n";
+        echo "    4. php atomic seed/roles\n\n";
     }
 
     /**
-     * php atomic init:key
+     * php atomic init/key
      * Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY in existing .env
      */
     public function initKey(): void
@@ -150,6 +154,34 @@ trait Init {
         echo "APP_UUID={$uuid}\n";
         echo "APP_KEY={$appKey}\n";
         echo "Keys written to .env\n";
+    }
+
+    /**
+     * php atomic logs/rotate
+     * Delete php_errors-*.log files beyond the most recent 10.
+     */
+    public function logsRotate(): void
+    {
+        $logDir = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
+        $logs   = glob($logDir . DIRECTORY_SEPARATOR . 'php_errors-*.log');
+
+        if (!is_array($logs) || count($logs) <= 10) {
+            echo "Nothing to rotate (" . (is_array($logs) ? count($logs) : 0) . " log file(s)).\n";
+            return;
+        }
+
+        natsort($logs);
+        $excess  = array_slice(array_values($logs), 0, count($logs) - 10);
+        $deleted = 0;
+        foreach ($excess as $old) {
+            if (unlink($old)) {
+                $deleted++;
+            } else {
+                $err = error_get_last()['message'] ?? 'unknown error';
+                echo "WARN: could not delete {$old}: {$err}\n";
+            }
+        }
+        echo "Rotated {$deleted} log file" . ($deleted === 1 ? '' : 's') . ".\n";
     }
 
     // ── private helpers ──
@@ -241,7 +273,7 @@ ESCAPE=false
 UI=public/themes/
 TEMP=storage/framework/cache/data/
 LOGS=storage/logs/
-FONTS=storage/framework/fonts/
+FONTS=engine/Atomic/Files/fonts
 FONTS_TEMP=storage/framework/cache/fonts/
 MIGRATIONS=database/migrations/
 LOCALES=engine/Atomic/Lang/locales/

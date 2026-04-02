@@ -29,6 +29,11 @@ class System extends Controller
         $this->cli()->initKey();
     }
 
+    public function logsRotate(): void
+    {
+        $this->cli()->logsRotate();
+    }
+
     public function help(): void
     {
         $this->cli()->help();

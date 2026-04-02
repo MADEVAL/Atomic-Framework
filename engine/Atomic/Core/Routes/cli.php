@@ -4,6 +4,7 @@ if (!defined('ATOMIC_START')) exit;
 
 $atomic->route('GET /init [cli]', 'Engine\Atomic\App\System->appInit');
 $atomic->route('GET /init/key [cli]', 'Engine\Atomic\App\System->appInitKey');
+$atomic->route('GET /logs/rotate [cli]', 'Engine\Atomic\App\System->logsRotate');
 
 $atomic->route('GET /help [cli]', 'Engine\Atomic\App\System->help');
 $atomic->route('GET /cache/clear [cli]', 'Engine\Atomic\App\System->cacheClear');

@@ -26,10 +26,11 @@ class CLI {
     public function help(): void {
         echo "Atomic Help\n";
         echo "  init               - Initialize new project (dirs, .env, keys)\n";
-        echo "  init:key           - Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY\n";
+        echo "  init/key           - Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY\n";
+        echo "  logs/rotate        - Delete php error log files beyond the most recent 10\n";
         echo "  help               - View this help\n";
-        echo "  migrate            - Create migrations\n";
-        echo "  cache clear        - Clear cache\n";
+        echo "  migrations/migrate - Run database migrations\n";
+        echo "  cache/clear        - Clear cache\n";
         echo "  version            - View versions F3, PHP and Atomic\n";
         echo "  routes             - View routes list\n";
         echo "  classes            - View classes list\n";
