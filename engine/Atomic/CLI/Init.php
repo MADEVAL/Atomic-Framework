@@ -41,16 +41,32 @@ trait Init {
             'storage/logs',
         ];
 
+        $runtimeDirs = array_flip([
+            'storage/logs',
+            'storage/framework/cache/data',
+            'storage/framework/cache/fonts',
+            'storage/framework/fonts',
+            'public/uploads',
+        ]);
+
         echo "  [1/4] Creating directories...\n";
         $created = 0;
         foreach ($dirs as $dir) {
             $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
+            $isRuntime = isset($runtimeDirs[$dir]);
             if (!is_dir($path)) {
-                if (mkdir($path, 0755, true)) {
+                if (mkdir($path, $isRuntime ? 0775 : 0755, true)) {
                     $created++;
                 } else {
                     $err = error_get_last()['message'] ?? 'unknown error';
                     echo "        WARN: could not create {$dir}: {$err}\n";
+                    continue;
+                }
+            }
+            if ($isRuntime) {
+                @chmod($path, 0775);
+                if (!is_writable($path)) {
+                    echo "        WARN: {$dir} is not writable by current web user context\n";
                 }
             }
         }
@@ -118,6 +134,7 @@ trait Init {
         echo "    1. Review .env and set DB_DATABASE, DOMAIN, etc.\n";
         echo "    2. Set correct ownership for the web server (adjust www-data if needed):\n";
         echo "       sudo chown -R \$USER:www-data storage public/uploads\n";
+        echo "       sudo chmod -R ug+rwX storage public/uploads\n";
         echo "    3. php atomic migrations/migrate\n";
         echo "    4. php atomic seed/roles\n\n";
     }
