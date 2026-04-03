@@ -189,11 +189,13 @@ final class AuthIntegrationTest extends TestCase
 
         $db_host = $this->env_value('DB_HOST', '127.0.0.1');
         $db_port = $this->env_value('DB_PORT', '3306');
-        $db_name = $this->env_value('DB_DATABASE', 'atomic');
-        $db_user = $this->env_value('DB_USERNAME', 'user');
-        $db_password = $this->env_value('DB_PASSWORD', 'pass');
+        $db_name = $this->env_value('DB_DATABASE', 'atomic_test');
+        $db_user = $this->env_value('DB_USERNAME', 'root');
+        $db_password = $this->env_value('DB_PASSWORD', 'root');
         $db_charset = $this->env_value('DB_CHARSET', 'utf8mb4');
         $db_collation = $this->env_value('DB_COLLATION', 'utf8mb4_general_ci');
+        $redis_host = $this->env_value('REDIS_HOST', '127.0.0.1');
+        $redis_port = (int) $this->env_value('REDIS_PORT', '6379');
 
         $dsn = \sprintf(
             'mysql:host=%s;port=%s;dbname=%s;charset=%s',
@@ -228,8 +230,8 @@ final class AuthIntegrationTest extends TestCase
         ]);
         $base->set('DB', new \DB\SQL($dsn, $db_user, $db_password));
         $base->set('REDIS', [
-            'host' => '127.0.0.1',
-            'port' => 6379,
+            'host' => $redis_host,
+            'port' => $redis_port,
             'ATOMIC_REDIS_SESSION_PREFIX' => $this->redis_prefix,
         ]);
         $base->set('SESSION_CONFIG', [
@@ -243,8 +245,8 @@ final class AuthIntegrationTest extends TestCase
 
         if (extension_loaded('redis')) {
             $this->redis = new \Redis();
-            if (!$this->redis->connect('127.0.0.1', 6379, 1.0)) {
-                self::fail('Cannot connect to Redis at 127.0.0.1:6379.');
+            if (!$this->redis->connect($redis_host, $redis_port, 1.0)) {
+                self::fail('Cannot connect to Redis at ' . $redis_host . ':' . $redis_port . '.');
             }
         } elseif ($driver === 'redis') {
             self::markTestSkipped('ext-redis not loaded - cannot run Redis driver tests.');
@@ -359,8 +361,19 @@ final class AuthIntegrationTest extends TestCase
         static $env = null;
         if ($env === null) {
             $env = [];
-            $env_path = \dirname(__DIR__, 4) . '/src/.env';
-            if (\is_file($env_path)) {
+            $candidate_paths = [];
+
+            if (\defined('ATOMIC_ENV') && \is_string(ATOMIC_ENV) && ATOMIC_ENV !== '') {
+                $candidate_paths[] = ATOMIC_ENV;
+            }
+
+            $candidate_paths[] = \dirname(__DIR__, 4) . '/.env';
+
+            foreach ($candidate_paths as $env_path) {
+                if (!\is_file($env_path)) {
+                    continue;
+                }
+
                 foreach (\file($env_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
                     $line = \trim($line);
                     if ($line === '' || $line[0] === '#' || !\str_contains($line, '=')) {
@@ -370,6 +383,8 @@ final class AuthIntegrationTest extends TestCase
                     [$env_key, $env_value] = \explode('=', $line, 2);
                     $env[\trim($env_key)] = \trim(\explode('#', $env_value, 2)[0]);
                 }
+
+                break;
             }
         }
 

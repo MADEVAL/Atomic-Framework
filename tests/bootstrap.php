@@ -3,22 +3,33 @@ declare(strict_types=1);
 
 /**
  * PHPUnit Bootstrap for Atomic Framework
- *
- * Mirrors bootstrap/app.php but only chains the methods
- * safe for a test environment (no session, no DB, no routes).
  */
 
-define('ATOMIC_START', microtime(true));
-define('ATOMIC_ROOT', __DIR__ . '/../bootstrap');
+$frameworkRoot = realpath(__DIR__ . '/..');
+if ($frameworkRoot === false) {
+    throw new RuntimeException('Cannot resolve framework root from tests/bootstrap.php');
+}
 
-// ── Load framework core exactly like bootstrap/app.php ──
-require_once ATOMIC_ROOT . DIRECTORY_SEPARATOR . 'const.php';
-require_once ATOMIC_ROOT . DIRECTORY_SEPARATOR . 'error.php';
+defined('ATOMIC_START') || define('ATOMIC_START', microtime(true));
+
+defined('ATOMIC_VERSION') || define('ATOMIC_VERSION', '0.1.0-test');
+defined('ATOMIC_NAME') || define('ATOMIC_NAME', 'Atomic Framework');
+
+defined('ATOMIC_DIR') || define('ATOMIC_DIR', $frameworkRoot);
+defined('ATOMIC_ENV') || define('ATOMIC_ENV', ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env');
+defined('ATOMIC_APP_ROUTES') || define('ATOMIC_APP_ROUTES', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR);
+defined('ATOMIC_CONFIG') || define('ATOMIC_CONFIG', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR);
+defined('ATOMIC_VENDOR') || define('ATOMIC_VENDOR', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR);
+defined('ATOMIC_FRAMEWORK') || define('ATOMIC_FRAMEWORK', ATOMIC_DIR . DIRECTORY_SEPARATOR);
+defined('ATOMIC_ENGINE') || define('ATOMIC_ENGINE', ATOMIC_FRAMEWORK . 'engine' . DIRECTORY_SEPARATOR);
+defined('ATOMIC_SUPPORT') || define('ATOMIC_SUPPORT', ATOMIC_ENGINE . 'Atomic' . DIRECTORY_SEPARATOR . 'Support' . DIRECTORY_SEPARATOR);
+defined('ATOMIC_UPLOADS') || define('ATOMIC_UPLOADS', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR);
+
+defined('ATOMIC_CACHE_ALL_PAGES') || define('ATOMIC_CACHE_ALL_PAGES', true);
+defined('ATOMIC_CACHE_EXPIRE_TIME') || define('ATOMIC_CACHE_EXPIRE_TIME', 3600);
+
 require_once ATOMIC_VENDOR . 'autoload.php';
 require_once ATOMIC_SUPPORT . 'helpers.php';
-
-use Engine\Atomic\Core\App;
-use Engine\Atomic\Core\Config\ConfigLoader;
 
 $atomic = \Base::instance();
 
@@ -29,24 +40,19 @@ if (!is_dir($logsDir)) { @mkdir($logsDir, 0777, true); }
 if (!is_dir($tempDir)) { @mkdir($tempDir, 0777, true); }
 $atomic->set('LOGS', $logsDir);
 $atomic->set('TEMP', $tempDir);
-
-// Load .env - same as app.php default loader
-ConfigLoader::init($atomic, ATOMIC_ENV);
-
-// ── Boot Atomic through its own App class ──
-// Safe chain: prefly → logger → locales → middleware
-// Skipped: registerExceptionHandler (die on error),
-//          registerRoutes, registerPlugins, initSession, setDB
-$application = App::instance($atomic)
-    ->prefly()
-    ->registerLogger()
-    ->registerLocales()
-    ->registerMiddleware();
-
-// ── Test-specific overrides ──
+$atomic->set('REDIS', [
+    'host' => getenv('REDIS_HOST') ?: '127.0.0.1',
+    'port' => (int) (getenv('REDIS_PORT') ?: 6379),
+    'ATOMIC_REDIS_PREFIX' => 'atomic_test:',
+    'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic_test:sess:',
+]);
+$atomic->set('MEMCACHED', [
+    'host' => getenv('MEMCACHED_HOST') ?: '127.0.0.1',
+    'port' => (int) (getenv('MEMCACHED_PORT') ?: 11211),
+    'ATOMIC_MEMCACHED_PREFIX' => 'atomic_test:',
+]);
 $atomic->set('DEBUG_MODE', 'true');
 $atomic->set('DEBUG_LEVEL', 'debug');
 $atomic->set('DEBUG', 3);
-$atomic->set('LOGS', $logsDir);   // restore after ConfigLoader may have overwritten
-$atomic->set('HALT', false);      // don't die() on errors during tests
-$atomic->set('QUIET', true);      // suppress F3 error output
+$atomic->set('HALT', false);
+$atomic->set('QUIET', true);

@@ -200,7 +200,7 @@ class AuthServiceTest extends TestCase
         $this->session->expects($this->once())->method('start')->with($user_uuid);
         $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
         $this->meta->expects($this->once())->method('set_meta')
-            ->with($user_uuid, 'auth_session_sess_abc123', $this->isString());
+            ->with($user_uuid, 'auth_session_sess_abc123', $this->callback('is_string'));
 
         $this->service->set_user_provider($provider);
         $result = $this->service->login_with_secret(['email' => 'a@b.com'], 'correct');
@@ -360,7 +360,7 @@ class AuthServiceTest extends TestCase
         $this->session->expects($this->once())->method('start')->with($auth_id);
         $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
         $this->meta->expects($this->once())->method('set_meta')
-            ->with($auth_id, 'auth_session_sess_xyz', $this->isString());
+            ->with($auth_id, 'auth_session_sess_xyz', $this->callback('is_string'));
 
         $this->service->login_by_id($auth_id);
     }
@@ -618,7 +618,7 @@ class AuthServiceTest extends TestCase
             function (string $k, mixed $v) use (&$set_calls): void { $set_calls[$k] = $v; }
         );
         $this->meta->expects($this->once())->method('set_meta')
-            ->with($target_uuid, 'auth_session_new_sess', $this->isString());
+            ->with($target_uuid, 'auth_session_new_sess', $this->callback('is_string'));
 
         $result = $this->service->impersonate_user($target_uuid);
 
@@ -726,7 +726,7 @@ class AuthServiceTest extends TestCase
 
         $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
         $this->meta->expects($this->once())->method('set_meta')
-            ->with($admin_uuid, 'auth_session_restored_sess', $this->isString());
+            ->with($admin_uuid, 'auth_session_restored_sess', $this->callback('is_string'));
 
         $result = $this->service->stop_impersonation();
 

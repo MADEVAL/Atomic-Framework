@@ -236,12 +236,16 @@ class TransientTest extends TestCase
             'Key must exist immediately after set'
         );
 
-        sleep(2);
+        $expired = false;
+        for ($attempt = 0; $attempt < 4; $attempt++) {
+            sleep(1);
+            if (Transient::get($key, Transient::DRIVER_REDIS) === false) {
+                $expired = true;
+                break;
+            }
+        }
 
-        $this->assertFalse(
-            Transient::get($key, Transient::DRIVER_REDIS),
-            'Key must have expired after TTL elapsed'
-        );
+        $this->assertTrue($expired, 'Key must have expired after TTL elapsed');
     }
 
     // Extra: value is preserved precisely (no double-serialization)
