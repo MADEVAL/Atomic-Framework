@@ -10,7 +10,7 @@ class Prefly
 {
     use Singleton;
 
-    private const MIN_PHP_VERSION = '8.0.0';
+    private const MIN_PHP_VERSION = '8.1.0';
     private const REQUIRED_EXTENSIONS = [
         'json',
         'session',
