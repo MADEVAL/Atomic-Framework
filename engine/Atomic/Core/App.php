@@ -12,7 +12,6 @@ use Engine\Atomic\Core\ExceptionHandlerRegistrar;
 use Engine\Atomic\Core\Prefly;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use Engine\Atomic\App\PluginManager;
-use Engine\Atomic\Theme\Theme;
 use Engine\Atomic\CLI\CLI;
 
 class App {
@@ -37,15 +36,6 @@ class App {
 
     public static function atomic(): \Base {
         return self::instance()->atomic;
-    }
-
-    public function initTheme(): self
-    {
-        if (AM::instance()->get_isCLI()) {
-            return $this;
-        }
-        Theme::instance();
-        return $this;
     }
 
     public function prefly(): self

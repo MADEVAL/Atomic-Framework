@@ -58,7 +58,7 @@ class Theme
         }
         if (self::$instance === null) {
             self::$instance = new self();
-            self::$instance->run(); 
+            self::$instance->run();
         }
         return self::$instance;
     }
