@@ -241,21 +241,15 @@ class App {
     }
 
     public function run(): void
-    {        
+    {
         if (empty($this->atomic->CLI)) {
-            $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-            $path = parse_url($requestUri, PHP_URL_PATH) ?: '/';
-            if ($path !== '/' && substr($path, -1) === '/') {
-                $query = parse_url($requestUri, PHP_URL_QUERY);
-                $newPath = rtrim($path, '/');
-                $host = $_SERVER['HTTP_HOST'] ?? $this->atomic->get('HOST') ?? '';
-                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                $newUrl = $scheme . '://' . $host . $newPath . ($query ? '?' . $query : '');
-                header('Location: ' . $newUrl, true, 302);
-                exit;
+            $path = (string)$this->atomic->get('PATH');
+            if ($path === '/index.php' || str_starts_with($path, '/index.php/')) {
+                $clean = substr($path, strlen('/index.php')) ?: '/';
+                $query = $this->atomic->get('QUERY');
+                $this->atomic->reroute($clean . ($query ? '?' . $query : ''), true);
             }
         }
-
         $this->atomic->run();
     }
 

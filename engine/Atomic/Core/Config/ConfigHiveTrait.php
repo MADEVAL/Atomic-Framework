@@ -50,5 +50,24 @@ trait ConfigHiveTrait
                 $atomic->set($key, $value);
             }
         }
+        $this->sync_domain_to_hive($atomic, $settings);
+    }
+
+    protected function sync_domain_to_hive(\Base $atomic, array $settings): void
+    {
+        $domain = $settings['DOMAIN'] ?? '';
+        if ($domain === '') {
+            return;
+        }
+        $parsed = parse_url($domain);
+        $host   = $parsed['host'] ?? '';
+        if ($host === '') {
+            return;
+        }
+        $scheme = $parsed['scheme'] ?? 'http';
+        $port   = $parsed['port'] ?? ($scheme === 'https' ? 443 : 80);
+        $atomic->set('HOST',   $host);
+        $atomic->set('SCHEME', $scheme);
+        $atomic->set('PORT',   (int)$port);
     }
 }
