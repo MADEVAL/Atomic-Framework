@@ -9,7 +9,7 @@ use \Engine\Atomic\Core\Response;
 
 class Log
 {
-    protected static \Log $logger;
+    protected static ?\Log $logger = null;
     protected static bool $debugMode = false;
     protected static int $debug = 0;
     protected static string $dumpsDir = '';
