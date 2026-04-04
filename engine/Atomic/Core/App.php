@@ -57,7 +57,6 @@ class App {
             }
 
             $msg = 'Prefly checks did not pass: ' . implode(', ', $failed);
-            Log::error($msg);
 
             if (php_sapi_name() === 'cli') {
                 echo "\n[Atomic] System Error\n" . str_repeat('-', 40) . "\n";
@@ -93,7 +92,6 @@ class App {
             }
 
             if ($notWritable !== []) {
-                Log::error('Storage directories not writable: ' . implode(', ', $notWritable));
                 http_response_code(503);
                 echo '<!DOCTYPE html><html><head><title>Service Unavailable | Atomic</title>';
                 echo '<style>body{font-family:system-ui,-apple-system,sans-serif;background:#fdfdfd;color:#333;margin:0;padding:2rem;}';
