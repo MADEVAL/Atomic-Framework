@@ -87,7 +87,7 @@ class Methods {
     
     public function get_isUserRoot(): bool
     {
-        return posix_getuid() === 0;
+        return function_exists('posix_getuid') && posix_getuid() === 0;
     }
 
     public function get_isColorTerminal(): bool

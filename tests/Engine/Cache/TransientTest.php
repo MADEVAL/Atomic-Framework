@@ -44,9 +44,9 @@ class TransientTest extends TestCase
         $db_driver = getenv('DB_DRIVER') ?: 'mysql';
         $db_host = getenv('DB_HOST') ?: '127.0.0.1';
         $db_port = getenv('DB_PORT') ?: '3306';
-        $db_name = getenv('DB_NAME');
-        $db_user = getenv('DB_USER');
-        $db_pass = getenv('DB_PASS');
+        $db_name = getenv('DB_DATABASE');
+        $db_user = getenv('DB_USERNAME');
+        $db_pass = getenv('DB_PASSWORD');
         $db_charset = getenv('DB_CHARSET') ?: 'utf8mb4';
         $db_collation = getenv('DB_COLLATION') ?: 'utf8mb4_general_ci';
         $db_prefix = getenv('ATOMIC_DB_PREFIX') ?: 'atomic_';

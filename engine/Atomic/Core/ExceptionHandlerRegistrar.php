@@ -29,11 +29,16 @@ class ExceptionHandlerRegistrar
                 $trace  = $atomic->get('ERROR.trace');
                 $level  = (string)$atomic->get('ERROR.level');
 
+                $textTrace = '';
                 try {
                     $textTrace = ErrorHandler::instance()->formatTrace($code, $text, $trace);
                     $atomic->set('ERROR.formatted_trace', $textTrace);
                 } catch (\Throwable $e) {
-                    $atomic->set('ERROR.formatted_trace', 'Error formatting trace: ' . $e->getMessage());
+                    $detail = $prevDebug > 0
+                        ? $e->getMessage() . ' | trace type: ' . gettype($trace)
+                        : $e->getMessage();
+                    $textTrace = 'Error formatting trace: ' . $detail;
+                    $atomic->set('ERROR.formatted_trace', $textTrace);
                 }
 
                 $dumpPath = Log::dumpHive();
@@ -64,6 +69,27 @@ class ExceptionHandlerRegistrar
                 }
 
                 if (empty($atomic->CLI)) {
+                    $isApiOrAjax = (
+                        $atomic->get('AJAX') ||
+                        str_starts_with((string)$atomic->get('PATH'), '/api/') ||
+                        str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')
+                    );
+
+                    if ($isApiOrAjax) {
+                        header('Content-Type: application/json; charset=utf-8');
+                        http_response_code($code);
+                        echo json_encode([
+                            'error' => [
+                                'status' => $status,
+                                'code'   => $code,
+                                'text'   => $prevDebug > 0 ? $text : 'Internal Server Error',
+                                'trace'  => $prevDebug > 0 ? explode("\n", $textTrace) : null
+                            ]
+                        ]);
+                        if ($prevDebug >= 3) $atomic->set('DEBUG', $prevDebug);
+                        return;
+                    }
+
                     if ($code === 500) {
                         $ctrl = new ErrorController();
                         Assets::instance()->addInlineStyle('atomic-error', ':root { --primary-color: #f44336; --secondary-color: #d32f2f;}');
@@ -71,7 +97,12 @@ class ExceptionHandlerRegistrar
                         if ($prevDebug >= 3) $atomic->set('DEBUG', $prevDebug);
                         return;
                     } elseif (in_array($code, $errorRoutes, true)) {
-                        $atomic->reroute('/error/' . $code);
+                        $ctrl   = new ErrorController();
+                        $method = 'error' . $code;
+                        if (method_exists($ctrl, $method)) {
+                            $ctrl->{$method}($atomic);
+                        }
+                        if ($prevDebug >= 3) $atomic->set('DEBUG', $prevDebug);
                         return;
                     }
                 } else {

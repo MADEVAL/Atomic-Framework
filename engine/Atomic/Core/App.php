@@ -40,16 +40,86 @@ class App {
 
     public function prefly(): self
     {
-        if(!Prefly::instance()->all_checks_passed()) {
-            Log::error('Prefly checks did not pass. Application cannot start.');
+        $isDebug = (bool)filter_var($this->atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN);
+        $prefly = Prefly::instance();
+        if (!$prefly->all_checks_passed()) {
+            $checks = $prefly->check_environment();
+            $failed = [];
+            if (isset($checks['php_version']['status']) && !$checks['php_version']['status']) {
+                $failed[] = 'PHP Version >= ' . $checks['php_version']['required'] . ' (Current: ' . $checks['php_version']['current'] . ')';
+            }
+            if (isset($checks['extensions'])) {
+                foreach ($checks['extensions'] as $ext => $val) {
+                    if (isset($val['status']) && !$val['status']) {
+                        $failed[] = 'PHP Extension: ' . $ext;
+                    }
+                }
+            }
+
+            $msg = 'Prefly checks did not pass: ' . implode(', ', $failed);
+            Log::error($msg);
+
+            if (php_sapi_name() === 'cli') {
+                echo "\n[Atomic] System Error\n" . str_repeat('-', 40) . "\n";
+                echo implode("\n", array_map(fn($f) => " - Missing: $f", $failed)) . "\n";
+            } else {
+                http_response_code(500);
+                echo '<!DOCTYPE html><html><head><title>System Error | Atomic</title>';
+                echo '<style>body{font-family:system-ui,-apple-system,sans-serif;background:#fdfdfd;color:#333;margin:0;padding:2rem;}';
+                echo '.container{max-width:600px;margin:2rem auto;background:#fff;border-radius:8px;padding:2rem;box-shadow:0 4px 6px rgba(0,0,0,0.05);border-top:4px solid #ef4444;}';
+                echo 'h1{color:#ef4444;margin-top:0;}</style></head><body>';
+                echo '<div class="container"><h1>System Error</h1>';
+                if ($isDebug) {
+                    echo '<p>The application cannot start because the server environment does not meet the minimum requirements:</p>';
+                    echo '<ul><li>' . implode('</li><li>', array_map('htmlspecialchars', $failed)) . '</li></ul>';
+                } else {
+                    echo '<p>The application cannot start due to a server configuration error. Please contact the administrator.</p>';
+                }
+                echo '</div></body></html>';
+            }
             exit(1);
-        } else {
-            $this->atomic->set('ATOMIC.NAME', ATOMIC_NAME);
-            $this->atomic->set('ATOMIC.VERSION', ATOMIC_VERSION);
-            $this->atomic->set('PACKAGE', ATOMIC_NAME . ' ' . ATOMIC_VERSION);
-            $this->atomic->set('UPLOADS', ATOMIC_UPLOADS);
-            return $this;
         }
+
+        if (php_sapi_name() !== 'cli') {
+            $storageDir = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'storage';
+            $logsDir    = $storageDir . DIRECTORY_SEPARATOR . 'logs';
+            $notWritable = [];
+
+            if (!is_dir($storageDir) || !is_writable($storageDir)) {
+                $notWritable[] = 'storage/';
+            }
+            if (!is_dir($logsDir) || !is_writable($logsDir)) {
+                $notWritable[] = 'storage/logs/';
+            }
+
+            if ($notWritable !== []) {
+                Log::error('Storage directories not writable: ' . implode(', ', $notWritable));
+                http_response_code(503);
+                echo '<!DOCTYPE html><html><head><title>Service Unavailable | Atomic</title>';
+                echo '<style>body{font-family:system-ui,-apple-system,sans-serif;background:#fdfdfd;color:#333;margin:0;padding:2rem;}';
+                echo '.container{max-width:640px;margin:2rem auto;background:#fff;border-radius:8px;padding:2rem;box-shadow:0 4px 6px rgba(0,0,0,0.05);border-top:4px solid #f59e0b;}';
+                echo 'h1{color:#f59e0b;margin-top:0;}code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:0.9em;}</style></head><body>';
+                echo '<div class="container"><h1>Service Unavailable</h1>';
+                if ($isDebug) {
+                    echo '<p>The following directories must be writable by the web server user:</p>';
+                    echo '<ul><li>' . implode('</li><li>', array_map('htmlspecialchars', $notWritable)) . '</li></ul>';
+                    echo '<p>Fix with:</p>';
+                    echo '<pre><code>sudo chown -R www-data:www-data storage' . "\n";
+                    echo 'sudo chmod -R ug+rwX storage</code></pre>';
+                    echo '<p>See <strong>DEPLOYMENT_GUIDE.md</strong> section 4 for details.</p>';
+                } else {
+                    echo '<p>The application is temporarily unavailable due to a server configuration error. Please contact the administrator.</p>';
+                }
+                echo '</div></body></html>';
+                exit(0);
+            }
+        }
+
+        $this->atomic->set('ATOMIC.NAME', ATOMIC_NAME);
+        $this->atomic->set('ATOMIC.VERSION', ATOMIC_VERSION);
+        $this->atomic->set('PACKAGE', ATOMIC_NAME . ' ' . ATOMIC_VERSION);
+        $this->atomic->set('UPLOADS', ATOMIC_UPLOADS);
+        return $this;
     }
 
     public function registerLogger(): self {

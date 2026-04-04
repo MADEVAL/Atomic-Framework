@@ -40,7 +40,7 @@ class ErrorHandler
                             $end = min(count($rows), $lineNum + 5);
                             
                             for ($i = $start; $i < $end; $i++) {
-                                $num = str_pad($i, 4, ' ', STR_PAD_LEFT);
+                                $num = str_pad((string)$i, 4, ' ', STR_PAD_LEFT);
                                 if ($i == $lineNum - 1) {
                                     $output .= ">>> " . $num . ' | ' . $rows[$i];
                                 } else {
@@ -56,7 +56,10 @@ class ErrorHandler
 
             return $output;
         } catch (\Throwable $e) {
-            return "Error formatting trace\nOriginal error: [" . $code . "] " . $text;
+            $detail = ((int)App::atomic()->get('DEBUG')) > 0
+                ? ' (' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine() . ')'
+                : '';
+            return "Error formatting trace{$detail}\nOriginal error: [{$code}] {$text}";
         }
     }
 }
