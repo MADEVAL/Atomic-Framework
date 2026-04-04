@@ -49,9 +49,9 @@ class Log
 
     protected static function write(string $level, string $message): void
     {
-        if (!self::$debugMode) return;
         if (empty($message)) return;
-        if (self::levelInt((string)$level) > self::$debug) return;
+        $lvlInt = self::levelInt((string)$level);
+        if ($lvlInt > 1 && (!self::$debugMode || $lvlInt > self::$debug)) return;
         self::$logger?->write('[' . strtoupper((string)$level) . '] ' . $message);
     }
 
