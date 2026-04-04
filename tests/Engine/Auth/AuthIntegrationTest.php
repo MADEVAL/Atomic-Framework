@@ -184,6 +184,10 @@ final class AuthIntegrationTest extends TestCase
         $_COOKIE = [];
         $_SESSION = [];
 
+        if (!\extension_loaded('pdo_mysql')) {
+            self::markTestSkipped('ext-pdo_mysql not loaded - cannot run AuthIntegration tests requiring MySQL.');
+        }
+
         $this->db_prefix = 'atomic_test_' . \bin2hex(\random_bytes(4)) . '_';
         $this->redis_prefix = 'atomic_auth_test:' . \bin2hex(\random_bytes(4)) . ':';
 
@@ -197,6 +201,21 @@ final class AuthIntegrationTest extends TestCase
         $redis_host = $this->env_value('REDIS_HOST', '127.0.0.1');
         $redis_port = (int) $this->env_value('REDIS_PORT', '6379');
 
+        [$pdo, $effective_db_host, $db_error] = $this->connect_pdo_with_fallback(
+            $db_host,
+            $db_port,
+            $db_name,
+            $db_user,
+            $db_password,
+            $db_charset,
+        );
+
+        if ($pdo === null) {
+            self::markTestSkipped('MySQL connection unavailable for AuthIntegration: ' . $db_error);
+        }
+
+        $this->pdo = $pdo;
+        $db_host = $effective_db_host;
         $dsn = \sprintf(
             'mysql:host=%s;port=%s;dbname=%s;charset=%s',
             $db_host,
@@ -204,7 +223,6 @@ final class AuthIntegrationTest extends TestCase
             $db_name,
             $db_charset,
         );
-        $this->pdo = new \PDO($dsn, $db_user, $db_password);
 
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         $this->create_schema($this->pdo, $this->db_prefix);
@@ -244,10 +262,13 @@ final class AuthIntegrationTest extends TestCase
         App::instance($base);
 
         if (extension_loaded('redis')) {
-            $this->redis = new \Redis();
-            if (!$this->redis->connect($redis_host, $redis_port, 1.0)) {
-                self::fail('Cannot connect to Redis at ' . $redis_host . ':' . $redis_port . '.');
+            [$redis, $effective_redis_host, $redis_error] = $this->connect_redis_with_fallback($redis_host, $redis_port);
+            if ($redis === null) {
+                self::markTestSkipped('Redis connection unavailable for AuthIntegration: ' . $redis_error);
             }
+
+            $this->redis = $redis;
+            $redis_host = $effective_redis_host;
         } elseif ($driver === 'redis') {
             self::markTestSkipped('ext-redis not loaded - cannot run Redis driver tests.');
         }
@@ -389,6 +410,76 @@ final class AuthIntegrationTest extends TestCase
         }
 
         return $env[$key] ?? $default;
+    }
+
+    private function connect_pdo_with_fallback(
+        string $db_host,
+        string $db_port,
+        string $db_name,
+        string $db_user,
+        string $db_password,
+        string $db_charset,
+    ): array {
+        $hosts = [$db_host];
+        if ($this->is_loopback_host($db_host)) {
+            $hosts[] = 'mysql';
+        }
+        $hosts = array_values(array_unique($hosts));
+
+        $last_error = 'unknown database connection error';
+        foreach ($hosts as $host) {
+            $dsn = \sprintf(
+                'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+                $host,
+                $db_port,
+                $db_name,
+                $db_charset,
+            );
+
+            try {
+                $pdo = new \PDO($dsn, $db_user, $db_password);
+                return [$pdo, $host, null];
+            } catch (\Throwable $e) {
+                $last_error = $e->getMessage();
+            }
+        }
+
+        return [null, $db_host, $last_error];
+    }
+
+    private function connect_redis_with_fallback(string $redis_host, int $redis_port): array
+    {
+        $hosts = [$redis_host];
+        if ($this->is_loopback_host($redis_host)) {
+            $hosts[] = 'redis';
+        }
+        $hosts = array_values(array_unique($hosts));
+
+        $last_error = 'unknown redis connection error';
+        foreach ($hosts as $host) {
+            $redis = new \Redis();
+            try {
+                if ($redis->connect($host, $redis_port, 1.0)) {
+                    return [$redis, $host, null];
+                }
+                $last_error = 'connect() returned false for ' . $host . ':' . $redis_port;
+            } catch (\Throwable $e) {
+                $last_error = $e->getMessage();
+            }
+
+            try {
+                $redis->close();
+            } catch (\Throwable) {
+            }
+        }
+
+        return [null, $redis_host, $last_error];
+    }
+
+    private function is_loopback_host(string $host): bool
+    {
+        $host = strtolower(trim($host));
+        return $host === '127.0.0.1' || $host === 'localhost';
     }
 }
 

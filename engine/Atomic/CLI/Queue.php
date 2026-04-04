@@ -15,11 +15,43 @@ use Engine\Atomic\Queue\Monitor\Monitor;
 use Engine\Atomic\Queue\Worker\Worker;
 
 trait Queue {
-    private const MONITOR_TEST_PID_PLACEHOLDER = -1;
-    private const MONITOR_TEST_DELAY = 0;
-    private const MONITOR_TEST_PRIORITY = 1;
-    private const MONITOR_TEST_TIMEOUT = 30;
-    private const MONITOR_TEST_TTL = 3600;
+    private static int $MONITOR_TEST_PID_PLACEHOLDER = -1;
+    private static int $MONITOR_TEST_DELAY = 0;
+    private static int $MONITOR_TEST_PRIORITY = 1;
+    private static int $MONITOR_TEST_TIMEOUT = 30;
+    private static int $MONITOR_TEST_TTL = 3600;
+
+    private function queue_dependency_hint(): string
+    {
+        $driver = (string) App::instance()->get('QUEUE_DRIVER');
+
+        if ($driver === 'redis') {
+            if (!\extension_loaded('redis')) {
+                return "Queue driver 'redis' is unavailable: ext-redis is not loaded. Install/enable php-redis and ensure REDIS_HOST/REDIS_PORT are reachable.";
+            }
+            return "Queue driver 'redis' is unavailable: Redis service is not reachable or queue Redis config is incomplete. Check REDIS_HOST/REDIS_PORT and QUEUE.redis settings.";
+        }
+
+        if ($driver === 'database') {
+            if (!\extension_loaded('pdo_mysql')) {
+                return "Queue driver 'database' is unavailable: ext-pdo_mysql is not loaded. Install/enable pdo_mysql and verify DB_* settings.";
+            }
+            return "Queue driver 'database' is unavailable: database connection failed or queue tables are missing. Check DB_* and run 'php atomic queue/db'.";
+        }
+
+        return "Queue system is unavailable: unsupported QUEUE_DRIVER '{$driver}'.";
+    }
+
+    private function create_queue_manager_or_null(string $queue_name = 'default'): ?Manager
+    {
+        try {
+            return new Manager($queue_name);
+        } catch (\Throwable $th) {
+            echo $this->queue_dependency_hint() . "\n";
+            echo "Details: " . $th->getMessage() . "\n";
+            return null;
+        }
+    }
 
     public function queue_db() {
         $atomic = App::instance();
@@ -33,14 +65,22 @@ trait Queue {
             return;
         }
         $queue_name = $args[0];
-        $queue_manager = new Manager($queue_name);
+        $queue_manager = $this->create_queue_manager_or_null($queue_name);
+        if ($queue_manager === null) {
+            return;
+        }
         $worker = new Worker($queue_manager);
         $worker->run();
     }
 
     public function queue_monitor() {
-        $queue_monitor = new Monitor();
-        $queue_monitor->run();
+        try {
+            $queue_monitor = new Monitor();
+            $queue_monitor->run();
+        } catch (\Throwable $th) {
+            echo $this->queue_dependency_hint() . "\n";
+            echo "Details: " . $th->getMessage() . "\n";
+        }
     }
 
     public function queue_test_monitor(): void
@@ -67,7 +107,10 @@ trait Queue {
     {
         $atomic = App::instance();
 
-        $queue_manager = new Manager($queue_name);
+        $queue_manager = $this->create_queue_manager_or_null($queue_name);
+        if ($queue_manager === null) {
+            return;
+        }
         $connection_manager = new ConnectionManager();
         $sql = $connection_manager->get_db();
         $jobs_mapper = new Cortex($sql, $atomic->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
@@ -114,7 +157,10 @@ trait Queue {
     private function seed_monitor_test_cases_redis(string $queue_name): void
     {
         $atomic = App::instance();
-        $queue_manager = new Manager($queue_name);
+        $queue_manager = $this->create_queue_manager_or_null($queue_name);
+        if ($queue_manager === null) {
+            return;
+        }
         $connection_manager = new ConnectionManager();
         $redis = $connection_manager->get_redis();
         $prefix = (string) $atomic->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
@@ -182,7 +228,7 @@ trait Queue {
         return [
             'stuck_pid_placeholder' => [
                 'available_at' => $now - 30,
-                'pid' => self::MONITOR_TEST_PID_PLACEHOLDER,
+                'pid' => self::$MONITOR_TEST_PID_PLACEHOLDER,
                 'attempts' => 1,
                 'max_attempts' => 3,
                 'retry_delay' => 2,
@@ -214,7 +260,7 @@ trait Queue {
             ],
             'in_progress_pid_placeholder' => [
                 'available_at' => $now + 90,
-                'pid' => self::MONITOR_TEST_PID_PLACEHOLDER,
+                'pid' => self::$MONITOR_TEST_PID_PLACEHOLDER,
                 'attempts' => 1,
                 'max_attempts' => 3,
                 'retry_delay' => 2,
@@ -245,12 +291,12 @@ trait Queue {
                 'smth' => 'monitor-test',
             ],
             [
-                'delay' => self::MONITOR_TEST_DELAY,
-                'priority' => self::MONITOR_TEST_PRIORITY,
-                'timeout' => self::MONITOR_TEST_TIMEOUT,
+                'delay' => self::$MONITOR_TEST_DELAY,
+                'priority' => self::$MONITOR_TEST_PRIORITY,
+                'timeout' => self::$MONITOR_TEST_TIMEOUT,
                 'max_attempts' => (int) $case['max_attempts'],
                 'retry_delay' => (int) $case['retry_delay'],
-                'ttl' => self::MONITOR_TEST_TTL,
+                'ttl' => self::$MONITOR_TEST_TTL,
             ],
             $uuid
         );
@@ -263,7 +309,10 @@ trait Queue {
 
     public function queue_retry() {
         $args = $this->get_cli_args();
-        $queue_manager = new Manager();
+        $queue_manager = $this->create_queue_manager_or_null();
+        if ($queue_manager === null) {
+            return;
+        }
 
         if (!isset($args[0]) || empty($args[0])) {
             try {
@@ -293,7 +342,10 @@ trait Queue {
 
         $queue_name = $arg;
         try {
-            $queue_manager_by_name = new Manager($queue_name);
+            $queue_manager_by_name = $this->create_queue_manager_or_null($queue_name);
+            if ($queue_manager_by_name === null) {
+                return;
+            }
             $queue_manager_by_name->retry();
             echo "Retried failed jobs for queue '{$queue_name}'\n";
         } catch (\Throwable $th) {
@@ -309,7 +361,10 @@ trait Queue {
             return;
         }
         $uuid = $args[0];
-        $queue_manager = new Manager();
+        $queue_manager = $this->create_queue_manager_or_null();
+        if ($queue_manager === null) {
+            return;
+        }
         try {
             $deleted = $queue_manager->delete_job($uuid);
             if ($deleted) {

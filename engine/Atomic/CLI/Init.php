@@ -49,6 +49,8 @@ trait Init {
             'public/uploads',
         ]);
 
+        $runtimeNotWritable = [];
+
         echo "  [1/4] Creating directories...\n";
         $created = 0;
         foreach ($dirs as $dir) {
@@ -67,9 +69,12 @@ trait Init {
                 @chmod($path, 0775);
                 if (!is_writable($path)) {
                     echo "        WARN: {$dir} is not writable by current web user context\n";
+                    $runtimeNotWritable[] = $dir;
                 }
             }
         }
+
+        $this->printRuntimePermissionsGuide($runtimeNotWritable);
 
         echo "        {$created} new director" . ($created === 1 ? 'y' : 'ies') . " created\n\n";
 
@@ -132,8 +137,8 @@ trait Init {
         echo "  " . str_repeat('=', 48) . "\n";
         echo "  Done! Next steps:\n";
         echo "    1. Review .env and set DB_DATABASE, DOMAIN, etc.\n";
-        echo "    2. Set correct ownership for the web server (adjust www-data if needed):\n";
-        echo "       sudo chown -R \$USER:www-data storage public/uploads\n";
+        echo "    2. Ensure runtime directories are writable by the web server user:\n";
+        echo "       sudo chown -R <web-user>:<web-group> storage public/uploads\n";
         echo "       sudo chmod -R ug+rwX storage public/uploads\n";
         echo "    3. php atomic migrations/migrate\n";
         echo "    4. php atomic seed/roles\n\n";
@@ -354,4 +359,24 @@ ENV;
         file_put_contents($path, $content);
         return 1;
     }
+
+    private function printRuntimePermissionsGuide(array $runtimeNotWritable): void
+    {
+        if ($runtimeNotWritable === []) {
+            return;
+        }
+
+        echo "\n  Runtime permissions guide:\n";
+        echo "    The following directories are not writable by the current web context:\n";
+        foreach ($runtimeNotWritable as $dir) {
+            echo "      - {$dir}\n";
+        }
+        echo "\n";
+        echo "    Recommended fix (replace placeholders for your server):\n";
+        echo "      sudo chown -R <web-user>:<web-group> storage public/uploads\n";
+        echo "      sudo chmod -R ug+rwX storage public/uploads\n";
+        echo "\n";
+        echo "    Examples of <web-user>: www-data, apache, nginx\n\n";
+    }
+
 }
