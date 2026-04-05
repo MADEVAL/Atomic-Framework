@@ -59,6 +59,8 @@ trait ConfigHiveTrait
         if ($domain === '') {
             return;
         }
+        $domain = rtrim($domain, '/') . '/';
+        $atomic->set('DOMAIN', $domain);
         $parsed = parse_url($domain);
         $host   = $parsed['host'] ?? '';
         if ($host === '') {
