@@ -3,60 +3,51 @@ declare(strict_types=1);
 
 if (!defined('ATOMIC_START')) exit;
 
-use Engine\Atomic\Core\App;
 use DB\Cortex\Schema\Schema;
+use Engine\Atomic\App\Models\MutexLock;
 
 return [
     'up' => function () {
-        $atomic = App::instance();
-        $db = $atomic->get('DB');
-        $schema = new Schema($db);
-        
-        $tableName = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'mutex_locks';
-        
         try {
+            $conf = MutexLock::resolveConfiguration();
+            $db = $conf['db'];
+            $table = $conf['table'];
+            $schema = new Schema($db);
             $tables = $schema->getTables();
-            
-            if (is_array($tables) && in_array($tableName, $tables)) {
-                echo "Table '{$tableName}' already exists. Skipping creation." . PHP_EOL;
+
+            if (is_array($tables) && in_array($table, $tables)) {
+                echo "Table '{$table}' already exists. Skipping creation." . PHP_EOL;
                 return;
             }
 
-            $table = $schema->createTable($tableName);
+            $t = $schema->createTable($table);
+            $t->addColumn('name')->type(Schema::DT_VARCHAR256)->nullable(false)->index(true);
+            $t->addColumn('token')->type(Schema::DT_VARCHAR128)->nullable(false);
+            $t->addColumn('expires_at')->type(Schema::DT_INT)->nullable(false)->index();
+            $t->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
+            $t->build();
 
-            $table->addColumn('name')->type(Schema::DT_VARCHAR256)->nullable(false)->index(true);
-            $table->addColumn('token')->type(Schema::DT_VARCHAR128)->nullable(false);
-            $table->addColumn('expires_at')->type(Schema::DT_INT)->nullable(false)->index();
-            $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
-
-            $table->build();
-
-            echo "Table '{$tableName}' created successfully." . PHP_EOL;
-
+            echo "Table '{$table}' created successfully." . PHP_EOL;
         } catch (\Throwable $e) {
-            echo "Failed to create table '{$tableName}': " . $e->getMessage() . PHP_EOL;
+            echo "Failed to create table '{$table}': " . $e->getMessage() . PHP_EOL;
         }
     },
-    
+
     'down' => function () {
-        $atomic = App::instance();
-        $db = $atomic->get('DB');
-        $schema = new Schema($db);
-
-        $tableName = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'mutex_locks';
-
         try {
+            $conf = MutexLock::resolveConfiguration();
+            $schema = new Schema($conf['db']);
+            $table = $conf['table'];
             $tables = $schema->getTables();
 
-            if (is_array($tables) && in_array($tableName, $tables)) {
-                $schema->dropTable($tableName);
-                echo "Table '{$tableName}' dropped successfully." . PHP_EOL;
+            if (is_array($tables) && in_array($table, $tables)) {
+                $schema->dropTable($table);
+                echo "Table '{$table}' dropped successfully." . PHP_EOL;
             } else {
-                echo "Table '{$tableName}' does not exist. Skipping drop." . PHP_EOL;
+                echo "Table '{$table}' does not exist. Skipping drop." . PHP_EOL;
             }
-
         } catch (\Throwable $e) {
-            echo "Failed to drop table '{$tableName}': " . $e->getMessage() . PHP_EOL;
+            echo "Failed to drop table: " . $e->getMessage() . PHP_EOL;
         }
     }
 ];
