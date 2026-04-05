@@ -167,9 +167,10 @@ class Scheduler extends \Prefab
 
     public function load_from(string $path): self
     {
-        if (\file_exists($path)) {
+        $resolvedPath = realpath($path);
+        if ($resolvedPath !== false && \is_file($resolvedPath) && \is_readable($resolvedPath)) {
             $scheduler = $this;
-            require $path;
+            require $resolvedPath;
         }
         return $this;
     }

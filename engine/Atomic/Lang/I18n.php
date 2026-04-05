@@ -226,15 +226,16 @@ final class I18n
         foreach ($paths as $base) {
             $candidates = $this->candidateFiles($base, $domain, $lang);
             foreach ($candidates as $file) {
-                if (is_file($file)) {
-                    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                $resolvedFile = realpath($file);
+                if ($resolvedFile !== false && is_file($resolvedFile) && is_readable($resolvedFile)) {
+                    $ext = strtolower(pathinfo($resolvedFile, PATHINFO_EXTENSION));
                     if ($ext === 'php') {
-                        $arr = require $file;
+                        $arr = require $resolvedFile;
                         if (is_array($arr)) {
                             $dict = array_replace_recursive($dict, $arr);
                         }
                     } elseif ($ext === 'json') {
-                        $arr = json_decode((string)@file_get_contents($file), true);
+                        $arr = json_decode((string)@file_get_contents($resolvedFile), true);
                         if (is_array($arr)) $dict = array_replace_recursive($dict, $arr);
                     }
                 }

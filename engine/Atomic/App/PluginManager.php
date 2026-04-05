@@ -79,19 +79,26 @@ class PluginManager
     public function loadUserPlugins(): void
     {
         $pluginsPath = rtrim((string)$this->getAtomic()->get('USER_PLUGINS'), '/\\') . DIRECTORY_SEPARATOR;
+        $resolvedPluginsPath = realpath($pluginsPath);
         
-        if (!is_dir($pluginsPath)) {
+        if ($resolvedPluginsPath === false || !is_dir($resolvedPluginsPath)) {
             Log::debug("User plugins directory not found: {$pluginsPath}");
             return;
         }
 
-        $dirs = array_filter(glob($pluginsPath . '*'), 'is_dir');
+        $dirs = array_filter(glob($resolvedPluginsPath . DIRECTORY_SEPARATOR . '*'), 'is_dir');
         
         foreach ($dirs as $dir) {
             $pluginFile = $dir . DIRECTORY_SEPARATOR . 'plugin.php';
-            if (file_exists($pluginFile)) {
+            $resolvedPluginFile = realpath($pluginFile);
+            if (
+                $resolvedPluginFile !== false
+                && is_file($resolvedPluginFile)
+                && is_readable($resolvedPluginFile)
+                && str_starts_with($resolvedPluginFile, $resolvedPluginsPath . DIRECTORY_SEPARATOR)
+            ) {
                 try {
-                    require_once $pluginFile;
+                    require_once $resolvedPluginFile;
                     //Log::debug("User plugin loaded from: {$dir}");
                 } catch (\Throwable $e) {
                     Log::error("Failed to load user plugin from {$dir}: " . $e->getMessage());

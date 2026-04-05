@@ -171,7 +171,7 @@ class Migrations {
         $applied = [];
         try {
             foreach ($to_apply as $timestamp => $file_name) {
-                $file_path = $migrations_dir . $file_name . '.php';
+                $file_path = $this->resolve_migration_file($migrations_dir, $file_name);
                 $migration = include $file_path;
                 if (isset($migration['up']) && is_callable($migration['up'])) {
                     $migration['up']();
@@ -209,7 +209,7 @@ class Migrations {
                     return;
                 }
                 foreach ($to_pop as $migration) {
-                    $migration_file = $atomic->get('MIGRATIONS') . $migration->migration . '.php';
+                    $migration_file = $this->resolve_migration_file((string)$atomic->get('MIGRATIONS'), (string)$migration->migration);
                     $migration_content = include $migration_file;
                     if (isset($migration_content['down']) && is_callable($migration_content['down'])) {
                         $migration_content['down']();
@@ -263,5 +263,25 @@ class Migrations {
             $applied_at = $db_migrations[$basename]['applied_at'] ?? '-';
             echo "File: $basename\n  Status: $status\n  Batch UUID: $batch_uuid\n  Applied At: $applied_at\n\n";
         }
+    }
+
+    private function resolve_migration_file(string $migrations_dir, string $migration_name): string
+    {
+        $baseDir = realpath($migrations_dir);
+        if ($baseDir === false || !is_dir($baseDir)) {
+            throw new \RuntimeException("Migrations directory not found: {$migrations_dir}");
+        }
+
+        $candidate = $baseDir . DIRECTORY_SEPARATOR . $migration_name . '.php';
+        $resolved = realpath($candidate);
+        if ($resolved === false || !is_file($resolved) || !is_readable($resolved)) {
+            throw new \RuntimeException("Migration file not found or unreadable: {$candidate}");
+        }
+
+        if (!str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)) {
+            throw new \RuntimeException("Migration file escapes migrations directory: {$migration_name}");
+        }
+
+        return $resolved;
     }
 }

@@ -160,9 +160,10 @@ class App {
         $filesToLoad = $routeLoader->getFilesFor($requestType);
 
         foreach ($filesToLoad as $routeFile) {
-            if (file_exists($routeFile)) {
+            $resolvedRouteFile = realpath($routeFile);
+            if ($resolvedRouteFile !== false && is_file($resolvedRouteFile) && is_readable($resolvedRouteFile)) {
                 $atomic = $this;
-                require $routeFile;
+                require $resolvedRouteFile;
             }
         }
         return $this;
@@ -344,8 +345,9 @@ class App {
     public function registerMiddleware(): self
     {
         $configFile = ATOMIC_CONFIG . 'middleware.php';
-        if (file_exists($configFile)) {
-            $aliases = require $configFile;
+        $resolvedConfigFile = realpath($configFile);
+        if ($resolvedConfigFile !== false && is_file($resolvedConfigFile) && is_readable($resolvedConfigFile)) {
+            $aliases = require $resolvedConfigFile;
             if (is_array($aliases)) {
                 foreach ($aliases as $name => $class) {
                     MiddlewareStack::registerAlias($name, $class);
@@ -359,8 +361,9 @@ class App {
     {
         if (empty($pluginClasses)) {
             $providersConfig = ATOMIC_CONFIG . 'providers.php';
-            if (file_exists($providersConfig)) {
-                $providers = require $providersConfig;
+            $resolvedProvidersConfig = realpath($providersConfig);
+            if ($resolvedProvidersConfig !== false && is_file($resolvedProvidersConfig) && is_readable($resolvedProvidersConfig)) {
+                $providers = require $resolvedProvidersConfig;
                 $pluginClasses = $providers['plugins'] ?? [];
             }
         }
@@ -396,8 +399,9 @@ class App {
     {
         if ($providerClass === null) {
             $providersConfig = ATOMIC_CONFIG . 'providers.php';
-            if (file_exists($providersConfig)) {
-                $providers = require $providersConfig;
+            $resolvedProvidersConfig = realpath($providersConfig);
+            if ($resolvedProvidersConfig !== false && is_file($resolvedProvidersConfig) && is_readable($resolvedProvidersConfig)) {
+                $providers = require $resolvedProvidersConfig;
                 $providerClass = $providers['user_provider'] ?? null;
             }
         }

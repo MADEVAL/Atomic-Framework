@@ -10,7 +10,7 @@ use Engine\Atomic\Core\Config\ConfigLoader;
 
 $f3 = \Base::instance();
 
-ConfigLoader::init($f3, __DIR__ . '/../.env');
+ConfigLoader::init($f3, realpath(__DIR__ . '/../.env'));
 
 $app = App::instance($f3);
 

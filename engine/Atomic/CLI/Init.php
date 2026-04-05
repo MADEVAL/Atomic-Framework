@@ -135,13 +135,29 @@ trait Init {
         echo "        {$stubs} stub file" . ($stubs === 1 ? '' : 's') . " created\n\n";
 
         echo "  " . str_repeat('=', 48) . "\n";
-        echo "  Done! Next steps:\n";
-        echo "    1. Review .env and set DB_DATABASE, DOMAIN, etc.\n";
-        echo "    2. Ensure runtime directories are writable by the web server user:\n";
+        echo "  Done! Next steps:\n\n";
+        echo "    1. Review .env and set DB_DATABASE, DOMAIN, etc.\n\n";
+        echo "    2. Verify required PHP extensions are loaded:\n";
+        echo "       php -m | grep -E 'pdo_mysql|json|mbstring|tokenizer'\n";
+        echo "       Optional (recommended): ext-sodium, ext-redis, ext-memcached\n\n";
+        echo "    3. Set runtime directory ownership (replace <web-user>):\n";
         echo "       sudo chown -R <web-user>:<web-group> storage public/uploads\n";
         echo "       sudo chmod -R ug+rwX storage public/uploads\n";
-        echo "    3. php atomic migrations/migrate\n";
-        echo "    4. php atomic seed/roles\n\n";
+        echo "       find storage public/uploads -type d -exec chmod g+s {} \\\;\n";
+        echo "       Common web users: www-data, nginx, apache\n\n";
+        echo "    4. Verify write access:\n";
+        echo "       sudo -u <web-user> test -w storage && echo OK\n";
+        echo "       sudo -u <web-user> test -w storage/logs && echo OK\n";
+        echo "       sudo -u <web-user> test -w public/uploads && echo OK\n\n";
+        echo "    5. Run migrations:\n";
+        echo "       php atomic migrations/migrate\n\n";
+        echo "    6. Seed initial data:\n";
+        echo "       php atomic seed/roles\n\n";
+        echo "    7. Verify web server DocumentRoot points to the public/ directory.\n";
+        echo "       See DEPLOYMENT_GUIDE.md for Nginx and Apache examples.\n\n";
+        echo "    8. Verify deployment:\n";
+        echo "       curl -o /dev/null -w '%%{http_code}' http://your-domain/\n";
+        echo "       (expect HTTP 200)\n\n";
     }
 
     /**
@@ -367,14 +383,16 @@ ENV;
         }
 
         echo "\n  Runtime permissions guide:\n";
-        echo "    The following directories are not writable by the current web context:\n";
+        echo "    Applications fail with writable/permission errors if these are not writable:\n";
         foreach ($runtimeNotWritable as $dir) {
             echo "      - {$dir}\n";
         }
         echo "\n";
-        echo "    Recommended fix (replace placeholders for your server):\n";
+        echo "    Host fix (replace placeholders for your server):\n";
         echo "      sudo chown -R <web-user>:<web-group> storage public/uploads\n";
         echo "      sudo chmod -R ug+rwX storage public/uploads\n";
+        echo "      find storage public/uploads -type d -exec chmod g+s {} \\\;\n";
+        echo "      sudo -u <web-user> test -w storage && sudo -u <web-user> test -w storage/logs && sudo -u <web-user> test -w public/uploads\n";
         echo "\n";
         echo "    Examples of <web-user>: www-data, apache, nginx\n\n";
     }

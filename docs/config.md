@@ -15,7 +15,7 @@ Typical bootstrap usage:
 use Engine\Atomic\Core\Config\ConfigLoader;
 
 $f3 = \Base::instance();
-ConfigLoader::init($f3, __DIR__ . '/../.env');
+ConfigLoader::init($f3, realpath(__DIR__ . '/../.env'));
 ```
 
 If a project uses structured PHP config files instead, `PhpConfigLoader` can be used to load them into the same shared runtime config space.

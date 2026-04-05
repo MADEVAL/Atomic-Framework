@@ -19,8 +19,9 @@ class PhpConfigLoader {
 
     public function load_config(string $name): array {
         $config_file = $this->config_path . $name . '.php';
-        if (file_exists($config_file)) {
-            return require $config_file;
+        $resolved_config_file = realpath($config_file);
+        if ($resolved_config_file !== false && is_file($resolved_config_file) && is_readable($resolved_config_file)) {
+            return require $resolved_config_file;
         }
         return [];
     }

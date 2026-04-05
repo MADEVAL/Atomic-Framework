@@ -22,6 +22,7 @@ class Redis implements Base, Management, Telemetry
     private ProcessManager $process_manager;
     private ConnectionManager $connection_manager;
     private array $script_shas = [];
+    private ?string $lua_dir = null;
 
     public function __construct() {
         $this->process_manager = new ProcessManager();
@@ -47,11 +48,13 @@ class Redis implements Base, Management, Telemetry
 
     private function load_lua_scripts(): bool 
     {
-        $lua_dir = __DIR__ . '/lua';
-        if (!is_dir($lua_dir)) {
-            Log::warning("Lua scripts directory not found: $lua_dir");
+        $lua_dir = realpath(__DIR__ . '/lua');
+        if ($lua_dir === false || !is_dir($lua_dir)) {
+            Log::warning('Lua scripts directory not found: ' . __DIR__ . '/lua');
             return false;
         }
+
+        $this->lua_dir = $lua_dir;
         
         $scripts = glob($lua_dir . '/*.lua');
         if (empty($scripts)) {
@@ -91,7 +94,12 @@ class Redis implements Base, Management, Telemetry
     private function load_single_lua_script(string $script_name): bool {
         $redis = $this->connection_manager->get_redis(true);
 
-        $lua_dir = __DIR__ . '/lua';
+        $lua_dir = $this->lua_dir ?? realpath(__DIR__ . '/lua');
+        if ($lua_dir === false || $lua_dir === null) {
+            Log::error('Cannot resolve Lua scripts directory: ' . __DIR__ . '/lua');
+            return false;
+        }
+
         $script_path = $lua_dir . '/' . $script_name . '.lua';
         
         if (!file_exists($script_path)) {

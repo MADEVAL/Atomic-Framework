@@ -53,10 +53,10 @@ class PDF
     private function load_font(): void
     {
         $font = \strtolower($this->font_name);
-        $file_to_load = App::instance()->get('FONTS') . $font . '.php';
-        if (!\is_readable($file_to_load)) throw new \Exception('Font (php array) not found');
-        $ttf_path = App::instance()->get('FONTS') . $font . '.ttf';
-        if (!\is_readable($ttf_path)) throw new \Exception('Font (ttf) not found');
+        $file_to_load = realpath((string)App::instance()->get('FONTS') . $font . '.php');
+        if ($file_to_load === false || !\is_file($file_to_load) || !\is_readable($file_to_load)) throw new \Exception('Font (php array) not found');
+        $ttf_path = realpath((string)App::instance()->get('FONTS') . $font . '.ttf');
+        if ($ttf_path === false || !\is_file($ttf_path) || !\is_readable($ttf_path)) throw new \Exception('Font (ttf) not found');
         $this->font_path = $ttf_path;
         $this->font_cash_path = App::instance()->get('FONTS_TEMP') . $font;
         $font_data = include $file_to_load;
