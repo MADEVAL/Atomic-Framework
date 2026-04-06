@@ -169,7 +169,25 @@ class Monopay extends Plugin
             }
             
             $is_valid = $this->api->verify_signature($this->public_key, $x_sign, $raw_body);
-            
+
+            if (!$is_valid) {
+                Log::info('Monopay: Signature verification failed, refreshing public key and retrying');
+                $this->public_key = null;
+
+                $result = $this->api->get_public_key();
+
+                if (!$result['ok']) {
+                    Log::error('Monopay: Failed to refresh public key ' . json_encode(['error' => $result['error']]));
+                    return [
+                        'ok' => false,
+                        'error' => 'Failed to verify webhook signature'
+                    ];
+                }
+
+                $this->public_key = $result['data']['key'];
+                $is_valid = $this->api->verify_signature($this->public_key, $x_sign, $raw_body);
+            }
+
             if (!$is_valid) {
                 Log::warning('Monopay: Invalid webhook signature');
                 return [

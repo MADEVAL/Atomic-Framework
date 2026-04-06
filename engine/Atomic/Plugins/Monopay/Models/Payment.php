@@ -143,6 +143,10 @@ class Payment extends Model
             'type' => Schema::DT_TEXT,
             'nullable' => true,
         ],
+        'fulfilled_at' => [
+            'type' => Schema::DT_TIMESTAMP,
+            'nullable' => true,
+        ],
     ];
 
     public function get_by_uuid(string $uuid): self|false
@@ -191,9 +195,59 @@ class Payment extends Model
         return $this->get('status') === self::STATUS_HOLD;
     }
 
+    public function is_fulfilled(): bool
+    {
+        return $this->get('fulfilled_at') !== null;
+    }
+
+    public function mark_fulfilled(): bool
+    {
+        $this->set('fulfilled_at', date('Y-m-d H:i:s'));
+        return (bool)$this->save();
+    }
+
+    private const STATUS_WEIGHT = [
+        self::STATUS_CREATED    => 0,
+        self::STATUS_PROCESSING => 1,
+        self::STATUS_HOLD       => 2,
+        self::STATUS_SUCCESS    => 3,
+        self::STATUS_FAILURE    => 3,
+        self::STATUS_REVERSED   => 4,
+        self::STATUS_EXPIRED    => 3,
+    ];
+
+    public static function is_valid_status_transition(string $from, string $to): bool
+    {
+        if ($from === $to) {
+            return true;
+        }
+
+        $from_weight = self::STATUS_WEIGHT[$from] ?? -1;
+        $to_weight = self::STATUS_WEIGHT[$to] ?? -1;
+
+        if ($to_weight < $from_weight) {
+            return false;
+        }
+
+        if ($from === self::STATUS_SUCCESS && $to !== self::STATUS_REVERSED) {
+            return false;
+        }
+
+        if (in_array($from, [self::STATUS_FAILURE, self::STATUS_EXPIRED], true)) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function update_from_webhook(array $webhook_data): bool
     {
-        $this->set('status', $webhook_data['status'] ?? $this->get('status'));
+        $new_status = $webhook_data['status'] ?? $this->get('status');
+        $old_status = $this->get('status');
+
+        if (self::is_valid_status_transition($old_status, $new_status)) {
+            $this->set('status', $new_status);
+        }
         
         if (isset($webhook_data['invoice_id']) && !$this->get('invoice_id')) {
             $this->set('invoice_id', $webhook_data['invoice_id']);
@@ -274,9 +328,15 @@ class Payment extends Model
     public static function create_from_invoice(array $invoice_data, ?int $tariff_id = null, ?int $store_id = null, ?int $user_id = null): ?self
     {
         $model = new self();
-        
+
         $payment_uuid = $invoice_data['reference'] ?? null;
-        $model = $model->get_by_uuid($payment_uuid);
+
+        if ($payment_uuid) {
+            $existing = $model->get_by_uuid($payment_uuid);
+            if ($existing) {
+                $model = $existing;
+            }
+        }
 
         $data = [
             'invoice_id' => $invoice_data['invoice_id'] ?? '',
@@ -417,29 +477,28 @@ class Payment extends Model
         
         $stored_uuid = $this->get('uuid');
         $monopay_reference = $result['reference'] ?? null;
-        
+
         $stored_amount = (float)$this->get('amount');
         $monopay_amount = $result['amount'] ?? 0;
-        
-        $stored_status = $this->get('status');
+
         $monopay_status = $result['status'] ?? '';
-        
+
         $verified = true;
         $errors = [];
-        
+
         if ($stored_uuid !== $monopay_reference) {
             $verified = false;
             $errors[] = 'UUID/Reference mismatch';
         }
-        
+
         if (abs($stored_amount - $monopay_amount) > 0.01) {
             $verified = false;
             $errors[] = 'Amount mismatch';
         }
-        
-        if ($stored_status !== $monopay_status) {
+
+        if ($monopay_status !== self::STATUS_SUCCESS) {
             $verified = false;
-            $errors[] = 'Status mismatch';
+            $errors[] = 'Monopay status is not success (got: ' . $monopay_status . ')';
         }
         
         return [

@@ -87,7 +87,7 @@ class WebhookHandler
                 case 'hold':
                     self::handle_hold_payment($data);
                     break;
-                    
+
                 default:
                     Log::info('Monopay: Unknown payment status ' . json_encode(['status' => $data['status']]));
             }
@@ -105,26 +105,42 @@ class WebhookHandler
     private static function create_or_update_payment(array $data): void
     {
         $reference = $data['reference'] ?? '';
-        
+
         if (empty($reference)) {
             Log::warning('Monopay: Missing reference in webhook data');
             return;
         }
-        
+
         $payment_model = new Payment();
         $payment = $payment_model->get_by_uuid($reference);
 
         if ($payment) {
+            $old_status = $payment->get('status');
+            $new_status = $data['status'] ?? $old_status;
+
+            if (!Payment::is_valid_status_transition($old_status, $new_status)) {
+                Log::warning('Monopay: Ignored invalid status transition ' . json_encode([
+                    'payment_uuid' => $reference,
+                    'from' => $old_status,
+                    'to' => $new_status
+                ]));
+                return;
+            }
+
             $payment->update_from_webhook($data);
-            Log::info('Monopay: Payment record updated ' . json_encode(['payment_uuid' => $reference]));
-        } 
+            Log::info('Monopay: Payment record updated ' . json_encode([
+                'payment_uuid' => $reference,
+                'old_status' => $old_status,
+                'new_status' => $new_status
+            ]));
+        }
     }
     
     private static function handle_success_payment(array $data): void
     {
         $reference = $data['reference'] ?? null;
         if (!$reference) {
-            Log::warning('Monopay: No reference for successful payment', $data);
+            Log::warning('Monopay: No reference for successful payment ' . json_encode(['data' => $data]));
             return;
         }
 
@@ -132,36 +148,44 @@ class WebhookHandler
         $payment = $payment_model->get_by_uuid($reference);
 
         if (!$payment) {
-            Log::warning('Monopay: Payment record not found for success webhook', ['reference' => $reference]);
+            Log::warning('Monopay: Payment record not found for success webhook ' . json_encode(['reference' => $reference]));
             return;
         }
-        
+
+        if ($payment->is_fulfilled()) {
+            Log::info('Monopay: Duplicate success webhook ignored (already fulfilled) ' . json_encode([
+                'payment_uuid' => $reference,
+            ]));
+            return;
+        }
+
         $amount = $data['final_amount'] ?? $data['amount'];
-        
+
         Log::info('Monopay: Payment successful ' . json_encode([
             'payment_uuid' => $reference,
-            'invoice_id' => $data['invoiceId'] ?? null,
+            'invoice_id' => $data['invoice_id'] ?? null,
             'amount' => $amount
         ]));
 
         $verification = $payment->verify_with_monopay();
-        
+
         if (!$verification['verified']) {
             Log::error('Monopay: Payment verification failed ' . json_encode([
                 'payment_uuid' => $reference,
                 'errors' => $verification['errors'] ?? []
             ]));
-            
             return;
         }
-        
+
         Log::info('Monopay: Payment verified successfully ' . json_encode([
             'payment_uuid' => $reference
         ]));
-        
+
         $seller = $payment->get('user');
-        
+
         if ($seller->activate_tariff($payment->tariff)) {
+            $payment->mark_fulfilled();
+
             Log::info('Monopay: Seller tariff activated ' . json_encode([
                 'seller_id' => $seller->id,
                 'tariff_uuid' => $payment->tariff->uuid
@@ -176,40 +200,37 @@ class WebhookHandler
     
     private static function handle_failed_payment(array $data): void
     {
-        $invoice_id = $data['invoice_id'];
-        $reference = $data['reference'];
-        $reason = $data['failure_reason'] ?? 'Unknown';
-        
         Log::warning('Monopay: Payment failed ' . json_encode([
-            'invoice_id' => $invoice_id,
-            'reference' => $reference,
-            'reason' => $reason
+            'invoice_id' => $data['invoice_id'] ?? null,
+            'reference' => $data['reference'] ?? null,
+            'reason' => $data['failure_reason'] ?? 'Unknown'
         ]));
     }
-    
+
     private static function handle_pending_payment(array $data): void
     {
         Log::info('Monopay: Payment pending ' . json_encode([
-            'invoice_id' => $data['invoice_id'],
-            'reference' => $data['reference'],
-            'status' => $data['status']
+            'invoice_id' => $data['invoice_id'] ?? null,
+            'reference' => $data['reference'] ?? null,
+            'status' => $data['status'] ?? 'unknown'
         ]));
     }
-    
+
     private static function handle_reversed_payment(array $data): void
     {
         Log::info('Monopay: Payment reversed ' . json_encode([
-            'invoice_id' => $data['invoice_id'],
-            'reference' => $data['reference']
+            'invoice_id' => $data['invoice_id'] ?? null,
+            'reference' => $data['reference'] ?? null
         ]));
     }
-    
+
     private static function handle_hold_payment(array $data): void
     {
         Log::info('Monopay: Payment on hold ' . json_encode([
-            'invoice_id' => $data['invoice_id'],
-            'reference' => $data['reference'],
-            'amount' => $data['amount']
+            'invoice_id' => $data['invoice_id'] ?? null,
+            'reference' => $data['reference'] ?? null,
+            'amount' => $data['amount'] ?? null
         ]));
     }
+
 }

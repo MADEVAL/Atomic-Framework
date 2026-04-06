@@ -104,8 +104,12 @@ class Order
         if (isset($options['agentFeePercent'])) {
             $invoice_data['agentFeePercent'] = (float)$options['agentFeePercent'];
         }
-        
-        $result = $this->api->create_invoice($amount_minor, $invoice_data);
+
+        if (isset($options['code'])) {
+            $invoice_data['code'] = $options['code'];
+        }
+
+        $result = $this->api->create_invoice($invoice_data);
         
         if ($result['ok']) {
             $this->order_data = [
@@ -125,16 +129,16 @@ class Order
                 'amount' => $amount
             ]));
 
-            $payment->invoice_id = $result['data']['invoiceId'];
-            $payment->page_url = $result['data']['pageUrl'];
+            $payment->set('invoice_id', $result['data']['invoiceId']);
+            $payment->set('page_url', $result['data']['pageUrl']);
             $payment->save();
 
         } else {
             $payment->erase();
-            Log::error("Monopay: Invoice creation failed, preliminary payment deleted.", [
+            Log::error('Monopay: Invoice creation failed, preliminary payment deleted ' . json_encode([
                 'payment_uuid' => $payment_uuid,
                 'error' => $result['error'] ?? 'Unknown error'
-            ]);
+            ]));
         }
         
         return $result;
@@ -171,32 +175,32 @@ class Order
         return $result;
     }
     
-    public function is_paid(string $invoice_id): bool
+    public function is_paid(string $invoice_id, ?array $status_result = null): bool
     {
-        $result = $this->get_status($invoice_id);
+        $result = $status_result ?? $this->get_status($invoice_id);
         return $result['ok'] && $result['status'] === 'success';
     }
-    
-    public function is_pending(string $invoice_id): bool
+
+    public function is_pending(string $invoice_id, ?array $status_result = null): bool
     {
-        $result = $this->get_status($invoice_id);
-        
+        $result = $status_result ?? $this->get_status($invoice_id);
+
         if (!$result['ok']) {
             return false;
         }
-        
+
         return in_array($result['status'], ['created', 'processing'], true);
     }
-    
-    public function is_failed(string $invoice_id): bool
+
+    public function is_failed(string $invoice_id, ?array $status_result = null): bool
     {
-        $result = $this->get_status($invoice_id);
+        $result = $status_result ?? $this->get_status($invoice_id);
         return $result['ok'] && $result['status'] === 'failure';
     }
-    
-    public function is_hold(string $invoice_id): bool
+
+    public function is_hold(string $invoice_id, ?array $status_result = null): bool
     {
-        $result = $this->get_status($invoice_id);
+        $result = $status_result ?? $this->get_status($invoice_id);
         return $result['ok'] && $result['status'] === 'hold';
     }
     
@@ -219,7 +223,10 @@ class Order
         $result = $this->api->cancel_invoice($invoice_id, $cancel_data);
         
         if ($result['ok']) {
-            Log::info("Monopay: Invoice cancelled " . json_encode($result));
+            Log::info('Monopay: Invoice cancelled ' . json_encode([
+                'invoiceId' => $invoice_id,
+                'status' => $result['data']['status'] ?? null,
+            ]));
         }
         
         return $result;

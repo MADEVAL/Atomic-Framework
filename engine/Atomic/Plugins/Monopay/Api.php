@@ -10,8 +10,7 @@ use Engine\Atomic\Plugins\Monopay;
 
 class Api
 {
-    private const API_URL = 'https://web.monobank.ua/';
-    private const TEST_API_URL = 'https://api.monobank.ua/';
+    private const API_URL = 'https://api.monobank.ua';
     
     private Request $http;
     private string $token;
@@ -32,21 +31,14 @@ class Api
         $this->cms_version = $cms_version;
     }
     
-    public function create_invoice(int $amount, array $options = []): array
+    public function create_invoice(array $data): array
     {
-        $data = array_merge([
-            'amount' => $amount,
-            'ccy' => $options['ccy'] ?? Monopay::CURRENCY_DEFAULT,
-        ], $options);
-        
         return $this->request('POST', '/api/merchant/invoice/create', $data);
     }
-    
+
     public function get_invoice_status(string $invoice_id): array
     {
-        return $this->request('GET', '/api/merchant/invoice/status', [
-            'query' => ['invoiceId' => $invoice_id]
-        ]);
+        return $this->request('GET', '/api/merchant/invoice/status?invoiceId=' . urlencode($invoice_id));
     }
     
     public function cancel_invoice(string $invoice_id, array $options = []): array
@@ -88,14 +80,14 @@ class Api
     public function verify_signature(string $public_key, string $x_sign, string $body): bool
     {
         try {
-            $pub_key_pem = base64_decode($public_key);
-            
-            if ($pub_key_pem === false) {
-                Log::warning('Monopay: Failed to decode public key');
+            $pem = base64_decode($public_key, strict: true);
+
+            if ($pem === false) {
+                Log::warning('Monopay: Failed to base64-decode public key');
                 return false;
             }
-            
-            $key = openssl_pkey_get_public($pub_key_pem);
+
+            $key = openssl_pkey_get_public($pem);
             
             if ($key === false) {
                 Log::warning('Monopay: Invalid public key format');
@@ -121,8 +113,7 @@ class Api
     
     private function request(string $method, string $endpoint, array $data = []): array
     {
-        $base = $this->test_mode ? self::TEST_API_URL : self::API_URL;
-        $url = rtrim((string)$base, '/') . '/' . ltrim((string)$endpoint, '/');
+        $url = rtrim(self::API_URL, '/') . '/' . ltrim((string)$endpoint, '/');
         
         $headers = [
             'X-Token' => $this->token,
@@ -146,7 +137,7 @@ class Api
         try {
             $response = match(strtoupper($method)) {
                 'GET' => $this->http->remote_get($url, array_merge($args, $data)),
-                'POST' => $this->http->remote_post($url, isset($data['query']) ? null : json_encode($data), array_merge($args, [
+                'POST' => $this->http->remote_post($url, json_encode($data), array_merge($args, [
                     'headers' => array_merge($headers, ['Content-Type' => 'application/json']),
                     'raw' => true
                 ])),
@@ -175,11 +166,20 @@ class Api
             }
             
             $body = $response['body'];
+
+            if ($body === '' || $body === null) {
+                return [
+                    'ok' => true,
+                    'data' => null,
+                    'error' => null
+                ];
+            }
+
             $decoded = json_decode($body, true);
-            
+
             if (json_last_error() !== JSON_ERROR_NONE) {
                 Log::error('Monopay: Failed to decode JSON response. Error: ' . json_last_error_msg() . '. Body: ' . substr($body, 0, 500));
-                
+
                 return [
                     'ok' => false,
                     'error' => 'Invalid JSON response',
@@ -187,10 +187,10 @@ class Api
                 ];
             }
             
-            if (isset($decoded['errCode']) || isset($decoded['errorDescription'])) {
+            if (isset($decoded['errCode']) || isset($decoded['errText'])) {
                 return [
                     'ok' => false,
-                    'error' => $decoded['errorDescription'] ?? 'API Error',
+                    'error' => $decoded['errText'] ?? 'API Error',
                     'errorCode' => $decoded['errCode'] ?? null,
                     'data' => $decoded
                 ];
