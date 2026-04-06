@@ -325,53 +325,6 @@ class Payment extends Model
         return null;
     }
     
-    public static function create_from_invoice(array $invoice_data, ?int $tariff_id = null, ?int $store_id = null, ?int $user_id = null): ?self
-    {
-        $model = new self();
-
-        $payment_uuid = $invoice_data['reference'] ?? null;
-
-        if ($payment_uuid) {
-            $existing = $model->get_by_uuid($payment_uuid);
-            if ($existing) {
-                $model = $existing;
-            }
-        }
-
-        $data = [
-            'invoice_id' => $invoice_data['invoice_id'] ?? '',
-            'uuid' => $payment_uuid,
-            'status' => self::STATUS_CREATED,
-            'amount' => isset($invoice_data['amount']) ? $invoice_data['amount'] / 100 : 0,
-            'currency' => $invoice_data['ccy'] ?? Monopay::CURRENCY_UAH,
-            'destination' => $invoice_data['destination'] ?? null,
-            'page_url' => $invoice_data['page_url'] ?? null,
-            'created_date' => date('Y-m-d H:i:s'),
-        ];
-        
-        if ($tariff_id) {
-            $data['tariff'] = $tariff_id;
-        }
-        
-        if ($store_id) {
-            $data['store'] = $store_id;
-        }
-        
-        if ($user_id) {
-            $data['user'] = $user_id;
-        }
-        
-        foreach ($data as $key => $value) {
-            $model->set($key, $value);
-        }
-        
-        if ($model->save()) {
-            return $model;
-        }
-        
-        return null;
-    }
-
     public function get_formatted_amount(): string
     {
         $amount = $this->get('amount');

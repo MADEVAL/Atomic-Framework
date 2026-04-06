@@ -53,7 +53,7 @@ class WebhookHandler
         $data = $result['data'];
         
         try {
-            self::create_or_update_payment($data);
+            self::update_payment_from_webhook($data);
             
             $reference = $data['reference'] ?? '';
             $status = $data['status'] ?? 'unknown';
@@ -102,7 +102,7 @@ class WebhookHandler
         }
     }
     
-    private static function create_or_update_payment(array $data): void
+    private static function update_payment_from_webhook(array $data): void
     {
         $reference = $data['reference'] ?? '';
 
@@ -169,6 +169,10 @@ class WebhookHandler
 
         $verification = $payment->verify_with_monopay();
 
+        if (!$verification['ok']) {
+            throw new \RuntimeException('Monopay re-verification API call failed: ' . ($verification['error'] ?? 'unknown'));
+        }
+
         if (!$verification['verified']) {
             Log::error('Monopay: Payment verification failed ' . json_encode([
                 'payment_uuid' => $reference,
@@ -195,6 +199,7 @@ class WebhookHandler
                 'seller_id' => $seller->id,
                 'tariff_uuid' => $payment->tariff->uuid
             ]));
+            throw new \RuntimeException('Failed to activate tariff for seller ' . $seller->id);
         }
     }
     

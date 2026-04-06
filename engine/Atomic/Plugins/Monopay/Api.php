@@ -14,19 +14,16 @@ class Api
     
     private Request $http;
     private string $token;
-    private bool $test_mode;
     private ?string $cms_name;
     private ?string $cms_version;
-    
+
     public function __construct(
         string $token,
-        bool $test_mode = false,
         ?string $cms_name = null,
         ?string $cms_version = null
     ) {
         $this->http = Request::instance();
         $this->token = $token;
-        $this->test_mode = $test_mode;
         $this->cms_name = $cms_name;
         $this->cms_version = $cms_version;
     }
@@ -94,7 +91,7 @@ class Api
                 return false;
             }
             
-            $signature = base64_decode($x_sign);
+            $signature = base64_decode($x_sign, strict: true);
             
             if ($signature === false) {
                 Log::warning('Monopay: Failed to decode signature');

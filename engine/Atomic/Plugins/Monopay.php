@@ -43,10 +43,9 @@ class Monopay extends Plugin
         $token = $this->atomic->get('MONOPAY.TOKEN');
         
         if ($token) {
-            $test_mode = (bool)$this->atomic->get('MONOPAY.TEST_MODE');
             $cms_version = $this->atomic->get('MONOPAY.CMS_VERSION') ?: $this->version;
-            
-            $this->api = new Api($token, $test_mode, null, $cms_version);
+
+            $this->api = new Api($token, null, $cms_version);
             $this->order = new Order($this->api);
         } else {
             Log::warning('Monopay: No API token configured. Set MONOPAY.TOKEN in configuration.');
@@ -87,10 +86,6 @@ class Monopay extends Plugin
     {
         $this->atomic->set('MONOPAY.TOKEN', $token);
         
-        if (isset($options['test_mode'])) {
-            $this->atomic->set('MONOPAY.TEST_MODE', (bool)$options['test_mode']);
-        }
-        
         if (isset($options['cms_version'])) {
             $this->atomic->set('MONOPAY.CMS_VERSION', $options['cms_version']);
         }
@@ -103,11 +98,8 @@ class Monopay extends Plugin
             $this->atomic->set('MONOPAY.REDIRECT_URL', $options['redirect_url']);
         }
         
-        $test_mode = (bool)($options['test_mode'] ?? $this->atomic->get('MONOPAY.TEST_MODE'));
-        
         $this->api = new Api(
             $token,
-            $test_mode,
             null,
             $options['cms_version'] ?? $this->version
         );
