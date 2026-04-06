@@ -5,9 +5,9 @@ namespace Engine\Atomic\App;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
-use Engine\Atomic\App\Controller;
 use Engine\Atomic\Core\Guard;
 use Engine\Atomic\Core\ID;
+use Engine\Atomic\Core\Sanitizer;
 use Engine\Atomic\Enums\Role;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
 use Engine\Atomic\Theme\Theme;
@@ -15,7 +15,7 @@ use Engine\Atomic\Theme\Theme;
 class Telemetry extends Controller
 {
 
-    public function __construct() 
+    public function __construct()
     {
         parent::__construct();
         $app = App::instance();
@@ -23,10 +23,12 @@ class Telemetry extends Controller
             Theme::instance('Telemetry');
             $app->set('__theme_booted', true);
         }
-    }   
+    }
 
     public function beforeroute(\Base $atomic): void
     {
+        Sanitizer::syncFromHive($atomic);
+
         if ($atomic->get('TELEMETRY_ADMIN_ONLY') && !Guard::has_role(Role::ADMIN)) {
             $atomic->reroute('/login');
         }
@@ -46,6 +48,9 @@ class Telemetry extends Controller
         $all_jobs = !empty($filters)
             ? $queue_manager->fetch_all_jobs($filters['queue'] ?? '*', $filters)
             : $queue_manager->fetch_all_jobs();
+
+        $all_jobs = (array)Sanitizer::normalize($all_jobs);
+
         $status_counts = [
             'failed' => 0,
             'queued' => 0,
@@ -54,7 +59,7 @@ class Telemetry extends Controller
             'total' => count($all_jobs),
         ];
         foreach ($all_jobs as $job) {
-            $job_state = $job['state'] ?? 'unknown';
+            $job_state = is_array($job) ? ($job['state'] ?? 'unknown') : 'unknown';
             if (isset($status_counts[$job_state])) {
                 $status_counts[$job_state]++;
             }
@@ -63,7 +68,7 @@ class Telemetry extends Controller
         $atomic->set('status_counts', $status_counts);
         $atomic->set('title', 'Atomic Telemetry');
         $atomic->set('filters', $filters);
-        
+
         echo \View::instance()->render('layout/telemetry-queue.atom.php');
     }
 
@@ -84,8 +89,8 @@ class Telemetry extends Controller
         header('Content-Type: application/json');
         echo json_encode([
             'job_uuid' => $job_uuid,
-            'driver' => $driver,
-            'events' => $events,
+            'driver'   => $driver,
+            'events'   => Sanitizer::normalize($events),
         ]);
     }
 
@@ -112,16 +117,16 @@ class Telemetry extends Controller
 
         $atomicInfo = [
             //'env' => (string)$atomic->get('ENV'),
-            'debug_mode' => (bool)filter_var($atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN),
+            'debug_mode'  => (bool)filter_var($atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN),
             'debug_level' => (string)$atomic->get('DEBUG_LEVEL'),
-            'logs_dir' => (string)$atomic->get('LOGS'),
-            'dumps_dir' => (string)$atomic->get('DUMPS'),
-            'base' => (string)$atomic->get('BASE'),
+            'logs_dir'    => Sanitizer::sanitize_string((string)$atomic->get('LOGS')),
+            'dumps_dir'   => Sanitizer::sanitize_string((string)$atomic->get('DUMPS')),
+            'base'        => (string)$atomic->get('BASE'),
         ];
 
         $system = [
-            'os' => PHP_OS_FAMILY . ' ' . PHP_OS,
-            'uname' => function_exists('php_uname') ? php_uname() : null,
+            'os'       => PHP_OS_FAMILY . ' ' . PHP_OS,
+            // 'uname' => function_exists('php_uname') ? php_uname() : null,
             'timezone' => date_default_timezone_get(),
         ];
 
@@ -131,9 +136,9 @@ class Telemetry extends Controller
             if ($conn instanceof \DB\SQL) {
                 $pdo = $conn->pdo();
                 $db = [
-                    'driver' => $pdo->getAttribute(\PDO::ATTR_DRIVER_NAME),
-                    'server_version' => $pdo->getAttribute(\PDO::ATTR_SERVER_VERSION),
-                    'client_version' => $pdo->getAttribute(\PDO::ATTR_CLIENT_VERSION),
+                    'driver'         => Sanitizer::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_DRIVER_NAME)),
+                    'server_version' => Sanitizer::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_SERVER_VERSION)),
+                    'client_version' => Sanitizer::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_CLIENT_VERSION)),
                 ];
             }
         } catch (\Throwable $e) {}
@@ -150,31 +155,11 @@ class Telemetry extends Controller
 
     public function hive(\Base $atomic, array $params = [], ?string $alias = null): void
     {
-        $normalize = function ($value, $depth = 0) use (&$normalize) {
-            if ($depth > 5) return '[[max_depth]]';
-            if (is_null($value) || is_scalar($value)) return $value;
-            if (is_array($value)) {
-                $out = [];
-                $i = 0;
-                foreach ($value as $k => $v) {
-                    if ($i++ >= 500) { $out['[[truncated]]'] = true; break; }
-                    $out[$k] = $normalize($v, $depth + 1);
-                }
-                return $out;
-            }
-            if (is_object($value)) {
-                if ($value instanceof \DateTimeInterface) return $value->format(\DateTimeInterface::RFC3339_EXTENDED);
-                return ['__object__' => get_class($value)];
-            }
-            if (is_resource($value)) return ['__resource__' => get_resource_type($value) ?: 'resource'];
-            return '[[unsupported]]';
-        };
-
         $hive = [];
         try {
-            $hive = $normalize($atomic->hive());
+            $hive = Sanitizer::normalize($atomic->hive());
         } catch (\Throwable $e) {
-            $hive = ['error' => $e->getMessage()];
+            $hive = ['error' => Sanitizer::sanitize_string($e->getMessage())];
         }
 
         header('Content-Type: application/json; charset=utf-8');
@@ -234,9 +219,9 @@ class Telemetry extends Controller
             }
 
             $out[] = [
-                'ts' => $ts,
-                'level' => $level,
-                'message' => $msg,
+                'ts'      => $ts,
+                'level'   => $level,
+                'message' => Sanitizer::sanitize_string($msg),
                 'dump_id' => $dumpId,
             ];
         }
@@ -267,7 +252,7 @@ class Telemetry extends Controller
         if (json_last_error() === JSON_ERROR_NONE) {
             echo json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
         } else {
-            echo json_encode(['dump_id' => $dumpId, 'raw' => $raw], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            echo json_encode(['dump_id' => $dumpId, 'error' => 'dump file could not be decoded'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
     }
 }

@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use \Engine\Atomic\Core\ID;
 use \Engine\Atomic\Core\Response;
+use \Engine\Atomic\Core\Sanitizer;
 
 class Log
 {
@@ -17,7 +18,7 @@ class Log
 
     public static function init(\Base $atomic): void
     {
-        self::$atomic = $atomic; 
+        self::$atomic = $atomic;
         self::$logger = new \Log('atomic.log');
         self::$debugMode = (bool)filter_var($atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN);
 
@@ -30,11 +31,13 @@ class Log
         };
         if (!self::$debugMode) self::$debug = 0;
         $atomic->set('DEBUG', self::$debug);
-        $atomic->set('LOGGABLE', ''); 
+        $atomic->set('LOGGABLE', '');
 
         $logs = rtrim((string)$atomic->get('LOGS'), '/\\') . DIRECTORY_SEPARATOR;
         self::$dumpsDir = $logs . 'dumps' . DIRECTORY_SEPARATOR;
         $atomic->set('DUMPS', self::$dumpsDir);
+
+        Sanitizer::syncFromHive($atomic);
     }
 
     protected static function levelInt(string $level): int
@@ -50,9 +53,9 @@ class Log
     protected static function write(string $level, string $message): void
     {
         if (empty($message)) return;
-        $lvlInt = self::levelInt((string)$level);
+        $lvlInt = self::levelInt($level);
         if ($lvlInt > 1 && (!self::$debugMode || $lvlInt > self::$debug)) return;
-        self::$logger?->write('[' . strtoupper((string)$level) . '] ' . $message);
+        self::$logger?->write('[' . strtoupper($level) . '] ' . Sanitizer::sanitize_string($message));
     }
 
     protected static function ensureDumpsDir(): bool
@@ -63,31 +66,6 @@ class Log
         return is_dir(self::$dumpsDir) && is_writable(self::$dumpsDir);
     }
 
-    protected static function normalize(mixed $hive_data, int $depth = 0, int $maxDepth = 6, int $maxItems = 1000): mixed
-    {
-        if ($depth >= $maxDepth) return '[[max_depth]]';
-        if (is_null($hive_data) || is_scalar($hive_data)) return $hive_data;
-
-        if (is_array($hive_data)) {
-            $out = [];
-            $i = 0;
-            foreach ($hive_data as $key => $value) {
-                if ($i++ >= $maxItems) { $out['[[truncated]]'] = true; break; }
-                $out[$key] = self::normalize($value, $depth+1, $maxDepth, $maxItems);
-            }
-            return $out;
-        }
-
-        if (is_object($hive_data)) {
-            if ($hive_data instanceof \DateTimeInterface) return $hive_data->format(\DateTimeInterface::RFC3339_EXTENDED);
-            $cls = get_class($hive_data);
-            return ['__object__' => $cls];
-        }
-
-        if (is_resource($hive_data)) return ['__resource__' => get_resource_type($hive_data) ?: 'resource'];
-        return '[[unsupported]]';
-    }
-
     protected static function dumpToJson(string $filenameUuid, array $payload): ?string
     {
         if (!self::ensureDumpsDir()) {
@@ -95,20 +73,21 @@ class Log
             return null;
         }
 
-        $path = self::$dumpsDir . $filenameUuid . '.json';
+        $path       = self::$dumpsDir . $filenameUuid . '.json';
+        $normalized = Sanitizer::normalize($payload);
 
         try {
             $json = Response::instance()->atomic_json_encode(
-                self::normalize($payload),
+                $normalized,
                 JSON_PRETTY_PRINT
             );
         } catch (\Throwable $e) {
             $json = json_encode(
-                self::normalize($payload),
-                  JSON_PRETTY_PRINT 
-                | JSON_UNESCAPED_UNICODE 
-                | JSON_UNESCAPED_SLASHES 
-                | JSON_PRESERVE_ZERO_FRACTION 
+                $normalized,
+                  JSON_PRETTY_PRINT
+                | JSON_UNESCAPED_UNICODE
+                | JSON_UNESCAPED_SLASHES
+                | JSON_PRESERVE_ZERO_FRACTION
                 | (defined('JSON_PARTIAL_OUTPUT_ON_ERROR') ? JSON_PARTIAL_OUTPUT_ON_ERROR : 0)
             );
         }
