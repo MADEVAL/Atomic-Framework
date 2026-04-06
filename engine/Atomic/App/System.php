@@ -123,6 +123,10 @@ class System extends Controller
         $this->cli()->migrations_status();
     }
 
+    public function migrationsPublish(): void {
+        $this->cli()->migrations_publish();
+    }
+
     public function seedUsers(): void
     {
         $this->cli()->seed_users();

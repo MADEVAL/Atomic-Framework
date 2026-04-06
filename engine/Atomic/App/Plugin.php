@@ -67,4 +67,14 @@ abstract class Plugin
     {
         return $this->path;
     }
+
+    /**
+     * Return the path to the plugin's migrations directory, or null if none.
+     * Used by `php atomic migrations/publish <plugin-name>` to auto-discover migrations.
+     */
+    public function getMigrationsPath(): ?string
+    {
+        $path = $this->path . DIRECTORY_SEPARATOR . 'Migrations';
+        return is_dir($path) ? $path : null;
+    }
 }

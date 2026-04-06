@@ -169,7 +169,7 @@ class App {
         return $this;
     }
 
-    protected function detectRequestType(): string
+    public function detectRequestType(): string
     {
         if (!empty($this->atomic->CLI)) return 'cli';
 

@@ -6,6 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use DB\Cortex;
 use DB\Cortex\Schema\Schema;
+use Engine\Atomic\App\PluginManager;
 
 class Migrations {
 
@@ -97,6 +98,55 @@ class Migrations {
 
         file_put_contents($file_path, $template);
         echo "Migration '$file_name' created successfully at '$file_path'.\n";
+    }
+
+    public function publishFromPlugin(string $pluginName): void {
+        $manager = PluginManager::instance();
+        $plugin = $manager->get($pluginName);
+
+        if ($plugin === null) {
+            foreach ($manager->all() as $name => $p) {
+                if (strtolower($name) === strtolower($pluginName)) {
+                    $plugin = $p;
+                    break;
+                }
+            }
+        }
+
+        if ($plugin === null) {
+            echo "Plugin '{$pluginName}' not found. Available plugins:\n";
+            foreach ($manager->all() as $name => $p) {
+                $hasMigrations = $p->getMigrationsPath() !== null ? ' (has migrations)' : '';
+                echo "  - {$name}{$hasMigrations}\n";
+            }
+            return;
+        }
+
+        $migrationsPath = $plugin->getMigrationsPath();
+        if ($migrationsPath === null) {
+            echo "Plugin '{$plugin->getPluginName()}' has no Migrations directory.\n";
+            return;
+        }
+
+        $files = array_filter(
+            glob($migrationsPath . DIRECTORY_SEPARATOR . '*.php'),
+            fn($f) => basename($f) !== 'index.php'
+        );
+
+        if (empty($files)) {
+            echo "No migration files found in '{$migrationsPath}'.\n";
+            return;
+        }
+
+        $published = 0;
+        foreach ($files as $file) {
+            $name = basename($file, '.php');
+            echo "Publishing '{$name}'... ";
+            $this->publish(substr($file, 0, -4));
+            $published++;
+        }
+
+        echo "\nDone. {$published} migration(s) processed from plugin '{$plugin->getPluginName()}'.\n";
     }
 
     public function publish(string $source_path): void {

@@ -22,6 +22,20 @@ class RouteLoader extends \Prefab
         return $this;
     }
 
+    public function getFilenamesFor(string $requestType): array
+    {
+        $requestType = strtolower(trim($requestType));
+
+        if (!isset(self::ROUTE_TYPE_MAP[$requestType])) {
+            throw new \InvalidArgumentException(
+                "Invalid request type: '{$requestType}'. "
+                . "Valid types: " . implode(', ', array_keys(self::ROUTE_TYPE_MAP))
+            );
+        }
+
+        return self::ROUTE_TYPE_MAP[$requestType];
+    }
+
     public function getFilesFor(string $requestType): array
     {
         $requestType = strtolower(trim($requestType));

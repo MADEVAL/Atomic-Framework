@@ -49,6 +49,7 @@ $atomic->route('GET /migrations/create [cli]', 'Engine\Atomic\App\System->migrat
 $atomic->route('GET /migrations/migrate [cli]', 'Engine\Atomic\App\System->migrationsMigrate');
 $atomic->route('GET /migrations/rollback [cli]', 'Engine\Atomic\App\System->migrationsRollback');
 $atomic->route('GET /migrations/status [cli]', 'Engine\Atomic\App\System->migrationsStatus');
+$atomic->route('GET /migrations/publish [cli]', 'Engine\Atomic\App\System->migrationsPublish');
 
 $atomic->route('GET /file/csv2pdf [cli]', 'Engine\Atomic\App\System->fileCsv2Pdf');
 $atomic->route('GET /file/xls2pdf [cli]', 'Engine\Atomic\App\System->fileXls2Pdf');

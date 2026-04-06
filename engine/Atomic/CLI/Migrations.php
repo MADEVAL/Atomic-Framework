@@ -41,4 +41,14 @@ trait Migrations {
     public function migrations_status() {
         (new AM())->status();
     }
+
+    public function migrations_publish() {
+        $args = $this->get_cli_args();
+        if (!isset($args[0])) {
+            echo "Usage: migrations/publish <plugin-name>\n";
+            echo "  Publishes all migrations from the specified plugin.\n";
+            return;
+        }
+        (new AM())->publishFromPlugin($args[0]);
+    }
 }

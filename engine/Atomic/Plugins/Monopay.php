@@ -28,6 +28,17 @@ class Monopay extends Plugin
         return 'Monopay';
     }
 
+    public function getMigrationsPath(): ?string
+    {
+        $path = __DIR__ . DIRECTORY_SEPARATOR . 'Monopay' . DIRECTORY_SEPARATOR . 'Migrations';
+        return is_dir($path) ? $path : null;
+    }
+
+    public function publishMigrations(): void
+    {
+        (new Migrations())->publishFromPlugin($this->getName());
+    }
+
     public function register(): void
     {
         $this->atomic->set('PLUGIN.Monopay.registered', true);

@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\RouteLoader;
 
 class PluginManager
 {
@@ -66,12 +67,38 @@ class PluginManager
     {
         foreach ($this->registered as $name => $_) {
             if (isset($this->booted[$name])) continue;
-            
+
             try {
                 $this->plugins[$name]->boot();
                 $this->booted[$name] = true;
             } catch (\Throwable $e) {
                 Log::error("Plugin {$name} boot failed: " . $e->getMessage());
+            }
+        }
+
+        $this->loadPluginRoutes();
+    }
+
+    protected function loadPluginRoutes(): void
+    {
+        $atomic = App::instance();
+        $routeLoader = RouteLoader::instance();
+        $fileNames = $routeLoader->getFilenamesFor($atomic->detectRequestType());
+
+        foreach ($this->booted as $name => $_) {
+            $plugin = $this->plugins[$name];
+            $routesDir = $plugin->getPluginPath() . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR;
+
+            foreach ($fileNames as $fileName) {
+                $file = $routesDir . $fileName;
+
+                if (!is_file($file)) continue;
+
+                try {
+                    require $file;
+                } catch (\Throwable $e) {
+                    Log::error("Plugin {$name}: failed to load routes/{$fileName}: " . $e->getMessage());
+                }
             }
         }
     }
