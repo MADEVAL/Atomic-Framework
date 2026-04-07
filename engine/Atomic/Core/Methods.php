@@ -5,9 +5,8 @@ namespace Engine\Atomic\Core;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
-use Detection\MobileDetect;
+use Engine\Atomic\CLI\CLI as AtomicCLI;
 use Engine\Atomic\Lang\I18n;
-use Detection\Exception\MobileDetectException;
 
 class Methods {
 
@@ -74,26 +73,10 @@ class Methods {
         return $this->atomic->get('SCHEME') === 'https';
     }
 
-    public function get_isCli(): bool 
-    {
-        return php_sapi_name() === 'cli';
-    }
-
     public function get_isDebug(): bool 
     {
         $debug = $this->atomic->get('DEBUG');
         return $debug > 0;
-    }
-    
-    public function get_isUserRoot(): bool
-    {
-        return function_exists('posix_getuid') && posix_getuid() === 0;
-    }
-
-    public function get_isColorTerminal(): bool
-    {
-        $term = getenv('TERM');
-        return !empty($term) && $term !== 'dumb';
     }
 
     public function get_publicDir(): string 
@@ -142,7 +125,7 @@ class Methods {
 
     public function get_userDevice(bool $accuracy = false): string
     {
-        if ($this->get_isCli()) return 'pc';
+        if (AtomicCLI::isCli()) return 'pc';
         $ua = (string)($this->get_userAgent() ?? ($_SERVER['HTTP_USER_AGENT'] ?? ''));
         $srv = $_SERVER ?? [];
         if (class_exists('\Detection\MobileDetect')) {

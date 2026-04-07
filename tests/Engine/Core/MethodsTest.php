@@ -44,11 +44,6 @@ class MethodsTest extends TestCase
         $this->assertNotEmpty($enc);
     }
 
-    public function test_get_isCli_returns_true(): void
-    {
-        $this->assertTrue($this->m->get_isCli());
-    }
-
     public function test_get_userDevice_returns_pc_in_cli(): void
     {
         $this->assertSame('pc', $this->m->get_userDevice());

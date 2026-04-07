@@ -5,7 +5,6 @@ namespace Engine\Atomic\CLI;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
-use Engine\Atomic\Core\Methods as AM;
 use Engine\Atomic\Core\Log;
 
 class CLI { 
@@ -117,15 +116,24 @@ class CLI {
         return array_slice($argv, 2);
     }
 
+    public static function isCli(): bool
+    {
+        return php_sapi_name() === 'cli';
+    }
+
+    public static function isUserRoot(): bool
+    {
+        return function_exists('posix_getuid') && posix_getuid() === 0;
+    }
+
     public function checkRootWarning(string $rawCommand, string $command): bool {
-        if (!AM::instance()->get_isUserRoot() || !$this->isRootRestrictedCommand($command)) {
+        if (!self::isUserRoot() || !$this->isRootRestrictedCommand($command)) {
             return false;
         }
 
         if (stream_isatty(STDIN)) {
-            $color   = AM::instance()->get_isColorTerminal();
-            $warning = $color ? "\033[1;33m[WARNING]\033[0m" : '[WARNING]';
-            $cmd     = $color ? "\033[1m{$rawCommand}\033[0m" : $rawCommand;
+            $warning = Paint::warningLabel();
+            $cmd     = Paint::bold($rawCommand);
             echo "{$warning} You are running '{$cmd}' as root.\n";
             echo "Running as root may cause permission issues.\n";
             echo "Do you want to continue? [y/N]: ";
@@ -133,7 +141,7 @@ class CLI {
             $input = strtolower(trim((string) fgets(STDIN)));
 
             if ($input !== 'y' && $input !== 'yes') {
-                echo "Aborted.\n";
+                echo Paint::errorLabel() . " Aborted.\n";
                 return true;
             }
         } else {

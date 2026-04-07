@@ -14,7 +14,7 @@ trait Init {
      */
     public function init(): void
     {
-        echo "\n  Atomic Framework -- Project Initialization\n";
+        echo "\n  " . Paint::bold('Atomic Framework -- Project Initialization') . "\n";
         echo "  " . str_repeat('-', 48) . "\n\n";
 
         $root = ATOMIC_DIR;
@@ -51,7 +51,7 @@ trait Init {
 
         $runtimeNotWritable = [];
 
-        echo "  [1/4] Creating directories...\n";
+        echo "  " . Paint::yellow('[1/4]', true) . " Creating directories...\n";
         $created = 0;
         foreach ($dirs as $dir) {
             $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
@@ -61,14 +61,14 @@ trait Init {
                     $created++;
                 } else {
                     $err = error_get_last()['message'] ?? 'unknown error';
-                    echo "        WARN: could not create {$dir}: {$err}\n";
+                    echo "        " . Paint::warningLabel() . " could not create {$dir}: {$err}\n";
                     continue;
                 }
             }
             if ($isRuntime) {
                 @chmod($path, 0775);
                 if (!is_writable($path)) {
-                    echo "        WARN: {$dir} is not writable by current web user context\n";
+                    echo "        " . Paint::warningLabel() . " {$dir} is not writable by current web user context\n";
                     $runtimeNotWritable[] = $dir;
                 }
             }
@@ -79,7 +79,7 @@ trait Init {
         echo "        {$created} new director" . ($created === 1 ? 'y' : 'ies') . " created\n\n";
 
         // ── 2. Generate secrets ──
-        echo "  [2/4] Generating secrets...\n";
+        echo "  " . Paint::yellow('[2/4]', true) . " Generating secrets...\n";
         $uuid   = ID::uuid_v4();
         $appKey = bin2hex(random_bytes(16)); // 32 hex chars
 
@@ -96,7 +96,7 @@ trait Init {
         }
 
         // ── 3. Create .env (if missing) ──
-        echo "  [3/4] Environment file...\n";
+        echo "  " . Paint::yellow('[3/4]', true) . " Environment file...\n";
         $envPath = $root . DIRECTORY_SEPARATOR . '.env';
 
         if (file_exists($envPath)) {
@@ -109,7 +109,7 @@ trait Init {
         }
 
         // ── 4. Stub files ──
-        echo "  [4/4] Stub files...\n";
+        echo "  " . Paint::yellow('[4/4]', true) . " Stub files...\n";
         $stubs = 0;
         $stubs += $this->writeStubIfMissing(
             $root . '/routes/web.php',
@@ -135,7 +135,7 @@ trait Init {
         echo "        {$stubs} stub file" . ($stubs === 1 ? '' : 's') . " created\n\n";
 
         echo "  " . str_repeat('=', 48) . "\n";
-        echo "  Done! Next steps:\n\n";
+        echo "  " . Paint::successLabel() . " Next steps:\n\n";
         echo "    1. Review .env and set DB_DATABASE, DOMAIN, etc.\n\n";
         echo "    2. Verify required PHP extensions are loaded:\n";
         echo "       php -m | grep -E 'pdo_mysql|json|mbstring|tokenizer'\n";
@@ -169,7 +169,7 @@ trait Init {
         $envPath = ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env';
 
         if (!file_exists($envPath)) {
-            echo "No .env file found. Run 'php atomic init' first.\n";
+            echo Paint::errorLabel() . " No .env file found. Run 'php atomic init' first.\n";
             return;
         }
 
@@ -184,14 +184,14 @@ trait Init {
         if (function_exists('sodium_crypto_secretbox_keygen')) {
             $encKey = base64_encode(sodium_crypto_secretbox_keygen());
             $contents = preg_replace('/^APP_ENCRYPTION_KEY=.*$/m', "APP_ENCRYPTION_KEY={$encKey}", $contents);
-            echo "APP_ENCRYPTION_KEY regenerated (sodium)\n";
+            echo Paint::successLabel() . " APP_ENCRYPTION_KEY regenerated (sodium)\n";
         }
 
         file_put_contents($envPath, $contents);
 
         echo "APP_UUID={$uuid}\n";
         echo "APP_KEY={$appKey}\n";
-        echo "Keys written to .env\n";
+        echo Paint::successLabel() . " Keys written to .env\n";
     }
 
     /**
@@ -216,10 +216,10 @@ trait Init {
                 $deleted++;
             } else {
                 $err = error_get_last()['message'] ?? 'unknown error';
-                echo "WARN: could not delete {$old}: {$err}\n";
+                echo Paint::warningLabel() . " could not delete {$old}: {$err}\n";
             }
         }
-        echo "Rotated {$deleted} log file" . ($deleted === 1 ? '' : 's') . ".\n";
+        echo Paint::successLabel() . " Rotated {$deleted} log file" . ($deleted === 1 ? '' : 's') . ".\n";
     }
 
     // ── private helpers ──
