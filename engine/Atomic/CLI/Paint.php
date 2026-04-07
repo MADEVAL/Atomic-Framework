@@ -96,6 +96,17 @@ final class Paint
         return self::green('[OK]', true);
     }
 
+    public static function askSecret(string $label, string $default = ''): string
+    {
+        echo "  {$label}: ";
+
+        echo "\033[8m";
+        $value = trim((string)fgets(STDIN));
+        echo "\033[0m" . PHP_EOL;
+
+        return $value === '' ? $default : $value;
+    }
+
     private static function paint(string $text, ?string $color, bool $bold): string
     {
         if (!self::supportsColors()) {

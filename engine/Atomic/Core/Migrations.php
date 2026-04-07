@@ -6,24 +6,25 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use DB\Cortex;
 use DB\Cortex\Schema\Schema;
+use Engine\Atomic\CLI\Paint;
 use Engine\Atomic\App\PluginManager;
 
-class Migrations {
-
-    public function __construct() {
-        $this->db();
-    }
-
-    public function db(): void {
+class Migrations 
+{
+    public function db(): bool {
         $atomic = App::instance();
         $db = $atomic->get('DB');
+        if (!$db) {
+            echo Paint::errorLabel() . " Database is not ready.\n";
+            return false;
+        }
         $schema = new Schema($db);
         $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
 
         try {
             $tables = $schema->getTables();
             if (is_array($tables) && in_array($migrations_table, $tables)) {
-                return;
+                return true;
             }
     
             $table = $schema->createTable($migrations_table);
@@ -33,10 +34,15 @@ class Migrations {
             $table->build();
         } catch (\Throwable $e) {
             echo "Error creating migrations table: " . $e->getMessage() . "\n";
+            return false;
         }
+        return true;
     }
 
     public function create(string $name, string $template = ''): void {
+        if (!$this->db()) {
+            return;
+        }
         $atomic = App::instance();
         $db = $atomic->get('DB');
         $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
@@ -182,6 +188,9 @@ class Migrations {
     }
 
     public function migrate(?int $steps = null): void {
+        if (!$this->db()) {
+            return;
+        }
         $atomic = App::instance();
         $db = $atomic->get('DB');
         $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
@@ -240,6 +249,9 @@ class Migrations {
     }
 
     public function rollback(int|string|null $mode = null): void {
+        if (!$this->db()) {
+            return;
+        }
         if ($mode === null) {
             $mode = 1;
         } elseif (is_numeric($mode)) {
@@ -286,6 +298,9 @@ class Migrations {
     }
 
     public function status(): void {
+        if (!$this->db()) {
+            return;
+        }
         $atomic = App::instance();
         $db = $atomic->get('DB');
         $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
