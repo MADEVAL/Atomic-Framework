@@ -113,7 +113,7 @@ class Sanitizer
 
     protected const SENSITIVE_VALUE_MAPPING = [
         // Authorization: Bearer / Basic / Token ...
-        '/((?:Authorization|Proxy-Authorization)\s*[:=]\s*)(\S+)/i'
+        '/((?:Authorization|Proxy-Authorization)\s*[:=]\s*)([^\r\n]+)/i'
             => '$1' . self::MASKED,
         // Bearer <token> anywhere
         '/(Bearer\s+)(\S+)/i'
@@ -170,7 +170,8 @@ class Sanitizer
             $i = 0;
             foreach ($data as $key => $value) {
                 if ($i++ >= $maxItems) { $out['[[truncated]]'] = true; break; }
-                if (self::is_sensitive_key($key)) {
+                // Keep nested structures traversable even under sensitive parent keys.
+                if (self::is_sensitive_key($key) && !is_array($value) && !is_object($value)) {
                     $out[$key] = self::MASKED;
                 } else {
                     $out[$key] = self::normalize($value, $depth + 1, $maxDepth, $maxItems);
@@ -184,17 +185,14 @@ class Sanitizer
 
             $cls = get_class($data);
             $props = [];
-            try {
-                $ref = new \ReflectionClass($data);
-                foreach ($ref->getProperties(\ReflectionProperty::IS_PUBLIC) as $prop) {
-                    if ($prop->isStatic() || !$prop->isInitialized($data)) continue;
-                    $name = $prop->getName();
-                    $value = $prop->getValue($data);
-                    $props[$name] = self::is_sensitive_key($name)
-                        ? self::MASKED
-                        : self::normalize($value, $depth + 1, $maxDepth, $maxItems);
+            foreach (get_object_vars($data) as $name => $value) {
+                // Keep nested structures traversable even under sensitive parent keys.
+                if (self::is_sensitive_key($name) && !is_array($value) && !is_object($value)) {
+                    $props[$name] = self::MASKED;
+                } else {
+                    $props[$name] = self::normalize($value, $depth + 1, $maxDepth, $maxItems);
                 }
-            } catch (\ReflectionException) {}
+            }
 
             $out = ['__object__' => $cls];
             if ($props !== []) $out['properties'] = $props;

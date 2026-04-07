@@ -845,8 +845,4 @@ class AuthServiceTest extends TestCase
         };
     }
 
-    private function isString(mixed $value): bool
-    {
-        return is_string($value);
-    }
 }
