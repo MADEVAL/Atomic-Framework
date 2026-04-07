@@ -48,12 +48,12 @@ class ConfigParityTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $package_dir = realpath(__DIR__ . '/../../../');
+        $package_dir = realpath(dirname(__DIR__, 3));
         if ($package_dir === false) {
             self::markTestSkipped('Could not resolve package directory');
         }
 
-        $src_dir = realpath($package_dir . '/../src');
+        $src_dir = realpath(dirname($package_dir) . DIRECTORY_SEPARATOR . 'src');
         if ($src_dir === false) {
             self::markTestSkipped('Could not resolve project src/ directory - skipping parity test');
         }

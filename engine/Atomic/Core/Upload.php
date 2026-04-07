@@ -259,20 +259,15 @@ class Upload
 
     protected function buildPublicUrl(string $filePath): string|false
     {
-        $publicUrl = AT::instance()->getPublicUrl();
-        
-        $uploadsBase = realpath(ATOMIC_UPLOADS);
-        if ($uploadsBase === false) {
+        $base = rtrim(str_replace('\\', '/', $this->uploadPath), '/');
+        $file = str_replace('\\', '/', $filePath);
+
+        if (!str_starts_with($file, $base . '/')) {
             return false;
         }
 
-        $normalizedFilePath = realpath(dirname($filePath));
-        if ($normalizedFilePath === false) return false;
-        $normalizedFilePath .= DIRECTORY_SEPARATOR . basename($filePath);
-        
-        $relativePath = str_replace($uploadsBase, '', $normalizedFilePath);
-        
-        return rtrim($publicUrl, '/') . '/uploads/' . ltrim(str_replace('\\', '/', $relativePath), '/');
+        $relative = substr($file, strlen($base) + 1);
+        return rtrim(AT::instance()->getPublicUrl(), '/') . '/uploads/' . $relative;
     }
 
     public function getFileInfo(string $userId, string $userUuid, string $projectId, string $projectUuid, string $filename, string $variant = 'optimized'): array|false

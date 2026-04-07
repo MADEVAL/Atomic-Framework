@@ -97,7 +97,7 @@ class Filesystem
                     continue;
                 }
                 if ( is_dir( $folder . $file ) ) {
-                    $files2 = list_files( $folder . $file, $levels - 1, array(), $include_hidden );
+                    $files2 = $this->listFiles( $folder . $file . DIRECTORY_SEPARATOR, $levels - 1, array(), $include_hidden );
                     if ( $files2 ) {
                         $files = array_merge( $files, $files2 );
                     } else {
@@ -278,29 +278,37 @@ class Filesystem
 
     public function isAbsolutePath(string $path): bool
     {
-        if (PHP_OS_FAMILY === 'Windows') {
-            return preg_match('/^[a-zA-Z]:\\\\/', $path) === 1 || str_starts_with($path, '\\\\');
-        } else {
-            return str_starts_with($path, '/');
-        }
+        $path = str_replace('\\', '/', $path);
+        return str_starts_with($path, '/')
+            || (bool) preg_match('#^[A-Za-z]:/#', $path);
     }
 
     public function normalizePath(string $path): string
     {
-        $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
-        $parts = explode(DIRECTORY_SEPARATOR, $path);
-        $normalizedParts = [];
-        foreach ($parts as $part) {
-            if ($part === '' || $part === '.') {
-                continue;
-            }
-            if ($part === '..') {
-                array_pop($normalizedParts);
-            } else {
-                $normalizedParts[] = $part;
-            }
+        $path = str_replace('\\', '/', $path);
+
+        // Extract root prefix explicitly so it is never reconstructed incorrectly.
+        // Supported roots: UNC (//server), Windows drive (C:/), Unix (/).
+        $root = '';
+        if (preg_match('#^([A-Za-z]:/)#', $path, $m)) {
+            $root = $m[1];          // e.g. "C:/"
+            $path = substr($path, 3);
+        } elseif (str_starts_with($path, '//')) {
+            $root = '//';           // UNC or WSL UNC
+            $path = substr($path, 2);
+        } elseif (str_starts_with($path, '/')) {
+            $root = '/';
+            $path = substr($path, 1);
         }
-        return ($this->isAbsolutePath($path) ? DIRECTORY_SEPARATOR : '') . implode(DIRECTORY_SEPARATOR, $normalizedParts);
+
+        $parts = [];
+        foreach (explode('/', $path) as $part) {
+            if ($part === '' || $part === '.') continue;
+            if ($part === '..') { array_pop($parts); }
+            else                { $parts[] = $part; }
+        }
+
+        return $root . implode('/', $parts);
     }
 
     public function joinPaths(string ...$paths): string

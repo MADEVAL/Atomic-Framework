@@ -23,10 +23,14 @@ trait PathResolutionTrait
 
     private function normalize_separators(string $path): string
     {
-        $path          = str_replace('\\', '/', $path);
-        $leading_slash = str_starts_with($path, '/') ? '/' : '';
+        $path = str_replace('\\', '/', $path);
 
-        return $leading_slash . preg_replace('#/+#', '/', ltrim($path, '/'));
+        if (str_starts_with($path, '//') && strlen($path) > 2 && $path[2] !== '/') {
+            return '//' . preg_replace('#/+#', '/', ltrim(substr($path, 2), '/'));
+        }
+
+        $prefix = str_starts_with($path, '/') ? '/' : '';
+        return $prefix . preg_replace('#/+#', '/', ltrim($path, '/'));
     }
 
     private function has_trailing_slash(string $path): bool
