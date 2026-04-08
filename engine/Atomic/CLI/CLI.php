@@ -29,38 +29,38 @@ class CLI {
     }
 
     public function help(): void {
-        echo "Atomic Help\n";
-        echo "  init               - Initialize new project (dirs, .env, keys)\n";
-        echo "  init/key           - Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY\n";
-        echo "  logs/rotate        - Delete php error log files beyond the most recent 10\n";
-        echo "  help               - View this help\n";
-        echo "  migrations/migrate - Run database migrations\n";
-        echo "  cache/clear        - Clear cache\n";
-        echo "  version            - View versions F3, PHP and Atomic\n";
-        echo "  routes             - View routes list\n";
-        echo "  classes            - View classes list\n";
-        echo "  custom-hive        - View custom HIVE\n";
-        echo "  queue/db           - Create tables for queues\n";
-        echo "  db/payments        - Publish payments migration\n";
-        echo "  db/tariffs         - Publish tariffs migration\n";
-        echo "  queue/worker       - Run queue worker\n";
-        echo "  queue/monitor      - Run queue monitor\n";
-        echo "  queue/retry [<job_uuid>|<queue_name>] - Retry failed tasks (optional UUID or queue name)\n";
-        echo "  queue/delete       - Delete a job by UUID\n";
-        echo "  queue/telemetry/db - Create table for queue telemetry\n";
-        echo "  schedule/run       - Run all due scheduled tasks\n";
-        echo "  schedule/work      - Run scheduler daemon\n";
-        echo "  schedule/list      - List all scheduled tasks\n";
-        echo "  schedule/test      - Test scheduler configuration\n";
-        echo "  schedule/help      - Show scheduler help\n";
-        echo "  file/csv2pdf       - Convert CSV to PDF\n";
-        echo "  file/xls2pdf       - Convert XLS to PDF\n";
+        $this->output->writeln('Atomic Help');
+        $this->output->writeln('  init               - Initialize new project (dirs, .env, keys)');
+        $this->output->writeln('  init/key           - Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY');
+        $this->output->writeln('  logs/rotate        - Delete php error log files beyond the most recent 10');
+        $this->output->writeln('  help               - View this help');
+        $this->output->writeln('  migrations/migrate - Run database migrations');
+        $this->output->writeln('  cache/clear        - Clear cache');
+        $this->output->writeln('  version            - View versions F3, PHP and Atomic');
+        $this->output->writeln('  routes             - View routes list');
+        $this->output->writeln('  classes            - View classes list');
+        $this->output->writeln('  custom-hive        - View custom HIVE');
+        $this->output->writeln('  queue/db           - Create tables for queues');
+        $this->output->writeln('  db/payments        - Publish payments migration');
+        $this->output->writeln('  db/tariffs         - Publish tariffs migration');
+        $this->output->writeln('  queue/worker       - Run queue worker');
+        $this->output->writeln('  queue/monitor      - Run queue monitor');
+        $this->output->writeln('  queue/retry [<job_uuid>|<queue_name>] - Retry failed tasks (optional UUID or queue name)');
+        $this->output->writeln('  queue/delete       - Delete a job by UUID');
+        $this->output->writeln('  queue/telemetry/db - Create table for queue telemetry');
+        $this->output->writeln('  schedule/run       - Run all due scheduled tasks');
+        $this->output->writeln('  schedule/work      - Run scheduler daemon');
+        $this->output->writeln('  schedule/list      - List all scheduled tasks');
+        $this->output->writeln('  schedule/test      - Test scheduler configuration');
+        $this->output->writeln('  schedule/help      - Show scheduler help');
+        $this->output->writeln('  file/csv2pdf       - Convert CSV to PDF');
+        $this->output->writeln('  file/xls2pdf       - Convert XLS to PDF');
     }
 
     public function version(): void {
-        echo "Fat-Free Framework Version: " . App::atomic()::VERSION . "\n";
-        echo "PHP CLI Version: " . phpversion() . "\n";
-        echo "Atomic Version: " . ATOMIC_VERSION . "\n";
+        $this->output->writeln('Fat-Free Framework Version: ' . App::atomic()::VERSION);
+        $this->output->writeln('PHP CLI Version: ' . phpversion());
+        $this->output->writeln('Atomic Version: ' . ATOMIC_VERSION);
     }
 
     public function listRoutes(): void {
@@ -83,25 +83,25 @@ class CLI {
         }
 
         foreach ($groups as $groupName => $routesList) {
-            echo "[$groupName]\n";
+            $this->output->writeln("[{$groupName}]");
             if (empty($routesList)) {
-                echo "  (no routes)\n";
+                $this->output->writeln('  (no routes)');
             } else {
                 foreach ($routesList as $r) {
-                    echo "  " . $r . "\n";
+                    $this->output->writeln('  ' . $r);
                 }
             }
-            echo "\n";
+            $this->output->writeln();
         }
     }
 
     public function classes(): void {
-        echo "Declared Classes:\n";
-        print_r(get_declared_classes());
+        $this->output->writeln('Declared Classes:');
+        $this->output->write(print_r(get_declared_classes(), true));
     }
 
     public function hive(): void {
-        print_r($this->atomic->hive());
+        $this->output->write(print_r($this->atomic->hive(), true));
     }    
 
     public function customHive(): void {
@@ -113,8 +113,8 @@ class CLI {
         ];
         $hive = $this->atomic->hive();
         $filteredHive = array_intersect_key($hive, array_flip($keys));
-        echo "Custom Hive:\n";
-        print_r($filteredHive);
+        $this->output->writeln('Custom Hive:');
+        $this->output->write(print_r($filteredHive, true));
     }
 
     public function get_cli_args(): array {

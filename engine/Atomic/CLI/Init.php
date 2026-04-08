@@ -59,7 +59,7 @@ trait Init
         if ($dbConfig !== null) {
             $this->bootDatabase($dbConfig);
             if ($this->initializeMigrationDatabase()) {
-                (new CoreMigrations())->migrate();
+                (new CoreMigrations($this->output))->migrate();
                 $this->output->writeln();
 
                 $driver = $this->chooseMainDriver();

@@ -4,11 +4,13 @@ declare(strict_types=1);
 if (!defined('ATOMIC_START')) exit;
 
 use DB\Cortex\Schema\Schema;
+use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\App\Models\Meta;
 use Engine\Atomic\App\Models\Options;
 
 return [
     'up' => function () {
+        $out = new Output();
         try {
             $metaConf = Meta::resolveConfiguration();
             $db = $metaConf['db'];
@@ -20,7 +22,7 @@ return [
 
             // --- meta table ---
             if (in_array($metaTable, $tables)) {
-                echo "Table '{$metaTable}' already exists. Skipping creation." . PHP_EOL;
+                $out->writeln("Table '{$metaTable}' already exists. Skipping creation.");
             } else {
                 $table = $schema->createTable($metaTable);
                 $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
@@ -29,12 +31,12 @@ return [
                 $table->addColumn('created_at')->type(Schema::DT_TIMESTAMP)->defaults(Schema::DF_CURRENT_TIMESTAMP);
                 $table->addColumn('updated_at')->type(Schema::DT_TIMESTAMP)->defaults(Schema::DF_CURRENT_TIMESTAMP);
                 $table->build();
-                echo "Table '{$metaTable}' created." . PHP_EOL;
+                $out->writeln("Table '{$metaTable}' created.");
             }
 
             // --- options table (extends meta with expired_at) ---
             if (in_array($optionsTable, $tables)) {
-                echo "Table '{$optionsTable}' already exists. Skipping creation." . PHP_EOL;
+                $out->writeln("Table '{$optionsTable}' already exists. Skipping creation.");
             } else {
                 $table = $schema->createTable($optionsTable);
                 $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
@@ -44,13 +46,14 @@ return [
                 $table->addColumn('expired_at')->type(Schema::DT_DATETIME)->nullable(true);
                 $table->addColumn('updated_at')->type(Schema::DT_TIMESTAMP)->defaults(Schema::DF_CURRENT_TIMESTAMP);
                 $table->build();
-                echo "Table '{$optionsTable}' created." . PHP_EOL;
+                $out->writeln("Table '{$optionsTable}' created.");
             }
         } catch (\Throwable $e) {
-            echo "Failed to create storage tables: " . $e->getMessage() . PHP_EOL;
+            $out->err('Failed to create storage tables: ' . $e->getMessage());
         }
     },
     'down' => function () {
+        $out = new Output();
         try {
             $metaConf = Meta::resolveConfiguration();
             $schema = new Schema($metaConf['db']);
@@ -62,13 +65,13 @@ return [
             foreach ([$metaTable, $optionsTable] as $tableName) {
                 if (in_array($tableName, $tables)) {
                     $schema->dropTable($tableName);
-                    echo "Table '{$tableName}' dropped." . PHP_EOL;
+                    $out->writeln("Table '{$tableName}' dropped.");
                 } else {
-                    echo "Table '{$tableName}' does not exist. Skipping drop." . PHP_EOL;
+                    $out->writeln("Table '{$tableName}' does not exist. Skipping drop.");
                 }
             }
         } catch (\Throwable $e) {
-            echo "Error during drop: " . $e->getMessage() . PHP_EOL;
+            $out->err('Error during drop: ' . $e->getMessage());
         }
     }
 ];

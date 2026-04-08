@@ -5,6 +5,7 @@ namespace Engine\Atomic\App;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\App\Controller;
+use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\Queue\Managers\Manager;
@@ -41,10 +42,11 @@ class System extends Controller
 
     public function cacheClear(): void
     {
-        echo "Clearing cache...\n";
+        $out = new Output();
+        $out->writeln('Clearing cache...');
         $atomic = App::instance();
         $atomic->reset();
-        echo "Cache cleared\n";
+        $out->writeln('Cache cleared');
     }
 
     public function version(): void
@@ -279,6 +281,7 @@ class System extends Controller
 
     public function redisClear(): void
     {
+        $out = new Output();
         $redis = (new \Engine\Atomic\Core\ConnectionManager())->get_redis();
         $it    = null;
         $total = 0;
@@ -289,6 +292,6 @@ class System extends Controller
                 $total += count($keys);
             }
         }
-        echo "Cleared {$total} keys (pattern: atomic.*)\n";
+        $out->writeln("Cleared {$total} keys (pattern: atomic.*)");
     }
 }

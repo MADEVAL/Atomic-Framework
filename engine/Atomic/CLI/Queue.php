@@ -47,21 +47,21 @@ trait Queue {
         try {
             return new Manager($queue_name);
         } catch (\Throwable $th) {
-            echo $this->queue_dependency_hint() . "\n";
-            echo "Details: " . $th->getMessage() . "\n";
+            $this->output->err($this->queue_dependency_hint());
+            $this->output->err('Details: ' . $th->getMessage());
             return null;
         }
     }
 
     public function queue_db() {
         $atomic = App::instance();
-        (new Migrations)->publish($atomic->get('MIGRATIONS_CORE') . 'atomic_create_queue_tables');
+        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_CORE') . 'atomic_create_queue_tables');
     }
     
     public function queue_worker() {
         $args = $this->get_cli_args();
         if (!isset($args[0]) || empty($args[0])) {
-            echo "Usage: php atomic queue/worker <queue_name>\n";
+            $this->output->err('Usage: php atomic queue/worker <queue_name>');
             return;
         }
         $queue_name = $args[0];
@@ -78,8 +78,8 @@ trait Queue {
             $queue_monitor = new Monitor();
             $queue_monitor->run();
         } catch (\Throwable $th) {
-            echo $this->queue_dependency_hint() . "\n";
-            echo "Details: " . $th->getMessage() . "\n";
+            $this->output->err($this->queue_dependency_hint());
+            $this->output->err('Details: ' . $th->getMessage());
         }
     }
 
@@ -100,7 +100,7 @@ trait Queue {
             return;
         }
 
-        echo "queue/test/monitor is not supported for queue driver '{$driver}'\n";
+        $this->output->err("queue/test/monitor is not supported for queue driver '{$driver}'");
     }
 
     private function seed_monitor_test_cases_db(string $queue_name): void
@@ -127,14 +127,14 @@ trait Queue {
 
             if (!$result['queued']) {
                 $failed++;
-                echo "Failed to queue monitor test job for case '{$case_name}'\n";
+                $this->output->err("Failed to queue monitor test job for case '{$case_name}'");
                 continue;
             }
 
             $jobs_mapper->load(['uuid = ?', $uuid]);
             if ($jobs_mapper->dry()) {
                 $failed++;
-                echo "Queued UUID '{$uuid}' but could not reload row for case '{$case_name}'\n";
+                $this->output->err("Queued UUID '{$uuid}' but could not reload row for case '{$case_name}'");
                 continue;
             }
 
@@ -145,13 +145,13 @@ trait Queue {
             $jobs_mapper->save();
 
             $created++;
-            echo "Queued monitor test case '{$case_name}' with UUID '{$uuid}'\n";
+            $this->output->writeln("Queued monitor test case '{$case_name}' with UUID '{$uuid}'");
         }
 
         $connection_manager->close_sql();
 
-        echo "queue/test/monitor completed for queue '{$queue_name}'. Created: {$created}, Failed: {$failed}\n";
-        echo "Run: php atomic queue/monitor\n";
+        $this->output->writeln("queue/test/monitor completed for queue '{$queue_name}'. Created: {$created}, Failed: {$failed}");
+        $this->output->writeln('Run: php atomic queue/monitor');
     }
 
     private function seed_monitor_test_cases_redis(string $queue_name): void
@@ -181,14 +181,14 @@ trait Queue {
 
             if (!$result['queued']) {
                 $failed++;
-                echo "Failed to queue monitor test job for case '{$case_name}'\n";
+                $this->output->err("Failed to queue monitor test job for case '{$case_name}'");
                 continue;
             }
 
             $registry_key = $prefix . 'registry.' . $uuid;
             if (!$redis->exists($registry_key)) {
                 $failed++;
-                echo "Queued UUID '{$uuid}' but missing registry entry for case '{$case_name}'\n";
+                $this->output->err("Queued UUID '{$uuid}' but missing registry entry for case '{$case_name}'");
                 continue;
             }
 
@@ -214,13 +214,13 @@ trait Queue {
             }
 
             $created++;
-            echo "Queued monitor test case '{$case_name}' with UUID '{$uuid}'\n";
+            $this->output->writeln("Queued monitor test case '{$case_name}' with UUID '{$uuid}'");
         }
 
         $connection_manager->close_redis();
 
-        echo "queue/test/monitor completed for queue '{$queue_name}'. Created: {$created}, Failed: {$failed}\n";
-        echo "Run: php atomic queue/monitor\n";
+        $this->output->writeln("queue/test/monitor completed for queue '{$queue_name}'. Created: {$created}, Failed: {$failed}");
+        $this->output->writeln('Run: php atomic queue/monitor');
     }
 
     private function build_monitor_test_cases(int $now): array
@@ -317,9 +317,9 @@ trait Queue {
         if (!isset($args[0]) || empty($args[0])) {
             try {
                 $queue_manager->retry();
-                echo "Retried failed jobs\n";
+                $this->output->writeln('Retried failed jobs');
             } catch (\Throwable $th) {
-                echo "Error retrying failed jobs: " . $th->getMessage() . "\n";
+                $this->output->err('Error retrying failed jobs: ' . $th->getMessage());
             }
             return;
         }
@@ -330,12 +330,12 @@ trait Queue {
             try {
                 $result = $queue_manager->retry_by_uuid($arg);
                 if ($result) {
-                    echo "Successfully retried failed job with UUID '{$arg}'\n";
+                    $this->output->writeln("Successfully retried failed job with UUID '{$arg}'");
                 } else {
-                    echo "Could not retry failed job with UUID '{$arg}' - it may not exist\n";
+                    $this->output->err("Could not retry failed job with UUID '{$arg}' - it may not exist");
                 }
             } catch (\Throwable $th) {
-                echo "Error retrying job by UUID: " . $th->getMessage() . "\n";
+                $this->output->err('Error retrying job by UUID: ' . $th->getMessage());
             }
             return;
         }
@@ -347,9 +347,9 @@ trait Queue {
                 return;
             }
             $queue_manager_by_name->retry();
-            echo "Retried failed jobs for queue '{$queue_name}'\n";
+            $this->output->writeln("Retried failed jobs for queue '{$queue_name}'");
         } catch (\Throwable $th) {
-            echo "Could not retry queue '{$queue_name}': " . $th->getMessage() . "\n";
+            $this->output->err("Could not retry queue '{$queue_name}': " . $th->getMessage());
         }
     }
 
@@ -357,7 +357,7 @@ trait Queue {
     {
         $args = $this->get_cli_args();
         if (!isset($args[0]) || empty($args[0])) {
-            echo "Usage: php atomic queue/delete <job_uuid>\n";
+            $this->output->err('Usage: php atomic queue/delete <job_uuid>');
             return;
         }
         $uuid = $args[0];
@@ -368,12 +368,12 @@ trait Queue {
         try {
             $deleted = $queue_manager->delete_job($uuid);
             if ($deleted) {
-                echo "Successfully deleted job with UUID '{$uuid}'\n";
+                $this->output->writeln("Successfully deleted job with UUID '{$uuid}'");
             } else {
-                echo "Could not delete job with UUID '{$uuid}' - it may not exist or it may be currently running\n";
+                $this->output->err("Could not delete job with UUID '{$uuid}' - it may not exist or it may be currently running");
             }
         } catch (\Throwable $th) {
-            echo "Error deleting job: " . $th->getMessage() . "\n";
+            $this->output->err('Error deleting job: ' . $th->getMessage());
         }
     }
 }

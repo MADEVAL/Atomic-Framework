@@ -109,7 +109,7 @@ trait InitScaffold
 
         $this->db_users();
 
-        $migrations = new Migrations();
+        $migrations = new Migrations($this->output);
         $migrations->migrate();
 
         $this->output->writeln('  ' . Style::successLabel() . " Users migration executed.");

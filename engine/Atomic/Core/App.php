@@ -13,6 +13,7 @@ use Engine\Atomic\Core\Prefly;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\CLI\CLI;
+use Engine\Atomic\CLI\Console\Output;
 
 class App {
     protected static ?self $instance = null;
@@ -59,8 +60,11 @@ class App {
             $msg = 'Prefly checks did not pass: ' . implode(', ', $failed);
 
             if (php_sapi_name() === 'cli') {
-                echo "\n[Atomic] System Error\n" . str_repeat('-', 40) . "\n";
-                echo implode("\n", array_map(fn($f) => " - Missing: $f", $failed)) . "\n";
+                $out = new Output();
+                $out->writeln();
+                $out->writeln('[Atomic] System Error');
+                $out->writeln(str_repeat('-', 40));
+                $out->writeln(implode("\n", array_map(fn($f) => " - Missing: $f", $failed)));
             } else {
                 http_response_code(500);
                 echo '<!DOCTYPE html><html><head><title>System Error | Atomic</title>';
@@ -242,7 +246,7 @@ class App {
         $this->atomic->CLI = true;
         
         if (count($argv) < 2) {
-            echo "Usage: atomic <command> [options]\n";
+            (new Output())->writeln('Usage: atomic <command> [options]');
             return 0;
         }
     

@@ -5,9 +5,11 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
 use DB\Cortex\Schema\Schema;
+use Engine\Atomic\CLI\Console\Output;
 
 return [
     'up' => function () {
+        $out = new Output();
         $atomic = App::instance();
         $db = $atomic->get('DB');
         $schema = new Schema($db);
@@ -19,7 +21,7 @@ return [
             // --- jobs table ---
             $jobsTable = $prefix . 'jobs';
             if (in_array($jobsTable, $tables)) {
-                echo "Table '{$jobsTable}' already exists. Skipping creation." . PHP_EOL;
+                $out->writeln("Table '{$jobsTable}' already exists. Skipping creation.");
             } else {
                 $table = $schema->createTable($jobsTable);
                 $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
@@ -35,13 +37,13 @@ return [
                 $table->addColumn('process_start_ticks')->type(Schema::DT_INT)->nullable(true);
                 $table->addColumn('pid')->type(Schema::DT_INT)->nullable(true);
                 $table->build();
-                echo "Table '{$jobsTable}' created." . PHP_EOL;
+                $out->writeln("Table '{$jobsTable}' created.");
             }
 
             // --- jobs_failed table ---
             $jobsFailedTable = $prefix . 'jobs_failed';
             if (in_array($jobsFailedTable, $tables)) {
-                echo "Table '{$jobsFailedTable}' already exists. Skipping creation." . PHP_EOL;
+                $out->writeln("Table '{$jobsFailedTable}' already exists. Skipping creation.");
             } else {
                 $table = $schema->createTable($jobsFailedTable);
                 $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
@@ -55,13 +57,13 @@ return [
                 $table->addColumn('exception')->type(Schema::DT_TEXT)->nullable(false);
                 $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
                 $table->build();
-                echo "Table '{$jobsFailedTable}' created successfully." . PHP_EOL;
+                $out->writeln("Table '{$jobsFailedTable}' created successfully.");
             }
 
             // --- jobs_completed table ---
             $jobsCompletedTable = $prefix . 'jobs_completed';
             if (in_array($jobsCompletedTable, $tables)) {
-                echo "Table '{$jobsCompletedTable}' already exists. Skipping creation." . PHP_EOL;
+                $out->writeln("Table '{$jobsCompletedTable}' already exists. Skipping creation.");
             } else {
                 $table = $schema->createTable($jobsCompletedTable);
                 $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
@@ -74,13 +76,13 @@ return [
                 $table->addColumn('retry_delay')->type(Schema::DT_INT)->nullable(false);
                 $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
                 $table->build();
-                echo "Table '{$jobsCompletedTable}' created successfully." . PHP_EOL;
+                $out->writeln("Table '{$jobsCompletedTable}' created successfully.");
             }
 
             // --- telemetry table ---
             $telemetryTable = $prefix . 'telemetry';
             if (in_array($telemetryTable, $tables)) {
-                echo "Table '{$telemetryTable}' already exists. Skipping creation." . PHP_EOL;
+                $out->writeln("Table '{$telemetryTable}' already exists. Skipping creation.");
             } else {
                 $table = $schema->createTable($telemetryTable);
                 $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
@@ -90,14 +92,15 @@ return [
                 $table->addColumn('message')->type(Schema::DT_TEXT)->nullable(false);
                 $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
                 $table->build();
-                echo "Table '{$telemetryTable}' created successfully." . PHP_EOL;
+                $out->writeln("Table '{$telemetryTable}' created successfully.");
             }
         } catch (\Throwable $e) {
-            echo "Failed to create queue tables: " . $e->getMessage() . PHP_EOL;
+            $out->err('Failed to create queue tables: ' . $e->getMessage());
         }
     },
 
     'down' => function () {
+        $out = new Output();
         $atomic = App::instance();
         $db = $atomic->get('DB');
         $schema = new Schema($db);
@@ -110,13 +113,13 @@ return [
                 $tableName = $prefix . $name;
                 if (is_array($tables) && in_array($tableName, $tables)) {
                     $schema->dropTable($tableName);
-                    echo "Table '{$tableName}' dropped." . PHP_EOL;
+                    $out->writeln("Table '{$tableName}' dropped.");
                 } else {
-                    echo "Table '{$tableName}' does not exist. Skipping drop." . PHP_EOL;
+                    $out->writeln("Table '{$tableName}' does not exist. Skipping drop.");
                 }
             }
         } catch (\Throwable $e) {
-            echo "Error during drop: " . $e->getMessage() . PHP_EOL;
+            $out->err('Error during drop: ' . $e->getMessage());
         }
     }
 ];

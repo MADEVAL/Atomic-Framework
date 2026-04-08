@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Theme\Assets;
 use Engine\Atomic\App\Error as ErrorController;
+use Engine\Atomic\CLI\Console\Output;
 
 class ExceptionHandlerRegistrar
 {
@@ -106,7 +107,7 @@ class ExceptionHandlerRegistrar
                         return;
                     }
                 } else {
-                    echo $msg . PHP_EOL;
+                    (new Output())->err($msg);
                     return;
                 }
 

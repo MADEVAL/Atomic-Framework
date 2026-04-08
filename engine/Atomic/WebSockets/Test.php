@@ -5,6 +5,7 @@ namespace Engine\Atomic\WebSockets;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\CLI\Console\Output;
 use Workerman\Connection\AsyncTcpConnection;
 use Workerman\Worker;
 
@@ -19,16 +20,23 @@ use Workerman\Worker;
  */
 class Test
 {
+    private readonly Output $output;
     private string $url     = 'ws://127.0.0.1:8080';
     private string $payload = '{"event":"generate","prompt":"ws_test_ping"}';
     private bool   $stopped = false;
+
+    public function __construct()
+    {
+        $this->output = new Output();
+    }
 
     public function run(): void
     {
         $this->parse_args();
 
-        echo "[ws_test] url={$this->url}\n";
-        echo "[ws_test] payload={$this->payload}\n\n";
+        $this->output->writeln("[ws_test] url={$this->url}");
+        $this->output->writeln("[ws_test] payload={$this->payload}");
+        $this->output->writeln();
 
         $worker = new Worker();
         $self   = $this;
@@ -37,13 +45,13 @@ class Test
             $conn = new AsyncTcpConnection($self->url);
 
             $conn->onConnect = function (AsyncTcpConnection $c) use ($self): void {
-                echo "[ws_test] connected\n";
+                $self->output->writeln('[ws_test] connected');
                 $c->send($self->payload);
-                echo "[ws_test] sent\n";
+                $self->output->writeln('[ws_test] sent');
             };
 
             $conn->onMessage = function (AsyncTcpConnection $c, string $data) use ($self): void {
-                echo "[ws_test] recv: {$data}\n";
+                $self->output->writeln("[ws_test] recv: {$data}");
                 $msg   = json_decode($data, true);
                 $event = (string)($msg['event'] ?? $msg['status'] ?? '');
                 if (in_array($event, ['completed', 'failed', 'error'], true)) {
@@ -53,12 +61,12 @@ class Test
             };
 
             $conn->onError = function (AsyncTcpConnection $c, $code, $msg) use ($self): void {
-                echo "[ws_test] ERROR code={$code}: {$msg}\n";
+                $self->output->err("[ws_test] ERROR code={$code}: {$msg}");
                 $self->stop();
             };
 
             $conn->onClose = function () use ($self): void {
-                echo "[ws_test] closed\n";
+                $self->output->writeln('[ws_test] closed');
                 $self->stop();
             };
 
@@ -104,11 +112,12 @@ class Test
         $args = array_slice($argv ?? [], 2);
 
         if (($args[0] ?? '') === '--help') {
-            echo "Usage:\n";
-            echo "  php atomic ws/single/test [url] [json_payload]\n\n";
-            echo "Examples:\n";
-            echo "  php atomic ws/single/test\n";
-            echo "  php atomic ws/single/test ws://127.0.0.1:8080 '{\"event\":\"generate\",\"prompt\":\"hello\"}'\n";
+            $this->output->writeln('Usage:');
+            $this->output->writeln('  php atomic ws/single/test [url] [json_payload]');
+            $this->output->writeln();
+            $this->output->writeln('Examples:');
+            $this->output->writeln('  php atomic ws/single/test');
+            $this->output->writeln("  php atomic ws/single/test ws://127.0.0.1:8080 '{\"event\":\"generate\",\"prompt\":\"hello\"}'");
             exit(0);
         }
 

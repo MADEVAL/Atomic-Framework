@@ -4,10 +4,12 @@ declare(strict_types=1);
 if (!defined('ATOMIC_START')) exit;
 
 use DB\Cortex\Schema\Schema;
+use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Session\Models\Session;
 
 return [
     'up' => function () {
+        $out = new Output();
         try {
             $conf = Session::resolveConfiguration();
             $db = $conf['db'];
@@ -16,7 +18,7 @@ return [
             $tables = $schema->getTables();
 
             if (in_array($table, $tables)) {
-                echo "Table '{$table}' already exists. Skipping creation." . PHP_EOL;
+                $out->writeln("Table '{$table}' already exists. Skipping creation.");
             } else {
                 $t = $schema->createTable($table);
                 $t->addColumn('session_id')->type(Schema::DT_VARCHAR256)->nullable(false)->index(true);
@@ -25,14 +27,15 @@ return [
                 $t->addColumn('agent')->type(Schema::DT_VARCHAR512)->nullable(true);
                 $t->addColumn('stamp')->type(Schema::DT_INT)->nullable(true);
                 $t->build();
-                echo "Table '{$table}' created." . PHP_EOL;
+                $out->writeln("Table '{$table}' created.");
             }
         } catch (\Throwable $e) {
-            echo "Error creating sessions table: " . $e->getMessage() . PHP_EOL;
+            $out->err('Error creating sessions table: ' . $e->getMessage());
         }
-        echo "Migration completed." . PHP_EOL;
+        $out->writeln('Migration completed.');
     },
     'down' => function () {
+        $out = new Output();
         try {
             $conf = Session::resolveConfiguration();
             $schema = new Schema($conf['db']);
@@ -41,13 +44,13 @@ return [
 
             if (in_array($table, $tables)) {
                 $schema->dropTable($table);
-                echo "Table '{$table}' dropped." . PHP_EOL;
+                $out->writeln("Table '{$table}' dropped.");
             } else {
-                echo "Table '{$table}' does not exist. Skipping drop." . PHP_EOL;
+                $out->writeln("Table '{$table}' does not exist. Skipping drop.");
             }
         } catch (\Throwable $e) {
-            echo "Error dropping sessions table: " . $e->getMessage() . PHP_EOL;
+            $out->err('Error dropping sessions table: ' . $e->getMessage());
         }
-        echo "Rollback completed." . PHP_EOL;
+        $out->writeln('Rollback completed.');
     }
 ];

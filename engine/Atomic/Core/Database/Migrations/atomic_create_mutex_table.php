@@ -4,10 +4,12 @@ declare(strict_types=1);
 if (!defined('ATOMIC_START')) exit;
 
 use DB\Cortex\Schema\Schema;
+use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\App\Models\MutexLock;
 
 return [
     'up' => function () {
+        $out = new Output();
         try {
             $conf = MutexLock::resolveConfiguration();
             $db = $conf['db'];
@@ -16,7 +18,7 @@ return [
             $tables = $schema->getTables();
 
             if (is_array($tables) && in_array($table, $tables)) {
-                echo "Table '{$table}' already exists. Skipping creation." . PHP_EOL;
+                $out->writeln("Table '{$table}' already exists. Skipping creation.");
                 return;
             }
 
@@ -27,13 +29,14 @@ return [
             $t->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
             $t->build();
 
-            echo "Table '{$table}' created successfully." . PHP_EOL;
+            $out->writeln("Table '{$table}' created successfully.");
         } catch (\Throwable $e) {
-            echo "Failed to create table '{$table}': " . $e->getMessage() . PHP_EOL;
+            $out->err("Failed to create table '{$table}': " . $e->getMessage());
         }
     },
 
     'down' => function () {
+        $out = new Output();
         try {
             $conf = MutexLock::resolveConfiguration();
             $schema = new Schema($conf['db']);
@@ -42,12 +45,12 @@ return [
 
             if (is_array($tables) && in_array($table, $tables)) {
                 $schema->dropTable($table);
-                echo "Table '{$table}' dropped successfully." . PHP_EOL;
+                $out->writeln("Table '{$table}' dropped successfully.");
             } else {
-                echo "Table '{$table}' does not exist. Skipping drop." . PHP_EOL;
+                $out->writeln("Table '{$table}' does not exist. Skipping drop.");
             }
         } catch (\Throwable $e) {
-            echo "Failed to drop table: " . $e->getMessage() . PHP_EOL;
+            $out->err('Failed to drop table: ' . $e->getMessage());
         }
     }
 ];

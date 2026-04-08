@@ -7,15 +7,38 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use DB\Cortex;
 use DB\Cortex\Schema\Schema;
 use Engine\Atomic\CLI\Style;
+use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\App\PluginManager;
 
 class Migrations 
 {
+    private readonly Output $output;
+
+    public function __construct(?Output $output = null)
+    {
+        $this->output = $output ?? new Output();
+    }
+
+    private function out(string $message): void
+    {
+        $this->output->write($message);
+    }
+
+    private function outln(string $message = ''): void
+    {
+        $this->out($message . PHP_EOL);
+    }
+
+    private function errln(string $message): void
+    {
+        $this->output->err($message);
+    }
+
     public function db(): bool {
         $atomic = App::instance();
         $db = $atomic->get('DB');
         if (!$db) {
-            echo Style::errorLabel() . " Database is not ready.\n";
+            $this->errln(Style::errorLabel() . ' ' . Style::bold('Database is not ready.'));
             return false;
         }
         $schema = new Schema($db);
@@ -33,7 +56,7 @@ class Migrations
             $table->addColumn('applied_at')->type_timestamp(true)->nullable(false);
             $table->build();
         } catch (\Throwable $e) {
-            echo "Error creating migrations table: " . $e->getMessage() . "\n";
+            $this->errln(Style::errorLabel() . ' ' . Style::bold('Error creating migrations table:') . ' ' . $e->getMessage());
             return false;
         }
         return true;
@@ -50,7 +73,7 @@ class Migrations
 
         $timestamp = date('YmdHis');
         if ($name !== preg_replace('/[^a-zA-Z0-9_]/', '', $name)) {
-            echo "Warning: Migration name contains invalid characters. Only numbers and letters are allowed.\n";
+            $this->errln(Style::warningLabel() . ' ' . Style::bold('Migration name contains invalid characters.') . ' Only numbers and letters are allowed.');
             return;
         }
         $file_name = $timestamp . '_' . $name . '.php';
@@ -69,7 +92,7 @@ class Migrations
             if (preg_match('/^(\d{14})_/', $basename, $matches)) {
                 $file_timestamp = $matches[1];
                 if ($file_timestamp >= $timestamp) {
-                    echo "Error: Migration file '{$basename}.php' has a timestamp equal to or greater than the new migration. Aborting to prevent collision or breaking migration order.\n";
+                    $this->errln(Style::errorLabel() . ' ' . Style::bold("Migration file '{$basename}.php'") . ' has a timestamp equal to or greater than the new migration. Aborting to prevent collision or breaking migration order.');
                     return;
                 }
             }
@@ -99,11 +122,11 @@ class Migrations
         $files_cnt = count($migration_files);
         $applied_cnt = $mapper->count(null, null, 0);
         if ($applied_cnt < $files_cnt) {
-            echo "Warning: There are " . ($files_cnt - $applied_cnt) . " unapplied migrations. Please run 'migrations/status' to view them.\n";
+            $this->errln(Style::warningLabel() . ' ' . Style::bold((string)($files_cnt - $applied_cnt)) . ' unapplied migrations. Please run ' . Style::cyan('migrations/status', true) . ' to view them.');
         }
 
         file_put_contents($file_path, $template);
-        echo "Migration '$file_name' created successfully at '$file_path'.\n";
+        $this->outln(Style::successLabel() . ' ' . Style::bold("Migration '{$file_name}'") . ' created successfully at ' . Style::bold($file_path) . '.');
     }
 
     public function publishFromPlugin(string $pluginName): void {
@@ -120,17 +143,17 @@ class Migrations
         }
 
         if ($plugin === null) {
-            echo "Plugin '{$pluginName}' not found. Available plugins:\n";
+            $this->errln(Style::errorLabel() . ' ' . Style::bold("Plugin '{$pluginName}' not found.") . ' Available plugins:');
             foreach ($manager->all() as $name => $p) {
-                $hasMigrations = $p->getMigrationsPath() !== null ? ' (has migrations)' : '';
-                echo "  - {$name}{$hasMigrations}\n";
+                $hasMigrations = $p->getMigrationsPath() !== null ? '(has migrations)' : '';
+                $this->outln('  - ' . Style::bold($name) . ($hasMigrations !== '' ? ' ' . Style::cyan($hasMigrations, true) : ''));
             }
             return;
         }
 
         $migrationsPath = $plugin->getMigrationsPath();
         if ($migrationsPath === null) {
-            echo "Plugin '{$plugin->getPluginName()}' has no Migrations directory.\n";
+            $this->errln(Style::warningLabel() . ' ' . Style::bold("Plugin '{$plugin->getPluginName()}'") . ' has no Migrations directory.');
             return;
         }
 
@@ -140,19 +163,20 @@ class Migrations
         );
 
         if (empty($files)) {
-            echo "No migration files found in '{$migrationsPath}'.\n";
+            $this->errln(Style::warningLabel() . ' ' . Style::bold('No migration files found') . ' in ' . Style::bold($migrationsPath) . '.');
             return;
         }
 
         $published = 0;
         foreach ($files as $file) {
             $name = basename($file, '.php');
-            echo "Publishing '{$name}'... ";
+            $this->out('Publishing ' . Style::bold($name) . '... ');
             $this->publish(substr($file, 0, -4));
             $published++;
         }
 
-        echo "\nDone. {$published} migration(s) processed from plugin '{$plugin->getPluginName()}'.\n";
+        $this->outln();
+        $this->outln(Style::successLabel() . ' ' . Style::bold((string)$published) . ' migration(s) processed from plugin ' . Style::bold($plugin->getPluginName()) . '.');
     }
 
     public function publish(string $source_path): void {
@@ -172,7 +196,7 @@ class Migrations
             if (preg_match('/^\d{14}_(.+)$/', $basename, $matches)) {
                 $migration_name = $matches[1];
                 if ($migration_name === $name) {
-                    echo "Migration '$name' already exists as '$basename.php'. Skipping publish.\n";
+                    $this->errln(Style::warningLabel() . ' ' . Style::bold("Migration '{$name}'") . ' already exists as ' . Style::bold($basename . '.php') . '. Skipping publish.');
                     return;
                 }
             }
@@ -180,7 +204,7 @@ class Migrations
 
         $source_path .= '.php';
         if (!file_exists($source_path)) {
-            echo "Source migration file '$source_path' does not exist. Cannot publish.\n";
+            $this->errln(Style::errorLabel() . ' ' . Style::bold('Source migration file') . ' ' . Style::bold($source_path) . ' does not exist. Cannot publish.');
             return;
         }
         $content = file_get_contents($source_path);
@@ -219,7 +243,7 @@ class Migrations
             }
         }
         if (empty($unloaded)) {
-            echo "No new migrations to apply.\n";
+            $this->outln(Style::successLabel() . ' ' . Style::bold('No new migrations to apply.'));
             return;
         }
         ksort($unloaded);
@@ -234,7 +258,7 @@ class Migrations
                 $migration = include $file_path;
                 if (isset($migration['up']) && is_callable($migration['up'])) {
                     $migration['up']();
-                    echo "Migration '$file_name' applied successfully.\n";
+                    $this->outln(Style::successLabel() . ' ' . Style::bold("Migration '{$file_name}'") . ' applied successfully.');
                 } else throw new \Exception("Invalid migration structure in $file_path.");
                 $mapper->reset();
                     $mapper->migration = basename($file_name, '.php');
@@ -243,7 +267,7 @@ class Migrations
                 $applied[] = $file_name;
             }
         } catch (\Throwable $e) {
-            echo "Error applying migration '$file_name': " . $e->getMessage() . "\n";
+            $this->errln(Style::errorLabel() . ' ' . Style::bold("Error applying migration '{$file_name}':") . ' ' . $e->getMessage());
             return;
         }
     }
@@ -267,7 +291,7 @@ class Migrations
             if (is_int($mode)) {
                 $to_pop = $mapper->find([], ['order' => 'id DESC', 'limit' => $mode]) ?: [];
                 if (empty($to_pop)) {
-                    echo "No migrations found to pop.\n";
+                    $this->errln(Style::warningLabel() . ' ' . Style::bold('No migrations found to pop.'));
                     return;
                 }
                 foreach ($to_pop as $migration) {
@@ -276,7 +300,7 @@ class Migrations
                     if (isset($migration_content['down']) && is_callable($migration_content['down'])) {
                         $migration_content['down']();
                         $mapper->erase(['id = ?', $migration->id]);
-                        echo "Migration '$migration->migration' popped back successfully.\n";
+                        $this->outln(Style::successLabel() . ' ' . Style::bold("Migration '{$migration->migration}'") . ' popped back successfully.');
                     } else throw new \Exception("Invalid migration structure in $migration_file.");
                 }
             } else {
@@ -286,13 +310,13 @@ class Migrations
                     $batch_uuid = $latest->batch_uuid;
                     $count = $mapper->count(['batch_uuid = ?', $batch_uuid], null, 0);
                 } else {
-                    echo "No migrations found to pop.\n";
+                    $this->errln(Style::warningLabel() . ' ' . Style::bold('No migrations found to pop.'));
                     return;
                 }
                 $this->rollback($count);
             }
         } catch (\Throwable $e) {
-            echo "Error rolling back migrations: " . $e->getMessage() . "\n";
+            $this->errln(Style::errorLabel() . ' ' . Style::bold('Error rolling back migrations:') . ' ' . $e->getMessage());
             return;
         }
     }
@@ -320,13 +344,19 @@ class Migrations
             ];
         }
 
-        echo "\nMigration List:\n";
+        $this->outln();
+        $this->outln(Style::bold('Migration List:'));
         foreach ($migration_files as $file) {
             $basename = basename($file, '.php');
             $status = isset($db_migrations[$basename]) ? 'applied' : 'pending';
             $batch_uuid = $db_migrations[$basename]['batch_uuid'] ?? '-';
             $applied_at = $db_migrations[$basename]['applied_at'] ?? '-';
-            echo "File: $basename\n  Status: $status\n  Batch UUID: $batch_uuid\n  Applied At: $applied_at\n\n";
+            $statusLabel = $status === 'applied' ? Style::successLabel() : Style::warningLabel();
+            $this->outln(Style::bold('File:') . ' ' . Style::bold($basename));
+            $this->outln('  ' . Style::bold('Status:') . ' ' . $statusLabel . ' ' . Style::bold($status));
+            $this->outln('  ' . Style::bold('Batch UUID:') . ' ' . Style::bold((string)$batch_uuid));
+            $this->outln('  ' . Style::bold('Applied At:') . ' ' . Style::bold((string)$applied_at));
+            $this->outln();
         }
     }
 

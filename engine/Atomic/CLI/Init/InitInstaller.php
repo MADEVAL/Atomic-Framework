@@ -295,6 +295,12 @@ trait InitInstaller
             }
 
             if ($value === 'redis') {
+                if (!extension_loaded('redis')) {
+                    $this->output->err('  ' . Style::errorLabel() . ' Redis backend requires the PHP redis extension (ext-redis).');
+                    $this->output->err("  Install/enable ext-redis and try again, or choose 'database'.");
+                    continue;
+                }
+
                 return 'redis';
             }
 
@@ -391,7 +397,7 @@ trait InitInstaller
 
     private function initializeMigrationDatabase(): bool
     {
-        $migrations = new CoreMigrations();
+        $migrations = new CoreMigrations($this->output);
         if (!$migrations->db()) {
             $this->output->err('  ' . Style::errorLabel() . " Could not initialize migration database.");
             return false;
@@ -432,7 +438,7 @@ trait InitInstaller
 
         if ($queued > 0) {
             $this->output->writeln();
-            $migrations = new CoreMigrations();
+            $migrations = new CoreMigrations($this->output);
             $migrations->migrate();
             $this->output->writeln('  ' . Style::successLabel() . " {$queued} backend migration(s) applied.");
         }

@@ -14,7 +14,8 @@ trait Scheduler
 {
     public function schedule_run(): void
     {
-        echo "Running scheduled tasks...\n\n";
+        $this->output->writeln('Running scheduled tasks...');
+        $this->output->writeln();
 
         $scheduler = $this->get_scheduler();
         $runner = new Runner($scheduler);
@@ -22,17 +23,19 @@ trait Scheduler
         $result = $runner->run_due_tasks();
         
         if ($result['due_count'] === 0) {
-            echo "No scheduled tasks are due.\n";
+            $this->output->writeln('No scheduled tasks are due.');
             return;
         }
 
-        echo "Found {$result['due_count']} due task(s)\n\n";
+        $this->output->writeln("Found {$result['due_count']} due task(s)");
+        $this->output->writeln();
 
         foreach ($result['results'] as $task_result) {
-            echo $runner->format_result($task_result) . "\n";
+            $this->output->writeln($runner->format_result($task_result));
         }
 
-        echo "\nCompleted: {$result['summary']['successful']} successful, {$result['summary']['failed']} failed\n";
+        $this->output->writeln();
+        $this->output->writeln("Completed: {$result['summary']['successful']} successful, {$result['summary']['failed']} failed");
     }
 
     public function schedule_work(): void
@@ -40,21 +43,23 @@ trait Scheduler
         $args = $this->get_cli_args();
         $sleep_seconds = isset($args[0]) ? (int)$args[0] : 60;
 
-        echo "Starting scheduler worker...\n";
-        echo "Press Ctrl+C to stop.\n\n";
+        $this->output->writeln('Starting scheduler worker...');
+        $this->output->writeln('Press Ctrl+C to stop.');
+        $this->output->writeln();
 
         $scheduler = $this->get_scheduler();
         $worker = new Worker($scheduler, $sleep_seconds);
         
         $worker->run(function($message) {
-            echo $message . "\n";
+            $this->output->writeln($message);
         });
     }
 
     public function schedule_list(): void
     {
-        echo "Scheduled Tasks\n";
-        echo \str_repeat('=', 80) . "\n\n";
+        $this->output->writeln('Scheduled Tasks');
+        $this->output->writeln(\str_repeat('=', 80));
+        $this->output->writeln();
 
         $scheduler = $this->get_scheduler();
         $lister = new Lister($scheduler);
@@ -62,22 +67,23 @@ trait Scheduler
         $list_data = $lister->get_formatted_list();
 
         if ($list_data['total'] === 0) {
-            echo "No scheduled tasks defined.\n";
-            echo "\nTo define tasks, create a schedule.php file in your app directory:\n";
-            echo "  app/schedule.php\n";
-            echo "  app/Console/schedule.php\n";
-            echo "  routes/schedule.php\n";
+            $this->output->writeln('No scheduled tasks defined.');
+            $this->output->writeln();
+            $this->output->writeln('To define tasks, create a schedule.php file in your app directory:');
+            $this->output->writeln('  app/schedule.php');
+            $this->output->writeln('  app/Console/schedule.php');
+            $this->output->writeln('  routes/schedule.php');
             return;
         }
 
         $column_widths = [20, 35, 20, 8];
 
         // Print header
-        echo \sprintf(
+        $this->output->write(\sprintf(
             "%-{$column_widths[0]}s %-{$column_widths[1]}s %-{$column_widths[2]}s %-{$column_widths[3]}s\n",
             $list_data['headers'][0], $list_data['headers'][1], $list_data['headers'][2], $list_data['headers'][3]
-        );
-        echo \str_repeat('-', \array_sum($column_widths) + 3) . "\n";
+        ));
+        $this->output->writeln(\str_repeat('-', \array_sum($column_widths) + 3));
 
         foreach ($list_data['rows'] as $row) {
             $description = $row['description'];
@@ -87,15 +93,17 @@ trait Scheduler
                 $description = \substr($description, 0, $column_widths[1] - 3) . '...';
             }
 
-            echo \sprintf(
+            $this->output->write(\sprintf(
                 "%-{$column_widths[0]}s %-{$column_widths[1]}s %-{$column_widths[2]}s %-{$column_widths[3]}s\n",
                 $row['expression'], $description, $row['next_run'], $row['is_due']
-            );
+            ));
         }
 
-        echo "\nTotal: {$list_data['total']} task(s)\n";
-        echo "\nCron Expression Format: minute hour day-of-month month day-of-week\n";
-        echo "Example: '0 3 * * *' = Every day at 3:00 AM\n";
+        $this->output->writeln();
+        $this->output->writeln("Total: {$list_data['total']} task(s)");
+        $this->output->writeln();
+        $this->output->writeln('Cron Expression Format: minute hour day-of-month month day-of-week');
+        $this->output->writeln("Example: '0 3 * * *' = Every day at 3:00 AM");
     }
 
     public function schedule_test(): void
@@ -107,27 +115,29 @@ trait Scheduler
             // Test a specific cron expression
             $expression = $args[0];
             
-            echo "Testing cron expression: {$expression}\n\n";
+            $this->output->writeln("Testing cron expression: {$expression}");
+            $this->output->writeln();
 
             $result = $tester->test_expression($expression);
 
             if (!$result['valid']) {
-                echo "Error: Invalid cron expression\n";
-                echo "Format: minute hour day-of-month month day-of-week\n";
-                echo "Example: '0 * * * *' (every hour)\n";
+                $this->output->err('Error: Invalid cron expression');
+                $this->output->err('Format: minute hour day-of-month month day-of-week');
+                $this->output->err("Example: '0 * * * *' (every hour)");
                 return;
             }
 
-            echo "Valid: Yes\n";
-            echo "Description: {$result['description']}\n";
-            echo "Due now: " . ($result['is_due'] ? 'Yes' : 'No') . "\n";
-            echo "Next run: " . ($result['next_run'] ?? 'N/A') . "\n";
+            $this->output->writeln('Valid: Yes');
+            $this->output->writeln("Description: {$result['description']}");
+            $this->output->writeln('Due now: ' . ($result['is_due'] ? 'Yes' : 'No'));
+            $this->output->writeln('Next run: ' . ($result['next_run'] ?? 'N/A'));
 
             // Show upcoming runs
             if (!empty($result['upcoming_runs'])) {
-                echo "\nUpcoming runs:\n";
+                $this->output->writeln();
+                $this->output->writeln('Upcoming runs:');
                 foreach ($result['upcoming_runs'] as $i => $run_time) {
-                    echo "  " . ($i + 1) . ". {$run_time}\n";
+                    $this->output->writeln('  ' . ($i + 1) . ". {$run_time}");
                 }
             }
 
@@ -135,7 +145,8 @@ trait Scheduler
         }
 
         // Test the full scheduler configuration
-        echo "Testing scheduler configuration...\n\n";
+        $this->output->writeln('Testing scheduler configuration...');
+        $this->output->writeln();
 
         $scheduler = $this->get_scheduler();
         $lister = new Lister($scheduler);
@@ -143,104 +154,112 @@ trait Scheduler
         $validation = $lister->validate_configuration();
 
         if ($validation['total'] === 0) {
-            echo "Warning: No scheduled tasks found.\n";
+            $this->output->err('Warning: No scheduled tasks found.');
             return;
         }
 
-        echo "Found {$validation['total']} scheduled task(s)\n\n";
+        $this->output->writeln("Found {$validation['total']} scheduled task(s)");
+        $this->output->writeln();
 
         foreach ($validation['results'] as $result) {
-            echo "[{$result['number']}] {$result['description']}\n";
-            echo "    Expression: {$result['expression']}\n";
+            $this->output->writeln("[{$result['number']}] {$result['description']}");
+            $this->output->writeln("    Expression: {$result['expression']}");
 
             if (!$result['valid']) {
-                echo "    ✗ Invalid cron expression!\n";
+                $this->output->err('    ✗ Invalid cron expression!');
             } else {
-                echo "    ✓ Valid\n";
-                echo "    Readable: {$result['readable']}\n";
+                $this->output->writeln('    ✓ Valid');
+                $this->output->writeln("    Readable: {$result['readable']}");
             }
 
-            echo "\n";
+            $this->output->writeln();
         }
 
         if (!$validation['valid']) {
-            echo "Warning: Some tasks have invalid configurations.\n";
+            $this->output->err('Warning: Some tasks have invalid configurations.');
         } else {
-            echo "All tasks configured correctly!\n";
+            $this->output->writeln('All tasks configured correctly!');
         }
     }
 
     public function schedule_help(): void
     {
-        echo "Atomic Scheduler - Task Scheduling System\n";
-        echo \str_repeat('=', 50) . "\n\n";
+        $this->output->writeln('Atomic Scheduler - Task Scheduling System');
+        $this->output->writeln(\str_repeat('=', 50));
+        $this->output->writeln();
 
-        echo "Commands:\n";
-        echo "  schedule/run          Run all due scheduled tasks\n";
-        echo "  schedule/work [sec]   Run scheduler daemon (default: 60s)\n";
-        echo "  schedule/list         List all scheduled tasks\n";
-        echo "  schedule/test [expr]  Test scheduler or cron expression\n";
-        echo "  schedule/help         Show this help message\n";
+        $this->output->writeln('Commands:');
+        $this->output->writeln('  schedule/run          Run all due scheduled tasks');
+        $this->output->writeln('  schedule/work [sec]   Run scheduler daemon (default: 60s)');
+        $this->output->writeln('  schedule/list         List all scheduled tasks');
+        $this->output->writeln('  schedule/test [expr]  Test scheduler or cron expression');
+        $this->output->writeln('  schedule/help         Show this help message');
 
-        echo "\nSetup:\n";
-        echo "  1. Create a schedule.php file in your app directory\n";
-        echo "  2. Define tasks using the Scheduler API\n";
-        echo "  3. Add a cron job: * * * * * php atomic schedule/run\n";
+        $this->output->writeln();
+        $this->output->writeln('Setup:');
+        $this->output->writeln('  1. Create a schedule.php file in your app directory');
+        $this->output->writeln('  2. Define tasks using the Scheduler API');
+        $this->output->writeln('  3. Add a cron job: * * * * * php atomic schedule/run');
 
-        echo "\nExample schedule.php:\n";
-        echo "  <?php\n";
-        echo "  use Engine\\Atomic\\Scheduler\\Scheduler;\n";
-        echo "  \n";
-        echo "  \$scheduler = Scheduler::instance();\n";
-        echo "  \n";
-        echo "  \$scheduler->call(function () {\n";
-        echo "      // Clean up old logs\n";
-        echo "  })->daily()->at('03:00')->description('Cleanup logs');\n";
-        echo "  \n";
-        echo "  \$scheduler->call('App\\Tasks\\SendReports::run')\n";
-        echo "      ->weeklyOn(1, '09:00')\n";
-        echo "      ->description('Send weekly reports');\n";
+        $this->output->writeln();
+        $this->output->writeln('Example schedule.php:');
+        $this->output->writeln('  <?php');
+        $this->output->writeln('  use Engine\\Atomic\\Scheduler\\Scheduler;');
+        $this->output->writeln('  ');
+        $this->output->writeln('  $scheduler = Scheduler::instance();');
+        $this->output->writeln('  ');
+        $this->output->writeln('  $scheduler->call(function () {');
+        $this->output->writeln('      // Clean up old logs');
+        $this->output->writeln("  })->daily()->at('03:00')->description('Cleanup logs');");
+        $this->output->writeln('  ');
+        $this->output->writeln('  $scheduler->call(\'App\\Tasks\\SendReports::run\')');
+        $this->output->writeln("      ->weeklyOn(1, '09:00')");
+        $this->output->writeln("      ->description('Send weekly reports');");
 
-        echo "\nFrequency Methods:\n";
-        echo "  every_minute()        Every minute\n";
-        echo "  every_five_minutes()   Every 5 minutes\n";
-        echo "  every_ten_minutes()    Every 10 minutes\n";
-        echo "  every_fifteen_minutes() Every 15 minutes\n";
-        echo "  every_thirty_minutes() Every 30 minutes\n";
-        echo "  hourly()             Every hour at :00\n";
-        echo "  hourly_at(30)         Every hour at :30\n";
-        echo "  daily()              Every day at midnight\n";
-        echo "  daily_at('13:00')     Every day at 13:00\n";
-        echo "  twice_daily(1, 13)    Twice daily at 1:00 and 13:00\n";
-        echo "  weekly()             Every Sunday at midnight\n";
-        echo "  weekly_on(1, '8:00')  Every Monday at 8:00\n";
-        echo "  monthly()            First day of month at midnight\n";
-        echo "  monthly_on(15, '9:00') 15th of month at 9:00\n";
-        echo "  quarterly()          First day of quarter\n";
-        echo "  yearly()             First day of year\n";
-        echo "  cron('* * * * *')    Custom cron expression\n";
+        $this->output->writeln();
+        $this->output->writeln('Frequency Methods:');
+        $this->output->writeln('  every_minute()        Every minute');
+        $this->output->writeln('  every_five_minutes()   Every 5 minutes');
+        $this->output->writeln('  every_ten_minutes()    Every 10 minutes');
+        $this->output->writeln('  every_fifteen_minutes() Every 15 minutes');
+        $this->output->writeln('  every_thirty_minutes() Every 30 minutes');
+        $this->output->writeln('  hourly()             Every hour at :00');
+        $this->output->writeln('  hourly_at(30)         Every hour at :30');
+        $this->output->writeln('  daily()              Every day at midnight');
+        $this->output->writeln("  daily_at('13:00')     Every day at 13:00");
+        $this->output->writeln('  twice_daily(1, 13)    Twice daily at 1:00 and 13:00');
+        $this->output->writeln('  weekly()             Every Sunday at midnight');
+        $this->output->writeln("  weekly_on(1, '8:00')  Every Monday at 8:00");
+        $this->output->writeln('  monthly()            First day of month at midnight');
+        $this->output->writeln("  monthly_on(15, '9:00') 15th of month at 9:00");
+        $this->output->writeln('  quarterly()          First day of quarter');
+        $this->output->writeln('  yearly()             First day of year');
+        $this->output->writeln("  cron('* * * * *')    Custom cron expression");
 
-        echo "\nConstraints:\n";
-        echo "  weekdays()           Only run on weekdays\n";
-        echo "  weekends()           Only run on weekends\n";
-        echo "  sundays()            Only run on Sundays\n";
-        echo "  mondays()            Only run on Mondays\n";
-        echo "  tuesdays()           Only run on Tuesdays\n";
-        echo "  wednesdays()         Only run on Wednesdays\n";
-        echo "  thursdays()          Only run on Thursdays\n";
-        echo "  fridays()            Only run on Fridays\n";
-        echo "  saturdays()          Only run on Saturdays\n";
-        echo "  between('09:00', '17:00') Only between times\n";
+        $this->output->writeln();
+        $this->output->writeln('Constraints:');
+        $this->output->writeln('  weekdays()           Only run on weekdays');
+        $this->output->writeln('  weekends()           Only run on weekends');
+        $this->output->writeln('  sundays()            Only run on Sundays');
+        $this->output->writeln('  mondays()            Only run on Mondays');
+        $this->output->writeln('  tuesdays()           Only run on Tuesdays');
+        $this->output->writeln('  wednesdays()         Only run on Wednesdays');
+        $this->output->writeln('  thursdays()          Only run on Thursdays');
+        $this->output->writeln('  fridays()            Only run on Fridays');
+        $this->output->writeln('  saturdays()          Only run on Saturdays');
+        $this->output->writeln("  between('09:00', '17:00') Only between times");
 
-        echo "\nOptions:\n";
-        echo "  without_overlapping() Prevent overlapping runs\n";
-        echo "  description('name')  Set task name\n";
+        $this->output->writeln();
+        $this->output->writeln('Options:');
+        $this->output->writeln('  without_overlapping() Prevent overlapping runs');
+        $this->output->writeln("  description('name')  Set task name");
 
-        echo "\nCallbacks:\n";
-        echo "  before(fn)           Run before task\n";
-        echo "  after(fn)            Run after task\n";
-        echo "  on_success(fn)        Run on success\n";
-        echo "  on_failure(fn)        Run on failure\n";
+        $this->output->writeln();
+        $this->output->writeln('Callbacks:');
+        $this->output->writeln('  before(fn)           Run before task');
+        $this->output->writeln('  after(fn)            Run after task');
+        $this->output->writeln('  on_success(fn)        Run on success');
+        $this->output->writeln('  on_failure(fn)        Run on failure');
     }
 
     /**

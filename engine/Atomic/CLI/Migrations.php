@@ -11,44 +11,44 @@ trait Migrations {
     public function migrations_create() {
         $args = $this->get_cli_args();
         if (!isset($args[0])) {
-            echo "Usage: migrations/create <name>\n";
+            $this->output->writeln('Usage: ' . Style::bold('migrations/create <name>'));
             return;
         }
-        (new AM())->create($args[0]);
+        (new AM($this->output))->create($args[0]);
     }
 
     public function migrations_rollback() {
         $args = $this->get_cli_args();
         if (isset($args[0]) && (!is_numeric($args[0]) && $args[0] != 'batch')) {
-            echo "Usage:\n";
-            echo "  migrations/rollback         - to rollback the last migration\n";
-            echo "  migrations/rollback <steps> - to rollback a specific number of migrations\n";
-            echo "  migrations/rollback batch   - to rollback the last batch of migrations\n";
+            $this->output->writeln(Style::bold('Usage:'));
+            $this->output->writeln('  ' . Style::bold('migrations/rollback') . '         - to rollback the last migration');
+            $this->output->writeln('  ' . Style::bold('migrations/rollback <steps>') . ' - to rollback a specific number of migrations');
+            $this->output->writeln('  ' . Style::bold('migrations/rollback batch') . '   - to rollback the last batch of migrations');
             return;
         }
-        (new AM())->rollback($args[0] ?? null);
+        (new AM($this->output))->rollback($args[0] ?? null);
     }
 
     public function migrations_migrate() {
         $args = $this->get_cli_args();
         if (isset($args[0]) && !is_numeric($args[0])) {
-            echo "Usage: migrations/migrate [steps] or migrations/migrate to apply all migrations\n";
+            $this->output->writeln('Usage: ' . Style::bold('migrations/migrate [steps]') . ' or ' . Style::bold('migrations/migrate') . ' to apply all migrations');
             return;
         }
-        (new AM())->migrate($args[0] ?? null);
+        (new AM($this->output))->migrate($args[0] ?? null);
     }
 
     public function migrations_status() {
-        (new AM())->status();
+        (new AM($this->output))->status();
     }
 
     public function migrations_publish() {
         $args = $this->get_cli_args();
         if (!isset($args[0])) {
-            echo "Usage: migrations/publish <plugin-name>\n";
-            echo "  Publishes all migrations from the specified plugin.\n";
+            $this->output->writeln('Usage: ' . Style::bold('migrations/publish <plugin-name>'));
+            $this->output->writeln('  ' . Style::bold('Publishes all migrations from the specified plugin.'));
             return;
         }
-        (new AM())->publishFromPlugin($args[0]);
+        (new AM($this->output))->publishFromPlugin($args[0]);
     }
 }
