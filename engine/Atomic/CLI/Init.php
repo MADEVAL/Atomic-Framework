@@ -36,13 +36,18 @@ trait Init
         $configSource = $this->chooseConfigSource();
         $this->initializeConfigSource($root, $configSource);
 
-        $this->setConfigValue('APP_UUID', $this->readConfigValue('APP_UUID', ID::uuid_v4()));
-        $this->setConfigValue('APP_KEY',  $this->readConfigValue('APP_KEY',  bin2hex(random_bytes(16))));
+        // Generate keys once - read existing or create new
+        $appUuid = $this->readConfigValue('APP_UUID', ID::uuid_v4());
+        $appKey = $this->readConfigValue('APP_KEY', bin2hex(random_bytes(16)));
+        $encryptionKey = $this->readConfigValue('APP_ENCRYPTION_KEY', $this->generateEncryptionKey());
+
+        // Write keys to the selected config source
+        $this->setConfigValue('APP_UUID', $appUuid);
+        $this->setConfigValue('APP_KEY', $appKey);
+        $this->setConfigValue('APP_ENCRYPTION_KEY', $encryptionKey);
         $this->configureBasicEnv('');
 
         if ($this->configMode() === 'env') {
-            $envPath = ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env';
-            $this->setEnvValue($envPath, 'APP_ENCRYPTION_KEY', $this->readEnvValue($envPath, 'APP_ENCRYPTION_KEY', $this->generateEncryptionKey()));
             $this->output->writeln("        .env ready");
         } else {
             $this->output->writeln("        PHP config files ready");
@@ -98,24 +103,33 @@ trait Init
 
     /**
      * php atomic init/key
-     * Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY in existing .env
+     * Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY in existing config
      */
     public function initKey(): void
     {
-        $envPath = ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env';
+        $root = ATOMIC_DIR;
 
-        if (!file_exists($envPath)) {
-            $this->output->writeln(Style::errorLabel() . " No .env file found. Run 'php atomic init' first.");
+        // Detect config mode from const.php
+        $configMode = $this->detectConfigMode($root);
+        if ($configMode === null) {
+            $this->output->writeln(Style::errorLabel() . " Could not detect config mode. Run 'php atomic init' first.");
             return;
         }
 
-        $contents = (string)file_get_contents($envPath);
-        $contents = (string)preg_replace('/^APP_UUID=.*$/m',           'APP_UUID='           . ID::uuid_v4(),                     $contents);
-        $contents = (string)preg_replace('/^APP_KEY=.*$/m',            'APP_KEY='            . bin2hex(random_bytes(16)),          $contents);
-        $contents = (string)preg_replace('/^APP_ENCRYPTION_KEY=.*$/m', 'APP_ENCRYPTION_KEY=' . $this->generateEncryptionKey(),     $contents);
+        $this->initializeConfigSource($root, $configMode);
 
-        file_put_contents($envPath, $contents);
-        $this->output->writeln(Style::successLabel() . " Keys written to .env");
+        // Generate new keys once
+        $newUuid = ID::uuid_v4();
+        $newKey = bin2hex(random_bytes(16));
+        $newEncryptionKey = $this->generateEncryptionKey();
+
+        // Write to the configured source
+        $this->setConfigValue('APP_UUID', $newUuid);
+        $this->setConfigValue('APP_KEY', $newKey);
+        $this->setConfigValue('APP_ENCRYPTION_KEY', $newEncryptionKey);
+
+        $source = $configMode === 'env' ? '.env' : 'PHP config files';
+        $this->output->writeln(Style::successLabel() . " Keys regenerated in {$source}");
     }
 
     public function initGuide(): void

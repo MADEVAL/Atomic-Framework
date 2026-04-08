@@ -148,9 +148,54 @@ trait InitInstaller
         $this->initConfigMode = $mode === 'php' ? 'php' : 'env';
         $this->initEnvPath    = '';
 
+        $this->persistConfigLoaderSelection($root, $this->initConfigMode);
+
         if ($this->initConfigMode === 'env') {
             $this->initEnvPath = $this->ensureEnvFile($root);
         }
+    }
+
+    private function persistConfigLoaderSelection(string $root, string $mode): void
+    {
+        $target = null;
+        $candidates = [
+            $root . DIRECTORY_SEPARATOR . 'bootstrap' . DIRECTORY_SEPARATOR . 'const.php',
+            $root . DIRECTORY_SEPARATOR . 'const.php',
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate) && is_readable($candidate) && is_writable($candidate)) {
+                $target = $candidate;
+                break;
+            }
+        }
+
+        if ($target === null) {
+            $this->reportInitIssue('Could not persist loader mode; no writable const.php found in bootstrap/const.php or const.php.', true);
+            return;
+        }
+
+        $contents = (string)file_get_contents($target);
+        $updated = (string)preg_replace(
+            "/define\\(\\s*'ATOMIC_LOADER'\\s*,\\s*'[^']*'\\s*\\);/",
+            "define('ATOMIC_LOADER', '{$mode}');",
+            $contents,
+            1,
+            $count
+        );
+
+        if ($count === 0) {
+            $this->reportInitIssue("{$target} does not define ATOMIC_LOADER; skipping loader mode persistence.", true);
+            return;
+        }
+
+        if (@file_put_contents($target, $updated) === false) {
+            $error = error_get_last()['message'] ?? 'unknown error';
+            $this->reportInitIssue("Could not write loader mode to {$target}: {$error}", true);
+            return;
+        }
+
+        $this->output->writeln("        Loader mode set to {$mode} in " . basename(dirname($target)) . '/'. basename($target));
     }
 
     private function configMode(): string
@@ -225,20 +270,21 @@ trait InitInstaller
     private function phpConfigKeyMap(string $key): ?array
     {
         return match ($key) {
-            'APP_UUID'       => ['app',      ['uuid']],
-            'APP_NAME'       => ['app',      ['name']],
-            'APP_KEY'        => ['app',      ['key']],
-            'MAIL_FROM_NAME' => ['app',      ['name']],
-            'DB_DRIVER'      => ['database', ['connections', 'mysql', 'driver']],
-            'DB_HOST'        => ['database', ['connections', 'mysql', 'host']],
-            'DB_PORT'        => ['database', ['connections', 'mysql', 'port']],
-            'DB_DATABASE'    => ['database', ['connections', 'mysql', 'database']],
-            'DB_USERNAME'    => ['database', ['connections', 'mysql', 'username']],
-            'DB_PASSWORD'    => ['database', ['connections', 'mysql', 'password']],
-            'SESSION_DRIVER' => ['session',  ['driver']],
-            'MUTEX_DRIVER'   => ['database', ['mutex', 'driver']],
-            'QUEUE_DRIVER'   => ['queue',    ['driver']],
-            default          => null,
+            'APP_UUID'            => ['app',      ['uuid']],
+            'APP_NAME'            => ['app',      ['name']],
+            'APP_KEY'             => ['app',      ['key']],
+            'APP_ENCRYPTION_KEY'  => ['app',      ['encryption_key']],
+            'MAIL_FROM_NAME'      => ['app',      ['name']],
+            'DB_DRIVER'           => ['database', ['connections', 'mysql', 'driver']],
+            'DB_HOST'             => ['database', ['connections', 'mysql', 'host']],
+            'DB_PORT'             => ['database', ['connections', 'mysql', 'port']],
+            'DB_DATABASE'         => ['database', ['connections', 'mysql', 'database']],
+            'DB_USERNAME'         => ['database', ['connections', 'mysql', 'username']],
+            'DB_PASSWORD'         => ['database', ['connections', 'mysql', 'password']],
+            'SESSION_DRIVER'      => ['session',  ['driver']],
+            'MUTEX_DRIVER'        => ['database', ['mutex', 'driver']],
+            'QUEUE_DRIVER'        => ['queue',    ['driver']],
+            default               => null,
         };
     }
 
@@ -442,5 +488,38 @@ trait InitInstaller
             $migrations->migrate();
             $this->output->writeln('  ' . Style::successLabel() . " {$queued} backend migration(s) applied.");
         }
+    }
+
+    private function detectConfigMode(string $root): ?string
+    {
+        $candidates = [
+            $root . DIRECTORY_SEPARATOR . 'bootstrap' . DIRECTORY_SEPARATOR . 'const.php',
+            $root . DIRECTORY_SEPARATOR . 'const.php',
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (!is_file($candidate) || !is_readable($candidate)) {
+                continue;
+            }
+
+            $contents = (string)file_get_contents($candidate);
+            if (preg_match("/define\\(\\s*'ATOMIC_LOADER'\\s*,\\s*'([^']*)'\\s*\\);/", $contents, $matches)) {
+                return $matches[1] === 'php' ? 'php' : 'env';
+            }
+        }
+
+        // Fallback: check if .env exists
+        $envPath = $root . DIRECTORY_SEPARATOR . '.env';
+        if (file_exists($envPath)) {
+            return 'env';
+        }
+
+        // Check if config/app.php exists
+        $appConfigPath = $root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'app.php';
+        if (file_exists($appConfigPath)) {
+            return 'php';
+        }
+
+        return null;
     }
 }
