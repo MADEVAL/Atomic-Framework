@@ -5,6 +5,7 @@ namespace Engine\Atomic\CLI;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\ID;
+use Engine\Atomic\Core\Migrations as CoreMigrations;
 use Engine\Atomic\CLI\Init\InitInstaller;
 use Engine\Atomic\CLI\Init\InitScaffold;
 
@@ -19,62 +20,80 @@ trait Init
      */
     public function init(): void
     {
-        echo "\n  " . Paint::bold('Atomic Framework -- Project Initialization') . "\n";
-        echo "  " . str_repeat('-', 48) . "\n\n";
+        $this->output->writeln();
+        $this->output->writeln("  " . Style::bold('Atomic Framework -- Project Initialization'));
+        $this->output->writeln("  " . str_repeat('-', 48));
+        $this->output->writeln();
 
         $root = ATOMIC_DIR;
 
-        echo "  " . Paint::yellow('[1/4]', true) . " Creating directories...\n";
+        $this->output->writeln("  " . Style::yellow('[1/4]', true) . " Creating directories...");
         $created = $this->createSkeletonDirectories($root);
-        echo "        {$created} new director" . ($created === 1 ? 'y' : 'ies') . " created\n\n";
+        $this->output->writeln("        {$created} new director" . ($created === 1 ? 'y' : 'ies') . " created");
+        $this->output->writeln();
 
-        echo "  " . Paint::yellow('[2/4]', true) . " Preparing settings...\n";
+        $this->output->writeln("  " . Style::yellow('[2/4]', true) . " Preparing settings...");
         $configSource = $this->chooseConfigSource();
         $this->initializeConfigSource($root, $configSource);
 
         $this->setConfigValue('APP_UUID', $this->readConfigValue('APP_UUID', ID::uuid_v4()));
-        $this->setConfigValue('APP_KEY', $this->readConfigValue('APP_KEY', bin2hex(random_bytes(16))));
+        $this->setConfigValue('APP_KEY',  $this->readConfigValue('APP_KEY',  bin2hex(random_bytes(16))));
         $this->configureBasicEnv('');
 
         if ($this->configMode() === 'env') {
-            $this->setEnvValue(ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env', 'APP_ENCRYPTION_KEY', $this->readEnvValue(ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env', 'APP_ENCRYPTION_KEY', $this->generateEncryptionKey()));
-            echo "        .env ready\n\n";
+            $envPath = ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env';
+            $this->setEnvValue($envPath, 'APP_ENCRYPTION_KEY', $this->readEnvValue($envPath, 'APP_ENCRYPTION_KEY', $this->generateEncryptionKey()));
+            $this->output->writeln("        .env ready");
         } else {
-            echo "        PHP config files ready\n\n";
+            $this->output->writeln("        PHP config files ready");
         }
+        $this->output->writeln();
 
-        echo "  " . Paint::yellow('[3/4]', true) . " Stub files...\n";
+        $this->output->writeln("  " . Style::yellow('[3/4]', true) . " Stub files...");
         $stubs = $this->createAppStubs($root);
-        echo "        {$stubs} stub file" . ($stubs === 1 ? '' : 's') . " created\n\n";
+        $this->output->writeln("        {$stubs} stub file" . ($stubs === 1 ? '' : 's') . " created");
+        $this->output->writeln();
 
-        echo "  " . Paint::yellow('[4/4]', true) . " Database and backend setup...\n";
+        $this->output->writeln("  " . Style::yellow('[4/4]', true) . " Database and backend setup...");
         $dbConfig = $this->configureDatabase('');
         if ($dbConfig !== null) {
             $this->bootDatabase($dbConfig);
             if ($this->initializeMigrationDatabase()) {
-                $this->setupOptionalDatabaseSystems($root);
+                (new CoreMigrations())->migrate();
+                $this->output->writeln();
 
-                if (!$this->maybeEnableRedisBackends('')) {
+                $driver = $this->chooseMainDriver();
+                $this->output->writeln();
+
+                if ($driver === 'redis') {
+                    $this->setConfigValue('SESSION_DRIVER', 'redis');
+                    $this->setConfigValue('MUTEX_DRIVER',   'redis');
+                    $this->setConfigValue('QUEUE_DRIVER',   'redis');
+                    $this->output->writeln('  ' . Style::successLabel() . " Redis selected for queue/mutex/session backends.");
+                } else {
                     $this->setConfigValue('SESSION_DRIVER', 'db');
-                    $this->setConfigValue('MUTEX_DRIVER', 'database');
-                    $this->setConfigValue('QUEUE_DRIVER', 'database');
+                    $this->setConfigValue('MUTEX_DRIVER',   'database');
+                    $this->setConfigValue('QUEUE_DRIVER',   'database');
                     $this->setupDatabaseBackendsMigrations();
                 }
             }
         } else {
-            echo "  Database setup skipped." . PHP_EOL;
+            $this->output->writeln("  Database setup skipped.");
         }
 
-        echo "\n  " . str_repeat('=', 48) . "\n";
-        echo "  " . Paint::successLabel() . " Done.\n\n";
-        echo "  Next:\n";
+        $this->output->writeln();
+        $this->output->writeln("  " . str_repeat('=', 48));
+        $this->output->writeln("  " . Style::successLabel() . " Done.");
+        $this->output->writeln();
+        $this->output->writeln("  Next:");
         if ($this->configMode() === 'env') {
-            echo "    1. Open .env if you want to change anything.\n";
+            $this->output->writeln("    1. Open .env if you want to change anything.");
         } else {
-            echo "    1. Review config/*.php if you want to change anything.\n";
+            $this->output->writeln("    1. Review config/*.php if you want to change anything.");
         }
-        echo "    2. Point your server to public/.\n";
-        echo "    3. Open the site.\n\n";
+        $this->output->writeln("    2. Point your server to public/.");
+        $this->output->writeln("    3. Open the site.");
+        $this->output->writeln();
     }
 
     /**
@@ -86,17 +105,17 @@ trait Init
         $envPath = ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env';
 
         if (!file_exists($envPath)) {
-            echo Paint::errorLabel() . " No .env file found. Run 'php atomic init' first.\n";
+            $this->output->writeln(Style::errorLabel() . " No .env file found. Run 'php atomic init' first.");
             return;
         }
 
         $contents = (string)file_get_contents($envPath);
-        $contents = (string)preg_replace('/^APP_UUID=.*$/m', 'APP_UUID=' . ID::uuid_v4(), $contents);
-        $contents = (string)preg_replace('/^APP_KEY=.*$/m', 'APP_KEY=' . bin2hex(random_bytes(16)), $contents);
-        $contents = (string)preg_replace('/^APP_ENCRYPTION_KEY=.*$/m', 'APP_ENCRYPTION_KEY=' . $this->generateEncryptionKey(), $contents);
+        $contents = (string)preg_replace('/^APP_UUID=.*$/m',           'APP_UUID='           . ID::uuid_v4(),                     $contents);
+        $contents = (string)preg_replace('/^APP_KEY=.*$/m',            'APP_KEY='            . bin2hex(random_bytes(16)),          $contents);
+        $contents = (string)preg_replace('/^APP_ENCRYPTION_KEY=.*$/m', 'APP_ENCRYPTION_KEY=' . $this->generateEncryptionKey(),     $contents);
 
         file_put_contents($envPath, $contents);
-        echo Paint::successLabel() . " Keys written to .env\n";
+        $this->output->writeln(Style::successLabel() . " Keys written to .env");
     }
 
     /**
@@ -109,21 +128,23 @@ trait Init
         $logs   = glob($logDir . DIRECTORY_SEPARATOR . 'php_errors-*.log');
 
         if (!is_array($logs) || count($logs) <= 10) {
-            echo "Nothing to rotate (" . (is_array($logs) ? count($logs) : 0) . " log file(s)).\n";
+            $this->output->writeln("Nothing to rotate (" . (is_array($logs) ? count($logs) : 0) . " log file(s)).");
             return;
         }
 
         natsort($logs);
         $excess  = array_slice(array_values($logs), 0, count($logs) - 10);
         $deleted = 0;
+
         foreach ($excess as $old) {
             if (unlink($old)) {
                 $deleted++;
             } else {
                 $err = error_get_last()['message'] ?? 'unknown error';
-                echo Paint::warningLabel() . " could not delete {$old}: {$err}\n";
+                $this->output->err(Style::warningLabel() . " could not delete {$old}: {$err}");
             }
         }
-        echo Paint::successLabel() . " Rotated {$deleted} log file" . ($deleted === 1 ? '' : 's') . ".\n";
+
+        $this->output->writeln(Style::successLabel() . " Rotated {$deleted} log file" . ($deleted === 1 ? '' : 's') . ".");
     }
 }

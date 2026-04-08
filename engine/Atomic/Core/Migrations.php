@@ -6,7 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use DB\Cortex;
 use DB\Cortex\Schema\Schema;
-use Engine\Atomic\CLI\Paint;
+use Engine\Atomic\CLI\Style;
 use Engine\Atomic\App\PluginManager;
 
 class Migrations 
@@ -15,7 +15,7 @@ class Migrations
         $atomic = App::instance();
         $db = $atomic->get('DB');
         if (!$db) {
-            echo Paint::errorLabel() . " Database is not ready.\n";
+            echo Style::errorLabel() . " Database is not ready.\n";
             return false;
         }
         $schema = new Schema($db);

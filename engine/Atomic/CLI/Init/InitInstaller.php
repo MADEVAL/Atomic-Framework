@@ -5,47 +5,40 @@ namespace Engine\Atomic\CLI\Init;
 if (!defined('ATOMIC_START')) exit;
 
 use DB\SQL;
-use Engine\Atomic\CLI\Paint;
+use Engine\Atomic\CLI\Style;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Migrations as CoreMigrations;
 
 trait InitInstaller
 {
     private string $initConfigMode = 'env';
-    private string $initRoot = '';
-    private string $initEnvPath = '';
-
-    private function isInteractiveInit(): bool
-    {
-        return defined('STDIN')
-            && function_exists('stream_isatty')
-            && stream_isatty(STDIN);
-    }
-
+    private string $initRoot       = '';
+    private string $initEnvPath    = '';
     private function ask(string $label, ?string $default = null): string
     {
-        if (!$this->isInteractiveInit()) {
+        if (!$this->input->isInteractive()) {
             return (string)($default ?? '');
         }
 
-        echo "  {$label}";
+        $text = "  {$label}";
         if ($default !== null && $default !== '') {
-            echo " [{$default}]";
+            $text .= " [{$default}]";
         }
-        echo ': ';
+        $text .= ': ';
 
-        $value = trim((string)fgets(STDIN));
+        $this->output->prompt($text);
+        $value = $this->input->readLine();
         return $value === '' ? (string)($default ?? '') : $value;
     }
 
     private function confirm(string $label, bool $default = true): bool
     {
-        if (!$this->isInteractiveInit()) {
+        if (!$this->input->isInteractive()) {
             return $default;
         }
 
-        echo "  {$label} [" . ($default ? 'Y/n' : 'y/N') . ']: ';
-        $value = strtolower(trim((string)fgets(STDIN)));
+        $this->output->prompt("  {$label} [" . ($default ? 'Y/n' : 'y/N') . ']: ');
+        $value = strtolower($this->input->readLine());
 
         if ($value === '') {
             return $default;
@@ -56,8 +49,8 @@ trait InitInstaller
 
     private function reportInitIssue(string $message, bool $warning = false): void
     {
-        $label = $warning ? Paint::warningLabel() : Paint::errorLabel();
-        echo '  ' . $label . ' ' . $message . PHP_EOL;
+        $label = $warning ? Style::warningLabel() : Style::errorLabel();
+        $this->output->err('  ' . $label . ' ' . $message);
     }
 
     private function ensureEnvFile(string $root): string
@@ -67,7 +60,18 @@ trait InitInstaller
             return $envPath;
         }
 
-        $this->reportInitIssue("Missing required .env file at {$envPath}.");
+        $examplePath = $root . DIRECTORY_SEPARATOR . '.env.example';
+        if (file_exists($examplePath)) {
+            if (@copy($examplePath, $envPath)) {
+                $this->output->writeln("        .env generated from .env.example");
+                return $envPath;
+            }
+            $error = error_get_last()['message'] ?? 'unknown error';
+            $this->reportInitIssue("Could not copy .env.example to .env: {$error}");
+            return '';
+        }
+
+        $this->reportInitIssue("No .env found at {$envPath} and no .env.example to generate from.");
         return '';
     }
 
@@ -79,8 +83,8 @@ trait InitInstaller
         }
 
         $contents = (string)@file_get_contents($envPath);
-        $line = $key . '=' . $value;
-        $pattern = '/^' . preg_quote($key, '/') . '=.*$/m';
+        $line     = $key . '=' . $value;
+        $pattern  = '/^' . preg_quote($key, '/') . '=.*$/m';
 
         if (preg_match($pattern, $contents) === 1) {
             $contents = (string)preg_replace($pattern, $line, $contents, 1);
@@ -118,13 +122,13 @@ trait InitInstaller
 
     private function chooseConfigSource(): string
     {
-        if (!$this->isInteractiveInit()) {
+        if (!$this->input->isInteractive()) {
             return 'env';
         }
 
         while (true) {
-            echo "  Configuration source [env/php] [env]: ";
-            $value = strtolower(trim((string)fgets(STDIN)));
+            $this->output->prompt("  Configuration source [env/php] [env]: ");
+            $value = strtolower($this->input->readLine());
 
             if ($value === '' || $value === 'env') {
                 return 'env';
@@ -134,15 +138,15 @@ trait InitInstaller
                 return 'php';
             }
 
-            echo '  ' . Paint::warningLabel() . " Please enter 'env' or 'php'." . PHP_EOL;
+            $this->output->err('  ' . Style::warningLabel() . " Please enter 'env' or 'php'.");
         }
     }
 
     private function initializeConfigSource(string $root, string $mode): void
     {
-        $this->initRoot = $root;
+        $this->initRoot       = $root;
         $this->initConfigMode = $mode === 'php' ? 'php' : 'env';
-        $this->initEnvPath = '';
+        $this->initEnvPath    = '';
 
         if ($this->initConfigMode === 'env') {
             $this->initEnvPath = $this->ensureEnvFile($root);
@@ -186,7 +190,7 @@ trait InitInstaller
 
     private function writePhpConfigFile(string $name, array $config): void
     {
-        $path = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
+        $path    = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
         $content = "<?php\n" . 'declare(strict_types=1);' . "\n\nreturn " . var_export($config, true) . ";\n";
         if (@file_put_contents($path, $content) === false) {
             $error = error_get_last()['message'] ?? 'unknown error';
@@ -221,20 +225,20 @@ trait InitInstaller
     private function phpConfigKeyMap(string $key): ?array
     {
         return match ($key) {
-            'APP_UUID' => ['app', ['uuid']],
-            'APP_NAME' => ['app', ['name']],
-            'APP_KEY' => ['app', ['key']],
-            'MAIL_FROM_NAME' => ['app', ['name']],
-            'DB_DRIVER' => ['database', ['connections', 'mysql', 'driver']],
-            'DB_HOST' => ['database', ['connections', 'mysql', 'host']],
-            'DB_PORT' => ['database', ['connections', 'mysql', 'port']],
-            'DB_DATABASE' => ['database', ['connections', 'mysql', 'database']],
-            'DB_USERNAME' => ['database', ['connections', 'mysql', 'username']],
-            'DB_PASSWORD' => ['database', ['connections', 'mysql', 'password']],
-            'SESSION_DRIVER' => ['session', ['driver']],
-            'MUTEX_DRIVER' => ['database', ['mutex', 'driver']],
-            'QUEUE_DRIVER' => ['queue', ['driver']],
-            default => null,
+            'APP_UUID'       => ['app',      ['uuid']],
+            'APP_NAME'       => ['app',      ['name']],
+            'APP_KEY'        => ['app',      ['key']],
+            'MAIL_FROM_NAME' => ['app',      ['name']],
+            'DB_DRIVER'      => ['database', ['connections', 'mysql', 'driver']],
+            'DB_HOST'        => ['database', ['connections', 'mysql', 'host']],
+            'DB_PORT'        => ['database', ['connections', 'mysql', 'port']],
+            'DB_DATABASE'    => ['database', ['connections', 'mysql', 'database']],
+            'DB_USERNAME'    => ['database', ['connections', 'mysql', 'username']],
+            'DB_PASSWORD'    => ['database', ['connections', 'mysql', 'password']],
+            'SESSION_DRIVER' => ['session',  ['driver']],
+            'MUTEX_DRIVER'   => ['database', ['mutex', 'driver']],
+            'QUEUE_DRIVER'   => ['queue',    ['driver']],
+            default          => null,
         };
     }
 
@@ -253,7 +257,7 @@ trait InitInstaller
         }
 
         $config = $this->readPhpConfigFile($file);
-        $value = $this->getArrayPathValue($config, $path, $default);
+        $value  = $this->getArrayPathValue($config, $path, $default);
         return is_scalar($value) ? (string)$value : $default;
     }
 
@@ -276,58 +280,63 @@ trait InitInstaller
         $this->writePhpConfigFile($file, $config);
     }
 
-    private function maybeEnableRedisBackends(string $envPath): bool
+    private function chooseMainDriver(): string
     {
-        if (!$this->confirm('Is Redis available in this environment?', false)) {
-            return false;
+        if (!$this->input->isInteractive()) {
+            return 'database';
         }
 
-        if (!$this->confirm('Use Redis backend for queue, mutex, and session?', true)) {
-            return false;
+        while (true) {
+            $this->output->prompt("  Main backend driver [database/redis] [database]: ");
+            $value = strtolower($this->input->readLine());
+
+            if ($value === '' || $value === 'database') {
+                return 'database';
+            }
+
+            if ($value === 'redis') {
+                return 'redis';
+            }
+
+            $this->output->err('  ' . Style::warningLabel() . " Please enter 'database' or 'redis'.");
         }
-
-        $this->setConfigValue('SESSION_DRIVER', 'redis');
-        $this->setConfigValue('MUTEX_DRIVER', 'redis');
-        $this->setConfigValue('QUEUE_DRIVER', 'redis');
-
-        echo '  ' . Paint::successLabel() . " Redis selected for queue/mutex/session backends." . PHP_EOL;
-        return true;
     }
 
     private function configureDatabase(string $envPath): ?array
     {
-        if (!$this->isInteractiveInit()) {
+        if (!$this->input->isInteractive()) {
             return null;
         }
 
         while (true) {
             $config = [
-                'driver' => 'mysql',
-                'host' => $this->ask('DB host', $this->readConfigValue('DB_HOST', '127.0.0.1')),
-                'port' => $this->ask('DB port', $this->readConfigValue('DB_PORT', '3306')),
-                'database' => $this->ask('DB name', $this->readConfigValue('DB_DATABASE', 'atomic')),
-                'username' => $this->ask('DB user', $this->readConfigValue('DB_USERNAME', 'root')),
-                'password' => Paint::askSecret('DB password', $this->readConfigValue('DB_PASSWORD', '')),
+                'driver'   => 'mysql',
+                'host'     => $this->ask('DB host',     $this->readConfigValue('DB_HOST',     '127.0.0.1')),
+                'port'     => $this->ask('DB port',     $this->readConfigValue('DB_PORT',     '3306')),
+                'database' => $this->ask('DB name',     $this->readConfigValue('DB_DATABASE', 'atomic')),
+                'username' => $this->ask('DB user',     $this->readConfigValue('DB_USERNAME', 'root')),
+                'password' => $this->input->readSecret('DB password', $this->readConfigValue('DB_PASSWORD', '')),
             ];
 
             $error = $this->testDatabaseConnection($config);
             if ($error === null) {
-                $this->setConfigValue('DB_DRIVER', $config['driver']);
-                $this->setConfigValue('DB_HOST', $config['host']);
-                $this->setConfigValue('DB_PORT', $config['port']);
+                $this->setConfigValue('DB_DRIVER',   $config['driver']);
+                $this->setConfigValue('DB_HOST',     $config['host']);
+                $this->setConfigValue('DB_PORT',     $config['port']);
                 $this->setConfigValue('DB_DATABASE', $config['database']);
                 $this->setConfigValue('DB_USERNAME', $config['username']);
                 $this->setConfigValue('DB_PASSWORD', $config['password']);
-                echo '  ' . Paint::successLabel() . " Database is ready." . PHP_EOL . PHP_EOL;
+                $this->output->writeln('  ' . Style::successLabel() . " Database is ready.");
+                $this->output->writeln();
                 return $config;
             }
 
-            echo '  ' . Paint::errorLabel() . " Could not connect." . PHP_EOL;
-            echo "  {$error}" . PHP_EOL;
-            echo "  Please retry and check your credentials." . PHP_EOL;
+            $this->output->err('  ' . Style::errorLabel() . " Could not connect.");
+            $this->output->err("  {$error}");
+            $this->output->err("  Please retry and check your credentials.");
 
             if (!$this->confirm('Try again?', true)) {
-                echo PHP_EOL;
+                $this->output->writeln();
                 return null;
             }
         }
@@ -356,23 +365,23 @@ trait InitInstaller
 
     private function bootDatabase(array $config): SQL
     {
-        $atomic = App::instance();
+        $atomic   = App::instance();
         $dbConfig = [
-            'driver' => $config['driver'],
-            'host' => $config['host'],
-            'port' => $config['port'],
-            'database' => $config['database'],
-            'username' => $config['username'],
-            'password' => $config['password'],
-            'unix_socket' => '',
-            'charset' => 'utf8mb4',
-            'collation' => 'utf8mb4_general_ci',
-            'ATOMIC_DB_PREFIX' => 'atomic_',
-            'ATOMIC_DB_QUEUE_PREFIX' => 'atomic_queue_',
+            'driver'                  => $config['driver'],
+            'host'                    => $config['host'],
+            'port'                    => $config['port'],
+            'database'                => $config['database'],
+            'username'                => $config['username'],
+            'password'                => $config['password'],
+            'unix_socket'             => '',
+            'charset'                 => 'utf8mb4',
+            'collation'               => 'utf8mb4_general_ci',
+            'ATOMIC_DB_PREFIX'        => 'atomic_',
+            'ATOMIC_DB_QUEUE_PREFIX'  => 'atomic_queue_',
         ];
 
         $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['database']};charset={$dbConfig['charset']};port=" . (int)$dbConfig['port'];
-        $db = new SQL($dsn, $dbConfig['username'], $dbConfig['password']);
+        $db  = new SQL($dsn, $dbConfig['username'], $dbConfig['password']);
 
         $atomic->set('DB_CONFIG', $dbConfig);
         $atomic->set('DB', $db);
@@ -384,11 +393,11 @@ trait InitInstaller
     {
         $migrations = new CoreMigrations();
         if (!$migrations->db()) {
-            echo '  ' . Paint::errorLabel() . " Could not initialize migration database." . PHP_EOL;
+            $this->output->err('  ' . Style::errorLabel() . " Could not initialize migration database.");
             return false;
         }
 
-        echo '  ' . Paint::successLabel() . " Migration database initialized." . PHP_EOL;
+        $this->output->writeln('  ' . Style::successLabel() . " Migration database initialized.");
         return true;
     }
 
@@ -400,30 +409,32 @@ trait InitInstaller
     private function setupDatabaseBackendsMigrations(): void
     {
         $options = [
-            ['label' => 'session database migration', 'method' => 'db_sessions'],
-            ['label' => 'mutex database migration', 'method' => 'db_mutex'],
-            ['label' => 'queue database migration', 'method' => 'queue_db'],
+            ['label' => 'session', 'method' => 'db_sessions'],
+            ['label' => 'mutex',   'method' => 'db_mutex'],
+            ['label' => 'queue',   'method' => 'queue_db'],
         ];
 
-        $published = 0;
+        $queued = 0;
         foreach ($options as $option) {
-            if (!$this->confirm('Publish ' . $option['label'] . '?', false)) {
+            if (!$this->confirm('Run ' . $option['label'] . ' migration?', false)) {
                 continue;
             }
 
             $method = $option['method'];
             if (!method_exists($this, $method)) {
-                echo '  ' . Paint::warningLabel() . " Missing CLI method '{$method}', skipping." . PHP_EOL;
+                $this->output->err('  ' . Style::warningLabel() . " Missing CLI method '{$method}', skipping.");
                 continue;
             }
 
             $this->{$method}();
-            $published++;
+            $queued++;
         }
 
-        if ($published > 0) {
-            echo '  ' . Paint::successLabel() . " {$published} backend migration(s) published." . PHP_EOL;
-            echo "  Run 'php atomic migrations/migrate' when you are ready to apply them." . PHP_EOL;
+        if ($queued > 0) {
+            $this->output->writeln();
+            $migrations = new CoreMigrations();
+            $migrations->migrate();
+            $this->output->writeln('  ' . Style::successLabel() . " {$queued} backend migration(s) applied.");
         }
     }
 }

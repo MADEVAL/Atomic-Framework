@@ -4,7 +4,7 @@ namespace Engine\Atomic\CLI\Init;
 
 if (!defined('ATOMIC_START')) exit;
 
-use Engine\Atomic\CLI\Paint;
+use Engine\Atomic\CLI\Style;
 use Engine\Atomic\Core\Migrations;
 
 trait InitScaffold
@@ -41,24 +41,26 @@ trait InitScaffold
         ]);
 
         $runtimeNotWritable = [];
-        $created = 0;
+        $created            = 0;
 
         foreach ($dirs as $dir) {
-            $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
+            $path      = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
             $isRuntime = isset($runtimeDirs[$dir]);
+
             if (!is_dir($path)) {
                 if (mkdir($path, $isRuntime ? 0775 : 0755, true)) {
                     $created++;
                 } else {
                     $err = error_get_last()['message'] ?? 'unknown error';
-                    echo "        " . Paint::warningLabel() . " could not create {$dir}: {$err}\n";
+                    $this->output->err("        " . Style::warningLabel() . " could not create {$dir}: {$err}");
                     continue;
                 }
             }
+
             if ($isRuntime) {
                 @chmod($path, 0775);
                 if (!is_writable($path)) {
-                    echo "        " . Paint::warningLabel() . " {$dir} is not writable by current web user context\n";
+                    $this->output->err("        " . Style::warningLabel() . " {$dir} is not writable by current web user context");
                     $runtimeNotWritable[] = $dir;
                 }
             }
@@ -70,7 +72,7 @@ trait InitScaffold
 
     private function createAppStubs(string $root): int
     {
-        $stubs = 0;
+        $stubs  = 0;
         $stubs += $this->writeStubIfMissing(
             $root . '/routes/web.php',
             "<?php\ndeclare(strict_types=1);\nif (!defined('ATOMIC_START')) exit;\n\n// Web routes\n"
@@ -101,7 +103,7 @@ trait InitScaffold
         }
 
         if (!method_exists($this, 'db_users')) {
-            echo '  ' . Paint::warningLabel() . " CLI method 'db_users' is unavailable, skipping users migration." . PHP_EOL;
+            $this->output->err('  ' . Style::warningLabel() . " CLI method 'db_users' is unavailable, skipping users migration.");
             return;
         }
 
@@ -110,7 +112,7 @@ trait InitScaffold
         $migrations = new Migrations();
         $migrations->migrate();
 
-        echo '  ' . Paint::successLabel() . " Users migration executed." . PHP_EOL;
+        $this->output->writeln('  ' . Style::successLabel() . " Users migration executed.");
     }
 
     private function generateEncryptionKey(): string
@@ -142,18 +144,20 @@ trait InitScaffold
             return;
         }
 
-        echo "\n  Runtime permissions guide:\n";
-        echo "    Applications fail with writable/permission errors if these are not writable:\n";
+        $this->output->writeln();
+        $this->output->writeln("  Runtime permissions guide:");
+        $this->output->writeln("    Applications fail with writable/permission errors if these are not writable:");
         foreach ($runtimeNotWritable as $dir) {
-            echo "      - {$dir}\n";
+            $this->output->writeln("      - {$dir}");
         }
-        echo "\n";
-        echo "    Host fix (replace placeholders for your server):\n";
-        echo "      sudo chown -R <web-user>:<web-group> storage public/uploads\n";
-        echo "      sudo chmod -R ug+rwX storage public/uploads\n";
-        echo "      find storage public/uploads -type d -exec chmod g+s {} \\\;\n";
-        echo "      sudo -u <web-user> test -w storage && sudo -u <web-user> test -w storage/logs && sudo -u <web-user> test -w public/uploads\n";
-        echo "\n";
-        echo "    Examples of <web-user>: www-data, apache, nginx\n\n";
+        $this->output->writeln();
+        $this->output->writeln("    Host fix (replace placeholders for your server):");
+        $this->output->writeln("      sudo chown -R <web-user>:<web-group> storage public/uploads");
+        $this->output->writeln("      sudo chmod -R ug+rwX storage public/uploads");
+        $this->output->writeln("      find storage public/uploads -type d -exec chmod g+s {} \\;");
+        $this->output->writeln("      sudo -u <web-user> test -w storage && sudo -u <web-user> test -w storage/logs && sudo -u <web-user> test -w public/uploads");
+        $this->output->writeln();
+        $this->output->writeln("    Examples of <web-user>: www-data, apache, nginx");
+        $this->output->writeln();
     }
 }

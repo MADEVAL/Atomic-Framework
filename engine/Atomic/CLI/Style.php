@@ -4,7 +4,7 @@ namespace Engine\Atomic\CLI;
 
 if (!defined('ATOMIC_START')) exit;
 
-final class Paint
+class Style
 {
     private const RESET  = "\033[0m";
     private const BOLD   = "\033[1m";
@@ -12,44 +12,6 @@ final class Paint
     private const GREEN  = "\033[32m";
     private const YELLOW = "\033[33m";
     private const CYAN   = "\033[36m";
-
-    public static function supportsColors(mixed $stream = null): bool
-    {
-        if (getenv('NO_COLOR') !== false) {
-            return false;
-        }
-
-        $force = (string) (getenv('CLICOLOR_FORCE') ?: '');
-        if ($force !== '' && $force !== '0') {
-            return true;
-        }
-
-        if ($stream === null) {
-            if (!defined('STDOUT')) {
-                return false;
-            }
-            $stream = STDOUT;
-        }
-
-        $isTty = false;
-        if (function_exists('stream_isatty')) {
-            $isTty = @stream_isatty($stream);
-        } elseif (function_exists('posix_isatty')) {
-            $isTty = @posix_isatty($stream);
-        }
-
-        if (!$isTty) {
-            return false;
-        }
-
-        $clicolor = getenv('CLICOLOR');
-        if ($clicolor !== false && $clicolor === '0') {
-            return false;
-        }
-
-        $term = (string) (getenv('TERM') ?: '');
-        return strtolower($term) !== 'dumb';
-    }
 
     public static function red(string $text, bool $bold = false): string
     {
@@ -93,7 +55,7 @@ final class Paint
 
     private static function paint(string $text, ?string $color, bool $bold): string
     {
-        if (!self::supportsColors()) {
+        if (!Capabilities::supportsColors()) {
             return $text;
         }
 

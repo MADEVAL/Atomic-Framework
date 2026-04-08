@@ -4,10 +4,12 @@ namespace Engine\Atomic\CLI;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
+use Engine\Atomic\CLI\Console\Input;
+use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 
-class CLI { 
+class CLI {
     use DB;
     use File;
     use Init;
@@ -16,10 +18,14 @@ class CLI {
     use Scheduler;
     use Seeder;
 
-    protected App $atomic;
+    protected App    $atomic;
+    protected Output $output;
+    protected Input  $input;
 
     public function __construct() {
         $this->atomic = App::instance();
+        $this->output = new Output();
+        $this->input  = new Input($this->output);
     }
 
     public function help(): void {
@@ -131,22 +137,20 @@ class CLI {
             return false;
         }
 
-        if (stream_isatty(STDIN)) {
-            $warning = Paint::warningLabel();
-            $cmd     = Paint::bold($rawCommand);
-            echo "{$warning} You are running '{$cmd}' as root.\n";
-            echo "Running as root may cause permission issues.\n";
-            echo "Do you want to continue? [y/N]: ";
+        if ($this->input->isInteractive()) {
+            $this->output->err(Style::warningLabel() . " You are running '" . Style::bold($rawCommand) . "' as root.");
+            $this->output->err("Running as root may cause permission issues.");
+            $this->output->prompt("Do you want to continue? [y/N]: ");
 
-            $input = strtolower(trim((string) fgets(STDIN)));
+            $answer = strtolower($this->input->readLine());
 
-            if ($input !== 'y' && $input !== 'yes') {
-                echo Paint::errorLabel() . " Aborted.\n";
+            if ($answer !== 'y' && $answer !== 'yes') {
+                $this->output->err(Style::errorLabel() . " Aborted.");
                 return true;
             }
         } else {
             $msg = "Running '{$rawCommand}' as root in non-interactive mode.";
-            fwrite(STDERR, "[WARNING] {$msg}\n");
+            $this->output->err("[WARNING] {$msg}");
             Log::warning($msg);
         }
 
