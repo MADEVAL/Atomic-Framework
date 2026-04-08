@@ -1,7 +1,7 @@
 {
   "name": "globus-studio/atomic-framework",
   "description": "Atomic Framework – power in minimalism",
-  "type": "library",
+  "type": "project",
   "license": "GPL-3.0-or-later",
   "require": {
     "php": ">=8.1",
@@ -12,12 +12,11 @@
     "ext-pdo": "*",
     "ext-pdo_mysql": "*",
     "ext-curl": "*",
-    "bcosca/fatfree-core": "dev-master#6872dcfb0906d092e1cb37fd7c2abbadc61ecbd0",
+    "globus-studio/fatfree-core": "^3.9.2.1",
     "globus-studio/cortex-atomic": "^2.0",
     "workerman/workerman": "^5.1",
     "workerman/redis": "^2.0"
   },
-  "minimum-stability": "dev",
   "prefer-stable": true,
   "autoload": {
     "psr-4": {
