@@ -30,6 +30,11 @@ class System extends Controller
         $this->cli()->initKey();
     }
 
+    public function appInitGuide(): void
+    {
+        $this->cli()->initGuide();
+    }
+
     public function logsRotate(): void
     {
         $this->cli()->logsRotate();
@@ -111,6 +116,10 @@ class System extends Controller
     
     public function migrationsCreate(): void {
         $this->cli()->migrations_create();
+    }
+
+    public function migrationsInit(): void {
+        $this->cli()->migrations_init();
     }
 
     public function migrationsMigrate(): void {

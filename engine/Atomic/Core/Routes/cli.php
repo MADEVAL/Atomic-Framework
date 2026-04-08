@@ -3,7 +3,8 @@ declare(strict_types=1);
 if (!defined('ATOMIC_START')) exit;
 
 $atomic->route('GET /init [cli]', 'Engine\Atomic\App\System->appInit');
-$atomic->route('GET /init/key [cli]', 'Engine\Atomic\App\System->appInitKey');
+$atomic->route('GET /init/key [cli]',   'Engine\Atomic\App\System->appInitKey');
+$atomic->route('GET /init/guide [cli]', 'Engine\Atomic\App\System->appInitGuide');
 $atomic->route('GET /logs/rotate [cli]', 'Engine\Atomic\App\System->logsRotate');
 
 $atomic->route('GET /help [cli]', 'Engine\Atomic\App\System->help');
@@ -46,6 +47,7 @@ $atomic->route('GET /db/storage [cli]', 'Engine\Atomic\App\System->dbStorage');
 $atomic->route('GET /db/mutex [cli]', 'Engine\Atomic\App\System->dbMutex');
 
 $atomic->route('GET /migrations/create [cli]', 'Engine\Atomic\App\System->migrationsCreate');
+$atomic->route('GET /migrations/init [cli]', 'Engine\Atomic\App\System->migrationsInit');
 $atomic->route('GET /migrations/migrate [cli]', 'Engine\Atomic\App\System->migrationsMigrate');
 $atomic->route('GET /migrations/rollback [cli]', 'Engine\Atomic\App\System->migrationsRollback');
 $atomic->route('GET /migrations/status [cli]', 'Engine\Atomic\App\System->migrationsStatus');

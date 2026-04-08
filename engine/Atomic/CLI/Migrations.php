@@ -8,6 +8,15 @@ use Engine\Atomic\Core\Migrations as AM;
 
 trait Migrations {
 
+    public function migrations_init(): void {
+        if (!(new AM($this->output))->db()) {
+            $this->output->writeln(Style::errorLabel() . ' Could not initialize migrations table. Check DB credentials and connectivity.');
+            return;
+        }
+
+        $this->output->writeln(Style::successLabel() . ' Migrations table is ready.');
+    }
+
     public function migrations_create() {
         $args = $this->get_cli_args();
         if (!isset($args[0])) {

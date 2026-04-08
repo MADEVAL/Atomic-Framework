@@ -32,8 +32,10 @@ class CLI {
         $this->output->writeln('Atomic Help');
         $this->output->writeln('  init               - Initialize new project (dirs, .env, keys)');
         $this->output->writeln('  init/key           - Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY');
+        $this->output->writeln('  init/guide         - Print the full manual setup guide (no interaction)');
         $this->output->writeln('  logs/rotate        - Delete php error log files beyond the most recent 10');
         $this->output->writeln('  help               - View this help');
+        $this->output->writeln('  migrations/init    - Create/verify the migrations tracking table');
         $this->output->writeln('  migrations/migrate - Run database migrations');
         $this->output->writeln('  cache/clear        - Clear cache');
         $this->output->writeln('  version            - View versions F3, PHP and Atomic');
@@ -164,6 +166,7 @@ class CLI {
             '/cache/clear',
             '/db/truncate',
             '/db/truncate/queue',
+            '/migrations/init',
             '/migrations/create',
             '/migrations/migrate',
             '/migrations/rollback',
