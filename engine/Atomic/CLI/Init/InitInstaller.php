@@ -235,9 +235,27 @@ trait InitInstaller
 
     private function writePhpConfigFile(string $name, array $config): void
     {
-        $path    = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
-        $content = "<?php\n" . 'declare(strict_types=1);' . "\n\nreturn " . var_export($config, true) . ";\n";
-        if (@file_put_contents($path, $content) === false) {
+        $path = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
+        
+        if (!file_exists($path)) {
+            $this->reportInitIssue("Config file {$path} does not exist; cannot update.", true);
+            return;
+        }
+        
+        $content = (string)file_get_contents($path);
+        
+        $exportedConfig = var_export($config, true);
+        
+        $pattern = '/(return\s+)(\[[\s\S]*?\];)/';
+        $replacement = '$1' . $exportedConfig . ';';
+        
+        $updated = preg_replace($pattern, $replacement, $content, 1, $count);
+        
+        if ($count === 0 || $updated === null) {
+            $updated = "<?php\ndeclare(strict_types=1);\nif (!defined('ATOMIC_START')) exit;\n\nreturn " . $exportedConfig . ";\n";
+        }
+        
+        if (@file_put_contents($path, $updated) === false) {
             $error = error_get_last()['message'] ?? 'unknown error';
             $this->reportInitIssue("Could not write config file {$path}: {$error}");
         }
