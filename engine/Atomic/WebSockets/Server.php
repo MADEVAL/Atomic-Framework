@@ -5,7 +5,6 @@ namespace Engine\Atomic\WebSockets;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
-use Engine\Atomic\Core\Log;
 use Workerman\Connection\TcpConnection;
 use Workerman\Redis\Client as RedisClient;
 use Workerman\Worker;
@@ -21,7 +20,7 @@ abstract class Server
     private ?string $pubsub_channel = null;
     protected ?RedisClient $async_redis = null;
 
-    public function __construct(private string $listen) {}
+    public function __construct(private string $listen, protected int $count = 1) {}
 
     protected function subscribe_to_channel(string $channel): void
     {
@@ -68,6 +67,7 @@ abstract class Server
     {
         $listen = preg_replace('#^tcp://#', 'websocket://', $this->listen);
         $worker = new Worker($listen);
+        $worker->count = max($this->count, 1);
 
         $logs_dir = rtrim((string)App::instance()->get('LOGS'), '/');
         if ($logs_dir === '') {
