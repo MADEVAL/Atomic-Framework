@@ -154,6 +154,27 @@ class AIConnector {
             'max_tokens' => $options['max_tokens'] ?? 1024,
         ];
 
+        $optionalParams = [
+            'top_p', 'frequency_penalty', 'presence_penalty', 'seed', 'stop',
+            'stream', 'stream_options', 'tools', 'tool_choice', 'parallel_tool_calls',
+            'response_format', 'max_completion_tokens', 'prediction',
+            'logprobs', 'top_logprobs', 'logit_bias', 'user', 'n',
+        ];
+
+        if ($this->provider === self::PROVIDER_OPENROUTER) {
+            $optionalParams = array_merge($optionalParams, [
+                'top_k', 'repetition_penalty', 'min_p', 'top_a',
+                'structured_outputs',
+                'provider', 'models', 'route', 'plugins', 'debug',
+            ]);
+        }
+
+        foreach ($optionalParams as $param) {
+            if (array_key_exists($param, $options)) {
+                $payload[$param] = $options[$param];
+            }
+        }
+
         $headers = [
             'Content-Type: application/json',
         ];
@@ -180,6 +201,31 @@ class AIConnector {
         return $response;
     }
 
+    protected function formatErrorMessage(object $error, int $httpStatus): string
+    {
+        $code = $error->code ?? $httpStatus;
+        $msg  = $error->message ?? 'Unknown error';
+        $meta = $error->metadata ?? null;
+
+        $extra = '';
+        if ($meta !== null) {
+            if (isset($meta->provider_name)) {
+                $extra .= ' provider=' . $meta->provider_name;
+            }
+            if (isset($meta->reasons)) {
+                $extra .= ' reasons=' . implode(',', (array)$meta->reasons);
+            }
+            if (isset($meta->flagged_input)) {
+                $extra .= ' flagged="' . $meta->flagged_input . '"';
+            }
+            if (isset($meta->raw)) {
+                $extra .= ' raw=' . (is_string($meta->raw) ? $meta->raw : json_encode($meta->raw));
+            }
+        }
+
+        return '[' . $this->provider . '] ' . $msg . ' (code: ' . $code . ')' . $extra;
+    }
+
     protected function makeRequest(string $url, array $payload, array $headers, array $options = []): mixed {
         $ch = curl_init($url);
         
@@ -200,23 +246,33 @@ class AIConnector {
         $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         
+        $decoded = json_decode($response);
+
         if ($statusCode >= 400) {
-            $error = json_decode($response, true);
-            $errorMessage = isset($error['error']['message'])
-                ? $error['error']['message']
-                : 'API error: HTTP ' . $statusCode;
-            throw new \Exception($errorMessage);
+            $msg = null;
+            if (isset($decoded->error)) {
+                $msg = $this->formatErrorMessage($decoded->error, $statusCode);
+            }
+            throw new \Exception($msg ?? 'API error: HTTP ' . $statusCode);
         }
 
-        $decoded = json_decode($response);
         if ($decoded === null) {
             throw new \Exception('Invalid JSON response from API (HTTP ' . $statusCode . ')');
         }
 
+        // Top-level error (pre-stream errors, 200 with error body)
         if (isset($decoded->error)) {
-            $msg  = $decoded->error->message ?? 'Unknown API error';
-            $code = $decoded->error->code ?? $statusCode;
-            throw new \Exception('[' . $this->provider . '] ' . $msg . ' (code: ' . $code . ')');
+            throw new \Exception($this->formatErrorMessage($decoded->error, $statusCode));
+        }
+
+        // Per-choice error (provider failure, e.g. 502 from upstream)
+        if (isset($decoded->choices[0]->error)) {
+            throw new \Exception($this->formatErrorMessage($decoded->choices[0]->error, $statusCode));
+        }
+
+        // Mid-stream error: finish_reason="error" with no choices[0]->error field
+        if (isset($decoded->choices[0]->finish_reason) && $decoded->choices[0]->finish_reason === 'error') {
+            throw new \Exception('[' . $this->provider . '] stream ended with error (finish_reason=error)');
         }
 
         return $decoded;
