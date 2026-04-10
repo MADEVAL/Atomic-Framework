@@ -240,6 +240,13 @@ class ConfigLoader {
         $this->atomic->set('MONOPAY.TEST_MODE', filter_var($this->get_env('MONOPAY_TEST_MODE', 'false'), FILTER_VALIDATE_BOOLEAN));
         $this->atomic->set('MONOPAY.WEBHOOK_URL', $this->get_env('MONOPAY_WEBHOOK_URL', ''));
         $this->atomic->set('MONOPAY.REDIRECT_URL', $this->get_env('MONOPAY_REDIRECT_URL', ''));
+
+        $this->atomic->set('ai', [
+            'openai'     => ['api_key' => $this->get_env('AI_OPENAI_API_KEY', '')],
+            'groq'       => ['api_key' => $this->get_env('AI_GROQ_API_KEY', '')],
+            'openrouter' => ['api_key' => $this->get_env('AI_OPENROUTER_API_KEY', '')],
+            'globus'     => ['api_key' => $this->get_env('AI_GLOBUS_API_KEY', '')],
+        ]);
     }
 
     protected function build_queue_config(string $prefix): array {

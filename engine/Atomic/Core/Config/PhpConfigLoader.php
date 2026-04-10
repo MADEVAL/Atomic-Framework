@@ -300,6 +300,15 @@ class PhpConfigLoader {
         $this->atomic->set('MONOPAY.WEBHOOK_URL',  (string)($monopay['webhook_url'] ?? ''));
         $this->atomic->set('MONOPAY.REDIRECT_URL', (string)($monopay['redirect_url'] ?? ''));
 
+        // ── AI ──
+        $ai = $this->cfg('tools', 'ai', []);
+        $this->atomic->set('ai', [
+            'openai'     => ['api_key' => (string)($ai['openai']['api_key'] ?? '')],
+            'groq'       => ['api_key' => (string)($ai['groq']['api_key'] ?? '')],
+            'openrouter' => ['api_key' => (string)($ai['openrouter']['api_key'] ?? '')],
+            'globus'     => ['api_key' => (string)($ai['globus']['api_key'] ?? '')],
+        ]);
+
         return $this->configs;
     }
 

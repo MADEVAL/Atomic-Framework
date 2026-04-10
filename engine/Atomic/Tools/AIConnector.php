@@ -7,7 +7,8 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use Engine\Atomic\Core\App;
 
 class AIConnector {
-    protected static ?self $instance = null;
+    /** @var array<string, self> */
+    protected static array $instances = [];
     protected App $atomic;
     protected ?string $apiKey;
     protected string $provider;
@@ -20,10 +21,10 @@ class AIConnector {
     const PROVIDER_GLOBUS = 'globus';
 
     public static function instance(?string $apiKey = null, string $provider = self::PROVIDER_OPENAI): self {
-        if (self::$instance === null) {
-            self::$instance = new self($apiKey, $provider);
+        if (!isset(self::$instances[$provider])) {
+            self::$instances[$provider] = new self($apiKey, $provider);
         }
-        return self::$instance;
+        return self::$instances[$provider];
     }
 
     protected function __construct(?string $apiKey = null, string $provider = self::PROVIDER_OPENAI) {
@@ -42,6 +43,14 @@ class AIConnector {
         $this->provider = $provider;
         $this->customDomain = $customDomain;
         $this->model = $this->getDefaultModel();
+
+        if (empty($this->apiKey)) {
+            $key = $this->atomic->get("ai.{$provider}.api_key");
+            if (!empty($key)) {
+                $this->apiKey = (string)$key;
+            }
+        }
+
         return $this;
     }
 
@@ -135,30 +144,15 @@ class AIConnector {
         if (empty($this->apiKey)) {
             throw new \Exception("API key is required for " . $this->provider);
         }
-        
-        $endpoint = $this->provider === self::PROVIDER_GLOBUS 
-            ? 'chat/completions' 
-            : 'chat/completions';
-            
-        $url = $this->getBaseUrl() . $endpoint;
-        
+
+        $url = $this->getBaseUrl() . 'chat/completions';
+
         $payload = [
             'messages' => $messages,
             'model' => $options['model'] ?? $this->model,
             'temperature' => $options['temperature'] ?? 0.7,
             'max_tokens' => $options['max_tokens'] ?? 1024,
         ];
-        
-        // Add provider-specific parameters
-        if ($this->provider === self::PROVIDER_OPENROUTER && !empty($options['lang'])) {
-            $payload['language'] = $options['lang'];
-        }
-        
-        // For OpenRouter, we need to specify the HTTP route in the request
-        if ($this->provider === self::PROVIDER_OPENROUTER) {
-            $payload['http_referer'] = $options['referer'] ?? $this->atomic->get('HOST');
-            $payload['http_user_agent'] = $options['user_agent'] ?? ATOMIC_HTTP_USERAGENT;
-        }
 
         $headers = [
             'Content-Type: application/json',
@@ -174,7 +168,7 @@ class AIConnector {
             case self::PROVIDER_OPENROUTER:
                 $headers[] = 'Authorization: Bearer ' . $this->apiKey;
                 $headers[] = 'HTTP-Referer: ' . ($options['referer'] ?? $this->atomic->get('HOST'));
-                $headers[] = 'X-Title: Atomic Framework';
+                $headers[] = 'X-OpenRouter-Title: Atomic Framework';
                 break;
             case self::PROVIDER_GLOBUS:
                 $headers[] = 'X-API-KEY: ' . $this->apiKey;
@@ -198,7 +192,9 @@ class AIConnector {
         $response = curl_exec($ch);
         
         if (curl_errno($ch)) {
-            throw new \Exception('cURL error: ' . curl_error($ch));
+            $err = curl_error($ch);
+            curl_close($ch);
+            throw new \Exception('cURL error: ' . $err);
         }
         
         $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -206,13 +202,18 @@ class AIConnector {
         
         if ($statusCode >= 400) {
             $error = json_decode($response, true);
-            $errorMessage = isset($error['error']['message']) 
-                ? $error['error']['message'] 
+            $errorMessage = isset($error['error']['message'])
+                ? $error['error']['message']
                 : 'API error: HTTP ' . $statusCode;
             throw new \Exception($errorMessage);
         }
-        
-        return json_decode($response);
+
+        $decoded = json_decode($response);
+        if ($decoded === null) {
+            throw new \Exception('Invalid JSON response from API (HTTP ' . $statusCode . ')');
+        }
+
+        return $decoded;
     }
 
     public function createEmbeddings(string|array $input, array $options = []): mixed {
