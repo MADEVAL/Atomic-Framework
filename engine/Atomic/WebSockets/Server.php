@@ -5,6 +5,7 @@ namespace Engine\Atomic\WebSockets;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\WebSockets\Connection;
 use Workerman\Connection\TcpConnection;
 use Workerman\Redis\Client as RedisClient;
 use Workerman\Worker;
@@ -20,7 +21,11 @@ abstract class Server
     private ?string $pubsub_channel = null;
     protected ?RedisClient $async_redis = null;
 
-    public function __construct(private string $listen, protected int $count = 1) {}
+    public function __construct(
+        private string $listen,
+        private int $worker_count = 1,
+        private bool $daemonize = false
+    ) {}
 
     protected function subscribe_to_channel(string $channel): void
     {
@@ -65,9 +70,13 @@ abstract class Server
 
     public function run(): void
     {
+        if ($this->worker_count < 1) {
+            throw new \InvalidArgumentException('WebSocket worker count must be at least 1.');
+        }
+
         $listen = preg_replace('#^tcp://#', 'websocket://', $this->listen);
         $worker = new Worker($listen);
-        $worker->count = max($this->count, 1);
+        $worker->count = $this->worker_count;
 
         $logs_dir = rtrim((string)App::instance()->get('LOGS'), '/');
         if ($logs_dir === '') {
@@ -122,10 +131,12 @@ abstract class Server
             unset($self->connections[$socket_int]);
         };
 
-        Worker::$daemonize = true;
+        Worker::$daemonize = $this->daemonize;
 
         global $argv;
-        $argv = [$argv[0] ?? 'atomic', 'start', '-d'];
+        $argv = $this->daemonize
+            ? [$argv[0] ?? 'atomic', 'start', '-d']
+            : [$argv[0] ?? 'atomic', 'start'];
 
         Worker::runAll();
     }
@@ -158,3 +169,4 @@ abstract class Server
         });
     }
 }
+
