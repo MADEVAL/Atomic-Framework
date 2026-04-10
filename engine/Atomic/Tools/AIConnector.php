@@ -213,6 +213,12 @@ class AIConnector {
             throw new \Exception('Invalid JSON response from API (HTTP ' . $statusCode . ')');
         }
 
+        if (isset($decoded->error)) {
+            $msg  = $decoded->error->message ?? 'Unknown API error';
+            $code = $decoded->error->code ?? $statusCode;
+            throw new \Exception('[' . $this->provider . '] ' . $msg . ' (code: ' . $code . ')');
+        }
+
         return $decoded;
     }
 
@@ -263,3 +269,4 @@ class AIConnector {
 function ai_connector(?string $apiKey = null, string $provider = AIConnector::PROVIDER_OPENAI): AIConnector {
     return AIConnector::instance($apiKey, $provider);
 }
+
