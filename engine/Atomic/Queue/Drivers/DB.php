@@ -114,7 +114,7 @@ class DB implements Base, Management, Telemetry
             $sql->begin();
 
             $available_jobs = $sql->exec(
-                'SELECT * FROM `' . $table . '` WHERE queue = ? AND available_at <= ? AND pid IS NULL ORDER BY priority ASC, available_at ASC LIMIT ? FOR UPDATE',
+                'SELECT * FROM `' . $table . '` WHERE queue = ? AND available_at <= ? AND pid IS NULL ORDER BY priority ASC, available_at ASC LIMIT ? FOR UPDATE SKIP LOCKED',
                 [$queue, $now, $limit]
             );
 
@@ -123,10 +123,13 @@ class DB implements Base, Management, Telemetry
                     $timeout = (int)$row['timeout'];
                     $available_at = $now + $timeout;
 
-                    $sql->exec(
-                        'UPDATE `' . $table . '` SET pid = ?, attempts = attempts + 1, available_at = ? WHERE id = ?',
+                    $claimed = (int)$sql->exec(
+                        'UPDATE `' . $table . '` SET pid = ?, attempts = attempts + 1, available_at = ?, process_start_ticks = NULL WHERE id = ? AND pid IS NULL',
                         [self::PID_PLACEHOLDER, $available_at, $row['id']]
                     );
+                    if ($claimed !== 1) {
+                        continue;
+                    }
 
                     $row['attempts'] = (int)$row['attempts'] + 1;
                     $row['available_at'] = $available_at;
@@ -148,23 +151,36 @@ class DB implements Base, Management, Telemetry
     public function release(array $job, int $delay): bool
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
+        $table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, $table);
         }
 
         try {
-            $this->jobs_mapper->load(['uuid = ?', $job['uuid']]);
-            if ($this->jobs_mapper->dry()) {
+            $uuid = $job['uuid'] ?? null;
+            if (!\is_string($uuid) || $uuid === '') {
                 return false;
             }
 
-            $this->jobs_mapper->available_at = time() + $delay;
-            $this->jobs_mapper->pid = null;
-            $this->jobs_mapper->process_start_ticks = null;
-            Log::debug("Releasing job with ID: " . $job['uuid'] . " - setting available_at to " . $this->jobs_mapper->available_at);
+            $available_at = \time() + $delay;
+            $query = 'UPDATE `' . $table . '` SET available_at = ?, pid = NULL, process_start_ticks = NULL WHERE uuid = ?';
+            $params = [$available_at, $uuid];
 
-            $this->jobs_mapper->save();
-            return true;
+            if ($job['pid'] === null) {
+                $query .= ' AND pid IS NULL';
+            } else {
+                $query .= ' AND pid = ?';
+                $params[] = (int)$job['pid'];
+            }
+
+            $released = (int)$sql->exec($query, $params);
+            if ($released === 1) {
+                Log::debug("Releasing job with ID: " . $uuid . " - setting available_at to " . $available_at);
+                return true;
+            }
+
+            Log::warning("Failed to release job {$uuid}: ownership mismatch or job is no longer active.");
+            return false;
         } catch (\Exception $e) {
             Log::error("Error occurred while trying to release the job: " . $e->getMessage());
             return false;
@@ -174,6 +190,7 @@ class DB implements Base, Management, Telemetry
     public function mark_failed(array $job, \Throwable $exception): bool
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
+        $jobs_table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
         if ($reconnected || !$this->jobs_failed_mapper) {
             $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_failed');
         }
@@ -190,6 +207,12 @@ class DB implements Base, Management, Telemetry
         try {
             $sql->begin();
 
+            if (!$this->delete_claimed_job($sql, $jobs_table, $job)) {
+                $sql->rollback();
+                Log::warning("Skipping mark_failed for job {$job['uuid']}: ownership mismatch or job already moved.");
+                return false;
+            }
+
             $this->jobs_failed_mapper->reset();
             $this->jobs_failed_mapper->uuid = $job['uuid'];
             $this->jobs_failed_mapper->queue = $job['queue'];
@@ -203,10 +226,9 @@ class DB implements Base, Management, Telemetry
             $this->jobs_failed_mapper->created_at = \time();
 
             $this->jobs_failed_mapper->save();
-            $del_res = $this->delete($job['uuid']);
 
             $sql->commit();
-            return $del_res;
+            return true;
         } catch (\Exception $e) {
             $sql->rollback();
             Log::error("Error when trying to mark job as failed: " . $e->getMessage());
@@ -216,13 +238,18 @@ class DB implements Base, Management, Telemetry
 
     public function mark_completed(array $job): bool {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
+        $jobs_table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
         if ($reconnected || !$this->jobs_completed_mapper) {
             $this->jobs_completed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_completed');
         }
 
         try {
             $sql->begin();
-            $del_res = $this->delete($job['uuid']);
+            if (!$this->delete_claimed_job($sql, $jobs_table, $job)) {
+                $sql->rollback();
+                Log::warning("Skipping mark_completed for job {$job['uuid']}: ownership mismatch or job already moved.");
+                return false;
+            }
 
             unset($job['payload']['uuid_batch']);
 
@@ -239,7 +266,7 @@ class DB implements Base, Management, Telemetry
 
             $this->jobs_completed_mapper->save();
             $sql->commit();
-            return $del_res;
+            return true;
         } catch (\Exception $e) {
             $sql->rollback();
             Log::error("Error when trying to mark job as completed: " . $e->getMessage());
@@ -268,26 +295,60 @@ class DB implements Base, Management, Telemetry
     public function set_pid(array $job): bool
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
+        $table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, $table);
         }
 
         try {
+            $uuid = $job['uuid'] ?? null;
+            if (!\is_string($uuid) || $uuid === '') {
+                return false;
+            }
+
             $pid = \getmypid();
             $process_start_ticks = $this->process_manager->get_process_start_ticks($pid);
 
-            $this->jobs_mapper->load(['uuid = ?', $job['uuid']]);
-            if (!$this->jobs_mapper->dry()) {
-                $this->jobs_mapper->pid = $pid;
-                $this->jobs_mapper->process_start_ticks = $process_start_ticks;
-                $this->jobs_mapper->save();
+            $updated = (int)$sql->exec(
+                'UPDATE `' . $table . '` SET pid = ?, process_start_ticks = ? WHERE uuid = ? AND pid = ?',
+                [$pid, $process_start_ticks, $uuid, self::PID_PLACEHOLDER]
+            );
+
+            if ($updated === 1) {
                 return true;
             }
+
+            Log::warning("Failed to set PID for job {$uuid}: job is no longer reserved by this worker.");
             return false;
         } catch (\Throwable $th) {
             Log::error("Error trying to set PID for job: " . $th->getMessage());
             return false;
         }
+    }
+
+    private function delete_claimed_job(\DB\SQL $sql, string $table, array $job): bool
+    {
+        $uuid = $job['uuid'] ?? null;
+        if (!\is_string($uuid) || $uuid === '') {
+            return false;
+        }
+
+        $query = 'DELETE FROM `' . $table . '` WHERE uuid = ?';
+        $params = [$uuid];
+
+        if (\array_key_exists('pid', $job)) {
+            if ($job['pid'] === null) {
+                $query .= ' AND pid IS NULL';
+            } else {
+                $query .= ' AND pid = ?';
+                $params[] = (int)$job['pid'];
+            }
+        }
+
+        $query .= ' LIMIT 1';
+
+        $deleted = (int)$sql->exec($query, $params);
+        return $deleted === 1;
     }
 
     public function retry(string $queue = '*'): bool {

@@ -143,7 +143,7 @@ class Monitor
             }
             
             if ($pid <= 0) {
-                Log::warning("[QueueMonitor] Stuck job with invalid PID {$pid} (Job UUID: {$uuid}, Queue: {$queue}) - marking as failed due to PID setting failure.");
+                Log::warning("[QueueMonitor] Stuck job with invalid PID {$pid} (Job UUID: {$uuid}, Queue: {$queue}) - handling as incomplete (PID was never set).");
                 if ($this->double_check_before_handle($job)) {
                     $this->queue_manager->handle_incomplete_job($job);
                 }
