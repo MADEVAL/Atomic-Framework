@@ -63,10 +63,10 @@ class Sanitizer
     }
 
     protected const SENSITIVE_KEYS = [
-        // ── credentials (long words — safe as substring match) ───────────
+        // ── credentials (long words - safe as substring match) ───────────
         '/password/i',
         '/passwd/i',
-        // ── credentials (short — segment boundaries required) ────────────
+        // ── credentials (short - segment boundaries required) ────────────
         '/(?:^|[^a-zA-Z0-9])secret(?:$|[^a-zA-Z0-9])/i',
         '/(?:^|[^a-zA-Z0-9])seed(?:$|[^a-zA-Z0-9])/i',
         '/(?:^|[^a-zA-Z0-9])pass(?:$|[^a-zA-Z0-9])/i',
@@ -83,7 +83,7 @@ class Sanitizer
         '/credential/i',
         '/(?:^|[^a-zA-Z0-9])login(?:$|[^a-zA-Z0-9])/i',
         '/(?:^|[^a-zA-Z0-9])username(?:$|[^a-zA-Z0-9])/i',
-        '/^user$/i',                                         // exact — avoids user_agent
+        '/^user$/i',                                         // exact - avoids user_agent
         // ── network / server ─────────────────────────────────────────────
         '/addr$/i',                                          // REMOTE_ADDR, SERVER_ADDR
         '/^home$/i',                                         // exact
@@ -102,7 +102,7 @@ class Sanitizer
         '/(?:^|[^a-zA-Z0-9])(?:db|database)$/i',
         // ── chat / app ───────────────────────────────────────────────────
         '/chat[_\-]?id(?:$|[^a-zA-Z0-9])/i',
-        '/^app[_\-]?uuid$/i',                               // APP_UUID — app instance identifier
+        '/^app[_\-]?uuid$/i',                               // APP_UUID - app instance identifier
         '/client[_\-]?id/i',                                // OAuth client_id
         // ── HTTP headers ─────────────────────────────────────────────────
         '/x[_\-]api[_\-]key/i',

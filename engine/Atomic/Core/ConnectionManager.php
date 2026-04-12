@@ -14,12 +14,26 @@ class ConnectionManager
     private const DEFAULT_REDIS_HEALTHCHECK_INTERVAL = 5.0;
     private const DEFAULT_MEMCACHED_HEALTHCHECK_INTERVAL = 5.0;
 
-    private ?SQL $mysql = null;
-    private ?\Redis $redis = null;
-    private ?\Memcached $memcached = null;
-    private float $mysql_last_used_at = 0.0;
-    private float $redis_last_used_at = 0.0;
-    private float $memcached_last_used_at = 0.0;
+    private static ?self $instance = null;
+
+    // TODO: multi-connection - arrays already keyed by name; to add a new connection
+    // add config resolution in get_*_config() and call get_db('replica') etc.
+    private array $mysql_connections = [];
+    private array $redis_connections = [];
+    private array $memcached_connections = [];
+    private array $mysql_last_used_at = [];
+    private array $redis_last_used_at = [];
+    private array $memcached_last_used_at = [];
+
+    private function __construct() {}
+
+    public static function instance(): static
+    {
+        if (static::$instance === null) {
+            static::$instance = new static();
+        }
+        return static::$instance;
+    }
 
     public function __destruct()
     {
@@ -44,31 +58,49 @@ class ConnectionManager
         return ($this->now() - $last_used_at) >= $interval;
     }
 
-    private function open_db(): array
+    // TODO: multi-connection - resolve config by name; e.g. App::instance()->get("DB_CONFIG_{$name}") ?? []
+    private function get_db_config(string $name): array
+    {
+        return App::instance()->get('DB_CONFIG') ?? [];
+    }
+
+    // TODO: multi-connection - resolve config by name; e.g. App::instance()->get("REDIS_{$name}") ?? []
+    private function get_redis_config(string $name): array
+    {
+        return App::instance()->get('REDIS') ?? [];
+    }
+
+    // TODO: multi-connection - resolve config by name; e.g. App::instance()->get("MEMCACHED_{$name}") ?? []
+    private function get_memcached_config(string $name): array
+    {
+        return App::instance()->get('MEMCACHED') ?? [];
+    }
+
+    private function open_db(string $name = 'default'): array
     {
         $reconnected = false;
 
-        if ($this->mysql) {
-            if (!$this->should_health_check($this->mysql_last_used_at, self::DEFAULT_DB_HEALTHCHECK_INTERVAL)) {
-                $this->mysql_last_used_at = $this->now();
-                return [$this->mysql, false];
+        if (isset($this->mysql_connections[$name])) {
+            if (!$this->should_health_check($this->mysql_last_used_at[$name] ?? 0.0, self::DEFAULT_DB_HEALTHCHECK_INTERVAL)) {
+                $this->mysql_last_used_at[$name] = $this->now();
+                return [$this->mysql_connections[$name], false];
             }
 
             try {
-                $res = $this->mysql->exec('SELECT 1');
+                $res = $this->mysql_connections[$name]->exec('SELECT 1');
                 if (!isset($res[0]['1']) || (int)$res[0]['1'] !== 1) {
                     throw new \RuntimeException('MySQL ping returned unexpected result: ' . var_export($res, true));
                 }
-                $this->mysql_last_used_at = $this->now();
-                return [$this->mysql, false];
+                $this->mysql_last_used_at[$name] = $this->now();
+                return [$this->mysql_connections[$name], false];
             } catch (\Throwable $e) {
                 Log::warning("MySQL ping failed, reconnecting: " . $e->getMessage());
-                $this->mysql = null;
-                $this->mysql_last_used_at = 0.0;
+                unset($this->mysql_connections[$name]);
+                $this->mysql_last_used_at[$name] = 0.0;
             }
         }
-        
-        $cfg = App::instance()->get('DB_CONFIG') ?? [];
+
+        $cfg = $this->get_db_config($name);
         $username = $cfg['username'];
         $password = $cfg['password'];
         $host = $cfg['host'];
@@ -92,72 +124,72 @@ class ConnectionManager
         }
 
         try {
-            $this->mysql = new \DB\SQL($dsn, $username, $password, $options);
-            $this->mysql_last_used_at = $this->now();
+            $this->mysql_connections[$name] = new \DB\SQL($dsn, $username, $password, $options);
+            $this->mysql_last_used_at[$name] = $this->now();
             $reconnected = true;
-            return [$this->mysql, $reconnected];
+            return [$this->mysql_connections[$name], $reconnected];
         } catch (\Throwable $e) {
             Log::error("ConnectionManager: MySQL connect failed: " . $e->getMessage());
             return [null, $reconnected];
         }
     }
 
-    private function open_redis(): ?\Redis
+    private function open_redis(string $name = 'default'): ?\Redis
     {
         if (!extension_loaded('redis')) {
             return null;
         }
 
-        if ($this->redis) {
-            if (!$this->should_health_check($this->redis_last_used_at, self::DEFAULT_REDIS_HEALTHCHECK_INTERVAL)) {
-                $this->redis_last_used_at = $this->now();
-                return $this->redis;
+        if (isset($this->redis_connections[$name])) {
+            if (!$this->should_health_check($this->redis_last_used_at[$name] ?? 0.0, self::DEFAULT_REDIS_HEALTHCHECK_INTERVAL)) {
+                $this->redis_last_used_at[$name] = $this->now();
+                return $this->redis_connections[$name];
             }
 
             try {
-                $this->redis->ping();
-                $this->redis_last_used_at = $this->now();
-                return $this->redis;
+                $this->redis_connections[$name]->ping();
+                $this->redis_last_used_at[$name] = $this->now();
+                return $this->redis_connections[$name];
             } catch (\Throwable $e) {
                 Log::warning("Redis ping failed, reconnecting: " . $e->getMessage());
                 try {
-                    $this->redis->close();
+                    $this->redis_connections[$name]->close();
                 } catch (\Throwable $_) {}
-                $this->redis = null;
-                $this->redis_last_used_at = 0.0;
+                unset($this->redis_connections[$name]);
+                $this->redis_last_used_at[$name] = 0.0;
             }
         }
 
-        $cfg = App::instance()->get('REDIS') ?? [];
+        $cfg = $this->get_redis_config($name);
         $host = !empty($cfg['host']) ? $cfg['host'] : '127.0.0.1';
         $port = !empty($cfg['port']) ? (int)$cfg['port'] : 6379;
 
         try {
             $r = new \Redis();
             $r->connect($host, $port, 1.0);
-            
-            $this->redis = $r;
-            $this->redis_last_used_at = $this->now();
-            return $this->redis;
+
+            $this->redis_connections[$name] = $r;
+            $this->redis_last_used_at[$name] = $this->now();
+            return $this->redis_connections[$name];
         } catch (\Throwable $e) {
             Log::error("ConnectionManager: Redis connect failed: " . $e->getMessage());
             return null;
         }
     }
 
-    private function open_memcached(): ?\Memcached
+    private function open_memcached(string $name = 'default'): ?\Memcached
     {
-        if ($this->memcached) {
-            if (!$this->should_health_check($this->memcached_last_used_at, self::DEFAULT_MEMCACHED_HEALTHCHECK_INTERVAL)) {
-                $this->memcached_last_used_at = $this->now();
-                return $this->memcached;
+        if (isset($this->memcached_connections[$name])) {
+            if (!$this->should_health_check($this->memcached_last_used_at[$name] ?? 0.0, self::DEFAULT_MEMCACHED_HEALTHCHECK_INTERVAL)) {
+                $this->memcached_last_used_at[$name] = $this->now();
+                return $this->memcached_connections[$name];
             }
 
             try {
-                $version = $this->memcached->getVersion();
+                $version = $this->memcached_connections[$name]->getVersion();
                 if ($version !== false) {
-                    $this->memcached_last_used_at = $this->now();
-                    return $this->memcached;
+                    $this->memcached_last_used_at[$name] = $this->now();
+                    return $this->memcached_connections[$name];
                 }
                 Log::warning("Memcached version check failed, reconnecting");
             } catch (\Throwable $e) {
@@ -165,13 +197,13 @@ class ConnectionManager
             }
 
             try {
-                $this->memcached->quit();
+                $this->memcached_connections[$name]->quit();
             } catch (\Throwable $_) {}
-            $this->memcached = null;
-            $this->memcached_last_used_at = 0.0;
+            unset($this->memcached_connections[$name]);
+            $this->memcached_last_used_at[$name] = 0.0;
         }
 
-        $cfg = App::instance()->get('MEMCACHED') ?? [];
+        $cfg = $this->get_memcached_config($name);
         $host = !empty($cfg['host']) ? $cfg['host'] : '127.0.0.1';
         $port = !empty($cfg['port']) ? (int)$cfg['port'] : 11211;
 
@@ -183,24 +215,24 @@ class ConnectionManager
                 \Memcached::OPT_TCP_NODELAY => true,
             ]);
             $m->addServer($host, $port);
-            
+
             $version = $m->getVersion();
             if ($version === false) {
                 throw new \RuntimeException('Cannot connect to Memcached server');
             }
-            
-            $this->memcached = $m;
-            $this->memcached_last_used_at = $this->now();
-            return $this->memcached;
+
+            $this->memcached_connections[$name] = $m;
+            $this->memcached_last_used_at[$name] = $this->now();
+            return $this->memcached_connections[$name];
         } catch (\Throwable $e) {
             Log::error("ConnectionManager: Memcached connect failed: " . $e->getMessage());
             return null;
         }
     }
 
-    public function get_db(bool $required = true, bool $if_reconnected = false): array|SQL
+    public function get_db(bool $required = true, bool $if_reconnected = false, string $name = 'default'): array|SQL
     {
-        list($db, $reconnected) = $this->open_db();
+        list($db, $reconnected) = $this->open_db($name);
         if ($db === null && $required) {
             throw new \RuntimeException('MySQL connection failed');
         }
@@ -210,56 +242,80 @@ class ConnectionManager
         return $db;
     }
 
-    public function get_redis(bool $required = true): ?\Redis
+    public function get_redis(bool $required = true, string $name = 'default'): ?\Redis
     {
-        $r = $this->open_redis();
+        $r = $this->open_redis($name);
         if ($r === null && $required) {
             throw new \RuntimeException('Redis connection failed');
         }
         return $r;
     }
 
-    public function get_memcached(bool $required = true): ?\Memcached
+    public function get_memcached(bool $required = true, string $name = 'default'): ?\Memcached
     {
-        $m = $this->open_memcached();
+        $m = $this->open_memcached($name);
         if ($m === null && $required) {
             throw new \RuntimeException('Memcached connection failed');
         }
         return $m;
     }
 
-    public function close_sql(): void
+    public function close_sql(string $name = 'default'): void
     {
-        $this->mysql = null;
-        $this->mysql_last_used_at = 0.0;
+        unset($this->mysql_connections[$name]);
+        $this->mysql_last_used_at[$name] = 0.0;
     }
 
-    public function close_redis(): void
+    public function close_redis(string $name = 'default'): void
     {
-        if ($this->redis) {
+        if (isset($this->redis_connections[$name])) {
             try {
-                $this->redis->close();
+                $this->redis_connections[$name]->close();
             } catch (\Throwable $_) {}
-            $this->redis = null;
+            unset($this->redis_connections[$name]);
         }
-        $this->redis_last_used_at = 0.0;
+        $this->redis_last_used_at[$name] = 0.0;
     }
 
-    public function close_memcached(): void
+    public function close_memcached(string $name = 'default'): void
     {
-        if ($this->memcached) {
+        if (isset($this->memcached_connections[$name])) {
             try {
-                $this->memcached->quit();
+                $this->memcached_connections[$name]->quit();
             } catch (\Throwable $_) {}
-            $this->memcached = null;
+            unset($this->memcached_connections[$name]);
         }
-        $this->memcached_last_used_at = 0.0;
+        $this->memcached_last_used_at[$name] = 0.0;
     }
-    
+
     public function close(): void
     {
-        $this->close_sql();
-        $this->close_redis();
-        $this->close_memcached();
+        foreach (array_keys($this->mysql_connections) as $name) {
+            $this->close_sql($name);
+        }
+        foreach (array_keys($this->redis_connections) as $name) {
+            $this->close_redis($name);
+        }
+        foreach (array_keys($this->memcached_connections) as $name) {
+            $this->close_memcached($name);
+        }
+    }
+
+    public function open_all(): void
+    {
+        $atomic = App::instance();
+
+        $db_cfg = $atomic->get('DB_CONFIG') ?? [];
+        if (!empty($db_cfg['host']) && !empty($db_cfg['database'])) {
+            $this->open_db();
+        }
+
+        if (\extension_loaded('redis') && !empty($atomic->get('REDIS'))) {
+            $this->open_redis();
+        }
+
+        if (!empty($atomic->get('MEMCACHED'))) {
+            $this->open_memcached();
+        }
     }
 }

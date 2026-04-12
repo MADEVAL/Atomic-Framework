@@ -4,6 +4,7 @@ declare(strict_types=1);
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use DB\Cortex\Schema\Schema;
 use Engine\Atomic\CLI\Console\Output;
 
@@ -11,7 +12,7 @@ return [
     'up' => function () {
         $out = new Output();
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
         $prefix = $atomic->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX');
 
@@ -102,7 +103,7 @@ return [
     'down' => function () {
         $out = new Output();
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
         $prefix = $atomic->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX');
 

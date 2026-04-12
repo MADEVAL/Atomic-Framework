@@ -178,7 +178,7 @@ class Session implements SessionHandlerInterface
         $this->prefix = $prefix;
         $this->ttl = $ttl ?: (int)\ini_get('session.gc_maxlifetime') ?: 1440;
         $this->onsuspect = $onsuspect;
-        $this->connection_manager = new ConnectionManager();
+        $this->connection_manager = ConnectionManager::instance();
         
         if (\version_compare(PHP_VERSION, '8.4.0') >= 0) {
             \session_set_save_handler(new SessionAdapter($this));

@@ -5,6 +5,7 @@ namespace Engine\Atomic\Queue\Managers;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Queue\Drivers\DB as DBDriver;
 use Engine\Atomic\Queue\Drivers\Redis as RedisDriver;
@@ -278,10 +279,13 @@ class Manager
         return $this->driver->exists_in_jobs_table($uuid, $pid);
     }
 
-    public function open_connection(): void {
-        $this->driver->open_connection();
+    public function close_all_connections(): void {
+        $this->driver->reset_state();
+        ConnectionManager::instance()->close();
     }
-    public function close_connection(): void {
-        $this->driver->close_connection();
+
+    public function open_all_connections(): void {
+        ConnectionManager::instance()->open_all();
+        $this->driver->init_state();
     }
 }

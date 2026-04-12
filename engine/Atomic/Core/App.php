@@ -14,12 +14,12 @@ use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\CLI\Console\Output;
+use Engine\Atomic\Core\ConnectionManager;
 
 class App {
     protected static ?self $instance = null;
     protected \Base $atomic;
     protected string $baseControllerClass = 'Engine\Atomic\App\Controller';
-    private ?ConnectionManager $connection_manager = null;
      
     public function __construct(\Base $atomic) {
         $this->atomic = $atomic;
@@ -204,37 +204,9 @@ class App {
         return $this;
     }
     
-    public function setDB(): self {
-        $cfg      = $this->atomic->get('DB_CONFIG') ?? [];
-        $host     = $cfg['host']     ?? '';
-        $database = $cfg['database'] ?? '';
-        $username = $cfg['username'] ?? '';
-        $password = $cfg['password'] ?? '';
-
-        $configComplete = !empty($host) && !empty($database) && !empty($username) && !empty($password);
-        
-        if (!$configComplete) {
-            return $this;
-        }
-
-        if ($this->connection_manager === null) {
-            $this->connection_manager = new ConnectionManager();
-        }
-        $this->atomic->set('DB', $this->connection_manager->get_db());
-        return $this;
-    }
-
-    public function resetDB(): self {
-        $this->connection_manager?->close_sql();
-        return $this->setDB();
-    }
-
-    public function closeDB(): void {
-        if ($this->connection_manager !== null) {
-            $this->connection_manager->close();
-            $this->connection_manager = null;
-        }
-        $this->atomic->set('DB', null);
+    public function open_connections(): void
+    {
+        ConnectionManager::instance()->open_all();
     }
 
     public function initSession(): self {

@@ -8,6 +8,7 @@ use Engine\Atomic\App\Controller;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\CLI\CLI;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Tests\Test;
 
@@ -291,7 +292,7 @@ class System extends Controller
     public function redisClear(): void
     {
         $out = new Output();
-        $redis = (new \Engine\Atomic\Core\ConnectionManager())->get_redis();
+        $redis = ConnectionManager::instance()->get_redis();
         $it    = null;
         $total = 0;
         $redis->setOption(\Redis::OPT_SCAN, \Redis::SCAN_RETRY);

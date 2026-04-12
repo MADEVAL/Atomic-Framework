@@ -5,6 +5,7 @@ namespace Engine\Atomic\App;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Guard;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Sanitizer;
@@ -132,7 +133,7 @@ class Telemetry extends Controller
 
         $db = null;
         try {
-            $conn = $atomic->get('DB');
+            $conn = ConnectionManager::instance()->get_db(false);
             if ($conn instanceof \DB\SQL) {
                 $pdo = $conn->pdo();
                 $db = [

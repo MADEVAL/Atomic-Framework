@@ -32,18 +32,17 @@ class DB implements Base, Management, Telemetry
 
     public function __construct() {
         $this->process_manager = new ProcessManager();
-        $this->connection_manager = new ConnectionManager();
+        $this->connection_manager = ConnectionManager::instance();
     }
 
-    public function open_connection(): void {
-        $this->connection_manager = new ConnectionManager();
+    public function init_state(): void {
+        $this->connection_manager = ConnectionManager::instance();
         $this->jobs_mapper = null;
         $this->jobs_failed_mapper = null;
         $this->jobs_completed_mapper = null;
     }
-    
-    public function close_connection(): void {
-        $this->connection_manager->close_sql();
+
+    public function reset_state(): void {
         $this->jobs_mapper = null;
         $this->jobs_failed_mapper = null;
         $this->jobs_completed_mapper = null;

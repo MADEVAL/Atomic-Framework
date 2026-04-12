@@ -9,6 +9,7 @@ use DB\Cortex\Schema\Schema;
 use Engine\Atomic\CLI\Style;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\App\PluginManager;
+use Engine\Atomic\Core\ConnectionManager;
 
 class Migrations 
 {
@@ -36,7 +37,7 @@ class Migrations
 
     public function db(): bool {
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db(false);
         if (!$db) {
             $this->errln(Style::errorLabel() . ' ' . Style::bold('Database is not ready.'));
             return false;
@@ -67,7 +68,7 @@ class Migrations
             return;
         }
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
 
@@ -101,18 +102,19 @@ class Migrations
             $template = <<<PHP
             <?php
             use Engine\Atomic\Core\App;
+            use Engine\Atomic\Core\ConnectionManager;
             use DB\Cortex\Schema\Schema;
-        
+
             return [
                 'up' => function () {
                     \$atomic = App::instance();
-                    \$db = \$atomic->get('DB');
+                    \$db = ConnectionManager::instance()->get_db();
                     \$schema = new Schema(\$db);
                 },
-        
+
                 'down' => function () {
                     \$atomic = App::instance();
-                    \$db = \$atomic->get('DB');
+                    \$db = ConnectionManager::instance()->get_db();
                     \$schema = new Schema(\$db);
                 }
             ];
@@ -216,10 +218,10 @@ class Migrations
             return;
         }
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
-        
+
         $migrations_dir = $atomic->get('MIGRATIONS');
         $migration_files = array_filter(
             glob($migrations_dir . '*.php'),
@@ -283,7 +285,7 @@ class Migrations
         }
 
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
 
@@ -326,7 +328,7 @@ class Migrations
             return;
         }
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
 

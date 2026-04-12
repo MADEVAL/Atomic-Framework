@@ -6,12 +6,13 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use DB\Cortex\Schema\Schema;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Migrations;
 
 trait DB {
     public function get_tables()
     {
-        $db = App::instance()->get('DB');
+        $db = ConnectionManager::instance()->get_db();
 
         $schema = new Schema($db);
         $tables = $schema->getTables();
@@ -32,7 +33,7 @@ trait DB {
         }
         $table_name = $args[0];
         try {
-            $db = App::instance()->get('DB');
+            $db = ConnectionManager::instance()->get_db();
             $schema = new Schema($db);
             $schema->truncateTable($table_name);
             $this->output->writeln("Table '{$table_name}' truncated.");
@@ -48,7 +49,7 @@ trait DB {
             'atomic_queue_jobs_failed',
             'atomic_queue_telemetry'
         ];
-        $db = App::instance()->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
         foreach ($tables as $table) {
             try {

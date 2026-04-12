@@ -5,6 +5,7 @@ namespace Engine\Atomic\Auth\Adapters;
 if (!defined('ATOMIC_START')) exit;
 
 use DB\SQL\Session as SQLSession;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Session\Redis\Session as RedisSession;
 
 class SessionDriverFactoryAdapter
@@ -24,7 +25,7 @@ class SessionDriverFactoryAdapter
             case 'db':
             default:
                 new SQLSession(
-                    $this->app->get('DB'),
+                    ConnectionManager::instance()->get_db(),
                     $this->app->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'sessions',
                     false,
                     $onsuspect

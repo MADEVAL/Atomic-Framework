@@ -4,9 +4,9 @@ namespace Engine\Atomic\CLI\Init;
 
 if (!defined('ATOMIC_START')) exit;
 
-use DB\SQL;
 use Engine\Atomic\CLI\Style;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Migrations as CoreMigrations;
 
 trait InitInstaller
@@ -450,13 +450,9 @@ trait InitInstaller
             'ATOMIC_DB_QUEUE_PREFIX'  => 'atomic_queue_',
         ];
 
-        $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['database']};charset={$dbConfig['charset']};port=" . (int)$dbConfig['port'];
-        $db  = new SQL($dsn, $dbConfig['username'], $dbConfig['password']);
-
         $atomic->set('DB_CONFIG', $dbConfig);
-        $atomic->set('DB', $db);
 
-        return $db;
+        return ConnectionManager::instance()->get_db();
     }
 
     private function initializeMigrationDatabase(): bool

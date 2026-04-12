@@ -5,6 +5,7 @@ namespace Engine\Atomic\Queue\Worker;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Queue\Managers\Manager;
 
@@ -25,6 +26,7 @@ class Worker
     private const DEFAULT_MEMORY_LIMIT_MB = 128;
     private const MIN_DRAIN_TIMEOUT_SECONDS = 5;
     private const ERROR_BACKOFF_MAX_SECONDS = 30;
+    private const SHUTDOWN_STAGGER_MICROSECONDS = 100000;
 
     public function __construct(Manager $queue_manager)
     {
@@ -40,11 +42,8 @@ class Worker
         switch ($signal) {
             case SIGTERM:
             case SIGINT:
-                Log::info("Shutdown signal received in master. Propagating to " . \count($this->worker_pids) . " worker(s).");
+                Log::info("Shutdown signal received in master. Will stagger SIGTERM to " . \count($this->worker_pids) . " worker(s).");
                 $this->shutdown = true;
-                foreach (\array_keys($this->worker_pids) as $pid) {
-                    \posix_kill($pid, SIGTERM);
-                }
                 break;
             default:
                 Log::warning(__CLASS__ . " master received unknown signal: $signal");
@@ -85,8 +84,7 @@ class Worker
 
         Log::info("Starting persistent worker pool ({$this->worker_count} workers) for queue: " . $this->queue_manager->get_queue());
 
-        App::instance()->closeDB();
-        $this->queue_manager->close_connection();
+        $this->queue_manager->close_all_connections();
 
         for ($i = 1; $i <= $this->worker_count; $i++) {
             $this->spawn_worker($i);
@@ -104,7 +102,7 @@ class Worker
         }
 
         $this->drain_workers();
-        App::instance()->closeDB();
+        ConnectionManager::instance()->close();
         Log::info("Worker pool shut down completely.");
     }
 
@@ -122,38 +120,53 @@ class Worker
         }
 
         if ($pid === 0) {
-            // Detach from the master's process group so that keyboard signals
-            // (SIGINT from Ctrl+C) are not delivered directly to workers.
-            // The master receives the signal first, sets $this->shutdown = true,
-            // and then explicitly propagates SIGTERM to each worker PID.
-            // Without this, SIGCHLD can fire in the master before its own SIGINT,
-            // causing workers to be respawned mid-shutdown.
             \posix_setpgid(0, 0);
             $this->worker_loop($worker_id);
             exit(0);
         }
 
         $this->worker_pids[$pid] = $worker_id;
+        \posix_setpgid($pid, $pid);
         Log::info("Spawned worker #$worker_id (PID $pid).");
     }
 
     private function drain_workers(): void
     {
+        // Disable SIGCHLD handler to avoid races - we reap manually below
+        \pcntl_signal(SIGCHLD, SIG_DFL);
+
         $timeout = (int) App::instance()->get(
             'QUEUE.' . App::instance()->get('QUEUE_DRIVER') . '.queues.' . $this->queue_manager->get_queue() . '.timeout'
         );
         $timeout = \max($timeout, self::MIN_DRAIN_TIMEOUT_SECONDS);
-        $start = \time();
 
-        while (!empty($this->worker_pids) && (\time() - $start) < $timeout) {
-            \usleep(200000);
-        }
+        $pids_snapshot = $this->worker_pids;
 
-        foreach ($this->worker_pids as $pid => $worker_id) {
-            Log::warning("Worker #$worker_id (PID $pid) did not exit within {$timeout}s. Sending SIGKILL.");
-            \posix_kill($pid, SIGKILL);
-            \pcntl_waitpid($pid, $status);
-            unset($this->worker_pids[$pid]);
+        foreach ($pids_snapshot as $pid => $worker_id) {
+            if (!isset($this->worker_pids[$pid])) {
+                continue;
+            }
+
+            Log::info("Sending SIGTERM to worker #$worker_id (PID $pid).");
+            \posix_kill($pid, SIGTERM);
+
+            $start = \time();
+            while ((\time() - $start) < $timeout) {
+                $result = \pcntl_waitpid($pid, $status, WNOHANG);
+                if ($result === $pid || $result === -1) {
+                    unset($this->worker_pids[$pid]);
+                    Log::info("Worker #$worker_id (PID $pid) exited during drain.");
+                    break;
+                }
+                \usleep(self::SHUTDOWN_STAGGER_MICROSECONDS);
+            }
+
+            if (isset($this->worker_pids[$pid])) {
+                Log::warning("Worker #$worker_id (PID $pid) did not exit within {$timeout}s. Sending SIGKILL.");
+                \posix_kill($pid, SIGKILL);
+                \pcntl_waitpid($pid, $status);
+                unset($this->worker_pids[$pid]);
+            }
         }
     }
 
@@ -190,9 +203,7 @@ class Worker
         \pcntl_signal(SIGCHLD, SIG_DFL);
         \pcntl_signal(SIGALRM, SIG_IGN);
 
-        $atomic = App::instance();
-        $atomic->setDB();
-        $this->queue_manager->open_connection();
+        $this->queue_manager->open_all_connections();
 
         $consecutive_errors = 0;
         $memory_limit = $this->get_memory_limit_bytes();
@@ -229,12 +240,13 @@ class Worker
                     (int)\pow(2, \min($consecutive_errors - 1, 5))
                 );
                 Log::error("Worker #$worker_id loop error (attempt #$consecutive_errors, backoff {$backoff}s): " . $e->getMessage());
-                App::instance()->closeDB();
+                $this->queue_manager->close_all_connections();
                 \sleep($backoff);
+                $this->queue_manager->open_all_connections();
             }
         }
 
-        App::instance()->closeDB();
+        $this->queue_manager->close_all_connections();
         Log::info("Worker #$worker_id (PID " . \getmypid() . ") exiting gracefully.");
         exit(0);
     }
@@ -244,7 +256,7 @@ class Worker
         $job['pid'] = \getmypid();
 
         if ($this->queue_manager->set_pid($job) === false) {
-            Log::error("Failed to set PID for job {$job['uuid']} in worker #$worker_id.");
+            Log::warning("Failed to set PID for job {$job['uuid']} in worker #$worker_id - job likely claimed by monitor, skipping.");
             return;
         }
 
@@ -268,7 +280,8 @@ class Worker
 
         } catch (\Throwable $e) {
             if ($timed_out) {
-                App::instance()->resetDB();
+                $this->queue_manager->close_all_connections();
+                $this->queue_manager->open_all_connections();
             }
 
             $error_data = [

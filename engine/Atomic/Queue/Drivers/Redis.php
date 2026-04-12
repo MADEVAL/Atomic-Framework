@@ -26,21 +26,19 @@ class Redis implements Base, Management, Telemetry
 
     public function __construct() {
         $this->process_manager = new ProcessManager();
-        $this->connection_manager = new ConnectionManager();
+        $this->connection_manager = ConnectionManager::instance();
         if (!$this->load_lua_scripts()) {
             throw new \Exception("Failed to load Lua scripts into Redis");
         }
     }
 
-    public function open_connection(): void {
-        $this->connection_manager->close();
-        $this->connection_manager = new ConnectionManager();
+    public function init_state(): void {
+        $this->connection_manager = ConnectionManager::instance();
         $this->load_lua_scripts();
     }
 
-    public function close_connection(): void {
-        $this->connection_manager->close_redis();
-    }
+    public function reset_state(): void {}
+
 
     private function get_prefix(): string {
         return App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');

@@ -468,7 +468,7 @@ trait Init
         $sep = str_repeat('─', 60);
 
         $o->writeln();
-        $o->writeln('  ' . Style::bold('Atomic Framework — Manual Setup Guide'));
+        $o->writeln('  ' . Style::bold('Atomic Framework - Manual Setup Guide'));
         $o->writeln('  ' . Style::bold('A step-by-step replacement for: php atomic init'));
         $o->writeln('  ' . $sep);
         $o->writeln('  Follow every section in order. All paths are relative to');
@@ -479,10 +479,10 @@ trait Init
         $o->writeln('  ' . Style::yellow('[STEP 1 / 4]', true) . ' Create the directory structure');
         $o->writeln('  ' . $sep);
         $o->writeln();
-        $o->writeln('  Application directories — permission 0755, owned by your deploy user:');
+        $o->writeln('  Application directories - permission 0755, owned by your deploy user:');
         $o->writeln();
 
-        $o->writeln('  Runtime directories — permission ' . Style::yellow('0775', true) . ', must be writable by the web server:');
+        $o->writeln('  Runtime directories - permission ' . Style::yellow('0775', true) . ', must be writable by the web server:');
         $o->writeln();
 
         $runtimeDirs = [
@@ -506,8 +506,8 @@ trait Init
         $o->writeln('  Common values for <web-user>: www-data, apache, nginx');
         $o->writeln();
         $o->writeln('  Verify write access with:');
-        $o->writeln('    sudo -u <web-user> test -w storage/logs       && echo "storage/logs — OK"');
-        $o->writeln('    sudo -u <web-user> test -w public/uploads     && echo "public/uploads — OK"');
+        $o->writeln('    sudo -u <web-user> test -w storage/logs       && echo "storage/logs - OK"');
+        $o->writeln('    sudo -u <web-user> test -w public/uploads     && echo "public/uploads - OK"');
         $o->writeln();
 
         // ── STEP 2 ────────────────────────────────────────────────────────
@@ -553,7 +553,7 @@ trait Init
         // 2-B php
         $o->writeln('  ' . Style::cyan('── Option B: PHP config files  (alternative)', true));
         $o->writeln();
-        $o->writeln('  Edit config/app.php — set these keys inside the returned array:');
+        $o->writeln('  Edit config/app.php - set these keys inside the returned array:');
         $o->writeln();
         $o->writeln("    'uuid' => '<uuid_v4>',          // generate: see APP_UUID above");
         $o->writeln("    'name' => 'YourApp',");
@@ -582,7 +582,7 @@ trait Init
         $o->writeln('       DB_DATABASE=atomic       # The database you created above');
         $o->writeln('       DB_USERNAME=root         # MySQL user');
         $o->writeln('       DB_PASSWORD=secret       # MySQL password');
-        $o->writeln('       DB_CHARSET=utf8mb4       # Recommended — optional');
+        $o->writeln('       DB_CHARSET=utf8mb4       # Recommended - optional');
         $o->writeln('       DB_COLLATION=utf8mb4_general_ci  # Optional');
         $o->writeln();
         $o->writeln('     PHP config equivalent (config/database.php):');
@@ -681,7 +681,7 @@ trait Init
 
         // ── DONE ──────────────────────────────────────────────────────────
         $o->writeln('  ' . str_repeat('=', 60));
-        $o->writeln('  ' . Style::successLabel() . '  Setup complete — final checklist:');
+        $o->writeln('  ' . Style::successLabel() . '  Setup complete - final checklist:');
         $o->writeln();
         $o->writeln('  [ ] 1. All directories created; runtime dirs are writable by the web user');
         $o->writeln('  [ ] 2. .env (or config/*.php) contains APP_UUID, APP_KEY, APP_ENCRYPTION_KEY,');

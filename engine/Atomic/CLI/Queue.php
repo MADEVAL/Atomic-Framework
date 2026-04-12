@@ -111,7 +111,7 @@ trait Queue {
         if ($queue_manager === null) {
             return;
         }
-        $connection_manager = new ConnectionManager();
+        $connection_manager = ConnectionManager::instance();
         $sql = $connection_manager->get_db();
         $jobs_mapper = new Cortex($sql, $atomic->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
 
@@ -161,7 +161,7 @@ trait Queue {
         if ($queue_manager === null) {
             return;
         }
-        $connection_manager = new ConnectionManager();
+        $connection_manager = ConnectionManager::instance();
         $redis = $connection_manager->get_redis();
         $prefix = (string) $atomic->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
 

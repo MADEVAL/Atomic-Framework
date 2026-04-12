@@ -1,11 +1,12 @@
 <?php
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use DB\Cortex\Schema\Schema;
 
 return [
     'up' => function () {
         $atomic = App::instance();
-        $db     = $atomic->get('DB');
+        $db     = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
         $prefix = (string)$atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX');
         $table  = $prefix . 'payment_history';
@@ -24,7 +25,7 @@ return [
 
     'down' => function () {
         $atomic = App::instance();
-        $db     = $atomic->get('DB');
+        $db     = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
         $prefix = (string)$atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX');
 

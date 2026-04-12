@@ -19,7 +19,7 @@ class DatabaseMutexDriver implements MutexDriverInterface
 
     public function __construct()
     {
-        $this->connectionManager = new ConnectionManager();
+        $this->connectionManager = ConnectionManager::instance();
         $this->db = $this->connectionManager->get_db(false);
 
         $cfg = App::instance()->get('DB_CONFIG') ?? [];

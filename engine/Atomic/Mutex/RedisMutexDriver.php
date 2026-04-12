@@ -16,7 +16,7 @@ class RedisMutexDriver implements MutexDriverInterface
 
     public function __construct()
     {
-        $this->connectionManager = new ConnectionManager();
+        $this->connectionManager = ConnectionManager::instance();
         $this->init_connection();
     }
 
