@@ -107,7 +107,7 @@ class CryptoTest extends TestCase
         $old = $f3->get('APP_ENCRYPTION_KEY');
         $f3->set('APP_ENCRYPTION_KEY', '');
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('ENCRYPTION_KEY not configured');
+        $this->expectExceptionMessage('APP_ENCRYPTION_KEY not configured');
         try {
             new Crypto();
         } finally {

@@ -16,7 +16,7 @@ class Crypto extends \Prefab {
         $app = App::instance();
         $key = $app->get('APP_ENCRYPTION_KEY');
         if (empty($key)) {
-            throw new \RuntimeException('ENCRYPTION_KEY not configured');
+            throw new \RuntimeException('APP_ENCRYPTION_KEY not configured');
         }
         $this->key = base64_decode($key);
         if (strlen($this->key) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {

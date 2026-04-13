@@ -17,6 +17,7 @@ class Prefly
         'mbstring',
         'fileinfo',
         'pdo',
+        'pdo_mysql',
         'curl'
     ];
 

@@ -98,7 +98,7 @@ class PreflyTest extends TestCase
     public function test_check_environment_extensions(): void
     {
         $result = $this->prefly->check_environment();
-        $required = ['json', 'session', 'mbstring', 'fileinfo', 'pdo', 'curl'];
+        $required = ['json', 'session', 'mbstring', 'fileinfo', 'pdo', 'pdo_mysql', 'curl'];
 
         foreach ($required as $ext) {
             $this->assertArrayHasKey($ext, $result['extensions']);

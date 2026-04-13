@@ -52,9 +52,8 @@ class PluginManager
                 continue;
             }
 
-            $this->checkDependencies($plugin);
-            
             try {
+                $this->checkDependencies($plugin);
                 $plugin->register();
                 $this->registered[$name] = true;
             } catch (\Throwable $e) {
