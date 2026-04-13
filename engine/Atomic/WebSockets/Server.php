@@ -5,6 +5,7 @@ namespace Engine\Atomic\WebSockets;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\WebSockets\Connection;
 use Workerman\Connection\TcpConnection;
 use Workerman\Redis\Client as RedisClient;
@@ -84,7 +85,7 @@ abstract class Server
         }
         $logs_dir .= '/ws';
         if (!is_dir($logs_dir)) {
-            @mkdir($logs_dir, 0755, true);
+            Filesystem::instance()->makeDir($logs_dir, 0755, true);
         }
         $server_tag = strtolower(str_replace('\\', '.', static::class));
         Worker::$pidFile = $logs_dir . '/workerman.' . $server_tag . '.pid';

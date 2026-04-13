@@ -5,6 +5,7 @@ namespace Engine\Atomic\Lang;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Enums\I18nDomain;
 use Engine\Atomic\Theme\Theme;
@@ -235,7 +236,7 @@ final class I18n
                             $dict = array_replace_recursive($dict, $arr);
                         }
                     } elseif ($ext === 'json') {
-                        $arr = json_decode((string)@file_get_contents($resolvedFile), true);
+                        $arr = json_decode((string)Filesystem::instance()->read($resolvedFile), true);
                         if (is_array($arr)) $dict = array_replace_recursive($dict, $arr);
                     }
                 }

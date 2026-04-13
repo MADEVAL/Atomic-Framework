@@ -5,6 +5,7 @@ namespace Engine\Atomic\WebSockets;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\CLI\Console\Output;
 use Workerman\Connection\AsyncTcpConnection;
 use Workerman\Worker;
@@ -79,7 +80,7 @@ class Test
         }
         $logs_dir .= '/ws';
         if (!is_dir($logs_dir)) {
-            @mkdir($logs_dir, 0755, true);
+            Filesystem::instance()->makeDir($logs_dir, 0755, true);
         }
         Worker::$pidFile = $logs_dir . '/workerman.ws_test.' . getmypid() . '.pid';
         Worker::$logFile = $logs_dir . '/workerman.ws_test.log';

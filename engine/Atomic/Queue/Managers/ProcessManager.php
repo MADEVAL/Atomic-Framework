@@ -4,6 +4,7 @@ namespace Engine\Atomic\Queue\Managers;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;
 
 class ProcessManager
@@ -52,7 +53,7 @@ class ProcessManager
                 return null;
             }
 
-            $content = \file_get_contents($stat_file);
+            $content = Filesystem::instance()->read($stat_file);
             if ($content === false) {
                 return null;
             }

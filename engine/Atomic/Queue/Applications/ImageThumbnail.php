@@ -4,6 +4,7 @@ namespace Engine\Atomic\Queue\Applications;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
 
 final class ImageThumbnail
@@ -27,7 +28,7 @@ final class ImageThumbnail
         }
 
         $destDir = dirname($destination);
-        if (!is_dir($destDir) && !@mkdir($destDir, 0755, true)) {
+        if (!is_dir($destDir) && !Filesystem::instance()->makeDir($destDir, 0755, true)) {
             $telemetry->push_telemetry("ImageThumbnail: Cannot create destination directory: {$destDir}");
             return false;
         }
@@ -237,7 +238,7 @@ final class ImageThumbnail
     public function svgThumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
     {
         $telemetry->push_telemetry("ImageThumbnail: SVG copying as-is");
-        return @copy($source, $destination);
+        return Filesystem::instance()->copy($source, $destination);
     }
 
     private function processImageMagick(\Imagick $imagick, string $mode, int $quality, string $format): void

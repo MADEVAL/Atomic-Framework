@@ -10,6 +10,7 @@ use Engine\Atomic\CLI\Style;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\Core\ConnectionManager;
+use Engine\Atomic\Core\Filesystem;
 
 class Migrations 
 {
@@ -80,7 +81,7 @@ class Migrations
         $file_name = $timestamp . '_' . $name . '.php';
         $migrations_dir = $atomic->get('MIGRATIONS');
         if (!is_dir($migrations_dir)) {
-            mkdir($migrations_dir, 0777, true);
+            Filesystem::instance()->makeDir($migrations_dir, 0777, true);
         }
         $file_path = $migrations_dir . $file_name;
 
@@ -127,7 +128,7 @@ class Migrations
             $this->errln(Style::warningLabel() . ' ' . Style::bold((string)($files_cnt - $applied_cnt)) . ' unapplied migrations. Please run ' . Style::cyan('migrations/status', true) . ' to view them.');
         }
 
-        file_put_contents($file_path, $template);
+        Filesystem::instance()->write($file_path, $template, false);
         $this->outln(Style::successLabel() . ' ' . Style::bold("Migration '{$file_name}'") . ' created successfully at ' . Style::bold($file_path) . '.');
     }
 
@@ -186,7 +187,7 @@ class Migrations
         $atomic = App::instance();
         $migrations_dir = $atomic->get('MIGRATIONS');
         if (!is_dir($migrations_dir)) {
-            mkdir($migrations_dir, 0777, true);
+            Filesystem::instance()->makeDir($migrations_dir, 0777, true);
         }
 
         $migration_files = array_filter(
@@ -209,7 +210,7 @@ class Migrations
             $this->errln(Style::errorLabel() . ' ' . Style::bold('Source migration file') . ' ' . Style::bold($source_path) . ' does not exist. Cannot publish.');
             return;
         }
-        $content = file_get_contents($source_path);
+        $content = Filesystem::instance()->read($source_path);
         $this->create($name, $content);
     }
 

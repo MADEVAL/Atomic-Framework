@@ -321,8 +321,8 @@ class Upload
             return ['ok' => false, 'error' => 'Failed to create temp file'];
         }
 
-        if (@file_put_contents($tmpFile, $imageData) === false) {
-            @unlink($tmpFile);
+        if (FS::instance()->write($tmpFile, $imageData, false) === false) {
+            FS::instance()->delete($tmpFile);
             return ['ok' => false, 'error' => 'Failed to write to temp file'];
         }
 
@@ -334,24 +334,24 @@ class Upload
         }
 
         if (!is_dir($destinationDir) && !FS::instance()->makeDir($destinationDir)) {
-            @unlink($tmpFile);
+            FS::instance()->delete($tmpFile);
             return ['ok' => false, 'error' => 'Failed to create destination directory'];
         }
 
         $slugName = $this->generateUniqueSlugName($destinationDir, $originalName);
         $filePath = $destinationDir . $slugName;
 
-        if (!copy($tmpFile, $filePath)) {
-            @unlink($tmpFile);
+        if (!FS::instance()->copy($tmpFile, $filePath)) {
+            FS::instance()->delete($tmpFile);
             return ['ok' => false, 'error' => 'Failed to save file'];
         }
 
-        @unlink($tmpFile);
+        FS::instance()->delete($tmpFile);
 
         $fileUrl = $this->buildPublicUrl($filePath);
 
         if ($fileUrl === false) {
-            @unlink($filePath);
+            FS::instance()->delete($filePath);
             return ['ok' => false, 'error' => 'Failed to generate public URL'];
         }
 

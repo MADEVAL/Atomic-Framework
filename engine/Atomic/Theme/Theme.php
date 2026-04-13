@@ -106,7 +106,7 @@ class Theme
         $meta = [];
 
         if ($file && is_file($file) && is_readable($file)) {
-            $json = file_get_contents($file);
+            $json = FS::instance()->read($file);
             if ($json !== false && $json !== '') {
                 $data = json_decode($json, true);
                 if (is_array($data)) {

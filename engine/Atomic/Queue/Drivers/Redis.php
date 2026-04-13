@@ -6,6 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Queue\Interfaces\Base;
 use Engine\Atomic\Queue\Interfaces\Management;
@@ -105,7 +106,7 @@ class Redis implements Base, Management, Telemetry
             return false;
         }
         
-        $script_content = file_get_contents($script_path);
+        $script_content = Filesystem::instance()->read($script_path);
         if ($script_content === false) {
             Log::error("Failed to read Lua script: $script_path");
             return false;

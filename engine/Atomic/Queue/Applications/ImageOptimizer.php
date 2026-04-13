@@ -4,6 +4,7 @@ namespace Engine\Atomic\Queue\Applications;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
 
 final class ImageOptimizer
@@ -26,7 +27,7 @@ final class ImageOptimizer
         }
 
         $destDir = dirname($destination);
-        if (!is_dir($destDir) && !@mkdir($destDir, 0755, true)) {
+        if (!is_dir($destDir) && !Filesystem::instance()->makeDir($destDir, 0755, true)) {
             $telemetry->push_telemetry("ImageOptimizer: Cannot create destination directory: {$destDir}");
             return false;
         }
@@ -95,7 +96,7 @@ final class ImageOptimizer
         }
 
         $telemetry->push_telemetry("ImageOptimizer: No JPEG support (GD or Imagick required)");
-        return @copy($source, $destination);
+        return Filesystem::instance()->copy($source, $destination);
     }
 
     public function pngOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
@@ -129,7 +130,7 @@ final class ImageOptimizer
         }
 
         $telemetry->push_telemetry("ImageOptimizer: No PNG support (GD or Imagick required)");
-        return @copy($source, $destination);
+        return Filesystem::instance()->copy($source, $destination);
     }
 
     public function webpOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
@@ -175,7 +176,7 @@ final class ImageOptimizer
         }
 
         $telemetry->push_telemetry("ImageOptimizer: No WebP support (GD or Imagick required)");
-        return @copy($source, $destination);
+        return Filesystem::instance()->copy($source, $destination);
     }
 
     public function avifOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
@@ -219,12 +220,12 @@ final class ImageOptimizer
         }
 
         $telemetry->push_telemetry("ImageOptimizer: No AVIF support (GD 8.1+ or Imagick required)");
-        return @copy($source, $destination);
+        return Filesystem::instance()->copy($source, $destination);
     }
 
     public function svgOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
     {
         $telemetry->push_telemetry("ImageOptimizer: SVG optimization skipped (copying as-is)");
-        return @copy($source, $destination);
+        return Filesystem::instance()->copy($source, $destination);
     }
 }
