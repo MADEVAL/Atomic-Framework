@@ -3,165 +3,52 @@ declare(strict_types=1);
 namespace Tests\Engine\CLI;
 
 use PHPUnit\Framework\TestCase;
+use Engine\Atomic\CLI\Console\Output;
+use Engine\Atomic\CLI\Console\Input;
 use Engine\Atomic\Core\ID;
 
-/**
- * Tests for Engine\Atomic\CLI\Init trait (php atomic init / init:key)
- *
- * Uses an isolated temp directory to avoid touching the real project.
- */
 class InitTest extends TestCase
 {
     private string $tmpDir;
-    private string $origAtomicDir;
     private object $cli;
 
     protected function setUp(): void
     {
         $this->tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_init_test_' . uniqid();
-        @mkdir($this->tmpDir, 0755, true);
+        mkdir($this->tmpDir, 0755, true);
 
-        // Backup the real ATOMIC_DIR constant value - we can't redefine it,
-        // so the trait methods reference ATOMIC_DIR directly. We work around
-        // this by creating a thin wrapper that overrides the root path.
-        $this->origAtomicDir = ATOMIC_DIR;
+        // Memory streams: non-TTY stdin → isInteractive() = false (no prompts issued)
+        $stdout = fopen('php://memory', 'r+');
+        $stderr = fopen('php://memory', 'r+');
+        $stdin  = fopen('php://memory', 'r');
 
-        $tmpDir = $this->tmpDir;
+        $output = new Output($stdout, $stderr);
+        $input  = new Input($output, $stdin);
 
-        // Build a concrete anonymous class that uses the Init trait
-        // but overrides the root directory to our temp folder.
-        $this->cli = new class($tmpDir) {
+        $this->cli = new class($output, $input) {
             use \Engine\Atomic\CLI\Init {
-                init as private traitInit;
-                initKey as private traitInitKey;
-                buildEnvTemplate as private traitBuildEnvTemplate;
-                writeStubIfMissing as private traitWriteStubIfMissing;
+                // InitScaffold methods
+                createSkeletonDirectories  as public exposeCreateDirs;
+                createAppStubs             as public exposeCreateStubs;
+                writeStubIfMissing         as public exposeWriteStub;
+                generateEncryptionKey      as public exposeGenEncKey;
+                // Init.php methods
+                readKeysFromEnv            as public exposeReadEnvKeys;
+                writeKeysToEnv             as public exposeWriteEnvKeys;
+                readKeysFromPhpConfig      as public exposeReadPhpKeys;
+                writeKeysToPhpConfig       as public exposeWritePhpKeys;
+                areKeysValid               as public exposeAreKeysValid;
+                findKeyMismatches          as public exposeFindMismatches;
+                synchronizeApplicationKeys as public exposeSyncKeys;
             }
 
-            private string $root;
+            protected Output $output;
+            protected Input  $input;
 
-            public function __construct(string $root)
+            public function __construct(Output $output, Input $input)
             {
-                $this->root = $root;
-            }
-
-            /**
-             * Run init() but redirect ATOMIC_DIR to our temp root.
-             * We capture output and return it for assertion.
-             */
-            public function runInit(): string
-            {
-                ob_start();
-                // We can't override ATOMIC_DIR, so we replicate the init() logic
-                // with $this->root instead. This tests the same code paths.
-                $this->doInit();
-                return ob_get_clean() ?: '';
-            }
-
-            public function runInitKey(): string
-            {
-                ob_start();
-                $this->doInitKey();
-                return ob_get_clean() ?: '';
-            }
-
-            public function exposeBuildEnvTemplate(string $uuid, string $key, string $enc): string
-            {
-                return $this->traitBuildEnvTemplate($uuid, $key, $enc);
-            }
-
-            public function exposeWriteStubIfMissing(string $path, string $content): int
-            {
-                return $this->traitWriteStubIfMissing($path, $content);
-            }
-
-            // ── Reimplementations using $this->root instead of ATOMIC_DIR ──
-
-            private function doInit(): void
-            {
-                $root = $this->root;
-
-                echo "\n  Atomic Framework -- Project Initialization\n";
-                echo "  " . str_repeat('-', 48) . "\n\n";
-
-                $dirs = [
-                    'app/Event', 'app/Hook', 'app/Http/Controllers',
-                    'app/Http/Middleware', 'app/Models', 'bootstrap',
-                    'config', 'database/migrations', 'database/seeds',
-                    'public/plugins', 'public/themes/default', 'public/uploads',
-                    'resources/views', 'routes',
-                    'storage/framework/cache/data', 'storage/framework/cache/fonts',
-                    'storage/framework/fonts', 'storage/logs',
-                ];
-
-                echo "  [1/4] Creating directories...\n";
-                $created = 0;
-                foreach ($dirs as $dir) {
-                    $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
-                    if (!is_dir($path)) {
-                        if (@mkdir($path, 0755, true)) {
-                            $created++;
-                        }
-                    }
-                }
-                echo "        {$created} new director" . ($created === 1 ? 'y' : 'ies') . " created\n\n";
-
-                echo "  [2/4] Generating secrets...\n";
-                $uuid   = ID::uuid_v4();
-                $appKey = bin2hex(random_bytes(16));
-                $encKey = '';
-                if (function_exists('sodium_crypto_secretbox_keygen')) {
-                    $encKey = base64_encode(sodium_crypto_secretbox_keygen());
-                }
-                echo "        APP_UUID           = {$uuid}\n";
-                echo "        APP_KEY            = {$appKey}\n\n";
-
-                echo "  [3/4] Environment file...\n";
-                $envPath = $root . DIRECTORY_SEPARATOR . '.env';
-                if (file_exists($envPath)) {
-                    echo "        .env already exists -- skipped\n\n";
-                } else {
-                    $env = $this->traitBuildEnvTemplate($uuid, $appKey, $encKey);
-                    file_put_contents($envPath, $env);
-                    echo "        .env created\n\n";
-                }
-
-                echo "  [4/4] Stub files...\n";
-                $stubs = 0;
-                $stubs += $this->traitWriteStubIfMissing($root . '/routes/web.php', "<?php\n// Web routes\n");
-                $stubs += $this->traitWriteStubIfMissing($root . '/routes/api.php', "<?php\n// API routes\n");
-                $stubs += $this->traitWriteStubIfMissing($root . '/routes/cli.php', "<?php\n// CLI routes\n");
-                $stubs += $this->traitWriteStubIfMissing($root . '/app/Event/Application.php', "<?php\n");
-                $stubs += $this->traitWriteStubIfMissing($root . '/app/Hook/Application.php', "<?php\n");
-                echo "        {$stubs} stub files created\n\n";
-            }
-
-            private function doInitKey(): void
-            {
-                $envPath = $this->root . DIRECTORY_SEPARATOR . '.env';
-
-                if (!file_exists($envPath)) {
-                    echo "No .env file found. Run 'php atomic init' first.\n";
-                    return;
-                }
-
-                $uuid   = ID::uuid_v4();
-                $appKey = bin2hex(random_bytes(16));
-
-                $contents = file_get_contents($envPath);
-                $contents = preg_replace('/^APP_UUID=.*$/m',  "APP_UUID={$uuid}",   $contents);
-                $contents = preg_replace('/^APP_KEY=.*$/m',   "APP_KEY={$appKey}",  $contents);
-
-                if (function_exists('sodium_crypto_secretbox_keygen')) {
-                    $encKey = base64_encode(sodium_crypto_secretbox_keygen());
-                    $contents = preg_replace('/^APP_ENCRYPTION_KEY=.*$/m', "APP_ENCRYPTION_KEY={$encKey}", $contents);
-                }
-
-                file_put_contents($envPath, $contents);
-
-                echo "APP_UUID={$uuid}\n";
-                echo "APP_KEY={$appKey}\n";
-                echo "Keys written to .env\n";
+                $this->output = $output;
+                $this->input  = $input;
             }
         };
     }
@@ -171,218 +58,481 @@ class InitTest extends TestCase
         $this->rimraf($this->tmpDir);
     }
 
-    // ── init() tests ──
+    // ── Fixtures ──────────────────────────────────────────────────────────────
 
-    public function test_init_creates_skeleton_directories(): void
+    private function makeEnv(array $values): void
     {
-        $this->cli->runInit();
+        $content = '';
+        foreach ($values as $k => $v) {
+            $content .= "{$k}={$v}\n";
+        }
+        file_put_contents($this->tmpDir . DIRECTORY_SEPARATOR . '.env', $content);
+    }
 
-        $expected = [
-            'app/Event', 'app/Hook', 'app/Http/Controllers',
-            'app/Models', 'bootstrap', 'config',
-            'database/migrations', 'database/seeds',
-            'public/plugins', 'public/themes/default',
+    private function makeEnvExample(array $values = []): void
+    {
+        $content = '';
+        foreach ($values as $k => $v) {
+            $content .= "{$k}={$v}\n";
+        }
+        file_put_contents($this->tmpDir . DIRECTORY_SEPARATOR . '.env.example', $content);
+    }
+
+    /**
+     * Creates config/app.php with keys written in the format
+     * writeKeysToPhpConfig's regex expects: 'key' => 'value'
+     */
+    private function makePhpConfig(array $data): void
+    {
+        $dir = $this->tmpDir . DIRECTORY_SEPARATOR . 'config';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        $lines = "<?php\ndeclare(strict_types=1);\n\nreturn [\n";
+        foreach ($data as $k => $v) {
+            $lines .= "    '{$k}' => '{$v}',\n";
+        }
+        $lines .= "];\n";
+        file_put_contents($dir . DIRECTORY_SEPARATOR . 'app.php', $lines);
+    }
+
+    private function validKeys(): array
+    {
+        return [
+            'APP_UUID'           => ID::uuid_v4(),
+            'APP_KEY'            => bin2hex(random_bytes(16)),
+            'APP_ENCRYPTION_KEY' => base64_encode(random_bytes(32)),
+        ];
+    }
+
+    // ── createSkeletonDirectories ─────────────────────────────────────────────
+
+    public function test_create_dirs_makes_full_structure(): void
+    {
+        $this->cli->exposeCreateDirs($this->tmpDir);
+
+        foreach ([
+            'app/Event', 'app/Hook', 'app/Http/Controllers', 'app/Http/Middleware',
+            'app/Models', 'bootstrap', 'config', 'database/migrations', 'database/seeds',
+            'public/plugins', 'public/themes/default', 'public/uploads',
             'resources/views', 'routes',
-            'storage/framework/cache/data', 'storage/logs',
-        ];
-
-        foreach ($expected as $dir) {
-            $full = $this->tmpDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
-            $this->assertDirectoryExists($full, "Directory {$dir} must be created");
+            'storage/framework/cache/data', 'storage/framework/cache/fonts',
+            'storage/framework/fonts', 'storage/logs',
+        ] as $dir) {
+            $this->assertDirectoryExists(
+                $this->tmpDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir),
+                "Expected directory: {$dir}"
+            );
         }
     }
 
-    public function test_init_creates_env_file(): void
+    public function test_create_dirs_returns_count_of_new_dirs(): void
     {
-        $this->cli->runInit();
+        $count = $this->cli->exposeCreateDirs($this->tmpDir);
 
-        $envPath = $this->tmpDir . DIRECTORY_SEPARATOR . '.env';
-        $this->assertFileExists($envPath);
-
-        $content = file_get_contents($envPath);
-        $this->assertStringContainsString('APP_UUID=', $content);
-        $this->assertStringContainsString('APP_KEY=', $content);
-        $this->assertStringContainsString('DB_DRIVER=mysql', $content);
-        $this->assertStringContainsString('CACHE_DRIVER=folder', $content);
+        $this->assertGreaterThan(0, $count);
     }
 
-    public function test_init_env_contains_valid_uuid(): void
+    public function test_create_dirs_idempotent(): void
     {
-        $this->cli->runInit();
+        $this->cli->exposeCreateDirs($this->tmpDir);
 
-        $content = file_get_contents($this->tmpDir . DIRECTORY_SEPARATOR . '.env');
-        preg_match('/^APP_UUID=(.+)$/m', $content, $m);
+        $count = $this->cli->exposeCreateDirs($this->tmpDir);
 
-        $uuid = trim($m[1] ?? '');
-        $this->assertNotEmpty($uuid);
-        $this->assertTrue(ID::is_valid_uuid_v4($uuid), 'APP_UUID must be a valid UUID v4');
+        $this->assertSame(0, $count, 'Second run must report zero new directories');
     }
 
-    public function test_init_env_contains_32char_hex_key(): void
+    // ── createAppStubs ────────────────────────────────────────────────────────
+
+    public function test_create_stubs_makes_all_files(): void
     {
-        $this->cli->runInit();
+        $this->cli->exposeCreateDirs($this->tmpDir);
+        $this->cli->exposeCreateStubs($this->tmpDir);
 
-        $content = file_get_contents($this->tmpDir . DIRECTORY_SEPARATOR . '.env');
-        preg_match('/^APP_KEY=(.+)$/m', $content, $m);
-
-        $key = trim($m[1] ?? '');
-        $this->assertNotEmpty($key);
-        $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $key, 'APP_KEY must be 32 hex chars');
-    }
-
-    public function test_init_skips_env_if_already_exists(): void
-    {
-        $envPath = $this->tmpDir . DIRECTORY_SEPARATOR . '.env';
-        file_put_contents($envPath, "APP_UUID=old-uuid\nAPP_KEY=old-key\n");
-
-        $output = $this->cli->runInit();
-
-        $this->assertStringContainsString('.env already exists', $output);
-        // Original content preserved
-        $this->assertStringContainsString('old-uuid', file_get_contents($envPath));
-    }
-
-    public function test_init_creates_stub_files(): void
-    {
-        $this->cli->runInit();
-
-        $stubs = [
-            'routes/web.php',
-            'routes/api.php',
-            'routes/cli.php',
-            'app/Event/Application.php',
-            'app/Hook/Application.php',
-        ];
-
-        foreach ($stubs as $stub) {
-            $full = $this->tmpDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $stub);
-            $this->assertFileExists($full, "Stub file {$stub} must be created");
+        foreach ([
+            'routes/web.php', 'routes/api.php', 'routes/cli.php',
+            'app/Event/Application.php', 'app/Hook/Application.php',
+        ] as $stub) {
+            $this->assertFileExists(
+                $this->tmpDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $stub),
+                "Expected stub: {$stub}"
+            );
         }
     }
 
-    public function test_init_stubs_not_overwritten(): void
+    public function test_create_stubs_returns_correct_count(): void
     {
-        // Create a stub manually first
-        $routeDir = $this->tmpDir . DIRECTORY_SEPARATOR . 'routes';
-        @mkdir($routeDir, 0755, true);
-        file_put_contents($routeDir . DIRECTORY_SEPARATOR . 'web.php', '<?php // custom');
+        $this->cli->exposeCreateDirs($this->tmpDir);
 
-        $this->cli->runInit();
+        $count = $this->cli->exposeCreateStubs($this->tmpDir);
 
-        $content = file_get_contents($routeDir . DIRECTORY_SEPARATOR . 'web.php');
-        $this->assertStringContainsString('// custom', $content, 'Existing stub must not be overwritten');
+        $this->assertSame(5, $count);
     }
 
-    public function test_init_idempotent(): void
+    public function test_create_stubs_does_not_overwrite_existing(): void
     {
-        $output1 = $this->cli->runInit();
-        $output2 = $this->cli->runInit();
+        $this->cli->exposeCreateDirs($this->tmpDir);
+        file_put_contents($this->tmpDir . '/routes/web.php', '<?php // custom');
 
-        // Second run should create 0 new directories and 0 stubs
-        $this->assertStringContainsString('0 new directories created', $output2);
-        $this->assertStringContainsString('0 stub files created', $output2);
-        $this->assertStringContainsString('.env already exists', $output2);
+        $count = $this->cli->exposeCreateStubs($this->tmpDir);
+
+        $this->assertSame(4, $count, 'Existing stub must be skipped');
+        $this->assertStringContainsString(
+            '// custom',
+            file_get_contents($this->tmpDir . '/routes/web.php')
+        );
     }
 
-    // ── init:key tests ──
+    // ── writeStubIfMissing ────────────────────────────────────────────────────
 
-    public function test_init_key_regenerates_uuid_and_key(): void
+    public function test_write_stub_creates_file_and_parent_dirs(): void
     {
-        // Create an .env first
-        $envPath = $this->tmpDir . DIRECTORY_SEPARATOR . '.env';
-        file_put_contents($envPath, "APP_UUID=old-uuid\nAPP_KEY=old-key\nAPP_ENCRYPTION_KEY=old-enc\n");
-
-        $output = $this->cli->runInitKey();
-
-        $this->assertStringContainsString('Keys written to .env', $output);
-
-        $content = file_get_contents($envPath);
-        $this->assertStringNotContainsString('old-uuid', $content, 'UUID must be regenerated');
-        $this->assertStringNotContainsString('old-key', $content, 'APP_KEY must be regenerated');
-
-        preg_match('/^APP_UUID=(.+)$/m', $content, $m);
-        $this->assertTrue(ID::is_valid_uuid_v4($m[1] ?? ''), 'New UUID must be valid');
-
-        preg_match('/^APP_KEY=(.+)$/m', $content, $k);
-        $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $k[1] ?? '', 'New key must be 32 hex');
-    }
-
-    public function test_init_key_fails_without_env(): void
-    {
-        $output = $this->cli->runInitKey();
-
-        $this->assertStringContainsString("No .env file found", $output);
-    }
-
-    public function test_init_key_preserves_other_settings(): void
-    {
-        $envPath = $this->tmpDir . DIRECTORY_SEPARATOR . '.env';
-        $original = "APP_NAME=MyApp\nAPP_UUID=old\nAPP_KEY=old\nAPP_ENCRYPTION_KEY=old\nDB_HOST=192.168.1.1\n";
-        file_put_contents($envPath, $original);
-
-        $this->cli->runInitKey();
-
-        $content = file_get_contents($envPath);
-        $this->assertStringContainsString('APP_NAME=MyApp', $content, 'APP_NAME must be preserved');
-        $this->assertStringContainsString('DB_HOST=192.168.1.1', $content, 'DB_HOST must be preserved');
-    }
-
-    // ── buildEnvTemplate tests ──
-
-    public function test_build_env_template_contains_all_sections(): void
-    {
-        $env = $this->cli->exposeBuildEnvTemplate('test-uuid', 'test-key', 'test-enc');
-
-        $this->assertStringContainsString('APP_UUID=test-uuid', $env);
-        $this->assertStringContainsString('APP_KEY=test-key', $env);
-        $this->assertStringContainsString('APP_ENCRYPTION_KEY=test-enc', $env);
-        $this->assertStringContainsString('# Database settings', $env);
-        $this->assertStringContainsString('# Cache settings', $env);
-        $this->assertStringContainsString('# Redis settings', $env);
-        $this->assertStringContainsString('# Queue settings', $env);
-        $this->assertStringContainsString('# Session & Cookie settings', $env);
-        $this->assertStringContainsString('# CORS settings', $env);
-    }
-
-    public function test_build_env_template_safe_defaults(): void
-    {
-        $env = $this->cli->exposeBuildEnvTemplate('u', 'k', 'e');
-
-        // No real credentials
-        $this->assertStringContainsString('DB_PASSWORD=', $env);
-        $this->assertStringContainsString('CORS_CREDENTIALS=false', $env);
-        $this->assertStringContainsString('DEBUG_MODE=false', $env);
-        $this->assertStringContainsString('MUTEX_DRIVER=file', $env);
-    }
-
-    // ── writeStubIfMissing tests ──
-
-    public function test_write_stub_creates_file(): void
-    {
-        $path = $this->tmpDir . DIRECTORY_SEPARATOR . 'newdir' . DIRECTORY_SEPARATOR . 'file.php';
-        $result = $this->cli->exposeWriteStubIfMissing($path, "<?php\n// test\n");
+        $path   = $this->tmpDir . '/deep/nested/file.php';
+        $result = $this->cli->exposeWriteStub($path, "<?php\n// hello\n");
 
         $this->assertSame(1, $result);
         $this->assertFileExists($path);
-        $this->assertStringContainsString('// test', file_get_contents($path));
+        $this->assertStringContainsString('// hello', file_get_contents($path));
     }
 
-    public function test_write_stub_returns_zero_if_exists(): void
+    public function test_write_stub_returns_zero_and_preserves_existing(): void
     {
-        $path = $this->tmpDir . DIRECTORY_SEPARATOR . 'existing.php';
+        $path = $this->tmpDir . '/existing.php';
         file_put_contents($path, 'original');
 
-        $result = $this->cli->exposeWriteStubIfMissing($path, 'overwritten');
+        $result = $this->cli->exposeWriteStub($path, 'overwritten');
 
         $this->assertSame(0, $result);
         $this->assertSame('original', file_get_contents($path));
     }
 
-    // ── helpers ──
+    // ── generateEncryptionKey ─────────────────────────────────────────────────
+
+    public function test_generate_enc_key_returns_valid_base64_sodium_key(): void
+    {
+        $key = $this->cli->exposeGenEncKey();
+
+        if (!function_exists('sodium_crypto_secretbox_keygen')) {
+            $this->assertSame('', $key, 'Empty string expected without sodium');
+            return;
+        }
+
+        $this->assertNotEmpty($key);
+        $decoded = base64_decode($key, true);
+        $this->assertNotFalse($decoded, 'Must be valid base64');
+        $this->assertSame(SODIUM_CRYPTO_SECRETBOX_KEYBYTES, strlen($decoded));
+    }
+
+    // ── areKeysValid ──────────────────────────────────────────────────────────
+
+    public function test_keys_valid_with_real_values(): void
+    {
+        $this->assertTrue($this->cli->exposeAreKeysValid($this->validKeys()));
+    }
+
+    public function test_keys_invalid_when_uuid_empty(): void
+    {
+        $keys = $this->validKeys();
+        $keys['APP_UUID'] = '';
+
+        $this->assertFalse($this->cli->exposeAreKeysValid($keys));
+    }
+
+    public function test_keys_invalid_when_app_key_empty(): void
+    {
+        $keys = $this->validKeys();
+        $keys['APP_KEY'] = '';
+
+        $this->assertFalse($this->cli->exposeAreKeysValid($keys));
+    }
+
+    public function test_keys_invalid_when_enc_key_empty(): void
+    {
+        $keys = $this->validKeys();
+        $keys['APP_ENCRYPTION_KEY'] = '';
+
+        $this->assertFalse($this->cli->exposeAreKeysValid($keys));
+    }
+
+    public function test_keys_invalid_with_known_placeholder_values(): void
+    {
+        $this->assertFalse($this->cli->exposeAreKeysValid([
+            'APP_UUID'           => 'your-uuid-here',
+            'APP_KEY'            => 'default-key',
+            'APP_ENCRYPTION_KEY' => 'your-encryption-key-here',
+        ]));
+    }
+
+    public function test_keys_invalid_with_your_key_here_placeholder(): void
+    {
+        $keys = $this->validKeys();
+        $keys['APP_KEY'] = 'your-key-here';
+
+        $this->assertFalse($this->cli->exposeAreKeysValid($keys));
+    }
+
+    // ── findKeyMismatches ─────────────────────────────────────────────────────
+
+    public function test_no_mismatches_when_both_sets_equal(): void
+    {
+        $keys   = $this->validKeys();
+        $result = $this->cli->exposeFindMismatches($keys, $keys);
+
+        $this->assertEmpty($result);
+    }
+
+    public function test_finds_mismatched_keys(): void
+    {
+        $a = $this->validKeys();
+        $b = $this->validKeys(); // independently generated → all differ
+
+        $result = $this->cli->exposeFindMismatches($a, $b);
+
+        $this->assertArrayHasKey('APP_UUID', $result);
+        $this->assertArrayHasKey('APP_KEY',  $result);
+    }
+
+    public function test_finds_only_the_differing_key(): void
+    {
+        $a = $this->validKeys();
+        $b = $a;
+        $b['APP_KEY'] = bin2hex(random_bytes(16));
+
+        $result = $this->cli->exposeFindMismatches($a, $b);
+
+        $this->assertArrayHasKey('APP_KEY', $result);
+        $this->assertArrayNotHasKey('APP_UUID', $result);
+        $this->assertArrayNotHasKey('APP_ENCRYPTION_KEY', $result);
+    }
+
+    // ── readKeysFromEnv / writeKeysToEnv ──────────────────────────────────────
+
+    public function test_read_env_keys_returns_empty_strings_when_no_file(): void
+    {
+        $result = $this->cli->exposeReadEnvKeys($this->tmpDir);
+
+        $this->assertSame('', $result['APP_UUID']);
+        $this->assertSame('', $result['APP_KEY']);
+        $this->assertSame('', $result['APP_ENCRYPTION_KEY']);
+    }
+
+    public function test_read_env_keys_parses_all_three_fields(): void
+    {
+        $keys = $this->validKeys();
+        $this->makeEnv($keys);
+
+        $result = $this->cli->exposeReadEnvKeys($this->tmpDir);
+
+        $this->assertSame($keys['APP_UUID'],           $result['APP_UUID']);
+        $this->assertSame($keys['APP_KEY'],            $result['APP_KEY']);
+        $this->assertSame($keys['APP_ENCRYPTION_KEY'], $result['APP_ENCRYPTION_KEY']);
+    }
+
+    public function test_write_env_keys_updates_existing_lines(): void
+    {
+        $this->makeEnv(['APP_UUID' => 'old-uuid', 'APP_KEY' => 'old-key', 'APP_ENCRYPTION_KEY' => 'old-enc']);
+        $new = $this->validKeys();
+
+        $this->cli->exposeWriteEnvKeys($this->tmpDir, $new);
+
+        $result = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $this->assertSame($new['APP_UUID'],           $result['APP_UUID']);
+        $this->assertSame($new['APP_KEY'],            $result['APP_KEY']);
+        $this->assertSame($new['APP_ENCRYPTION_KEY'], $result['APP_ENCRYPTION_KEY']);
+    }
+
+    public function test_write_env_keys_appends_missing_fields(): void
+    {
+        $this->makeEnv(['APP_NAME' => 'MyApp']); // no key fields
+
+        $new = $this->validKeys();
+        $this->cli->exposeWriteEnvKeys($this->tmpDir, $new);
+
+        $content = file_get_contents($this->tmpDir . '/.env');
+        $this->assertStringContainsString('APP_NAME=MyApp', $content, 'Existing field preserved');
+        $this->assertStringContainsString('APP_UUID=' . $new['APP_UUID'], $content);
+    }
+
+    public function test_write_env_keys_noop_when_no_env_or_example(): void
+    {
+        $this->cli->exposeWriteEnvKeys($this->tmpDir, $this->validKeys());
+
+        $this->assertFileDoesNotExist($this->tmpDir . '/.env');
+    }
+
+    public function test_write_env_keys_copies_example_when_env_missing(): void
+    {
+        $this->makeEnvExample([
+            'APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '',
+            'DB_HOST'  => '127.0.0.1',
+        ]);
+        $new = $this->validKeys();
+
+        $this->cli->exposeWriteEnvKeys($this->tmpDir, $new);
+
+        $envPath = $this->tmpDir . '/.env';
+        $this->assertFileExists($envPath);
+        $content = file_get_contents($envPath);
+        $this->assertStringContainsString('DB_HOST=127.0.0.1', $content, '.env.example content preserved');
+        $this->assertStringContainsString('APP_UUID=' . $new['APP_UUID'], $content);
+    }
+
+    // ── readKeysFromPhpConfig / writeKeysToPhpConfig ──────────────────────────
+
+    public function test_read_php_keys_returns_empty_strings_when_no_file(): void
+    {
+        $result = $this->cli->exposeReadPhpKeys($this->tmpDir);
+
+        $this->assertSame('', $result['APP_UUID']);
+        $this->assertSame('', $result['APP_KEY']);
+        $this->assertSame('', $result['APP_ENCRYPTION_KEY']);
+    }
+
+    public function test_read_php_keys_parses_config_array(): void
+    {
+        $keys = $this->validKeys();
+        $this->makePhpConfig([
+            'uuid'           => $keys['APP_UUID'],
+            'key'            => $keys['APP_KEY'],
+            'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
+        ]);
+
+        $result = $this->cli->exposeReadPhpKeys($this->tmpDir);
+
+        $this->assertSame($keys['APP_UUID'],           $result['APP_UUID']);
+        $this->assertSame($keys['APP_KEY'],            $result['APP_KEY']);
+        $this->assertSame($keys['APP_ENCRYPTION_KEY'], $result['APP_ENCRYPTION_KEY']);
+    }
+
+    public function test_write_php_keys_updates_config_file(): void
+    {
+        $old = $this->validKeys();
+        $this->makePhpConfig([
+            'uuid'           => $old['APP_UUID'],
+            'key'            => $old['APP_KEY'],
+            'encryption_key' => $old['APP_ENCRYPTION_KEY'],
+        ]);
+        $new = $this->validKeys();
+
+        $this->cli->exposeWritePhpKeys($this->tmpDir, $new);
+
+        $content = file_get_contents($this->tmpDir . '/config/app.php');
+        $this->assertStringContainsString("'uuid' => '{$new['APP_UUID']}'",           $content);
+        $this->assertStringContainsString("'key' => '{$new['APP_KEY']}'",             $content);
+        $this->assertStringContainsString("'encryption_key' => '{$new['APP_ENCRYPTION_KEY']}'", $content);
+    }
+
+    public function test_write_php_keys_does_nothing_when_file_absent(): void
+    {
+        // No config/app.php — must not throw; just emits a warning via output
+        $this->cli->exposeWritePhpKeys($this->tmpDir, $this->validKeys());
+
+        $this->assertFileDoesNotExist($this->tmpDir . '/config/app.php');
+    }
+
+    public function test_write_php_keys_preserves_file_when_keys_not_in_config(): void
+    {
+        $dir = $this->tmpDir . DIRECTORY_SEPARATOR . 'config';
+        mkdir($dir, 0755, true);
+        // Config file with no matching key entries
+        $content = "<?php\ndeclare(strict_types=1);\n\nreturn [\n    'name' => 'MyApp',\n];\n";
+        file_put_contents($dir . DIRECTORY_SEPARATOR . 'app.php', $content);
+
+        $this->cli->exposeWritePhpKeys($this->tmpDir, $this->validKeys());
+
+        // File content unchanged — regex found no keys to replace
+        $this->assertSame($content, file_get_contents($dir . DIRECTORY_SEPARATOR . 'app.php'));
+    }
+
+    // ── synchronizeApplicationKeys ────────────────────────────────────────────
+
+    public function test_sync_generates_new_keys_when_both_sources_empty(): void
+    {
+        $this->makeEnvExample(['APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '']);
+        $this->makePhpConfig(['uuid' => '', 'key' => '', 'encryption_key' => '']);
+
+        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+
+        $this->assertTrue($result);
+        $envKeys = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $this->assertTrue(ID::is_valid_uuid_v4($envKeys['APP_UUID']), 'Generated UUID must be valid');
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $envKeys['APP_KEY']);
+    }
+
+    public function test_sync_copies_env_keys_to_php_when_only_env_valid(): void
+    {
+        $keys = $this->validKeys();
+        $this->makeEnv($keys);
+        $this->makePhpConfig(['uuid' => '', 'key' => '', 'encryption_key' => '']);
+
+        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+
+        $this->assertTrue($result);
+        $phpKeys = $this->cli->exposeReadPhpKeys($this->tmpDir);
+        $this->assertSame($keys['APP_UUID'], $phpKeys['APP_UUID']);
+        $this->assertSame($keys['APP_KEY'],  $phpKeys['APP_KEY']);
+    }
+
+    public function test_sync_copies_php_keys_to_env_when_only_php_valid(): void
+    {
+        $keys = $this->validKeys();
+        $this->makeEnv(['APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '']);
+        $this->makePhpConfig([
+            'uuid'           => $keys['APP_UUID'],
+            'key'            => $keys['APP_KEY'],
+            'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
+        ]);
+
+        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+
+        $this->assertTrue($result);
+        $envKeys = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $this->assertSame($keys['APP_UUID'], $envKeys['APP_UUID']);
+        $this->assertSame($keys['APP_KEY'],  $envKeys['APP_KEY']);
+    }
+
+    public function test_sync_noop_when_both_sources_match(): void
+    {
+        $keys = $this->validKeys();
+        $this->makeEnv($keys);
+        $this->makePhpConfig([
+            'uuid'           => $keys['APP_UUID'],
+            'key'            => $keys['APP_KEY'],
+            'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
+        ]);
+
+        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+
+        $this->assertTrue($result);
+        // Keys unchanged
+        $this->assertSame($keys['APP_UUID'], $this->cli->exposeReadEnvKeys($this->tmpDir)['APP_UUID']);
+    }
+
+    public function test_sync_returns_false_on_mismatch_in_non_interactive_mode(): void
+    {
+        // Both sources have valid but different keys → mismatch
+        // Non-interactive input → handleKeyMismatch returns false
+        $a = $this->validKeys();
+        $b = $this->validKeys();
+        $this->makeEnv($a);
+        $this->makePhpConfig([
+            'uuid'           => $b['APP_UUID'],
+            'key'            => $b['APP_KEY'],
+            'encryption_key' => $b['APP_ENCRYPTION_KEY'],
+        ]);
+
+        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+
+        $this->assertFalse($result);
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
 
     private function rimraf(string $dir): void
     {
-        if (!is_dir($dir)) return;
+        if (!is_dir($dir)) {
+            return;
+        }
         $items = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::CHILD_FIRST
