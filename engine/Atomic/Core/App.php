@@ -204,9 +204,10 @@ class App {
         return $this;
     }
     
-    public function open_connections(): void
+    public function openConnections(): self
     {
         ConnectionManager::instance()->open_all();
+        return $this;
     }
 
     public function initSession(): self {
