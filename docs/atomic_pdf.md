@@ -38,6 +38,17 @@ Supported input extensions:
 
 For `.xls` input the class internally uses `Engine\Atomic\Files\XLS`.
 
+### CLI conversion commands
+
+The framework also exposes CLI wrappers for direct file conversion:
+
+```bash
+php atomic file/csv2pdf <input.csv> <output.pdf> [title]
+php atomic file/xls2pdf <input.xls> <output.pdf> [title]
+```
+
+If the optional `title` argument is omitted, an empty title is used.
+
 ### Constructor options
 
 ```php

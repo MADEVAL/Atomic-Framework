@@ -22,8 +22,8 @@ final class Post extends Model
 
 - automatic DB prefixing from `DB_CONFIG.ATOMIC_DB_PREFIX`
 - validation on `save()` through `Engine\Atomic\Validator\Validator`
-- nullable-field normalization: empty strings become `null` for fields marked `nullable`
-- optional `normalize_for_presave()` hook before validation
+- nullable support in validation when values are already `null`
+- optional `before_validate()` hook before validation
 
 ### Validation errors
 

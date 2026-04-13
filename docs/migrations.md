@@ -7,6 +7,7 @@ The system creates and tracks a prefixed migrations table, generates timestamped
 ### CLI
 
 ```bash
+php atomic migrations/init
 php atomic migrations/create create_users_table
 php atomic migrations/migrate
 php atomic migrations/migrate 1
@@ -16,6 +17,7 @@ php atomic migrations/rollback 3
 php atomic migrations/rollback batch
 
 php atomic migrations/status
+php atomic migrations/publish <plugin-name>
 ```
 
 Notes:
@@ -30,18 +32,19 @@ Generated files are stored under the configured `MIGRATIONS` directory and use t
 ```php
 <?php
 use Engine\Atomic\Core\App;
-use DB\SQL\Schema;
+use Engine\Atomic\Core\ConnectionManager;
+use DB\Cortex\Schema\Schema;
 
 return [
     'up' => function () {
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
     },
 
     'down' => function () {
         $atomic = App::instance();
-        $db = $atomic->get('DB');
+        $db = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
     }
 ];

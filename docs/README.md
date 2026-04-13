@@ -45,6 +45,7 @@ Atomic is organized into modules such as:
 - `cli.md`
 - `config.md`
 - `database.md`
+- `errorhandler.md`
 - `event.md`
 - `head.md`
 - `hook.md`
@@ -58,13 +59,19 @@ Atomic is organized into modules such as:
 - `nonce.md`
 - `notifier.md`
 - `opengraph.md`
+- `plugins.md`
+- `prefly.md`
 - `queue.md`
 - `request.md`
 - `scheduler.md`
+- `security.md`
 - `session.md`
+- `theme.md`
+- `testing_guide.md`
 - `telegram.md`
 - `telemetry.md`
 - `template.md`
 - `transient.md`
+- `websockets.md`
 
 Detailed plugin and subsystem docs also exist in nested documentation folders.

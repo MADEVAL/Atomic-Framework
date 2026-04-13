@@ -22,7 +22,7 @@ localize_script('app', [
         'save'   => __('default.Save', [], 'default'),
         'cancel' => __('default.Cancel', [], 'default'),
     ],
-    'nonce'  => \Engine\Atomic\Tools\Nonce::create('api_nonce', 3600) ,   
+    'nonce'  => create_nonce('api_nonce', 3600),
 ]);
 ```
 

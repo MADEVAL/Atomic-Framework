@@ -20,7 +20,6 @@ $app->prefly()
     ->registerLocales()
     ->registerLocaleHrefs()
     ->registerMiddleware()
-    ->setDB()
     ->initSession()
     ->registerCorePlugins()
     ->registerPlugins()
@@ -34,7 +33,7 @@ $app->prefly()
 - boot checks via `prefly()`
 - logger and exception registration
 - locale bootstrapping and language-prefix path normalization
-- DB connection registration via `setDB()`
+- connection opening via `open_connections()`
 - session initialization
 - route loading from framework and app route files
 - middleware alias registration
@@ -63,12 +62,11 @@ Request type is detected from the current path:
 
 Framework route files are resolved from `FRAMEWORK_ROUTES`.
 
-### DB lifecycle
+### Connection lifecycle
 
 ```php
-$app->setDB();
-$app->resetDB();
-$app->closeDB();
+$app->open_connections();
+\Engine\Atomic\Core\ConnectionManager::instance()->close();
 ```
 
 ### CLI entry

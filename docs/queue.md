@@ -90,6 +90,7 @@ Test helpers exposed by `Engine\Atomic\App\System`:
 php atomic queue/test success
 php atomic queue/test failure
 php atomic queue/test timeout
+php atomic queue/test event
 
 php atomic queue/test/monitor
 php atomic queue/test/monitor default

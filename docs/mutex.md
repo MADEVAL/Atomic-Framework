@@ -120,7 +120,8 @@ Uses an INSERT/DELETE strategy (with a `mutex_locks` table) for atomic acquisiti
 
 **Requirements:**
 - Database connection configured
-- Migration: `database/migrations/atomic/atomic_create_mutex_table.php` (migration name: `atomic_create_mutex_table`)
+- Bundled migration source: `engine/Atomic/Core/Database/Migrations/atomic_create_mutex_table.php`
+- Applied migration file name: `atomic_create_mutex_table` in your configured `MIGRATIONS` directory
 
 **Behavior:**
 - Atomic acquisition: `INSERT IGNORE` on a UNIQUE name column after deleting expired rows
@@ -130,7 +131,7 @@ Uses an INSERT/DELETE strategy (with a `mutex_locks` table) for atomic acquisiti
 
 **Run migration:**
 ```bash
-php atomic migrate:run
+php atomic migrations/migrate
 ```
 
 ### File (Last Resort)
@@ -161,7 +162,7 @@ $scheduler->call(function() {
     processLargeDataset();
 })
 ->hourly()
-->without_overlapping(60)  // TTL in minutes
+->without_overlapping(60)  // TTL in seconds
 ->description('Process large dataset');
 ```
 
