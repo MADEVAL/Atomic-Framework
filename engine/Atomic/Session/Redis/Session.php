@@ -197,9 +197,7 @@ class Session implements SessionHandlerInterface
         $headers = $fw->HEADERS;
         $this->_csrf = $fw->hash(
             $fw->SEED .
-            (\extension_loaded('openssl') ?
-                \implode(\unpack('L', \openssl_random_pseudo_bytes(4))) :
-                \mt_rand())
+            \bin2hex(\random_bytes(16))
         );
         if ($key)
             $fw->$key = $this->_csrf;
