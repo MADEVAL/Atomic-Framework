@@ -293,6 +293,13 @@ class PhpConfigLoader {
             ],
         ]);
 
+        // ── LOG_CHANNELS ──
+        $logging = $this->configs['logging'] ?? [];
+        $this->atomic->set('LOG_CHANNELS', [
+            'default'  => (string)($logging['default'] ?? 'atomic'),
+            'channels' => $logging['channels'] ?? [],
+        ]);
+
         // ── MONOPAY ──
         $monopay = $this->cfg('tools', 'monopay', []);
         $this->atomic->set('MONOPAY.TOKEN',        (string)($monopay['token'] ?? ''));

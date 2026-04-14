@@ -236,6 +236,11 @@ class ConfigLoader {
             ],
         ]);        
         
+        $this->atomic->set('LOG_CHANNELS', [
+            'default'  => $this->get_env('LOG_DEFAULT_CHANNEL', 'atomic'),
+            'channels' => $this->build_log_channels(),
+        ]);
+
         $this->atomic->set('MONOPAY.TOKEN', $this->get_env('MONOPAY_TOKEN', ''));
         $this->atomic->set('MONOPAY.TEST_MODE', filter_var($this->get_env('MONOPAY_TEST_MODE', 'false'), FILTER_VALIDATE_BOOLEAN));
         $this->atomic->set('MONOPAY.WEBHOOK_URL', $this->get_env('MONOPAY_WEBHOOK_URL', ''));
@@ -247,6 +252,18 @@ class ConfigLoader {
             'openrouter' => ['api_key' => $this->get_env('AI_OPENROUTER_API_KEY', '')],
             'globus'     => ['api_key' => $this->get_env('AI_GLOBUS_API_KEY', '')],
         ]);
+    }
+
+    protected function build_log_channels(): array {
+        $channels = [];
+        foreach ($this->env as $key => $value) {
+            if (preg_match('/^LOG_([A-Z][A-Z0-9_]+?)_(DRIVER|PATH|LEVEL)$/', $key, $m)) {
+                $channel = strtolower($m[1]);
+                $field   = strtolower($m[2]);
+                $channels[$channel][$field] = $value;
+            }
+        }
+        return $channels;
     }
 
     protected function build_queue_config(string $prefix): array {

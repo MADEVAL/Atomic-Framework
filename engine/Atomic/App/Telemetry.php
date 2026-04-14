@@ -6,8 +6,11 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Guard;
 use Engine\Atomic\Core\ID;
+use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\Response;
 use Engine\Atomic\Core\Sanitizer;
 use Engine\Atomic\Enums\Role;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
@@ -87,12 +90,11 @@ class Telemetry extends Controller
         }
         $telemetry_manager = new TelemetryManager();
         $events = $telemetry_manager->fetch_events($driver, 'default', $job_uuid);
-        header('Content-Type: application/json');
-        echo json_encode([
+        Response::instance()->send_json([
             'job_uuid' => $job_uuid,
             'driver'   => $driver,
             'events'   => Sanitizer::normalize($events),
-        ]);
+        ], terminate: false);
     }
 
     public function dashboard(\Base $atomic, array $params = [], ?string $alias = null): void
@@ -144,14 +146,13 @@ class Telemetry extends Controller
             }
         } catch (\Throwable $e) {}
 
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'php' => $php,
-            'f3' => $f3,
+        Response::instance()->send_json([
+            'php'    => $php,
+            'f3'     => $f3,
             'atomic' => $atomicInfo,
             'system' => $system,
-            'db' => $db,
-        ]);
+            'db'     => $db,
+        ], terminate: false);
     }
 
     public function hive(\Base $atomic, array $params = [], ?string $alias = null): void
@@ -163,33 +164,63 @@ class Telemetry extends Controller
             $hive = ['error' => Sanitizer::sanitize_string($e->getMessage())];
         }
 
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode($hive, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        Response::instance()->send_json($hive, terminate: false);
+    }
+
+    public function log_channels(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(['channels' => Log::get_channel_names()], terminate: false);
+    }
+
+    public function log_stat(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        $logsDir = rtrim((string)$atomic->get('LOGS'), '/\\');
+
+        $channel = $atomic->clean((string)($atomic->get('GET.channel') ?? ''));
+        $filename = 'atomic.log';
+        if ($channel !== '') {
+            $channelPath = Log::get_channel_path($channel);
+            if ($channelPath !== null) {
+                $filename = basename($channelPath);
+            }
+        }
+
+        $path = $logsDir ? ($logsDir . DIRECTORY_SEPARATOR . $filename) : null;
+        $res = Response::instance();
+        if (!$path || !is_file($path)) {
+            $res->send_json(['count' => 0, 'mtime' => 0], terminate: false);
+            return;
+        }
+
+        $content = Filesystem::instance()->read($path);
+        $count = $content !== false ? substr_count($content, "\n") : 0;
+
+        $res->send_json(['count' => $count, 'mtime' => (int)filemtime($path)], terminate: false);
     }
 
     public function logs(\Base $atomic, array $params = [], ?string $alias = null): void
     {
         $logsDir = rtrim((string)$atomic->get('LOGS'), '/\\');
-        $path = $logsDir ? ($logsDir . DIRECTORY_SEPARATOR . 'atomic.log') : null;
+
+        $channel = $atomic->clean((string)($atomic->get('GET.channel') ?? ''));
+        $filename = 'atomic.log';
+        if ($channel !== '') {
+            $channelPath = Log::get_channel_path($channel);
+            if ($channelPath !== null) {
+                $filename = basename($channelPath);
+            }
+        }
+
+        $path = $logsDir ? ($logsDir . DIRECTORY_SEPARATOR . $filename) : null;
+        $res = Response::instance();
         if (!$path || !is_file($path)) {
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['lines' => []]);
+            $res->send_json(['lines' => []], terminate: false);
             return;
         }
 
         $maxBytes = 200 * 1024;
-        $content = '';
-        $size = filesize($path);
-        $fh = @fopen($path, 'rb');
-        if ($fh) {
-            if ($size > $maxBytes) {
-                fseek($fh, -$maxBytes, SEEK_END);
-            }
-            $content = stream_get_contents($fh) ?: '';
-            fclose($fh);
-        } else {
-            $content = @file_get_contents($path) ?: '';
-        }
+        $raw = Filesystem::instance()->read($path);
+        $content = $raw !== false ? (strlen($raw) > $maxBytes ? substr($raw, -$maxBytes) : $raw) : '';
 
         $lines = preg_split("/\r\n|\n|\r/", $content);
         $lines = array_slice($lines, -300);
@@ -229,8 +260,7 @@ class Telemetry extends Controller
 
         $out = array_reverse($out);
 
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['lines' => $out], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $res->send_json(['lines' => $out], terminate: false);
     }
 
     public function dump(\Base $atomic, array $params = [], ?string $alias = null): void
@@ -247,13 +277,13 @@ class Telemetry extends Controller
             return;
         }
 
-        $raw = @file_get_contents($file) ?: '';
+        $raw = Filesystem::instance()->read($file) ?: '';
         $decoded = json_decode($raw, true);
-        header('Content-Type: application/json; charset=utf-8');
+        $res = Response::instance();
         if (json_last_error() === JSON_ERROR_NONE) {
-            echo json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+            $res->send_json($decoded, terminate: false);
         } else {
-            echo json_encode(['dump_id' => $dumpId, 'error' => 'dump file could not be decoded'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $res->send_json(['dump_id' => $dumpId, 'error' => 'dump file could not be decoded'], terminate: false);
         }
     }
 }

@@ -42,7 +42,7 @@ class ExceptionHandlerRegistrar
                     $atomic->set('ERROR.formatted_trace', $textTrace);
                 }
 
-                $dumpPath = Log::dumpHive();
+                $dumpPath = Log::dump_hive();
                 $dumpId   = $dumpPath ? basename($dumpPath, '.json') : null;
                 if ($dumpId) {
                     $atomic->set('ERROR.dump_id', $dumpId);

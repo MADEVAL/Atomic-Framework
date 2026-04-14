@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Tests\Engine\Core;
 
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\LogChannel;
+use Engine\Atomic\Enums\LogLevel;
 use PHPUnit\Framework\TestCase;
 
 class LogTest extends TestCase
@@ -215,7 +217,7 @@ class LogTest extends TestCase
         $f3->set('DEBUG_LEVEL', 'debug');
         Log::init($f3);
 
-        $path = Log::dumpHive();
+        $path = Log::dump_hive();
         $this->assertNull($path);
     }
 
@@ -227,7 +229,7 @@ class LogTest extends TestCase
         $f3->set('DEBUG_LEVEL', 'debug');
         Log::init($f3);
 
-        $path = Log::dumpHive();
+        $path = Log::dump_hive();
         if ($path !== null) {
             $this->assertFileExists($path);
             $content = json_decode(file_get_contents($path), true);
@@ -304,6 +306,213 @@ class LogTest extends TestCase
         } else {
             $this->assertTrue(true);
         }
+    }
+
+    // ────────────────────────────────────────
+    //  Channels
+    // ────────────────────────────────────────
+
+    public function test_channel_returns_log_channel_instance(): void
+    {
+        $ch = Log::channel('atomic');
+        $this->assertInstanceOf(LogChannel::class, $ch);
+        $this->assertSame('atomic', $ch->getName());
+    }
+
+    public function test_add_channel_registers_new_channel(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        Log::init($f3);
+
+        Log::add_channel('custom', 'custom.log', LogLevel::DEBUG);
+        $this->assertContains('custom', Log::get_channel_names());
+    }
+
+    public function test_channel_writes_to_separate_file(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        Log::init($f3);
+
+        Log::add_channel('auth', 'auth.log', LogLevel::DEBUG);
+
+        $marker = 'AUTH_MARKER_' . uniqid();
+        Log::channel('auth')->error($marker);
+
+        $authLog = self::$logDir . 'auth.log';
+        if (is_file($authLog)) {
+            $contents = file_get_contents($authLog);
+            $this->assertStringContainsString($marker, $contents);
+            $this->assertStringContainsString('[ERROR]', $contents);
+        } else {
+            $this->markTestSkipped('Auth log file was not created');
+        }
+    }
+
+    public function test_channel_does_not_write_to_default_file(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        Log::init($f3);
+
+        Log::add_channel('isolated', 'isolated.log', LogLevel::DEBUG);
+
+        $marker = 'ISOLATED_MARKER_' . uniqid();
+        Log::channel('isolated')->error($marker);
+
+        $defaultLog = self::$logDir . 'atomic.log';
+        if (is_file($defaultLog)) {
+            $contents = file_get_contents($defaultLog);
+            $this->assertStringNotContainsString($marker, $contents);
+        } else {
+            $this->assertTrue(true);
+        }
+    }
+
+    public function test_multiple_channels_write_independently(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        Log::init($f3);
+
+        Log::add_channel('chan_a', 'chan_a.log', LogLevel::DEBUG);
+        Log::add_channel('chan_b', 'chan_b.log', LogLevel::DEBUG);
+
+        $markerA = 'CHAN_A_' . uniqid();
+        $markerB = 'CHAN_B_' . uniqid();
+
+        Log::channel('chan_a')->error($markerA);
+        Log::channel('chan_b')->error($markerB);
+
+        $fileA = self::$logDir . 'chan_a.log';
+        $fileB = self::$logDir . 'chan_b.log';
+
+        if (is_file($fileA) && is_file($fileB)) {
+            $contentsA = file_get_contents($fileA);
+            $contentsB = file_get_contents($fileB);
+
+            $this->assertStringContainsString($markerA, $contentsA);
+            $this->assertStringNotContainsString($markerB, $contentsA);
+
+            $this->assertStringContainsString($markerB, $contentsB);
+            $this->assertStringNotContainsString($markerA, $contentsB);
+        } else {
+            $this->markTestSkipped('Channel log files were not created');
+        }
+    }
+
+    public function test_channel_level_filtering(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        Log::init($f3);
+
+        // Channel with level=error should only accept error and above
+        Log::add_channel('strict', 'strict.log', LogLevel::ERROR);
+
+        $debugMarker = 'STRICT_DEBUG_' . uniqid();
+        $errorMarker = 'STRICT_ERROR_' . uniqid();
+
+        Log::channel('strict')->debug($debugMarker);
+        Log::channel('strict')->error($errorMarker);
+
+        $strictLog = self::$logDir . 'strict.log';
+        if (is_file($strictLog)) {
+            $contents = file_get_contents($strictLog);
+            $this->assertStringNotContainsString($debugMarker, $contents);
+            $this->assertStringContainsString($errorMarker, $contents);
+        } else {
+            $this->markTestSkipped('Strict log file was not created');
+        }
+    }
+
+    public function test_channel_all_log_levels(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        Log::init($f3);
+
+        Log::add_channel('alllevels', 'alllevels.log', LogLevel::DEBUG);
+        $ch = Log::channel('alllevels');
+
+        // None of these should throw
+        $ch->emergency('test emergency');
+        $ch->alert('test alert');
+        $ch->critical('test critical');
+        $ch->error('test error');
+        $ch->warning('test warning');
+        $ch->notice('test notice');
+        $ch->info('test info');
+        $ch->debug('test debug');
+        $this->assertTrue(true);
+    }
+
+    public function test_channels_loaded_from_hive_config(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        $f3->set('LOG_CHANNELS', [
+            'default'  => 'app',
+            'channels' => [
+                'app' => [
+                    'driver' => 'file',
+                    'path'   => 'app.log',
+                    'level'  => 'debug',
+                ],
+                'security' => [
+                    'driver' => 'file',
+                    'path'   => 'security.log',
+                    'level'  => 'warning',
+                ],
+            ],
+        ]);
+        Log::init($f3);
+
+        $this->assertSame('app', Log::get_default_channel());
+        $this->assertContains('app', Log::get_channel_names());
+        $this->assertContains('security', Log::get_channel_names());
+    }
+
+    public function test_default_channel_fallback_when_no_config(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        $f3->set('LOG_CHANNELS', []);
+        Log::init($f3);
+
+        $this->assertSame('atomic', Log::get_default_channel());
+        $this->assertContains('atomic', Log::get_channel_names());
+    }
+
+    public function test_unknown_channel_falls_back_to_default(): void
+    {
+        $f3 = \Base::instance();
+        $f3->set('LOGS', self::$logDir);
+        $f3->set('DEBUG_MODE', 'true');
+        $f3->set('DEBUG_LEVEL', 'debug');
+        $f3->set('LOG_CHANNELS', []);
+        Log::init($f3);
+
+        // Should not throw — falls back to default
+        Log::channel('nonexistent')->error('fallback test');
+        $this->assertTrue(true);
     }
 
     public static function resetDebugMode(): void
