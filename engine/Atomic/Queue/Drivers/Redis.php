@@ -8,6 +8,7 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Enums\LogChannel;
 use Engine\Atomic\Queue\Interfaces\Base;
 use Engine\Atomic\Queue\Interfaces\Management;
 use Engine\Atomic\Queue\Interfaces\Telemetry;
@@ -26,7 +27,7 @@ class Redis implements Base, Management, Telemetry
     private ?string $lua_dir = null;
 
     public function __construct() {
-        $this->process_manager = new ProcessManager();
+        $this->process_manager = new ProcessManager(LogChannel::QUEUE_WORKER);
         $this->connection_manager = ConnectionManager::instance();
         if (!$this->load_lua_scripts()) {
             throw new \Exception("Failed to load Lua scripts into Redis");
@@ -49,7 +50,7 @@ class Redis implements Base, Management, Telemetry
     {
         $lua_dir = realpath(__DIR__ . '/lua');
         if ($lua_dir === false || !is_dir($lua_dir)) {
-            Log::warning('Lua scripts directory not found: ' . __DIR__ . '/lua');
+            Log::channel(LogChannel::QUEUE_WORKER)->warning('Lua scripts directory not found: ' . __DIR__ . '/lua');
             return false;
         }
 
@@ -57,7 +58,7 @@ class Redis implements Base, Management, Telemetry
         
         $scripts = glob($lua_dir . '/*.lua');
         if (empty($scripts)) {
-            Log::warning("No Lua scripts found in directory: $lua_dir");
+            Log::channel(LogChannel::QUEUE_WORKER)->warning("No Lua scripts found in directory: $lua_dir");
             return false;
         }
         
@@ -82,11 +83,11 @@ class Redis implements Base, Management, Telemetry
                     return true;
                 }
             } catch (\Exception $e) {
-                Log::warning("Error checking script existence: " . $e->getMessage());
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Error checking script existence: " . $e->getMessage());
             }
         }
         
-        Log::info("Script '$script_name' not found in Redis memory, reloading");
+        Log::channel(LogChannel::QUEUE_WORKER)->info("Script '$script_name' not found in Redis memory, reloading");
         return $this->load_single_lua_script($script_name);
     }
     
@@ -95,20 +96,20 @@ class Redis implements Base, Management, Telemetry
 
         $lua_dir = $this->lua_dir ?? realpath(__DIR__ . '/lua');
         if ($lua_dir === false || $lua_dir === null) {
-            Log::error('Cannot resolve Lua scripts directory: ' . __DIR__ . '/lua');
+            Log::channel(LogChannel::QUEUE_WORKER)->error('Cannot resolve Lua scripts directory: ' . __DIR__ . '/lua');
             return false;
         }
 
         $script_path = $lua_dir . '/' . $script_name . '.lua';
         
         if (!file_exists($script_path)) {
-            Log::error("Lua script file not found: $script_path");
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script file not found: $script_path");
             return false;
         }
         
         $script_content = Filesystem::instance()->read($script_path);
         if ($script_content === false) {
-            Log::error("Failed to read Lua script: $script_path");
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Failed to read Lua script: $script_path");
             return false;
         }
         
@@ -117,7 +118,7 @@ class Redis implements Base, Management, Telemetry
             $this->script_shas[$script_name] = $sha;
             return true;
         } catch (\Exception $e) {
-            Log::error("Failed to load Lua script '$script_name': " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Failed to load Lua script '$script_name': " . $e->getMessage());
             return false;
         }
     }
@@ -167,7 +168,7 @@ class Redis implements Base, Management, Telemetry
                 4
             );
         } catch (\Exception $e) {
-            Log::error("Error adding job to queue: " . $e->getMessage() . " at line " . $e->getLine());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error adding job to queue: " . $e->getMessage() . " at line " . $e->getLine());
             return false;
         }
     }
@@ -179,7 +180,7 @@ class Redis implements Base, Management, Telemetry
         $jobs = [];
 
         if (!isset($this->script_shas['load_batch'])) {
-            Log::error("Lua script 'load_batch' not loaded");
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'load_batch' not loaded");
             if (!$this->reload_lua_script('load_batch')) {
                 return [];
             }
@@ -202,7 +203,7 @@ class Redis implements Base, Management, Telemetry
                 $jobs = \array_map(fn ($item) => $this->deserialize($item), $result);
             }
         } catch (\Exception $e) {
-            Log::error("Error extracting jobs from queue: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error extracting jobs from queue: " . $e->getMessage());
         }
         return $jobs;
     }
@@ -214,7 +215,7 @@ class Redis implements Base, Management, Telemetry
 
         try {
             if (!isset($this->script_shas['release'])) {
-                Log::error("Lua script 'release' not loaded");
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'release' not loaded");
                 if (!$this->reload_lua_script('release')) {
                     return false;
                 }
@@ -243,7 +244,7 @@ class Redis implements Base, Management, Telemetry
 
             return (bool)$result;
         } catch (\Throwable $th) {
-            Log::error("Error trying to release job: " . $th->getMessage() . " at line " . $th->getLine());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error trying to release job: " . $th->getMessage() . " at line " . $th->getLine());
             return false;
         }
     }
@@ -286,13 +287,13 @@ class Redis implements Base, Management, Telemetry
 
             return (bool)$result;
         } catch (\Exception $e) {
-            Log::error("Error marking job as finished: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error marking job as finished: " . $e->getMessage());
             return false;
         }
     }
 
     public function mark_failed(array $job, \Throwable $exception): bool {
-        Log::error("Job with UUID " . ($job['uuid'] ?? 'N/A') . " failed: " . $exception->getMessage());
+        Log::channel(LogChannel::QUEUE_WORKER)->error("Job with UUID " . ($job['uuid'] ?? 'N/A') . " failed: " . $exception->getMessage());
         $job['exception'] = [
             'message' => $exception->getMessage(),
             'file' => $exception->getFile(),
@@ -315,12 +316,12 @@ class Redis implements Base, Management, Telemetry
             $job_uuid = $job['uuid'];
 
             if ($job_uuid === null) {
-                Log::error("Error while trying to set PID: Job UUID not set");
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Error while trying to set PID: Job UUID not set");
                 return false;
             }
 
             if (!isset($this->script_shas['set_pid'])) {
-                Log::error("Lua script 'set_pid' not loaded");
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'set_pid' not loaded");
                 if (!$this->reload_lua_script('set_pid')) {
                     return false;
                 }
@@ -343,7 +344,7 @@ class Redis implements Base, Management, Telemetry
 
             return (bool)$result;
         } catch (\Throwable $th) {
-            Log::error("Error trying to set PID for job: " . $th->getMessage() . " at line " . $th->getLine());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error trying to set PID for job: " . $th->getMessage() . " at line " . $th->getLine());
             return false;
         }
     }
@@ -354,7 +355,7 @@ class Redis implements Base, Management, Telemetry
 
         try {
             if (!isset($this->script_shas['retry_all'])) {
-                Log::error("Lua script 'retry_all' not loaded");
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'retry_all' not loaded");
                 if (!$this->reload_lua_script('retry_all')) {
                     return false;
                 }
@@ -374,10 +375,10 @@ class Redis implements Base, Management, Telemetry
                 3
             );
 
-            Log::info("Retry: retried {$retried_count} failed jobs for queue '{$queue}'");
+            Log::channel(LogChannel::QUEUE_WORKER)->info("Retry: retried {$retried_count} failed jobs for queue '{$queue}'");
             return true;
         } catch (\Throwable $exception) {
-            Log::error("Redis retry error: " . $exception->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Redis retry error: " . $exception->getMessage());
             return false;
         }
     }
@@ -388,7 +389,7 @@ class Redis implements Base, Management, Telemetry
 
         try {
             if (!isset($this->script_shas['retry_by_uuid'])) {
-                Log::error("Lua script 'retry_by_uuid' not loaded");
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'retry_by_uuid' not loaded");
                 if (!$this->reload_lua_script('retry_by_uuid')) {
                     return false;
                 }
@@ -408,14 +409,14 @@ class Redis implements Base, Management, Telemetry
             );
 
             if ($result) {
-                Log::info("Retry: retried failed job with UUID '{$uuid}'");
+                Log::channel(LogChannel::QUEUE_WORKER)->info("Retry: retried failed job with UUID '{$uuid}'");
                 return true;
             } else {
-                Log::warning("Retry: failed job with UUID '{$uuid}' not found or not in failed state");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Retry: failed job with UUID '{$uuid}' not found or not in failed state");
                 return false;
             }
         } catch (\Throwable $exception) {
-            Log::error("Redis retry_by_uuid error: " . $exception->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Redis retry_by_uuid error: " . $exception->getMessage());
             return false;
         }
     }
@@ -426,7 +427,7 @@ class Redis implements Base, Management, Telemetry
 
         try {
             if (!isset($this->script_shas['delete_job'])) {
-                Log::error("Lua script 'delete_job' not loaded");
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'delete_job' not loaded");
                 if (!$this->reload_lua_script('delete_job')) {
                     return false;
                 }
@@ -445,11 +446,11 @@ class Redis implements Base, Management, Telemetry
             );
 
             if ($result) {
-                Log::info("Deleted job with UUID '{$uuid}'");
+                Log::channel(LogChannel::QUEUE_WORKER)->info("Deleted job with UUID '{$uuid}'");
             }
             return (bool)$result;
         } catch (\Throwable $exception) {
-            Log::error("Redis delete_job error: " . $exception->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Redis delete_job error: " . $exception->getMessage());
             return false;
         }
     }

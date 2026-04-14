@@ -7,6 +7,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Enums\LogChannel;
 use Engine\Atomic\Queue\Managers\Manager;
 
 class Worker
@@ -42,11 +43,11 @@ class Worker
         switch ($signal) {
             case SIGTERM:
             case SIGINT:
-                Log::info("Shutdown signal received in master. Will stagger SIGTERM to " . \count($this->worker_pids) . " worker(s).");
+                Log::channel(LogChannel::QUEUE_WORKER)->info("Shutdown signal received in master. Will stagger SIGTERM to " . \count($this->worker_pids) . " worker(s).");
                 $this->shutdown = true;
                 break;
             default:
-                Log::warning(__CLASS__ . " master received unknown signal: $signal");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning(__CLASS__ . " master received unknown signal: $signal");
                 break;
         }
     }
@@ -58,16 +59,16 @@ class Worker
             unset($this->worker_pids[$pid]);
 
             if ($this->shutdown) {
-                Log::info("Worker #$worker_id (PID $pid) exited during shutdown.");
+                Log::channel(LogChannel::QUEUE_WORKER)->info("Worker #$worker_id (PID $pid) exited during shutdown.");
                 continue;
             }
 
             if (\pcntl_wifsignaled($status)) {
                 $sig = \pcntl_wtermsig($status);
-                Log::warning("Worker #$worker_id (PID $pid) killed by signal $sig. Queuing respawn.");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Worker #$worker_id (PID $pid) killed by signal $sig. Queuing respawn.");
             } else {
                 $exit_code = \pcntl_wexitstatus($status);
-                Log::warning("Worker #$worker_id (PID $pid) exited with code $exit_code. Queuing respawn.");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Worker #$worker_id (PID $pid) exited with code $exit_code. Queuing respawn.");
             }
 
             $this->pending_respawns[] = $worker_id;
@@ -82,7 +83,7 @@ class Worker
         \pcntl_signal(SIGINT,  [$this, 'handle_signal']);
         \pcntl_signal(SIGCHLD, [$this, 'handle_sigchld']);
 
-        Log::info("Starting persistent worker pool ({$this->worker_count} workers) for queue: " . $this->queue_manager->get_queue());
+        Log::channel(LogChannel::QUEUE_WORKER)->info("Starting persistent worker pool ({$this->worker_count} workers) for queue: " . $this->queue_manager->get_queue());
 
         $this->queue_manager->close_all_connections();
 
@@ -103,7 +104,7 @@ class Worker
 
         $this->drain_workers();
         ConnectionManager::instance()->close();
-        Log::info("Worker pool shut down completely.");
+        Log::channel(LogChannel::QUEUE_WORKER)->info("Worker pool shut down completely.");
     }
 
     private function spawn_worker(int $worker_id): void
@@ -115,7 +116,7 @@ class Worker
         $pid = \pcntl_fork();
 
         if ($pid === -1) {
-            Log::error("Failed to fork worker #$worker_id.");
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Failed to fork worker #$worker_id.");
             return;
         }
 
@@ -127,7 +128,7 @@ class Worker
 
         $this->worker_pids[$pid] = $worker_id;
         \posix_setpgid($pid, $pid);
-        Log::info("Spawned worker #$worker_id (PID $pid).");
+        Log::channel(LogChannel::QUEUE_WORKER)->info("Spawned worker #$worker_id (PID $pid).");
     }
 
     private function drain_workers(): void
@@ -147,7 +148,7 @@ class Worker
                 continue;
             }
 
-            Log::info("Sending SIGTERM to worker #$worker_id (PID $pid).");
+            Log::channel(LogChannel::QUEUE_WORKER)->info("Sending SIGTERM to worker #$worker_id (PID $pid).");
             \posix_kill($pid, SIGTERM);
 
             $start = \time();
@@ -155,14 +156,14 @@ class Worker
                 $result = \pcntl_waitpid($pid, $status, WNOHANG);
                 if ($result === $pid || $result === -1) {
                     unset($this->worker_pids[$pid]);
-                    Log::info("Worker #$worker_id (PID $pid) exited during drain.");
+                    Log::channel(LogChannel::QUEUE_WORKER)->info("Worker #$worker_id (PID $pid) exited during drain.");
                     break;
                 }
                 \usleep(self::SHUTDOWN_STAGGER_MICROSECONDS);
             }
 
             if (isset($this->worker_pids[$pid])) {
-                Log::warning("Worker #$worker_id (PID $pid) did not exit within {$timeout}s. Sending SIGKILL.");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Worker #$worker_id (PID $pid) did not exit within {$timeout}s. Sending SIGKILL.");
                 \posix_kill($pid, SIGKILL);
                 \pcntl_waitpid($pid, $status);
                 unset($this->worker_pids[$pid]);
@@ -194,7 +195,7 @@ class Worker
 
         $graceful_shutdown = function (int $signal) use (&$shutdown, $worker_id): void {
             $name = $signal === SIGTERM ? 'SIGTERM' : 'SIGINT';
-            Log::info("Worker #$worker_id received $name. Will finish current job and exit.");
+            Log::channel(LogChannel::QUEUE_WORKER)->info("Worker #$worker_id received $name. Will finish current job and exit.");
             $shutdown = true;
         };
 
@@ -210,7 +211,7 @@ class Worker
 
         while (!$shutdown) {
             if (\memory_get_usage(true) > $memory_limit) {
-                Log::warning(
+                Log::channel(LogChannel::QUEUE_WORKER)->warning(
                     "Worker #$worker_id exceeded memory limit ("
                     . \round(\memory_get_usage(true) / 1024 / 1024, 1)
                     . "MB / " . \round($memory_limit / 1024 / 1024, 1) . "MB). Exiting for respawn."
@@ -239,7 +240,7 @@ class Worker
                     self::ERROR_BACKOFF_MAX_SECONDS,
                     (int)\pow(2, \min($consecutive_errors - 1, 5))
                 );
-                Log::error("Worker #$worker_id loop error (attempt #$consecutive_errors, backoff {$backoff}s): " . $e->getMessage());
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Worker #$worker_id loop error (attempt #$consecutive_errors, backoff {$backoff}s): " . $e->getMessage());
                 $this->queue_manager->close_all_connections();
                 \sleep($backoff);
                 $this->queue_manager->open_all_connections();
@@ -247,7 +248,7 @@ class Worker
         }
 
         $this->queue_manager->close_all_connections();
-        Log::info("Worker #$worker_id (PID " . \getmypid() . ") exiting gracefully.");
+        Log::channel(LogChannel::QUEUE_WORKER)->info("Worker #$worker_id (PID " . \getmypid() . ") exiting gracefully.");
         exit(0);
     }
 
@@ -256,7 +257,7 @@ class Worker
         $job['pid'] = \getmypid();
 
         if ($this->queue_manager->set_pid($job) === false) {
-            Log::warning("Failed to set PID for job {$job['uuid']} in worker #$worker_id - job likely claimed by monitor, skipping.");
+            Log::channel(LogChannel::QUEUE_WORKER)->warning("Failed to set PID for job {$job['uuid']} in worker #$worker_id - job likely claimed by monitor, skipping.");
             return;
         }
 
@@ -276,7 +277,7 @@ class Worker
 
             $this->queue_manager->process_job($job);
             $this->queue_manager->mark_completed($job);
-            Log::debug("Job {$job['uuid']} processed successfully by worker #$worker_id.");
+            Log::channel(LogChannel::QUEUE_WORKER)->debug("Job {$job['uuid']} processed successfully by worker #$worker_id.");
 
         } catch (\Throwable $e) {
             if ($timed_out) {
@@ -292,13 +293,13 @@ class Worker
                 'trace'   => $e->getTraceAsString(),
                 'class'   => \get_class($e),
             ];
-            Log::debug("Job {$job['uuid']} failed: " . \json_encode($error_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            Log::channel(LogChannel::QUEUE_WORKER)->debug("Job {$job['uuid']} failed: " . \json_encode($error_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
             if ($job['attempts'] >= $job['max_attempts']) {
-                Log::debug("Job {$job['uuid']} exceeded max attempts ({$job['max_attempts']}). Marked as failed.");
+                Log::channel(LogChannel::QUEUE_WORKER)->debug("Job {$job['uuid']} exceeded max attempts ({$job['max_attempts']}). Marked as failed.");
                 $this->queue_manager->mark_failed($job, $e);
             } else {
-                Log::debug("Job {$job['uuid']} returned to queue for retry.");
+                Log::channel(LogChannel::QUEUE_WORKER)->debug("Job {$job['uuid']} returned to queue for retry.");
                 $this->queue_manager->release($job, (int)$job['retry_delay']);
             }
 

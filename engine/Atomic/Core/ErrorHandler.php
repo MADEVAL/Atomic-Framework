@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Traits\Singleton;
+use Engine\Atomic\Enums\LogChannel;
 
 class ErrorHandler
 {
@@ -56,6 +57,7 @@ class ErrorHandler
 
             return $output;
         } catch (\Throwable $e) {
+            Log::channel(LogChannel::ERROR)->error('ErrorHandler::formatTrace failed: ' . $e->getMessage());
             $detail = ((int)App::atomic()->get('DEBUG')) > 0
                 ? ' (' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine() . ')'
                 : '';

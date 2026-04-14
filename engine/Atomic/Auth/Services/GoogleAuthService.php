@@ -54,34 +54,37 @@ class GoogleAuthService
         }
 
         if (!$this->user_resolver) {
+            $this->logger->error('[GoogleAuth] User resolver is not configured');
             throw new \RuntimeException('OAuthUserResolverInterface not configured. Call set_user_resolver() before handleCallback().');
         }
 
-        $info = $this->google_client->fetch_user_info_by_code($code);
-        if ($info === null) {
-            $this->logger->warning('[GoogleAuth] Token exchange failed');
+        try {
+            $info = $this->google_client->fetch_user_info_by_code($code);
+            if ($info === null) {
+                $this->logger->warning('[GoogleAuth] Token exchange failed');
+                return null;
+            }
+
+            $claims = $this->normalize_claims($info);
+
+            $user_identifier = $this->user_resolver->resolve_oauth_user($claims);
+            if (!$user_identifier || !$this->id_validator->is_valid_uuid_v4($user_identifier)) {
+                $this->logger->error('[GoogleAuth] User resolution failed', ['google_id' => $claims['google_id']]);
+                return null;
+            }
+
+            $this->auth->login_by_id($user_identifier, [
+                'auth_provider' => 'google',
+                'google_id'     => $claims['google_id'],
+            ]);
+
+            return $user_identifier;
+        } catch (\Throwable $e) {
+            $this->logger->error('[GoogleAuth] Callback processing failed', [
+                'error' => $e->getMessage(),
+            ]);
             return null;
         }
-
-        $claims = $this->normalize_claims($info);
-
-        $user_identifier = $this->user_resolver->resolve_oauth_user($claims);
-        if (!$user_identifier || !$this->id_validator->is_valid_uuid_v4($user_identifier)) {
-            $this->logger->error('[GoogleAuth] User resolution failed', ['google_id' => $claims['google_id']]);
-            return null;
-        }
-
-        $this->auth->login_by_id($user_identifier, [
-            'auth_provider' => 'google',
-            'google_id'     => $claims['google_id'],
-        ]);
-
-        $this->logger->info('[GoogleAuth] Authentication successful', [
-            'user_identifier' => $user_identifier,
-            'google_id'       => $claims['google_id'],
-        ]);
-
-        return $user_identifier;
     }
 
     public function isConfigured(): bool

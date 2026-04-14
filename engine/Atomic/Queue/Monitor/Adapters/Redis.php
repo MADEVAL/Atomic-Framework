@@ -6,6 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Enums\LogChannel;
 
 trait Redis {
     public function load_stuck_jobs(array $exclude, string $queue = '*'): array
@@ -19,7 +20,7 @@ trait Redis {
         try {
             if (!isset($this->script_shas['load_stuck'])) {
                 if (!$this->reload_lua_script('load_stuck')) {
-                    Log::error("Failed to load Lua script: load_stuck");
+                    Log::channel(LogChannel::QUEUE_MONITOR)->error("Failed to load Lua script: load_stuck");
                     return [];
                 }
             }
@@ -49,7 +50,7 @@ trait Redis {
 
             return $stuck_jobs;
         } catch (\Exception $e) {
-            Log::error("Error loading stuck jobs: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("Error loading stuck jobs: " . $e->getMessage());
             return [];
         }
     }
@@ -63,7 +64,7 @@ trait Redis {
         try {
             if (!isset($this->script_shas['load_in_progress_monitor'])) {
                 if (!$this->reload_lua_script('load_in_progress_monitor')) {
-                    Log::error("Failed to load Lua script: load_in_progress_monitor");
+                    Log::channel(LogChannel::QUEUE_MONITOR)->error("Failed to load Lua script: load_in_progress_monitor");
                     return [];
                 }
             }
@@ -92,7 +93,7 @@ trait Redis {
             
             return $res;
         } catch (\Exception $e) {
-            Log::error("Error loading jobs in progress: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("Error loading jobs in progress: " . $e->getMessage());
             return [];
         }
     }
@@ -101,16 +102,16 @@ trait Redis {
         try {
             $max_attempts = $job['max_attempts'];
             if($job['attempts'] >= $max_attempts) {
-                Log::warning("Job with ID {$job['uuid']} exceeded the maximum number of attempts ({$max_attempts})");
+                Log::channel(LogChannel::QUEUE_MONITOR)->warning("Job with ID {$job['uuid']} exceeded the maximum number of attempts ({$max_attempts})");
                 return $this->mark_failed($job, new \Exception("Job exceeded the maximum number of attempts"));
             } else {
                 $retry_delay = $job['retry_delay'];
                 $result = $this->release($job, (int)$retry_delay);
-                Log::warning("Job with ID {$job['uuid']} returned to queue for retry");
+                Log::channel(LogChannel::QUEUE_MONITOR)->warning("Job with ID {$job['uuid']} returned to queue for retry");
                 return $result;
             }
         } catch (\Throwable $th) {
-            Log::error("Error handling incomplete job: " . $th->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("Error handling incomplete job: " . $th->getMessage());
             return false;
         }
     }
@@ -124,7 +125,7 @@ trait Redis {
             $stored_pid = $redis->hGet($prefix . 'registry.' . $uuid, 'pid');
             return $stored_pid !== false && (int)$stored_pid === $pid;
         } catch (\Exception $e) {
-            Log::error("Error checking if job exists in Redis registry: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("Error checking if job exists in Redis registry: " . $e->getMessage());
             return false;
         }
     }

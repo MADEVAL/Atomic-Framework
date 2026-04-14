@@ -6,6 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Enums\LogChannel;
 use Engine\Atomic\Queue\Drivers\DB;
 use Engine\Atomic\Queue\Drivers\Redis;
 use Engine\Atomic\Telemetry\Queue\Entry;
@@ -54,10 +55,10 @@ class TelemetryManager {
                 if (method_exists($driver, $method)) {
                     $results = array_merge($results, call_user_func_array([$driver, $method], $args));
                 } else {
-                    Log::warning("Method $method does not exist in queue driver $driver_name");
+                    Log::channel(LogChannel::QUEUE_WORKER)->warning("Method $method does not exist in queue driver $driver_name");
                 }
             } catch (\Exception $e) {
-                Log::error("Error calling method $method in queue driver $driver_name: " . $e->getMessage());
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Error calling method $method in queue driver $driver_name: " . $e->getMessage());
             }
         }
         return $results;

@@ -54,34 +54,37 @@ class TelegramAuthService
     public function handle_callback(array $auth_data): ?string
     {
         if (!$this->user_resolver) {
+            $this->logger->error('[TelegramAuth] User resolver is not configured');
             throw new \RuntimeException('OAuthUserResolverInterface not configured. Call set_user_resolver() before handle_callback().');
         }
 
-        $verified_data = $this->verify_auth_data($auth_data);
-        if ($verified_data === false) {
-            $this->logger->warning('[TelegramAuth] Auth data verification failed');
+        try {
+            $verified_data = $this->verify_auth_data($auth_data);
+            if ($verified_data === false) {
+                $this->logger->warning('[TelegramAuth] Auth data verification failed');
+                return null;
+            }
+
+            $claims = $this->normalize_claims($verified_data);
+
+            $user_identifier = $this->user_resolver->resolve_oauth_user($claims);
+            if (!$user_identifier || !$this->id_validator->is_valid_uuid_v4($user_identifier)) {
+                $this->logger->error('[TelegramAuth] User resolution failed', ['telegram_id' => $claims['telegram_id']]);
+                return null;
+            }
+
+            $this->auth->login_by_id($user_identifier, [
+                'auth_provider' => 'telegram',
+                'telegram_id'   => $claims['telegram_id'],
+            ]);
+
+            return $user_identifier;
+        } catch (\Throwable $e) {
+            $this->logger->error('[TelegramAuth] Callback processing failed', [
+                'error' => $e->getMessage(),
+            ]);
             return null;
         }
-
-        $claims = $this->normalize_claims($verified_data);
-
-        $user_identifier = $this->user_resolver->resolve_oauth_user($claims);
-        if (!$user_identifier || !$this->id_validator->is_valid_uuid_v4($user_identifier)) {
-            $this->logger->error('[TelegramAuth] User resolution failed', ['telegram_id' => $claims['telegram_id']]);
-            return null;
-        }
-
-        $this->auth->login_by_id($user_identifier, [
-            'auth_provider' => 'telegram',
-            'telegram_id'   => $claims['telegram_id'],
-        ]);
-
-        $this->logger->info('[TelegramAuth] Authentication successful', [
-            'user_identifier' => $user_identifier,
-            'telegram_id'     => $claims['telegram_id'],
-        ]);
-
-        return $user_identifier;
     }
 
     public function get_widget_attributes(string $size = 'large', bool $requestAccess = false, bool $useAvatar = false, int $cornerRadius = 20): array

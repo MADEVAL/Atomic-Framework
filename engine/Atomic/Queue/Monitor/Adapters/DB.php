@@ -7,6 +7,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use DB\Cortex;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Enums\LogChannel;
 
 trait DB 
 {
@@ -43,7 +44,7 @@ trait DB
             }
             return $result;
         } catch (\Exception $e) {
-            Log::error("Error while trying to load overdue jobs: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("Error while trying to load overdue jobs: " . $e->getMessage());
             return [];
         }
     }
@@ -77,7 +78,7 @@ trait DB
 
             return $result;
         } catch (\Exception $e) {
-            Log::error("DatabaseQueueDriver load_jobs_in_progress error: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("DatabaseQueueDriver load_jobs_in_progress error: " . $e->getMessage());
             return [];
         }
     }
@@ -89,15 +90,15 @@ trait DB
             $current_attempts = $job['attempts'];
 
             if ($current_attempts >= $max_attempts) {
-                Log::warning("Job with ID {$job['uuid']} exceeded the maximum number of attempts ({$max_attempts})");
+                Log::channel(LogChannel::QUEUE_MONITOR)->warning("Job with ID {$job['uuid']} exceeded the maximum number of attempts ({$max_attempts})");
                 return $this->mark_failed($job, new \Exception("Job exceeded the maximum number of attempts"));
             } else {
                 $retry_delay = $job['retry_delay'];
-                Log::warning("Job with ID {$job['uuid']} has been released back to the queue for retry (attempt {$current_attempts}/{$max_attempts})");
+                Log::channel(LogChannel::QUEUE_MONITOR)->warning("Job with ID {$job['uuid']} has been released back to the queue for retry (attempt {$current_attempts}/{$max_attempts})");
                 return $this->release($job, $retry_delay);
             }
         } catch (\Exception $e) {
-            Log::error("Error while handling incomplete job with ID {$job['uuid']}: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("Error while handling incomplete job with ID {$job['uuid']}: " . $e->getMessage());
             return false;
         }
     }
@@ -113,7 +114,7 @@ trait DB
             $this->jobs_mapper->load(['uuid = ? AND pid = ?', $uuid, $pid]);
             return !$this->jobs_mapper->dry();
         } catch (\Exception $e) {
-            Log::error("Error checking if job exists in jobs table: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("Error checking if job exists in jobs table: " . $e->getMessage());
             return false;
         }
     }

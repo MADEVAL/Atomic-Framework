@@ -6,16 +6,19 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Enums\LogChannel;
 
 class ProcessManager
 {
     private bool $can_check_processes = false;
+    private LogChannel $log_channel;
 
-    public function __construct() {
+    public function __construct(LogChannel $log_channel = LogChannel::QUEUE_MONITOR) {
+        $this->log_channel = $log_channel;
         $this->can_check_processes = $this->check_process_capabilities();
-        
+
         if (!$this->can_check_processes) {
-            Log::warning("AtomicProcessManager cannot read process information. Signals will not be sent.");
+            Log::channel($this->log_channel)->warning("AtomicProcessManager cannot read process information. Signals will not be sent.");
         }
     }
 
@@ -40,7 +43,7 @@ class ProcessManager
             $start_ticks = $this->get_process_start_ticks($pid);
             return $start_ticks !== null;
         } catch (\Throwable $e) {
-            Log::error("Error checking process capabilities: " . $e->getMessage());
+            Log::channel($this->log_channel)->error("Error checking process capabilities: " . $e->getMessage());
             return false;
         }
     }

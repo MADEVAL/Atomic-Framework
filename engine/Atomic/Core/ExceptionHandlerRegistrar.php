@@ -7,6 +7,7 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Theme\Assets;
 use Engine\Atomic\App\Error as ErrorController;
 use Engine\Atomic\CLI\Console\Output;
+use Engine\Atomic\Enums\LogChannel;
 
 class ExceptionHandlerRegistrar
 {
@@ -51,7 +52,7 @@ class ExceptionHandlerRegistrar
 
                 $msg = '[ONERROR][' . $code . '][' . $level . '][' . $status . '][' . $text . ']';
                 if ($dumpId) $msg .= '[dump_id:' . $dumpId . ']';
-                Log::debug($msg);
+                Log::channel(LogChannel::ERROR)->error($msg);
 
                 $currentPath = (string)$atomic->get('PATH');
                 if (preg_match('#^/error/\d+#', $currentPath)) {
@@ -114,6 +115,7 @@ class ExceptionHandlerRegistrar
                 if ($prevDebug >= 3) $atomic->set('DEBUG', $prevDebug);
                 echo $text;
             } catch (\Throwable $e) {
+                Log::channel(LogChannel::ERROR)->critical('Critical error in exception handler: ' . $e->getMessage());
                 http_response_code(500);
                 die('Critical error in exception handler: ' . $e->getMessage());
             }

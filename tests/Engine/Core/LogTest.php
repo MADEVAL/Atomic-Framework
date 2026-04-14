@@ -5,6 +5,7 @@ namespace Tests\Engine\Core;
 
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\LogChannel;
+use Engine\Atomic\Enums\LogChannel as LogChannelEnum;
 use Engine\Atomic\Enums\LogLevel;
 use PHPUnit\Framework\TestCase;
 
@@ -317,6 +318,13 @@ class LogTest extends TestCase
         $ch = Log::channel('atomic');
         $this->assertInstanceOf(LogChannel::class, $ch);
         $this->assertSame('atomic', $ch->getName());
+    }
+
+    public function test_channel_accepts_log_channel_enum(): void
+    {
+        $ch = Log::channel(LogChannelEnum::AUTH);
+        $this->assertInstanceOf(LogChannel::class, $ch);
+        $this->assertSame('auth', $ch->getName());
     }
 
     public function test_add_channel_registers_new_channel(): void

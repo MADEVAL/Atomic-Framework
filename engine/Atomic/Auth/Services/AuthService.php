@@ -44,23 +44,32 @@ class AuthService implements LoginInterface
 
     public function login_by_id(string $auth_id, array $context = []): void
     {
-        $this->current_user = null;
+        try {
+            $this->current_user = null;
 
-        $this->session->start($auth_id);
-        $this->php_session->regenerate_id(true);
+            $this->session->start($auth_id);
+            $this->php_session->regenerate_id(true);
 
-        $session_data = array_merge($context, [
-            'ip'          => $this->app->get('IP'),
-            'user_agent'  => $this->app->get('AGENT'),
-            'device_type' => $this->app->get_device_type(),
-            'created_at'  => $this->clock->now(),
-        ]);
+            $session_data = array_merge($context, [
+                'ip'          => $this->app->get('IP'),
+                'user_agent'  => $this->app->get('AGENT'),
+                'device_type' => $this->app->get_device_type(),
+                'created_at'  => $this->clock->now(),
+            ]);
 
-        $this->meta->set_meta(
-            $auth_id,
-            'auth_session_' . $this->php_session->id(),
-            json_encode($session_data)
-        );
+            $this->meta->set_meta(
+                $auth_id,
+                'auth_session_' . $this->php_session->id(),
+                json_encode($session_data)
+            );
+        } catch (\Throwable $e) {
+            $this->logger->error('Auth login_by_id failed', [
+                'auth_id' => $auth_id,
+                'ip' => $this->app->get('IP'),
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     public function check_rate_limit(array $credentials, string $operation = 'register'): bool
@@ -76,6 +85,10 @@ class AuthService implements LoginInterface
         $ip_key      = "auth_{$operation}_ip_" . hash('sha256', $ip);
         $ip_attempts = $this->cache->get($ip_key) ?: 0;
         if ($ip_attempts >= $ip_limit) {
+            $this->logger->warning('Rate limit exceeded by IP', [
+                'operation' => $operation,
+                'ip' => $ip,
+            ]);
             return false;
         }
 
@@ -84,6 +97,10 @@ class AuthService implements LoginInterface
         $cred_key      = 'auth_' . $operation . '_cred_' . hash('sha256', json_encode($cred_for_hash));
         $cred_attempts = $this->cache->get($cred_key) ?: 0;
         if ($cred_attempts >= $cred_limit) {
+            $this->logger->warning('Rate limit exceeded by credential fingerprint', [
+                'operation' => $operation,
+                'ip' => $ip,
+            ]);
             return false;
         }
 
@@ -144,9 +161,17 @@ class AuthService implements LoginInterface
         if (!$user) {
             return;
         }
-        $this->meta->delete_meta($user->get_auth_id(), 'auth_session_' . $this->php_session->id());
-        $this->session->destroy();
-        $this->current_user = null;
+        try {
+            $this->meta->delete_meta($user->get_auth_id(), 'auth_session_' . $this->php_session->id());
+            $this->session->destroy();
+            $this->current_user = null;
+        } catch (\Throwable $e) {
+            $this->logger->error('Auth logout failed', [
+                'auth_id' => $user->get_auth_id(),
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     public function kill_all_sessions(string $userId, bool $keepCurrent = true): int
@@ -201,6 +226,7 @@ class AuthService implements LoginInterface
         }
 
         if (!$this->user_provider) {
+            $this->logger->error('User provider not configured in get_current_user');
             throw new \RuntimeException('User provider not configured. Call set_user_provider() first.');
         }
 

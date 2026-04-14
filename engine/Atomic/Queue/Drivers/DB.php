@@ -8,6 +8,7 @@ use DB\Cortex;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Enums\LogChannel;
 use Engine\Atomic\Queue\Interfaces\Base;
 use Engine\Atomic\Queue\Interfaces\Management;
 use Engine\Atomic\Queue\Interfaces\Telemetry;
@@ -31,7 +32,7 @@ class DB implements Base, Management, Telemetry
     private ?Cortex $jobs_completed_mapper = null;
 
     public function __construct() {
-        $this->process_manager = new ProcessManager();
+        $this->process_manager = new ProcessManager(LogChannel::QUEUE_WORKER);
         $this->connection_manager = ConnectionManager::instance();
     }
 
@@ -93,7 +94,7 @@ class DB implements Base, Management, Telemetry
 
             return true;
         } catch (\Throwable $th) {
-            Log::error("Error adding task to queue: " . $th->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error adding task to queue: " . $th->getMessage());
             return false;
         }
     }
@@ -141,7 +142,7 @@ class DB implements Base, Management, Telemetry
             $sql->commit();
         } catch (\Exception $e) {
             $sql->rollback();
-            Log::error("SQLQueueDriver popBatch error: " . $e->getMessage() . " - " . $e->getFile() . " - " . $e->getLine() . " | Queue: $queue | Limit: $limit");
+            Log::channel(LogChannel::QUEUE_WORKER)->error("SQLQueueDriver popBatch error: " . $e->getMessage() . " - " . $e->getFile() . " - " . $e->getLine() . " | Queue: $queue | Limit: $limit");
             $jobs = [];
         }
         return $jobs;
@@ -174,14 +175,14 @@ class DB implements Base, Management, Telemetry
 
             $released = (int)$sql->exec($query, $params);
             if ($released === 1) {
-                Log::debug("Releasing job with ID: " . $uuid . " - setting available_at to " . $available_at);
+                Log::channel(LogChannel::QUEUE_WORKER)->debug("Releasing job with ID: " . $uuid . " - setting available_at to " . $available_at);
                 return true;
             }
 
-            Log::warning("Failed to release job {$uuid}: ownership mismatch or job is no longer active.");
+            Log::channel(LogChannel::QUEUE_WORKER)->warning("Failed to release job {$uuid}: ownership mismatch or job is no longer active.");
             return false;
         } catch (\Exception $e) {
-            Log::error("Error occurred while trying to release the job: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error occurred while trying to release the job: " . $e->getMessage());
             return false;
         }
     }
@@ -208,7 +209,7 @@ class DB implements Base, Management, Telemetry
 
             if (!$this->delete_claimed_job($sql, $jobs_table, $job)) {
                 $sql->rollback();
-                Log::warning("Skipping mark_failed for job {$job['uuid']}: ownership mismatch or job already moved.");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Skipping mark_failed for job {$job['uuid']}: ownership mismatch or job already moved.");
                 return false;
             }
 
@@ -230,7 +231,7 @@ class DB implements Base, Management, Telemetry
             return true;
         } catch (\Exception $e) {
             $sql->rollback();
-            Log::error("Error when trying to mark job as failed: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error when trying to mark job as failed: " . $e->getMessage());
             return false;
         }
     }
@@ -246,7 +247,7 @@ class DB implements Base, Management, Telemetry
             $sql->begin();
             if (!$this->delete_claimed_job($sql, $jobs_table, $job)) {
                 $sql->rollback();
-                Log::warning("Skipping mark_completed for job {$job['uuid']}: ownership mismatch or job already moved.");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Skipping mark_completed for job {$job['uuid']}: ownership mismatch or job already moved.");
                 return false;
             }
 
@@ -268,7 +269,7 @@ class DB implements Base, Management, Telemetry
             return true;
         } catch (\Exception $e) {
             $sql->rollback();
-            Log::error("Error when trying to mark job as completed: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error when trying to mark job as completed: " . $e->getMessage());
             return false;
         }
     }
@@ -286,7 +287,7 @@ class DB implements Base, Management, Telemetry
             }
             return false;
         } catch (\Exception $e) {
-            Log::error("Error while trying to delete job: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error while trying to delete job: " . $e->getMessage());
             return false;
         }
     }
@@ -317,10 +318,10 @@ class DB implements Base, Management, Telemetry
                 return true;
             }
 
-            Log::warning("Failed to set PID for job {$uuid}: job is no longer reserved by this worker.");
+            Log::channel(LogChannel::QUEUE_WORKER)->warning("Failed to set PID for job {$uuid}: job is no longer reserved by this worker.");
             return false;
         } catch (\Throwable $th) {
-            Log::error("Error trying to set PID for job: " . $th->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error trying to set PID for job: " . $th->getMessage());
             return false;
         }
     }
@@ -390,11 +391,11 @@ class DB implements Base, Management, Telemetry
             }
 
             $sql->commit();
-            Log::info("Retry: retried {$count} failed jobs for queue '{$queue}'");
+            Log::channel(LogChannel::QUEUE_WORKER)->info("Retry: retried {$count} failed jobs for queue '{$queue}'");
             return true;
         } catch (\Throwable $exception) {
             $sql->rollback();
-            Log::error("DatabaseQueueDriver retry error: " . $exception->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("DatabaseQueueDriver retry error: " . $exception->getMessage());
             return false;
         }
     }
@@ -412,7 +413,7 @@ class DB implements Base, Management, Telemetry
             
             if ($this->jobs_failed_mapper->dry()) {
                 $sql->rollback();
-                Log::warning("Retry: failed job with UUID '{$uuid}' not found");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Retry: failed job with UUID '{$uuid}' not found");
                 return false;
             }
 
@@ -437,11 +438,11 @@ class DB implements Base, Management, Telemetry
             $failed_job->erase();
             $sql->commit();
             
-            Log::info("Retry: retried failed job with UUID '{$uuid}'");
+            Log::channel(LogChannel::QUEUE_WORKER)->info("Retry: retried failed job with UUID '{$uuid}'");
             return true;
         } catch (\Throwable $exception) {
             $sql->rollback();
-            Log::error("DatabaseQueueDriver retry_by_uuid error: " . $exception->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("DatabaseQueueDriver retry_by_uuid error: " . $exception->getMessage());
             return false;
         }
     }
@@ -492,11 +493,11 @@ class DB implements Base, Management, Telemetry
             }
 
             if ($deleted) {
-                Log::info("Deleted job with UUID '{$uuid}'");
+                Log::channel(LogChannel::QUEUE_WORKER)->info("Deleted job with UUID '{$uuid}'");
             }
             return $deleted;
         } catch (\Exception $e) {
-            Log::error("Error while trying to delete job: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error while trying to delete job: " . $e->getMessage());
             return false;
         }
     }

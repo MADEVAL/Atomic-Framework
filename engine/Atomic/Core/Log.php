@@ -8,6 +8,7 @@ use \Engine\Atomic\Core\Filesystem;
 use \Engine\Atomic\Core\ID;
 use \Engine\Atomic\Core\Response;
 use \Engine\Atomic\Core\Sanitizer;
+use \Engine\Atomic\Enums\LogChannel as LogChannelEnum;
 use \Engine\Atomic\Enums\LogLevel;
 
 class Log
@@ -81,8 +82,12 @@ class Log
         Sanitizer::syncFromHive($atomic);
     }
 
-    public static function channel(string $name): LogChannel
+    public static function channel(string|LogChannelEnum $name): LogChannel
     {
+        if ($name instanceof LogChannelEnum) {
+            $name = $name->value;
+        }
+
         return new LogChannel($name);
     }
 
