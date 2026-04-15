@@ -49,11 +49,14 @@ class TelemetryManager {
     }
 
     private function call_all_drivers(string $method, array $args = []): array {
-        $results = [];
+        $items = [];
+        $total = 0;
         foreach ($this->drivers as $driver_name => $driver) {
             try {
                 if (method_exists($driver, $method)) {
-                    $results = array_merge($results, call_user_func_array([$driver, $method], $args));
+                    $result = call_user_func_array([$driver, $method], $args);
+                    $items = array_merge($items, $result['items'] ?? []);
+                    $total += $result['total'] ?? 0;
                 } else {
                     Log::channel(LogChannel::QUEUE_WORKER)->warning("Method $method does not exist in queue driver $driver_name");
                 }
@@ -61,28 +64,34 @@ class TelemetryManager {
                 Log::channel(LogChannel::QUEUE_WORKER)->error("Error calling method $method in queue driver $driver_name: " . $e->getMessage());
             }
         }
-        return $results;
+        return ['items' => $items, 'total' => $total];
     }
 
-    public function fetch_completed_jobs(string $queue = '*'): array {
-        return $this->call_all_drivers('fetch_completed_jobs', [$queue]);
+    public function fetch_completed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->call_all_drivers('fetch_completed_jobs', [$queue, $page, $per_page]);
     }
 
-    public function fetch_failed_jobs(string $queue = '*'): array {
-        return $this->call_all_drivers('fetch_failed_jobs', [$queue]);
+    public function fetch_failed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->call_all_drivers('fetch_failed_jobs', [$queue, $page, $per_page]);
     }
 
-    public function fetch_in_progress_jobs(string $queue = '*'): array {
-        return $this->call_all_drivers('fetch_in_progress_jobs', [$queue]);
+    public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->call_all_drivers('fetch_in_progress_jobs', [$queue, $page, $per_page]);
     }
 
-    public function fetch_all_jobs(string $queue = '*', array $filters = []): array {
-        $in_progress = $this->fetch_in_progress_jobs($queue);
-        $failed = $this->fetch_failed_jobs($queue);
-        $completed = $this->fetch_completed_jobs($queue);
-        $all_jobs = array_merge($in_progress, $failed, $completed);
-        
-        return $all_jobs;
+    public function fetch_all_jobs(string $queue = '*', array $filters = [], int $page = 1, int $per_page = 50): array {
+        $in_progress = $this->fetch_in_progress_jobs($queue, $page, $per_page);
+        $failed = $this->fetch_failed_jobs($queue, $page, $per_page);
+        $completed = $this->fetch_completed_jobs($queue, $page, $per_page);
+
+        $all_items = array_merge(
+            $in_progress['items'],
+            $failed['items'],
+            $completed['items']
+        );
+        $total = $in_progress['total'] + $failed['total'] + $completed['total'];
+
+        return ['items' => $all_items, 'total' => $total, 'page' => $page, 'per_page' => $per_page];
     }
 
     public function fetch_events(string $driver, string $queue, string $uuid): array {

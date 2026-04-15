@@ -40,20 +40,22 @@ trait Redis
         }
     }
 
-    public function fetch_completed_jobs(string $queue = '*'): array {
-        return $this->fetch_finished_jobs($queue, true);
+    public function fetch_completed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->fetch_finished_jobs($queue, true, $page, $per_page);
     }
 
-    public function fetch_failed_jobs(string $queue = '*'): array {
-        return $this->fetch_finished_jobs($queue, false);
+    public function fetch_failed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->fetch_finished_jobs($queue, false, $page, $per_page);
     }
 
-    private function fetch_finished_jobs(string $queue, bool $completed): array {
+    private function fetch_finished_jobs(string $queue, bool $completed, int $page = 1, int $per_page = 50): array {
         $redis = $this->connection_manager->get_redis(true);
         $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
 
         $jobs = [];
+        $total = 0;
         $state = $completed ? 'completed' : 'failed';
+        $offset = ($page - 1) * $per_page;
 
         try {
             $queue_names = ($queue === '*')
@@ -65,19 +67,24 @@ trait Redis
                     $this->script_shas['load_finished'],
                     [
                         $prefix . $q . '.idx.' . $state,
-                        $prefix
+                        $prefix,
+                        (string)$offset,
+                        (string)$per_page,
                     ],
                     1
                 );
 
-                if (\is_array($res)) {
-                    $this->process_finished_jobs($res, $jobs, $completed);
+                if (\is_array($res) && count($res) === 2) {
+                    $total += (int)$res[0];
+                    if (\is_array($res[1])) {
+                        $this->process_finished_jobs($res[1], $jobs, $completed);
+                    }
                 }
             }
         } catch (\Exception $e) {
             Log::error("Error fetching finished jobs from queue: " . $e->getMessage());
         }
-        return $jobs;
+        return ['items' => $jobs, 'total' => $total];
     }
 
     private function process_finished_jobs(array $res, array &$jobs, bool $completed): void {
@@ -102,11 +109,14 @@ trait Redis
         }
     }
 
-    public function fetch_in_progress_jobs(string $queue = '*'): array {
+    public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         $redis = $this->connection_manager->get_redis(true);
         $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
 
         $jobs = [];
+        $total = 0;
+        $offset = ($page - 1) * $per_page;
+
         try {
             $queue_names = ($queue === '*')
                 ? ($redis->sMembers($prefix . 'meta.queues') ?: [])
@@ -119,20 +129,24 @@ trait Redis
                         $prefix . $q . '.idx.pending',
                         $prefix . $q . '.idx.running',
                         $prefix,
-                        '1000',
+                        (string)$offset,
+                        (string)$per_page,
                     ],
                     2
                 );
 
-                if (\is_array($result)) {
-                    foreach ($result as $row) {
-                        $uuid = $row[0];
-                        $job_data = $this->deserialize($row[1]);
-                        $jobs[$uuid] = $job_data;
-                        $jobs[$uuid]['created_at_formatted'] = date('Y-m-d H:i:s', (int)($job_data['created_at'] ?? \time()));
-                        $jobs[$uuid]['driver'] = 'redis';
-                        if (\is_array($job_data['payload'] ?? null)) {
-                            $jobs[$uuid]['payload'] = $this->serialize($job_data['payload']);
+                if (\is_array($result) && count($result) === 2) {
+                    $total += (int)$result[0];
+                    if (\is_array($result[1])) {
+                        foreach ($result[1] as $row) {
+                            $uuid = $row[0];
+                            $job_data = $this->deserialize($row[1]);
+                            $jobs[$uuid] = $job_data;
+                            $jobs[$uuid]['created_at_formatted'] = date('Y-m-d H:i:s', (int)($job_data['created_at'] ?? \time()));
+                            $jobs[$uuid]['driver'] = 'redis';
+                            if (\is_array($job_data['payload'] ?? null)) {
+                                $jobs[$uuid]['payload'] = $this->serialize($job_data['payload']);
+                            }
                         }
                     }
                 }
@@ -140,7 +154,7 @@ trait Redis
         } catch (\Exception $e) {
             Log::error("Error fetching in-progress jobs from queue: " . $e->getMessage());
         }
-        return $jobs;
+        return ['items' => $jobs, 'total' => $total];
     }
 
     public function fetch_events(string $queue, string $uuid): array {

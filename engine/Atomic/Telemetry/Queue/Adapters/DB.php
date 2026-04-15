@@ -38,7 +38,7 @@ trait DB
         }
     }
 
-    public function fetch_completed_jobs(string $queue = '*', array $filters = []): array {
+    public function fetch_completed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_completed_mapper) {
             $this->jobs_completed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_completed');
@@ -48,17 +48,24 @@ trait DB
         try {
             $conditions = [];
             $params = [];
-            
+
             if (!empty($queue) && $queue !== '*') {
                 $conditions[] = 'queue = ?';
                 $params[] = $queue;
             }
-            
+
             $where_clause = empty($conditions) ? [] : [\implode(' AND ', $conditions), ...$params];
-            $completed_jobs = $this->jobs_completed_mapper->find($where_clause, ['order' => 'created_at DESC']);
+            $offset = ($page - 1) * $per_page;
+            $completed_jobs = $this->jobs_completed_mapper->find($where_clause, [
+                'order'  => 'created_at DESC',
+                'limit'  => $per_page,
+                'offset' => $offset,
+            ]);
+
+            $total = $this->jobs_completed_mapper->count($where_clause);
 
             if ($completed_jobs === false) {
-                return [];
+                return ['items' => [], 'total' => 0];
             }
 
             foreach ($completed_jobs as $job) {
@@ -68,14 +75,14 @@ trait DB
                 $jobs[$job->uuid]['driver'] = 'database';
             }
 
-            return $jobs;
+            return ['items' => $jobs, 'total' => $total];
         } catch (\Exception $e) {
             Log::error("Error fetching completed jobs from queue: " . $e->getMessage());
-            return [];
+            return ['items' => [], 'total' => 0];
         }
     }
 
-    public function fetch_failed_jobs(string $queue = '*', array $filters = []): array {
+    public function fetch_failed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_failed_mapper) {
             $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_failed');
@@ -85,17 +92,24 @@ trait DB
         try {
             $conditions = [];
             $params = [];
-            
+
             if (!empty($queue) && $queue !== '*') {
                 $conditions[] = 'queue = ?';
                 $params[] = $queue;
             }
-            
+
             $where_clause = empty($conditions) ? [] : [\implode(' AND ', $conditions), ...$params];
-            $failed_jobs = $this->jobs_failed_mapper->find($where_clause, ['order' => 'created_at DESC']);
-            
+            $offset = ($page - 1) * $per_page;
+            $failed_jobs = $this->jobs_failed_mapper->find($where_clause, [
+                'order'  => 'created_at DESC',
+                'limit'  => $per_page,
+                'offset' => $offset,
+            ]);
+
+            $total = $this->jobs_failed_mapper->count($where_clause);
+
             if ($failed_jobs === false) {
-                return [];
+                return ['items' => [], 'total' => 0];
             }
 
             foreach ($failed_jobs as $job) {
@@ -109,14 +123,14 @@ trait DB
                 $jobs[$uuid] = $job_data;
             }
 
-            return $jobs;
+            return ['items' => $jobs, 'total' => $total];
         } catch (\Exception $e) {
             Log::error("Error fetching failed jobs from queue: " . $e->getMessage());
-            return [];
+            return ['items' => [], 'total' => 0];
         }
     }
 
-    public function fetch_in_progress_jobs(string $queue = '*', array $filters = []): array {
+    public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
             $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
@@ -131,12 +145,19 @@ trait DB
                 $conditions[] = 'queue = ?';
                 $params[] = $queue;
             }
-            
+
             $where_clause = empty($conditions) ? [] : [\implode(' AND ', $conditions), ...$params];
-            $in_progress_jobs = $this->jobs_mapper->find($where_clause, ['order' => 'created_at DESC']);
+            $offset = ($page - 1) * $per_page;
+            $in_progress_jobs = $this->jobs_mapper->find($where_clause, [
+                'order'  => 'created_at DESC',
+                'limit'  => $per_page,
+                'offset' => $offset,
+            ]);
+
+            $total = $this->jobs_mapper->count($where_clause);
 
             if ($in_progress_jobs === false) {
-                return [];
+                return ['items' => [], 'total' => 0];
             }
 
             foreach ($in_progress_jobs as $job) {
@@ -146,10 +167,10 @@ trait DB
                 $jobs[$job->uuid]['driver'] = 'database';
             }
 
-            return $jobs;
+            return ['items' => $jobs, 'total' => $total];
         } catch (\Exception $e) {
             Log::error("Error fetching in-progress jobs from queue: " . $e->getMessage());
-            return [];
+            return ['items' => [], 'total' => 0];
         }
     }
 

@@ -15,6 +15,7 @@ use Engine\Atomic\Core\Sanitizer;
 use Engine\Atomic\Enums\Role;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
 use Engine\Atomic\Theme\Theme;
+use Engine\Atomic\Tools\Transient;
 
 class Telemetry extends Controller
 {
@@ -49,18 +50,23 @@ class Telemetry extends Controller
                 $filters[$filter_key] = $atomic->clean($value);
             }
         }
-        $all_jobs = !empty($filters)
-            ? $queue_manager->fetch_all_jobs($filters['queue'] ?? '*', $filters)
-            : $queue_manager->fetch_all_jobs();
 
-        $all_jobs = (array)Sanitizer::normalize($all_jobs);
+        $page = max(1, (int)($atomic->get('GET.page') ?? 1));
+        $per_page = min(200, max(1, (int)($atomic->get('GET.per_page') ?? 50)));
+
+        $result = !empty($filters)
+            ? $queue_manager->fetch_all_jobs($filters['queue'] ?? '*', $filters, $page, $per_page)
+            : $queue_manager->fetch_all_jobs('*', [], $page, $per_page);
+
+        $all_jobs = (array)Sanitizer::normalize($result['items']);
+        $total = $result['total'];
 
         $status_counts = [
             'failed' => 0,
             'queued' => 0,
             'running' => 0,
             'completed' => 0,
-            'total' => count($all_jobs),
+            'total' => $total,
         ];
         foreach ($all_jobs as $job) {
             $job_state = is_array($job) ? ($job['state'] ?? 'unknown') : 'unknown';
@@ -72,6 +78,12 @@ class Telemetry extends Controller
         $atomic->set('status_counts', $status_counts);
         $atomic->set('title', 'Atomic Telemetry');
         $atomic->set('filters', $filters);
+        $atomic->set('pagination', [
+            'page'      => $page,
+            'per_page'  => $per_page,
+            'total'     => $total,
+            'last_page' => (int)ceil($total / $per_page),
+        ]);
 
         echo \View::instance()->render('layout/telemetry-queue.atom.php');
     }
@@ -175,6 +187,7 @@ class Telemetry extends Controller
     public function log_stat(\Base $atomic, array $params = [], ?string $alias = null): void
     {
         $logsDir = rtrim((string)$atomic->get('LOGS'), '/\\');
+        $filesystem = Filesystem::instance();
 
         $channel = $atomic->clean((string)($atomic->get('GET.channel') ?? ''));
         $filename = 'atomic.log';
@@ -187,20 +200,29 @@ class Telemetry extends Controller
 
         $path = $logsDir ? ($logsDir . DIRECTORY_SEPARATOR . $filename) : null;
         $res = Response::instance();
-        if (!$path || !is_file($path)) {
+        if (!$path || !$filesystem->is_file($path)) {
             $res->send_json(['count' => 0, 'mtime' => 0], terminate: false);
             return;
         }
 
-        $content = Filesystem::instance()->read($path);
-        $count = $content !== false ? substr_count($content, "\n") : 0;
+        $count = $filesystem->count_lines($path);
+        if ($count === false) {
+            Log::warning('Telemetry log_stat failed to count lines in log file: ' . $path);
+            $count = 0;
+        }
+        $mtime = $filesystem->modified_time($path);
+        if ($mtime === false) {
+            Log::warning('Telemetry log_stat failed to read filemtime for: ' . $path);
+            $mtime = 0;
+        }
 
-        $res->send_json(['count' => $count, 'mtime' => (int)filemtime($path)], terminate: false);
+        $res->send_json(['count' => $count, 'mtime' => (int)$mtime], terminate: false);
     }
 
     public function logs(\Base $atomic, array $params = [], ?string $alias = null): void
     {
         $logsDir = rtrim((string)$atomic->get('LOGS'), '/\\');
+        $filesystem = Filesystem::instance();
 
         $channel = $atomic->clean((string)($atomic->get('GET.channel') ?? ''));
         $filename = 'atomic.log';
@@ -213,21 +235,89 @@ class Telemetry extends Controller
 
         $path = $logsDir ? ($logsDir . DIRECTORY_SEPARATOR . $filename) : null;
         $res = Response::instance();
-        if (!$path || !is_file($path)) {
-            $res->send_json(['lines' => []], terminate: false);
+        if (!$path || !$filesystem->is_file($path)) {
+            $res->send_json(['lines' => [], 'pagination' => ['page' => 1, 'per_page' => 100, 'total' => 0, 'last_page' => 1]], terminate: false);
             return;
         }
 
-        $maxBytes = 200 * 1024;
-        $raw = Filesystem::instance()->read($path);
-        $content = $raw !== false ? (strlen($raw) > $maxBytes ? substr($raw, -$maxBytes) : $raw) : '';
+        $page     = max(1, (int)($atomic->get('GET.page') ?? 1));
+        $per_page = min(500, max(1, (int)($atomic->get('GET.per_page') ?? 100)));
 
-        $lines = preg_split("/\r\n|\n|\r/", $content);
-        $lines = array_slice($lines, -300);
+        $cache_channel  = $channel ?: 'default';
+        $meta_key       = "log_meta:{$cache_channel}";
+
+        $current_mtime_raw = $filesystem->modified_time($path);
+        if ($current_mtime_raw === false) {
+            Log::warning('Telemetry logs failed to read modified_time for: ' . $path);
+        }
+        $current_mtime = $current_mtime_raw !== false ? (int)$current_mtime_raw : 0;
+
+        $current_size_raw = $filesystem->filesize($path);
+        if ($current_size_raw === false) {
+            Log::warning('Telemetry logs failed to read filesize for: ' . $path);
+        }
+        $current_size = $current_size_raw !== false ? (int)$current_size_raw : 0;
+
+        $meta = Transient::get($meta_key, Transient::DRIVER_REDIS);
+        $meta_data = is_array($meta) ? $meta : null;
+        $generation = ($meta_data !== null && isset($meta_data['gen'])) ? max(1, (int)$meta_data['gen']) : 1;
+        $meta_changed = ($meta_data === null || !isset($meta_data['mtime'], $meta_data['size'], $meta_data['gen']));
+
+        $content_changed = false;
+        if ($meta_data !== null && isset($meta_data['mtime'], $meta_data['size'])) {
+            $content_changed = ((int)$meta_data['mtime'] !== $current_mtime) || ((int)$meta_data['size'] !== $current_size);
+            if ($content_changed) {
+                $generation++;
+                $meta_changed = true;
+            }
+        }
+
+        if (!$content_changed && $meta_data !== null && isset($meta_data['total'])) {
+            $total = (int)$meta_data['total'];
+        } else {
+            $counted = $filesystem->count_lines($path);
+            if ($counted === false) {
+                Log::warning('Telemetry logs failed to count lines for: ' . $path);
+                $counted = 0;
+            }
+            $total = $counted;
+            $meta_changed = true;
+        }
+
+        if ($meta_changed) {
+            Transient::set($meta_key, [
+                'mtime' => $current_mtime,
+                'size'  => $current_size,
+                'gen'   => $generation,
+                'total' => $total,
+            ], 86400 * 30, Transient::DRIVER_REDIS);
+        }
+
+        $last_page = max(1, (int)ceil($total / $per_page));
+        $cache_key = "log_page:{$cache_channel}:{$generation}:{$page}:{$per_page}";
+
+        if ($page > 1) {
+            $cached = Transient::get($cache_key, Transient::DRIVER_REDIS);
+            $cached_last_page = is_array($cached) ? (int)($cached['pagination']['last_page'] ?? 0) : 0;
+            if (
+                $cached !== null
+                && $cached !== false
+                && $this->can_use_cached_log_page($page, $cached_last_page)
+            ) {
+                $res->send_json($cached, terminate: false);
+                return;
+            }
+        }
+
+        $offset = ($page - 1) * $per_page;
+        $page_lines = $filesystem->read_lines_from_end($path, $offset, $per_page);
+        if ($page_lines === false) {
+            Log::warning('Telemetry logs failed to read log file: ' . $path);
+            $page_lines = [];
+        }
 
         $out = [];
-        foreach ($lines as $ln) {
-            if ($ln === '') continue;
+        foreach ($page_lines as $ln) {
             $ts = null; $level = null; $msg = $ln;
 
             if (preg_match('/^(?<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s*(?:\[[^\]]+\]\s*)?\[(?<level>[A-Z]+)\]\s*(?<message>.*)$/', $ln, $m)) {
@@ -258,9 +348,39 @@ class Telemetry extends Controller
             ];
         }
 
-        $out = array_reverse($out);
+        $response_data = [
+            'lines' => $out,
+            'pagination' => [
+                'page'      => $page,
+                'per_page'  => $per_page,
+                'total'     => $total,
+                'last_page' => $last_page,
+            ],
+        ];
 
-        $res->send_json(['lines' => $out], terminate: false);
+        if ($this->should_cache_log_page($page, $last_page)) {
+            Transient::set($cache_key, $response_data, 86400 * 30, Transient::DRIVER_REDIS);
+        }
+
+        $res->send_json($response_data, terminate: false);
+    }
+
+    private function can_use_cached_log_page(int $page, int $cached_last_page): bool
+    {
+        if ($cached_last_page <= 0) {
+            return false;
+        }
+
+        return $page > 1 && $page <= $cached_last_page;
+    }
+
+    private function should_cache_log_page(int $page, int $last_page): bool
+    {
+        if ($last_page <= 1) {
+            return false;
+        }
+
+        return $page > 1 && $page <= $last_page;
     }
 
     public function dump(\Base $atomic, array $params = [], ?string $alias = null): void
@@ -270,14 +390,15 @@ class Telemetry extends Controller
             $atomic->error(400, 'Invalid dump id');
             return;
         }
+        $filesystem = Filesystem::instance();
         $dumpsDir = rtrim((string)$atomic->get('DUMPS'), '/\\');
         $file = $dumpsDir ? ($dumpsDir . DIRECTORY_SEPARATOR . $dumpId . '.json') : null;
-        if (!$file || !is_file($file)) {
+        if (!$file || !$filesystem->is_file($file)) {
             $atomic->error(404, 'Dump not found');
             return;
         }
 
-        $raw = Filesystem::instance()->read($file) ?: '';
+        $raw = $filesystem->read($file) ?: '';
         $decoded = json_decode($raw, true);
         $res = Response::instance();
         if (json_last_error() === JSON_ERROR_NONE) {

@@ -41,6 +41,108 @@ class Filesystem
         return $this->atomic->read($file);
     }
 
+    public function created_time(string $file): int|false
+    {
+        return filectime($file);
+    }
+
+    public function modified_time(string $file): int|false
+    {
+        return filemtime($file);
+    }
+
+    public function filesize(string $file): int|false
+    {
+        return filesize($file);
+    }
+
+    public function count_lines(string $file, int $chunk_size = 65536): int|false
+    {
+        $fh = @fopen($file, 'rb');
+        if ($fh === false) return false;
+
+        $count = 0;
+        $remainder = '';
+
+        while (!feof($fh)) {
+            $chunk = fread($fh, $chunk_size);
+            if ($chunk === false) break;
+
+            $data = $remainder . $chunk;
+            $lines = explode("\n", $data);
+            $remainder = array_pop($lines);
+
+            foreach ($lines as $line) {
+                if (rtrim($line, "\r") !== '') {
+                    $count++;
+                }
+            }
+        }
+
+        if (rtrim($remainder, "\r") !== '') {
+            $count++;
+        }
+
+        fclose($fh);
+        return $count;
+    }
+
+    public function read_lines_from_end(string $file, int $offset, int $limit, int $chunk_size = 8192): array|false
+    {
+        $fh = @fopen($file, 'rb');
+        if ($fh === false) return false;
+
+        fseek($fh, 0, SEEK_END);
+        $pos = ftell($fh);
+        $remainder = '';
+        $result = [];
+        $seen = 0;
+        $collected = 0;
+
+        while ($pos > 0 && $collected < $limit) {
+            $read_size = min($chunk_size, $pos);
+            $pos -= $read_size;
+            fseek($fh, $pos);
+            $chunk = fread($fh, $read_size);
+
+            if ($seen < $offset && $remainder === '') {
+                $nl_count = substr_count($chunk, "\n");
+                if ($nl_count > 0 && $chunk[-1] === "\n") $nl_count--;
+                if ($seen + $nl_count <= $offset) {
+                    $seen += $nl_count;
+                    $nl_pos = strpos($chunk, "\n");
+                    $remainder = $nl_pos !== false ? substr($chunk, 0, $nl_pos) : $chunk;
+                    continue;
+                }
+            }
+
+            $chunk .= $remainder;
+            $parts = explode("\n", $chunk);
+            $remainder = $parts[0];
+
+            for ($i = count($parts) - 1; $i >= 1; $i--) {
+                $line = rtrim($parts[$i], "\r");
+                if ($line === '') continue;
+
+                if ($seen >= $offset) {
+                    $result[] = $line;
+                    if (++$collected >= $limit) break 2;
+                }
+                $seen++;
+            }
+        }
+
+        if ($collected < $limit && $remainder !== '') {
+            $line = rtrim($remainder, "\r");
+            if ($line !== '' && $seen >= $offset) {
+                $result[] = $line;
+            }
+        }
+
+        fclose($fh);
+        return $result;
+    }
+
     public function write(string $file, mixed $data, bool $append): int|false
     {
         return $this->atomic->write($file, $data, $append);
@@ -49,6 +151,11 @@ class Filesystem
     public function exists(string $file): bool
     {
         return file_exists($file);
+    }
+
+    public function is_file(string $file): bool
+    {
+        return is_file($file);
     }
 
     public function rename(string $oldName, string $newName): bool

@@ -306,7 +306,12 @@ class ConnectionManager
         $atomic = App::instance();
 
         $db_cfg = $atomic->get('DB_CONFIG') ?? [];
-        if (!empty($db_cfg['host']) && !empty($db_cfg['database'])) {
+        if (
+            !empty($db_cfg['host']) &&
+            !empty($db_cfg['database']) &&
+            !empty($db_cfg['username']) &&
+            !empty($db_cfg['password'])
+        ) {
             $this->open_db();
         }
 
