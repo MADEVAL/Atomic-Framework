@@ -127,6 +127,9 @@ class Sanitizer
         // Inline key=value for known sensitive params
         '/((?:password|passwd|secret|token|api_?key|access_?token|refresh_?token|authorization|auth|encryption_?key|app_?key|chat_?id|session_?cookie|cookie)\s*[:=]\s*)("?)([^\s"&,;]+)(\2)/i'
             => '$1$2' . self::MASKED . '$4',
+        // JSON-style "key":"value" pairs for known sensitive params
+        '/(("(?:password|passwd|secret|token|api_?key|access_?token|refresh_?token|authorization|auth|encryption_?key|app_?key|chat_?id|session_?cookie|cookie)"\s*:\s*")((?:\\\\.|[^"\\\\])*)("))/i'
+            => '$2' . self::MASKED . '$4',
     ];
 
     public static function is_sensitive_key(string|int $key): bool

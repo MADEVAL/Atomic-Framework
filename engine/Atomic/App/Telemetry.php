@@ -402,7 +402,7 @@ class Telemetry extends Controller
         $decoded = json_decode($raw, true);
         $res = Response::instance();
         if (json_last_error() === JSON_ERROR_NONE) {
-            $res->send_json($decoded, terminate: false);
+            $res->send_json(Sanitizer::normalize($decoded), terminate: false);
         } else {
             $res->send_json(['dump_id' => $dumpId, 'error' => 'dump file could not be decoded'], terminate: false);
         }

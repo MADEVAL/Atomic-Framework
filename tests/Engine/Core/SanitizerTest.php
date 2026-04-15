@@ -216,6 +216,14 @@ class SanitizerTest extends TestCase
         $this->assertStringNotContainsString('abc123xyz', $result);
     }
 
+    public function test_sanitize_string_masks_json_style_sensitive_pairs(): void
+    {
+        $input  = '{"handler":"Engine\\\\Atomic\\\\Queue\\\\Tests\\\\Test@failure","data":{"params":{"id":123,"type":"test","apikey":"API_KEY_123"}}}';
+        $result = Sanitizer::sanitize_string($input);
+        $this->assertStringNotContainsString('API_KEY_123', $result);
+        $this->assertStringContainsString('"apikey":"[MASKED]"', $result);
+    }
+
     public function test_sanitize_string_leaves_harmless_string_alone(): void
     {
         Sanitizer::setHomePath('/unlikely/test/path/xyz');

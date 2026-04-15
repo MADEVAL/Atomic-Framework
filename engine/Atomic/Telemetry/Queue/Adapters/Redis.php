@@ -6,6 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\Sanitizer;
 use Engine\Atomic\Telemetry\Queue\EventType;
 
 trait Redis
@@ -88,6 +89,7 @@ trait Redis
     }
 
     private function process_finished_jobs(array $res, array &$jobs, bool $completed): void {
+        Sanitizer::syncFromHive(App::atomic());
         foreach ($res as $job) {
             $key = $job[0];
             $job_data = $this->deserialize($job[1]);
@@ -99,7 +101,7 @@ trait Redis
             }
             
             if (!empty($job_data['exception'] ?? null)) {
-                $jobs[$key]['exception'] = $this->deserialize($job_data['exception']);
+                $jobs[$key]['exception'] = Sanitizer::normalize($this->deserialize($job_data['exception']));
             }
             
             $jobs[$key]['status'] = $completed ? 'completed' : 'failed';
