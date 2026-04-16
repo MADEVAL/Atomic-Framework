@@ -13,6 +13,8 @@ use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\Response;
 use Engine\Atomic\Core\Sanitizer;
 use Engine\Atomic\Enums\Role;
+use Engine\Atomic\Queue\Enums\Status;
+use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
 use Engine\Atomic\Theme\Theme;
 use Engine\Atomic\Tools\Transient;
@@ -43,36 +45,45 @@ class Telemetry extends Controller
     {
         $queue_manager = new TelemetryManager();
         $filters = [];
-        $allowed_filters = ['driver', 'status', 'queue', 'uuid', 'state', 'date_from', 'date_to'];
+        $allowed_filters = ['status', 'uuid'];
         foreach ($allowed_filters as $filter_key) {
             $value = $atomic->get('GET.' . $filter_key);
             if (!empty($value)) {
                 $filters[$filter_key] = $atomic->clean($value);
             }
         }
+        if (isset($filters['status']) && !in_array($filters['status'], Status::filterable_statuses(), true)) {
+            unset($filters['status']);
+        }
 
         $page = max(1, (int)($atomic->get('GET.page') ?? 1));
         $per_page = min(200, max(1, (int)($atomic->get('GET.per_page') ?? 50)));
 
-        $result = !empty($filters)
-            ? $queue_manager->fetch_all_jobs($filters['queue'] ?? '*', $filters, $page, $per_page)
-            : $queue_manager->fetch_all_jobs('*', [], $page, $per_page);
-
-        $all_jobs = (array)Sanitizer::normalize($result['items']);
-        $total = $result['total'];
-
-        $status_counts = [
-            'failed' => 0,
-            'queued' => 0,
-            'running' => 0,
-            'completed' => 0,
-            'total' => $total,
-        ];
-        foreach ($all_jobs as $job) {
-            $job_state = is_array($job) ? ($job['state'] ?? 'unknown') : 'unknown';
-            if (isset($status_counts[$job_state])) {
-                $status_counts[$job_state]++;
+        $result = $queue_manager->fetch_all_jobs('*', $filters, $page, $per_page);
+        $filtered_items = [];
+        foreach ($result['items'] as $job_uuid => $job) {
+            if (!is_array($job)) {
+                continue;
             }
+            if (isset($filters['status'])) {
+                $job_status = (string)($job['status'] ?? '');
+                if ($filters['status'] === Status::PENDING->value) {
+                    if (!in_array($job_status, Status::pending_like(), true)) {
+                        continue;
+                    }
+                } elseif ($job_status !== $filters['status']) {
+                    continue;
+                }
+            }
+            $filtered_items[$job_uuid] = $job;
+        }
+
+        $all_jobs = (array)Sanitizer::normalize($filtered_items);
+        $status_counts = (array)Sanitizer::normalize($result['status_totals'] ?? []);
+        $filtered_total = (int)($result['total'] ?? count($filtered_items));
+        if (isset($filters['status']) && $filters['status'] !== '') {
+            $status_key = $filters['status'] === Status::PENDING->value ? Status::PENDING->value : $filters['status'];
+            $filtered_total = (int)($status_counts[$status_key] ?? count($filtered_items));
         }
         $atomic->set('jobs', $all_jobs);
         $atomic->set('status_counts', $status_counts);
@@ -81,8 +92,8 @@ class Telemetry extends Controller
         $atomic->set('pagination', [
             'page'      => $page,
             'per_page'  => $per_page,
-            'total'     => $total,
-            'last_page' => (int)ceil($total / $per_page),
+            'total'     => $filtered_total,
+            'last_page' => (int)ceil($filtered_total / $per_page),
         ]);
 
         echo \View::instance()->render('layout/telemetry-queue.atom.php');
@@ -96,8 +107,8 @@ class Telemetry extends Controller
             $atomic->error(400, 'Invalid UUID format');
             return;
         }
-        if (!in_array($driver, ['redis', 'database'], true)) {
-            $atomic->error(400, 'Invalid driver. Must be "redis" or "database"');
+        if (!Driver::is_valid($driver ?? '')) {
+            $atomic->error(400, 'Invalid driver. Must be one of: ' . implode(', ', Driver::all()));
             return;
         }
         $telemetry_manager = new TelemetryManager();

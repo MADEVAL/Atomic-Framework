@@ -30,7 +30,7 @@ if offset < running_total then
                 job[job_data[i]] = job_data[i + 1]
             end
 
-            job.status = 'in_progress'
+            job.status = 'running'
 
             if job.payload then
                 job.payload = cjson.decode(job.payload)

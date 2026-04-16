@@ -9,5 +9,7 @@ interface Telemetry {
     public function fetch_completed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array;
     public function fetch_failed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array;
     public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array;
+    public function fetch_pending_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array;
     public function fetch_events(string $queue, string $uuid): array;
+    public function search_jobs_by_uuid(string $queue, string $uuid): array;
 }

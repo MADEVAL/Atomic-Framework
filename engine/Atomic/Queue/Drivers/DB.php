@@ -223,7 +223,7 @@ class DB implements Base, Management, Telemetry
             $this->jobs_failed_mapper->timeout = $job['timeout'];
             $this->jobs_failed_mapper->retry_delay = $job['retry_delay'];
             $this->jobs_failed_mapper->exception = $this->serialize($error_data);
-            $this->jobs_failed_mapper->created_at = \time();
+            $this->jobs_failed_mapper->created_at = $job['created_at'];
 
             $this->jobs_failed_mapper->save();
 

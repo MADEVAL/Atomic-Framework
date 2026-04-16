@@ -7,6 +7,8 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\Sanitizer;
+use Engine\Atomic\Queue\Enums\Status;
+use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Telemetry\Queue\EventType;
 
 trait Redis
@@ -55,7 +57,7 @@ trait Redis
 
         $jobs = [];
         $total = 0;
-        $state = $completed ? 'completed' : 'failed';
+        $state = $completed ? Status::COMPLETED->value : Status::FAILED->value;
         $offset = ($page - 1) * $per_page;
 
         try {
@@ -104,10 +106,10 @@ trait Redis
                 $jobs[$key]['exception'] = Sanitizer::normalize($this->deserialize($job_data['exception']));
             }
             
-            $jobs[$key]['status'] = $completed ? 'completed' : 'failed';
+            $jobs[$key]['status'] = $completed ? Status::COMPLETED->value : Status::FAILED->value;
             $created_at = $jobs[$key]['created_at'] ?? time();
             $jobs[$key]['created_at_formatted'] = date('Y-m-d H:i:s', (int)$created_at);
-            $jobs[$key]['driver'] = 'redis';
+            $jobs[$key]['driver'] = Driver::REDIS->value;
         }
     }
 
@@ -145,7 +147,7 @@ trait Redis
                             $job_data = $this->deserialize($row[1]);
                             $jobs[$uuid] = $job_data;
                             $jobs[$uuid]['created_at_formatted'] = date('Y-m-d H:i:s', (int)($job_data['created_at'] ?? \time()));
-                            $jobs[$uuid]['driver'] = 'redis';
+                            $jobs[$uuid]['driver'] = Driver::REDIS->value;
                             if (\is_array($job_data['payload'] ?? null)) {
                                 $jobs[$uuid]['payload'] = $this->serialize($job_data['payload']);
                             }
@@ -157,6 +159,107 @@ trait Redis
             Log::error("Error fetching in-progress jobs from queue: " . $e->getMessage());
         }
         return ['items' => $jobs, 'total' => $total];
+    }
+
+    public function fetch_pending_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        $redis = $this->connection_manager->get_redis(true);
+        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+
+        $jobs = [];
+        $total = 0;
+        $offset = ($page - 1) * $per_page;
+        $end = $offset + $per_page - 1;
+
+        try {
+            $queue_names = ($queue === '*')
+                ? ($redis->sMembers($prefix . 'meta.queues') ?: [])
+                : [$queue];
+
+            foreach ($queue_names as $q) {
+                $pending_index = $prefix . $q . '.idx.pending';
+                $total += (int)$redis->zCard($pending_index);
+
+                $uuids = $redis->zRange($pending_index, $offset, $end);
+                if (!\is_array($uuids)) {
+                    continue;
+                }
+
+                foreach ($uuids as $uuid) {
+                    $raw = $redis->hGetAll($prefix . 'registry.' . $uuid);
+                    if ($raw === false || $raw === []) {
+                        continue;
+                    }
+                    $job = $this->normalize_registry_job_for_telemetry($raw);
+                    $job['status'] = Status::PENDING->value;
+                    $jobs[(string)$uuid] = $job;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Error fetching pending jobs from queue: " . $e->getMessage());
+        }
+
+        return ['items' => $jobs, 'total' => $total];
+    }
+
+    public function search_jobs_by_uuid(string $queue, string $uuid): array {
+        $uuid = trim($uuid);
+        if ($uuid === '') {
+            return ['items' => [], 'total' => 0];
+        }
+
+        $redis = $this->connection_manager->get_redis(true);
+        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $keyUuid = \strtolower($uuid);
+
+        try {
+            $raw = $redis->hGetAll($prefix . 'registry.' . $keyUuid);
+            if ($raw === [] || $raw === false) {
+                return ['items' => [], 'total' => 0];
+            }
+            $job = $this->normalize_registry_job_for_telemetry($raw);
+            if (!$this->telemetry_job_matches_queue($queue, $job)) {
+                return ['items' => [], 'total' => 0];
+            }
+            return ['items' => [$keyUuid => $job], 'total' => 1];
+        } catch (\Exception $e) {
+            Log::error('Error searching queue jobs by UUID (Redis): ' . $e->getMessage());
+            return ['items' => [], 'total' => 0];
+        }
+    }
+
+    private function telemetry_job_matches_queue(string $queue, array $job): bool {
+        return $queue === '*' || ($job['queue'] ?? '') === $queue;
+    }
+
+    private function normalize_registry_job_for_telemetry(array $job_data): array {
+        Sanitizer::syncFromHive(App::atomic());
+        $out = $job_data;
+
+        $p = $out['payload'] ?? null;
+        if (\is_array($p)) {
+            $out['payload'] = $this->serialize($p);
+        } elseif (\is_string($p) && $p !== '') {
+            $decoded = \json_decode($p, true);
+            if (\is_array($decoded)) {
+                $out['payload'] = $this->serialize($decoded);
+            }
+        }
+
+        $state = $out['state'] ?? '';
+        if (
+            \in_array($state, [Status::COMPLETED->value, Status::FAILED->value], true)
+            && !empty($out['exception'] ?? null)
+            && \is_string($out['exception'])
+        ) {
+            $out['exception'] = Sanitizer::normalize($this->deserialize($out['exception']));
+        }
+
+        $out['status'] = $state !== '' ? $state : Status::PENDING->value;
+
+        $created_at = (int)($out['created_at'] ?? \time());
+        $out['created_at_formatted'] = \date('Y-m-d H:i:s', $created_at);
+        $out['driver'] = Driver::REDIS->value;
+        return $out;
     }
 
     public function fetch_events(string $queue, string $uuid): array {

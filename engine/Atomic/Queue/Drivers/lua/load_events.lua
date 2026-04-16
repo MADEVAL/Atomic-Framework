@@ -15,10 +15,17 @@ end
 
 local batches = cjson.decode(batches_json)
 
-for _, batch_uuid in ipairs(batches) do
+for batch_index = #batches, 1, -1 do
+    local batch_uuid = batches[batch_index]
     local batch_key = prefix .. 'telemetry.batch.' .. batch_uuid
     local batch_events = redis.call('LRANGE', batch_key, 0, -1)
-    table.insert(results, {batch_uuid, batch_events})
+    local reversed_batch_events = {}
+
+    for event_index = #batch_events, 1, -1 do
+        table.insert(reversed_batch_events, batch_events[event_index])
+    end
+
+    table.insert(results, {batch_uuid, reversed_batch_events})
 end
 
 return results

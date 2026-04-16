@@ -19,12 +19,16 @@ local exception_json = ARGV[4] or ''
 local config_ttl = tonumber(ARGV[5]) or 0
 
 local CLEANUP_THRESHOLD = 1000
+local CLEANUP_SCAN_LIMIT = 100
 
 if redis.call('EXISTS', registry_key) == 0 then
     return 0
 end
 
 local pid = redis.call('HGET', registry_key, 'pid')
+local created_at = tonumber(redis.call('HGET', registry_key, 'created_at')) or timestamp
+local registry_suffix = 'registry.' .. uuid
+local prefix = string.sub(registry_key, 1, #registry_key - #registry_suffix)
 
 local new_state = is_failed and 'failed' or 'completed'
 local updates = {
@@ -46,7 +50,7 @@ if config_ttl > 0 then
 end
 
 redis.call('ZREM', running_idx_key, uuid)
-redis.call('ZADD', finished_idx_key, timestamp * 1000000, uuid)
+redis.call('ZADD', finished_idx_key, created_at * 1000000, uuid)
 
 if pid and pid ~= '' then
     redis.call('HDEL', pid_map_key, pid)
@@ -55,9 +59,14 @@ end
 local finished_count = redis.call('ZCARD', finished_idx_key)
 
 if finished_count > CLEANUP_THRESHOLD then
-    if config_ttl > 0 then
-        local cutoff_timestamp = (timestamp - config_ttl) * 1000000
-        redis.call('ZREMRANGEBYSCORE', finished_idx_key, '-inf', cutoff_timestamp)
+    local scan_limit = math.min(finished_count, CLEANUP_SCAN_LIMIT)
+    local oldest_uuids = redis.call('ZRANGE', finished_idx_key, 0, scan_limit - 1)
+
+    for _, finished_uuid in ipairs(oldest_uuids) do
+        local finished_registry_key = prefix .. 'registry.' .. finished_uuid
+        if redis.call('EXISTS', finished_registry_key) == 0 then
+            redis.call('ZREM', finished_idx_key, finished_uuid)
+        end
     end
 end
 
