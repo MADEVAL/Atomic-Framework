@@ -4,25 +4,25 @@ namespace Engine\Atomic\Core;
 
 if (!defined('ATOMIC_START')) exit;
 
-class Sanitizer
+class Redactor
 {
     public const MASKED = '[MASKED]';
 
-    private static string $homePath = '';
+    private static string $home_path = '';
 
     /** @var array<string,string> Cached search/replace pairs for home-path masking. */
-    private static array $homeVariants = [];
+    private static array $home_variants = [];
 
-    public static function setHomePath(string $path): void
+    public static function set_home_path(string $path): void
     {
         $path = rtrim($path, '/\\');
-        if ($path === '' || $path === self::$homePath) return;
+        if ($path === '' || $path === self::$home_path) return;
 
-        self::$homePath = $path;
-        self::rebuildHomeVariants();
+        self::$home_path = $path;
+        self::rebuild_home_variants();
     }
 
-    public static function syncFromHive(\Base $atomic): void
+    public static function sync_from_hive(\Base $atomic): void
     {
         $home = (string)$atomic->get('HOME');
         if ($home === '') {
@@ -32,23 +32,23 @@ class Sanitizer
             }
         }
         if ($home !== '') {
-            self::setHomePath($home);
+            self::set_home_path($home);
         }
     }
 
-    public static function isReady(): bool
+    public static function is_ready(): bool
     {
-        return self::$homePath !== '';
+        return self::$home_path !== '';
     }
 
-    public static function getHomePath(): string
+    public static function get_home_path(): string
     {
-        return self::$homePath;
+        return self::$home_path;
     }
 
-    private static function rebuildHomeVariants(): void
+    private static function rebuild_home_variants(): void
     {
-        $canonical = self::$homePath;
+        $canonical = self::$home_path;
         $forward   = str_replace('\\', '/', $canonical);
         $back      = str_replace('/', '\\', $canonical);
 
@@ -59,7 +59,7 @@ class Sanitizer
             $variants[$base]        = '[HOME]';
         }
 
-        self::$homeVariants = $variants;
+        self::$home_variants = $variants;
     }
 
     protected const SENSITIVE_KEYS = [
@@ -149,10 +149,10 @@ class Sanitizer
             $value
         ) ?? $value;
 
-        if (self::$homeVariants !== []) {
+        if (self::$home_variants !== []) {
             $value = str_replace(
-                array_keys(self::$homeVariants),
-                array_values(self::$homeVariants),
+                array_keys(self::$home_variants),
+                array_values(self::$home_variants),
                 $value
             );
         }
@@ -160,9 +160,9 @@ class Sanitizer
         return $value;
     }
 
-    public static function normalize(mixed $data, int $depth = 0, int $maxDepth = 6, int $maxItems = 1000): mixed
+    public static function normalize(mixed $data, int $depth = 0, int $max_depth = 6, int $max_items = 1000): mixed
     {
-        if ($depth >= $maxDepth) return '[[max_depth]]';
+        if ($depth >= $max_depth) return '[[max_depth]]';
         if (is_null($data)) return $data;
 
         if (is_string($data)) return self::sanitize_string($data);
@@ -172,12 +172,12 @@ class Sanitizer
             $out = [];
             $i = 0;
             foreach ($data as $key => $value) {
-                if ($i++ >= $maxItems) { $out['[[truncated]]'] = true; break; }
+                if ($i++ >= $max_items) { $out['[[truncated]]'] = true; break; }
                 // Keep nested structures traversable even under sensitive parent keys.
                 if (self::is_sensitive_key($key) && !is_array($value) && !is_object($value)) {
                     $out[$key] = self::MASKED;
                 } else {
-                    $out[$key] = self::normalize($value, $depth + 1, $maxDepth, $maxItems);
+                    $out[$key] = self::normalize($value, $depth + 1, $max_depth, $max_items);
                 }
             }
             return $out;
@@ -193,7 +193,7 @@ class Sanitizer
                 if (self::is_sensitive_key($name) && !is_array($value) && !is_object($value)) {
                     $props[$name] = self::MASKED;
                 } else {
-                    $props[$name] = self::normalize($value, $depth + 1, $maxDepth, $maxItems);
+                    $props[$name] = self::normalize($value, $depth + 1, $max_depth, $max_items);
                 }
             }
 

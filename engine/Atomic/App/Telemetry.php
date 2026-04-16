@@ -11,7 +11,7 @@ use Engine\Atomic\Core\Guard;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\Response;
-use Engine\Atomic\Core\Sanitizer;
+use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Enums\Role;
 use Engine\Atomic\Queue\Enums\Status;
 use Engine\Atomic\Queue\Enums\Driver;
@@ -34,7 +34,7 @@ class Telemetry extends Controller
 
     public function beforeroute(\Base $atomic): void
     {
-        Sanitizer::syncFromHive($atomic);
+        Redactor::sync_from_hive($atomic);
 
         if ($atomic->get('TELEMETRY_ADMIN_ONLY') && !Guard::has_role(Role::ADMIN)) {
             $atomic->reroute('/login');
@@ -78,8 +78,8 @@ class Telemetry extends Controller
             $filtered_items[$job_uuid] = $job;
         }
 
-        $all_jobs = (array)Sanitizer::normalize($filtered_items);
-        $status_counts = (array)Sanitizer::normalize($result['status_totals'] ?? []);
+        $all_jobs = (array)Redactor::normalize($filtered_items);
+        $status_counts = (array)Redactor::normalize($result['status_totals'] ?? []);
         $filtered_total = (int)($result['total'] ?? count($filtered_items));
         if (isset($filters['status']) && $filters['status'] !== '') {
             $status_key = $filters['status'] === Status::PENDING->value ? Status::PENDING->value : $filters['status'];
@@ -116,7 +116,7 @@ class Telemetry extends Controller
         Response::instance()->send_json([
             'job_uuid' => $job_uuid,
             'driver'   => $driver,
-            'events'   => Sanitizer::normalize($events),
+            'events'   => Redactor::normalize($events),
         ], terminate: false);
     }
 
@@ -145,8 +145,8 @@ class Telemetry extends Controller
             //'env' => (string)$atomic->get('ENV'),
             'debug_mode'  => (bool)filter_var($atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN),
             'debug_level' => (string)$atomic->get('DEBUG_LEVEL'),
-            'logs_dir'    => Sanitizer::sanitize_string((string)$atomic->get('LOGS')),
-            'dumps_dir'   => Sanitizer::sanitize_string((string)$atomic->get('DUMPS')),
+            'logs_dir'    => Redactor::sanitize_string((string)$atomic->get('LOGS')),
+            'dumps_dir'   => Redactor::sanitize_string((string)$atomic->get('DUMPS')),
             'base'        => (string)$atomic->get('BASE'),
         ];
 
@@ -162,9 +162,9 @@ class Telemetry extends Controller
             if ($conn instanceof \DB\SQL) {
                 $pdo = $conn->pdo();
                 $db = [
-                    'driver'         => Sanitizer::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_DRIVER_NAME)),
-                    'server_version' => Sanitizer::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_SERVER_VERSION)),
-                    'client_version' => Sanitizer::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_CLIENT_VERSION)),
+                    'driver'         => Redactor::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_DRIVER_NAME)),
+                    'server_version' => Redactor::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_SERVER_VERSION)),
+                    'client_version' => Redactor::sanitize_string((string)$pdo->getAttribute(\PDO::ATTR_CLIENT_VERSION)),
                 ];
             }
         } catch (\Throwable $e) {}
@@ -182,9 +182,9 @@ class Telemetry extends Controller
     {
         $hive = [];
         try {
-            $hive = Sanitizer::normalize($atomic->hive());
+            $hive = Redactor::normalize($atomic->hive());
         } catch (\Throwable $e) {
-            $hive = ['error' => Sanitizer::sanitize_string($e->getMessage())];
+            $hive = ['error' => Redactor::sanitize_string($e->getMessage())];
         }
 
         Response::instance()->send_json($hive, terminate: false);
@@ -354,7 +354,7 @@ class Telemetry extends Controller
             $out[] = [
                 'ts'      => $ts,
                 'level'   => $level,
-                'message' => Sanitizer::sanitize_string($msg),
+                'message' => Redactor::sanitize_string($msg),
                 'dump_id' => $dumpId,
             ];
         }
@@ -413,7 +413,7 @@ class Telemetry extends Controller
         $decoded = json_decode($raw, true);
         $res = Response::instance();
         if (json_last_error() === JSON_ERROR_NONE) {
-            $res->send_json(Sanitizer::normalize($decoded), terminate: false);
+            $res->send_json(Redactor::normalize($decoded), terminate: false);
         } else {
             $res->send_json(['dump_id' => $dumpId, 'error' => 'dump file could not be decoded'], terminate: false);
         }

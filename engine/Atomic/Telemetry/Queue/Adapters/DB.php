@@ -8,7 +8,7 @@ use DB\Cortex;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Log;
-use Engine\Atomic\Core\Sanitizer;
+use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Queue\Enums\Status;
 use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Telemetry\Queue\EventType;
@@ -86,7 +86,7 @@ trait DB
     }
 
     public function fetch_failed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
-        Sanitizer::syncFromHive(App::atomic());
+        Redactor::sync_from_hive(App::atomic());
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_failed_mapper) {
             $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_failed');
@@ -120,7 +120,7 @@ trait DB
                 $uuid = $job->uuid;
                 $job_data = $job->cast();
                 $job_data['uuid'] = $uuid;
-                $job_data['exception'] = Sanitizer::normalize($this->deserialize($job->exception));
+                $job_data['exception'] = Redactor::normalize($this->deserialize($job->exception));
                 $job_data['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
                 $job_data['status'] = Status::FAILED->value;
                 $job_data['driver'] = Driver::DATABASE->value;
@@ -232,7 +232,7 @@ trait DB
             return ['items' => [], 'total' => 0];
         }
 
-        Sanitizer::syncFromHive(App::atomic());
+        Redactor::sync_from_hive(App::atomic());
         [$sql] = $this->connection_manager->get_db(true, true);
 
         $prefix = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX');
@@ -281,7 +281,7 @@ trait DB
                 unset($row['job_status']);
 
                 if ($status === Status::FAILED->value) {
-                    $row['exception'] = Sanitizer::normalize($this->deserialize((string)$row['exception']));
+                    $row['exception'] = Redactor::normalize($this->deserialize((string)$row['exception']));
                 } else {
                     unset($row['exception']);
                 }

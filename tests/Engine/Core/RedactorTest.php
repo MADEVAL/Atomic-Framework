@@ -3,51 +3,51 @@ declare(strict_types=1);
 
 namespace Tests\Engine\Core;
 
-use Engine\Atomic\Core\Sanitizer;
+use Engine\Atomic\Core\Redactor;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-class SanitizerTest extends TestCase
+class RedactorTest extends TestCase
 {
     public function test_set_home_path_makes_ready(): void
     {
-        Sanitizer::setHomePath('/home/testuser');
-        $this->assertTrue(Sanitizer::isReady());
-        $this->assertSame('/home/testuser', Sanitizer::getHomePath());
+        Redactor::set_home_path('/home/testuser');
+        $this->assertTrue(Redactor::is_ready());
+        $this->assertSame('/home/testuser', Redactor::get_home_path());
     }
 
     public function test_set_home_path_trims_trailing_slashes(): void
     {
-        Sanitizer::setHomePath('/home/testuser///');
-        $this->assertSame('/home/testuser', Sanitizer::getHomePath());
+        Redactor::set_home_path('/home/testuser///');
+        $this->assertSame('/home/testuser', Redactor::get_home_path());
     }
 
     public function test_set_home_path_trims_backslashes(): void
     {
-        Sanitizer::setHomePath('C:\\Users\\testuser\\\\');
-        $this->assertSame('C:\\Users\\testuser', Sanitizer::getHomePath());
+        Redactor::set_home_path('C:\\Users\\testuser\\\\');
+        $this->assertSame('C:\\Users\\testuser', Redactor::get_home_path());
     }
 
     public function test_set_home_path_ignores_empty_string(): void
     {
-        Sanitizer::setHomePath('/home/before');
-        Sanitizer::setHomePath('');
-        $this->assertSame('/home/before', Sanitizer::getHomePath());
+        Redactor::set_home_path('/home/before');
+        Redactor::set_home_path('');
+        $this->assertSame('/home/before', Redactor::get_home_path());
     }
 
     public function test_set_home_path_ignores_duplicate(): void
     {
-        Sanitizer::setHomePath('/home/user');
-        Sanitizer::setHomePath('/home/user');
-        $this->assertSame('/home/user', Sanitizer::getHomePath());
+        Redactor::set_home_path('/home/user');
+        Redactor::set_home_path('/home/user');
+        $this->assertSame('/home/user', Redactor::get_home_path());
     }
 
     public function test_sync_from_hive_uses_HOME(): void
     {
         $f3 = \Base::instance();
         $f3->set('HOME', '/from/hive');
-        Sanitizer::syncFromHive($f3);
-        $this->assertSame('/from/hive', Sanitizer::getHomePath());
+        Redactor::sync_from_hive($f3);
+        $this->assertSame('/from/hive', Redactor::get_home_path());
     }
 
     public function test_sync_from_hive_falls_back_to_ROOT_parent(): void
@@ -55,39 +55,39 @@ class SanitizerTest extends TestCase
         $f3 = \Base::instance();
         $f3->set('HOME', '');
         $f3->set('ROOT', '/var/www/public/');
-        Sanitizer::syncFromHive($f3);
-        $this->assertSame('/var/www', Sanitizer::getHomePath());
+        Redactor::sync_from_hive($f3);
+        $this->assertSame('/var/www', Redactor::get_home_path());
     }
 
     public function test_sync_from_hive_noop_when_both_empty(): void
     {
-        Sanitizer::setHomePath('/keep/this');
+        Redactor::set_home_path('/keep/this');
         $f3 = \Base::instance();
         $f3->set('HOME', '');
         $f3->set('ROOT', '');
-        Sanitizer::syncFromHive($f3);
-        $this->assertSame('/keep/this', Sanitizer::getHomePath());
+        Redactor::sync_from_hive($f3);
+        $this->assertSame('/keep/this', Redactor::get_home_path());
     }
 
     public function test_sanitize_string_masks_home_path(): void
     {
-        Sanitizer::setHomePath('/home/user');
-        $result = Sanitizer::sanitize_string('File at /home/user/app/config.php');
+        Redactor::set_home_path('/home/user');
+        $result = Redactor::sanitize_string('File at /home/user/app/config.php');
         $this->assertSame('File at [HOME]/app/config.php', $result);
     }
 
     public function test_sanitize_string_masks_forward_and_backslash_variants(): void
     {
-        Sanitizer::setHomePath('/home/user');
-        $this->assertStringContainsString('[HOME]', Sanitizer::sanitize_string('/home/user/file.txt'));
-        $this->assertStringContainsString('[HOME]', Sanitizer::sanitize_string('\\home\\user\\file.txt'));
+        Redactor::set_home_path('/home/user');
+        $this->assertStringContainsString('[HOME]', Redactor::sanitize_string('/home/user/file.txt'));
+        $this->assertStringContainsString('[HOME]', Redactor::sanitize_string('\\home\\user\\file.txt'));
     }
 
     #[DataProvider('sensitiveKeyProvider')]
     public function test_is_sensitive_key_matches(string $key): void
     {
         $this->assertTrue(
-            Sanitizer::is_sensitive_key($key),
+            Redactor::is_sensitive_key($key),
             "Expected '$key' to be detected as sensitive"
         );
     }
@@ -151,7 +151,7 @@ class SanitizerTest extends TestCase
     public function test_is_sensitive_key_rejects(string $key): void
     {
         $this->assertFalse(
-            Sanitizer::is_sensitive_key($key),
+            Redactor::is_sensitive_key($key),
             "Expected '$key' to NOT be detected as sensitive"
         );
     }
@@ -173,14 +173,14 @@ class SanitizerTest extends TestCase
 
     public function test_is_sensitive_key_integer_returns_false(): void
     {
-        $this->assertFalse(Sanitizer::is_sensitive_key(0));
-        $this->assertFalse(Sanitizer::is_sensitive_key(99));
+        $this->assertFalse(Redactor::is_sensitive_key(0));
+        $this->assertFalse(Redactor::is_sensitive_key(99));
     }
 
     public function test_sanitize_string_masks_authorization_header(): void
     {
         $input  = 'Authorization: Bearer abc123secret';
-        $result = Sanitizer::sanitize_string($input);
+        $result = Redactor::sanitize_string($input);
         $this->assertStringNotContainsString('abc123secret', $result);
         $this->assertStringContainsString('[MASKED]', $result);
     }
@@ -188,7 +188,7 @@ class SanitizerTest extends TestCase
     public function test_sanitize_string_masks_basic_auth(): void
     {
         $input  = 'Basic dXNlcjpwYXNz';
-        $result = Sanitizer::sanitize_string($input);
+        $result = Redactor::sanitize_string($input);
         $this->assertStringNotContainsString('dXNlcjpwYXNz', $result);
         $this->assertStringContainsString('[MASKED]', $result);
     }
@@ -196,7 +196,7 @@ class SanitizerTest extends TestCase
     public function test_sanitize_string_masks_url_credentials(): void
     {
         $input  = 'mysql://root:s3cret@localhost/db';
-        $result = Sanitizer::sanitize_string($input);
+        $result = Redactor::sanitize_string($input);
         $this->assertStringNotContainsString('s3cret', $result);
         $this->assertStringContainsString('[MASKED]', $result);
     }
@@ -204,7 +204,7 @@ class SanitizerTest extends TestCase
     public function test_sanitize_string_masks_inline_key_value(): void
     {
         $input  = 'password=hunter2';
-        $result = Sanitizer::sanitize_string($input);
+        $result = Redactor::sanitize_string($input);
         $this->assertStringNotContainsString('hunter2', $result);
         $this->assertStringContainsString('[MASKED]', $result);
     }
@@ -212,55 +212,55 @@ class SanitizerTest extends TestCase
     public function test_sanitize_string_masks_inline_token(): void
     {
         $input  = 'token=abc123xyz';
-        $result = Sanitizer::sanitize_string($input);
+        $result = Redactor::sanitize_string($input);
         $this->assertStringNotContainsString('abc123xyz', $result);
     }
 
     public function test_sanitize_string_masks_json_style_sensitive_pairs(): void
     {
         $input  = '{"handler":"Engine\\\\Atomic\\\\Queue\\\\Tests\\\\Test@failure","data":{"params":{"id":123,"type":"test","apikey":"API_KEY_123"}}}';
-        $result = Sanitizer::sanitize_string($input);
+        $result = Redactor::sanitize_string($input);
         $this->assertStringNotContainsString('API_KEY_123', $result);
         $this->assertStringContainsString('"apikey":"[MASKED]"', $result);
     }
 
     public function test_sanitize_string_leaves_harmless_string_alone(): void
     {
-        Sanitizer::setHomePath('/unlikely/test/path/xyz');
+        Redactor::set_home_path('/unlikely/test/path/xyz');
         $input = 'Just a normal log message with no secrets';
-        $this->assertSame($input, Sanitizer::sanitize_string($input));
+        $this->assertSame($input, Redactor::sanitize_string($input));
     }
 
     public function test_normalize_string(): void
     {
-        $this->assertSame('hello', Sanitizer::normalize('hello'));
+        $this->assertSame('hello', Redactor::normalize('hello'));
     }
 
     public function test_normalize_integer(): void
     {
-        $this->assertSame(42, Sanitizer::normalize(42));
+        $this->assertSame(42, Redactor::normalize(42));
     }
 
     public function test_normalize_float(): void
     {
-        $this->assertSame(3.14, Sanitizer::normalize(3.14));
+        $this->assertSame(3.14, Redactor::normalize(3.14));
     }
 
     public function test_normalize_bool(): void
     {
-        $this->assertSame(true, Sanitizer::normalize(true));
-        $this->assertSame(false, Sanitizer::normalize(false));
+        $this->assertSame(true, Redactor::normalize(true));
+        $this->assertSame(false, Redactor::normalize(false));
     }
 
     public function test_normalize_null(): void
     {
-        $this->assertNull(Sanitizer::normalize(null));
+        $this->assertNull(Redactor::normalize(null));
     }
 
     public function test_normalize_simple_array(): void
     {
         $data = ['name' => 'test', 'count' => 5];
-        $result = Sanitizer::normalize($data);
+        $result = Redactor::normalize($data);
         $this->assertSame('test', $result['name']);
         $this->assertSame(5, $result['count']);
     }
@@ -273,7 +273,7 @@ class SanitizerTest extends TestCase
             'api_key'  => 'sk-abc',
             'status'   => 'ok',
         ];
-        $result = Sanitizer::normalize($data);
+        $result = Redactor::normalize($data);
         $this->assertSame('[MASKED]', $result['username']);
         $this->assertSame('[MASKED]', $result['password']);
         $this->assertSame('[MASKED]', $result['api_key']);
@@ -290,7 +290,7 @@ class SanitizerTest extends TestCase
                 ],
             ],
         ];
-        $result = Sanitizer::normalize($data);
+        $result = Redactor::normalize($data);
         $this->assertSame('[MASKED]', $result['config']['db']['password']);
         $this->assertSame('localhost', $result['config']['db']['host']);
     }
@@ -306,7 +306,7 @@ class SanitizerTest extends TestCase
             'status' => 'ok',
         ];
 
-        $result = Sanitizer::normalize($data);
+        $result = Redactor::normalize($data);
 
         $this->assertIsArray($result['credentials'], 'Nested array under sensitive key must remain traversable');
 
@@ -329,7 +329,7 @@ class SanitizerTest extends TestCase
             'method'  => 'GET',
         ];
 
-        $result = Sanitizer::normalize($data);
+        $result = Redactor::normalize($data);
 
         $this->assertIsArray($result['session'], 'Nested object under sensitive key must remain traversable');
         $this->assertArrayHasKey('__object__', $result['session']);
@@ -344,7 +344,7 @@ class SanitizerTest extends TestCase
     public function test_normalize_array_truncation(): void
     {
         $big = array_fill(0, 1500, 'x');
-        $result = Sanitizer::normalize($big, 0, 6, 1000);
+        $result = Redactor::normalize($big, 0, 6, 1000);
         $this->assertArrayHasKey('[[truncated]]', $result);
         $this->assertCount(1001, $result); // 1000 items + truncated marker
     }
@@ -352,7 +352,7 @@ class SanitizerTest extends TestCase
     public function test_normalize_numeric_keys_not_masked(): void
     {
         $data = ['value1', 'value2', 'value3'];
-        $result = Sanitizer::normalize($data);
+        $result = Redactor::normalize($data);
         $this->assertSame('value1', $result[0]);
         $this->assertSame('value2', $result[1]);
         $this->assertSame('value3', $result[2]);
@@ -361,21 +361,21 @@ class SanitizerTest extends TestCase
     public function test_normalize_max_depth_default(): void
     {
         $deep = ['a' => ['b' => ['c' => ['d' => ['e' => ['f' => ['g' => 'end']]]]]]];
-        $result = Sanitizer::normalize($deep);
+        $result = Redactor::normalize($deep);
         $this->assertSame('[[max_depth]]', $result['a']['b']['c']['d']['e']['f']);
     }
 
     public function test_normalize_max_depth_custom(): void
     {
         $deep = ['a' => ['b' => ['c' => 'end']]];
-        $result = Sanitizer::normalize($deep, 0, 2, 1000);
+        $result = Redactor::normalize($deep, 0, 2, 1000);
         $this->assertSame('[[max_depth]]', $result['a']['b']);
     }
 
     public function test_normalize_max_depth_one(): void
     {
         $data = ['nested' => ['value' => 1]];
-        $result = Sanitizer::normalize($data, 0, 1, 1000);
+        $result = Redactor::normalize($data, 0, 1, 1000);
         $this->assertSame('[[max_depth]]', $result['nested']);
     }
 
@@ -383,7 +383,7 @@ class SanitizerTest extends TestCase
     {
         $obj = new \stdClass();
         $obj->name = 'test';
-        $result = Sanitizer::normalize($obj);
+        $result = Redactor::normalize($obj);
         $this->assertIsArray($result);
         $this->assertSame('stdClass', $result['__object__']);
         $this->assertSame('test', $result['properties']['name']);
@@ -394,7 +394,7 @@ class SanitizerTest extends TestCase
         $obj = new \stdClass();
         $obj->password = 's3cret';
         $obj->status   = 'active';
-        $result = Sanitizer::normalize($obj);
+        $result = Redactor::normalize($obj);
         $this->assertSame('[MASKED]', $result['properties']['password']);
         $this->assertSame('active', $result['properties']['status']);
     }
@@ -409,7 +409,7 @@ class SanitizerTest extends TestCase
         ];
         $obj->status = 'ok';
 
-        $result = Sanitizer::normalize($obj);
+        $result = Redactor::normalize($obj);
         $props  = $result['properties'];
 
         $this->assertIsArray($props['credentials'], 'Nested array under sensitive key must remain traversable');
@@ -432,7 +432,7 @@ class SanitizerTest extends TestCase
         $outer->session = $inner;
         $outer->debug   = 'trace';
 
-        $result = Sanitizer::normalize($outer);
+        $result = Redactor::normalize($outer);
         $props  = $result['properties'];
 
         $this->assertIsArray($props['session'], 'Nested object under sensitive key must remain traversable');
@@ -451,7 +451,7 @@ class SanitizerTest extends TestCase
         $obj->password = 'hunter2';
         $obj->api_key  = 'sk-live-xyz';
 
-        $result = Sanitizer::normalize($obj);
+        $result = Redactor::normalize($obj);
         $this->assertSame('[MASKED]', $result['properties']['password']);
         $this->assertSame('[MASKED]', $result['properties']['api_key']);
     }
@@ -459,7 +459,7 @@ class SanitizerTest extends TestCase
     public function test_normalize_empty_object(): void
     {
         $obj = new \stdClass();
-        $result = Sanitizer::normalize($obj);
+        $result = Redactor::normalize($obj);
         $this->assertSame('stdClass', $result['__object__']);
         $this->assertArrayNotHasKey('properties', $result);
     }
@@ -467,7 +467,7 @@ class SanitizerTest extends TestCase
     public function test_normalize_datetime(): void
     {
         $dt = new \DateTimeImmutable('2024-01-15T10:30:00+00:00');
-        $result = Sanitizer::normalize($dt);
+        $result = Redactor::normalize($dt);
         $this->assertIsString($result);
         $this->assertStringContainsString('2024-01-15', $result);
         $this->assertStringContainsString('10:30:00', $result);
@@ -476,7 +476,7 @@ class SanitizerTest extends TestCase
     public function test_normalize_datetime_mutable(): void
     {
         $dt = new \DateTime('2025-06-01T00:00:00+00:00');
-        $result = Sanitizer::normalize($dt);
+        $result = Redactor::normalize($dt);
         $this->assertIsString($result);
         $this->assertStringContainsString('2025-06-01', $result);
     }
@@ -484,7 +484,7 @@ class SanitizerTest extends TestCase
     public function test_normalize_resource(): void
     {
         $fh = fopen('php://memory', 'r');
-        $result = Sanitizer::normalize($fh);
+        $result = Redactor::normalize($fh);
         fclose($fh);
         $this->assertIsArray($result);
         $this->assertArrayHasKey('__resource__', $result);
@@ -496,7 +496,7 @@ class SanitizerTest extends TestCase
             'log' => 'Authorization: Bearer sk-live-abc123',
             'debug' => 'password=hunter2&user=admin',
         ];
-        $result = Sanitizer::normalize($data);
+        $result = Redactor::normalize($data);
         $this->assertStringNotContainsString('sk-live-abc123', $result['log']);
         $this->assertStringNotContainsString('hunter2', $result['debug']);
     }
@@ -508,7 +508,7 @@ class SanitizerTest extends TestCase
         $data = [
             'items' => [$obj, 'plain', 42, null, true],
         ];
-        $result = Sanitizer::normalize($data);
+        $result = Redactor::normalize($data);
         $this->assertSame('stdClass', $result['items'][0]['__object__']);
         $this->assertSame('plain', $result['items'][1]);
         $this->assertSame(42, $result['items'][2]);
