@@ -317,7 +317,7 @@ class App {
             }
         }
 
-        $this->atomic->unload();
+        // $this->atomic->unload();
         exit($message);
     }  
 

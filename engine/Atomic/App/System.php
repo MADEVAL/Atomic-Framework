@@ -144,9 +144,9 @@ class System extends Controller
         $this->cli()->seed_pages();
     }
     
-    public function queue_db(): void
+    public function db_queue(): void
     {
-        $this->cli()->queue_db();
+        $this->cli()->db_queue();
     }
 
     public function queue_worker(): void

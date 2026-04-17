@@ -18,8 +18,12 @@ $atomic->route('GET /db/tables [cli]', 'Engine\Atomic\App\System->db_tables');
 $atomic->route('GET /db/truncate [cli]', 'Engine\Atomic\App\System->db_truncate');
 $atomic->route('GET /db/truncate/queue [cli]', 'Engine\Atomic\App\System->db_truncate_queue');
 $atomic->route('GET /db/sessions [cli]', 'Engine\Atomic\App\System->db_sessions');
+$atomic->route('GET /db/queue [cli]', 'Engine\Atomic\App\System->db_queue');
+$atomic->route('GET /db/users [cli]', 'Engine\Atomic\App\System->db_users');
+$atomic->route('GET /db/pages [cli]', 'Engine\Atomic\App\System->db_pages');
+$atomic->route('GET /db/storage [cli]', 'Engine\Atomic\App\System->db_storage');
+$atomic->route('GET /db/mutex [cli]', 'Engine\Atomic\App\System->db_mutex');
 
-$atomic->route('GET /queue/db [cli]', 'Engine\Atomic\App\System->queue_db');
 $atomic->route('GET /queue/worker [cli]', 'Engine\Atomic\App\System->queue_worker');
 $atomic->route('GET /queue/test [cli]', 'Engine\Atomic\App\System->queue_test');
 $atomic->route('GET /queue/test/monitor [cli]', 'Engine\Atomic\App\System->queue_test_monitor');
@@ -30,11 +34,6 @@ $atomic->route('GET /queue/delete [cli]', 'Engine\Atomic\App\System->queue_delet
 $atomic->route('GET /seed/users [cli]', 'Engine\Atomic\App\System->seed_users');
 $atomic->route('GET /seed/roles [cli]', 'Engine\Atomic\App\System->seed_roles');
 $atomic->route('GET /seed/pages [cli]', 'Engine\Atomic\App\System->seed_pages');
-
-$atomic->route('GET /db/users [cli]', 'Engine\Atomic\App\System->db_users');
-$atomic->route('GET /db/pages [cli]', 'Engine\Atomic\App\System->db_pages');
-$atomic->route('GET /db/storage [cli]', 'Engine\Atomic\App\System->db_storage');
-$atomic->route('GET /db/mutex [cli]', 'Engine\Atomic\App\System->db_mutex');
 
 $atomic->route('GET /migrations/create [cli]', 'Engine\Atomic\App\System->migrations_create');
 $atomic->route('GET /migrations/init [cli]', 'Engine\Atomic\App\System->migrations_init');

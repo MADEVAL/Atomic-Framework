@@ -53,7 +53,7 @@ trait Queue {
         }
     }
 
-    public function queue_db() {
+    public function db_queue() {
         $atomic = App::instance();
         (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_CORE') . 'atomic_create_queue_tables');
     }
