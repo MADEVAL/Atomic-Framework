@@ -31,7 +31,8 @@ class ConfigParityTest extends TestCase
     private static array $all_keys = [
         // ── Flat scalars ──────────────────────────────────────────────────────
         'APP_UUID', 'CACHE', 'CACHE_PREFIX', 'DOMAIN', 'LANGUAGE', 'FALLBACK',
-        'ENCODING', 'TZ', 'APP_NAME', 'APP_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL',
+        'ENCODING', 'TZ', 'APP_NAME', 'APP_KEY', 'APP_ENCRYPTION_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL',
+        'ATOMIC_HIVE',
         'ESCAPE', 'TELEMETRY_ADMIN_ONLY', 'QUEUE_DRIVER', 'QUEUE_NAME',
         'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TELEGRAM_LOG_LEVEL',
         'UI', 'ENQ_UI_FIX', 'TEMP', 'LOGS', 'LOCALES', 'FONTS', 'FONTS_TEMP',
@@ -48,29 +49,25 @@ class ConfigParityTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $package_dir = realpath(dirname(__DIR__, 3));
-        if ($package_dir === false) {
-            self::markTestSkipped('Could not resolve package directory');
+        $fixtures_dir = realpath(dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'fixtures');
+        if ($fixtures_dir === false) {
+            self::fail('Could not resolve tests/fixtures/ directory');
         }
+        $fixture_config_dir = $fixtures_dir . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR;
 
-        $src_dir = realpath(dirname($package_dir) . DIRECTORY_SEPARATOR . 'src');
-        if ($src_dir === false) {
-            self::markTestSkipped('Could not resolve project src/ directory - skipping parity test');
-        }
+        defined('ATOMIC_DIR')       || define('ATOMIC_DIR', $fixtures_dir);
+        defined('ATOMIC_CONFIG')    || define('ATOMIC_CONFIG', $fixture_config_dir);
 
-        defined('ATOMIC_DIR')       || define('ATOMIC_DIR', $src_dir);
-        defined('ATOMIC_CONFIG')    || define('ATOMIC_CONFIG', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR);
-
-        $framework = realpath($package_dir);
-        self::assertNotFalse($framework, 'vendor/atomic/framework not found - run composer install first');
+        $framework = realpath(dirname(__DIR__, 3));
+        self::assertNotFalse($framework, 'Framework root not found');
 
         defined('ATOMIC_FRAMEWORK') || define('ATOMIC_FRAMEWORK', $framework . DIRECTORY_SEPARATOR);
         defined('ATOMIC_ENGINE')    || define('ATOMIC_ENGINE', ATOMIC_FRAMEWORK . 'engine' . DIRECTORY_SEPARATOR);
 
-        $env_file = ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env';
+        $env_file = $fixtures_dir . DIRECTORY_SEPARATOR . '.env';
 
-        self::assertFileExists($env_file,    'Real .env file must exist for parity test');
-        self::assertDirectoryExists(ATOMIC_CONFIG, 'Real config/ directory must exist for parity test');
+        self::assertFileExists($env_file,    'Fixture .env must exist');
+        self::assertDirectoryExists($fixture_config_dir, 'Fixture config/ directory must exist');
 
         $f3 = \Base::instance();
 
@@ -86,8 +83,15 @@ class ConfigParityTest extends TestCase
         // ── Full hive reset ───────────────────────────────────────────────────
         $set_hive($clean_hive);
 
-        // ── Run PHP loader, capture hive ──────────────────────────────────────
-        (new PhpConfigLoader($f3))->load();
+        // ── Run PHP loader against fixture config, capture hive ───────────────
+        $php_loader = new class($f3) extends PhpConfigLoader {
+            public function set_config_path(string $path): void
+            {
+                $this->config_path = $path;
+            }
+        };
+        $php_loader->set_config_path($fixture_config_dir);
+        $php_loader->load();
         self::$php_data = self::capture_hive($f3);
     }
 
@@ -132,10 +136,22 @@ class ConfigParityTest extends TestCase
         $this->assertNotEmpty(self::$php_data['APP_NAME'], 'PHP APP_NAME must not be empty');
     }
 
+    public function test_app_encryption_key_is_non_empty(): void
+    {
+        $this->assertNotEmpty(self::$env_data['APP_ENCRYPTION_KEY'], 'ENV APP_ENCRYPTION_KEY must not be empty');
+        $this->assertNotEmpty(self::$php_data['APP_ENCRYPTION_KEY'], 'PHP APP_ENCRYPTION_KEY must not be empty');
+    }
+
     public function test_domain_is_non_empty(): void
     {
         $this->assertNotEmpty(self::$env_data['DOMAIN'], 'ENV DOMAIN must not be empty');
         $this->assertNotEmpty(self::$php_data['DOMAIN'], 'PHP DOMAIN must not be empty');
+    }
+
+    public function test_atomic_hive_has_boolean_string_value(): void
+    {
+        $this->assertContains(self::$env_data['ATOMIC_HIVE'], ['true', 'false']);
+        $this->assertContains(self::$php_data['ATOMIC_HIVE'], ['true', 'false']);
     }
 
     public function test_db_config_has_required_keys(): void
@@ -151,6 +167,9 @@ class ConfigParityTest extends TestCase
 
     public function test_redis_has_constant_prefix_fields(): void
     {
+        $this->assertArrayHasKey('client', self::$php_data['REDIS']);
+        $this->assertArrayHasKey('password', self::$php_data['REDIS']);
+        $this->assertArrayHasKey('db', self::$php_data['REDIS']);
         $this->assertSame('atomic.',         self::$php_data['REDIS']['ATOMIC_REDIS_PREFIX']);
         $this->assertSame('atomic.queue.',   self::$php_data['REDIS']['ATOMIC_REDIS_QUEUE_PREFIX']);
         $this->assertSame('atomic.session.', self::$php_data['REDIS']['ATOMIC_REDIS_SESSION_PREFIX']);

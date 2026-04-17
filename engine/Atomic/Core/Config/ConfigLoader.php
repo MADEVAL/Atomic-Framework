@@ -74,6 +74,7 @@ class ConfigLoader {
 
         $settings = [
             'APP_UUID'              => $this->get_env('APP_UUID', ''),
+            'APP_ENCRYPTION_KEY'    => $this->get_env('APP_ENCRYPTION_KEY', ''),
             'CACHE'                 => $cache_string,
             'CACHE_PREFIX'          => $this->get_env('CACHE_PREFIX', 'atomic_'),
             'DOMAIN'                => $this->get_env('DOMAIN', ''),
@@ -85,11 +86,12 @@ class ConfigLoader {
             'APP_KEY'               => $this->get_env('APP_KEY', ''),
             'DEBUG_MODE'            => $this->get_env('DEBUG_MODE', 'false'),
             'DEBUG_LEVEL'           => $this->get_env('DEBUG_LEVEL', 'error'),
+            'ATOMIC_HIVE'           => $this->get_env('ATOMIC_HIVE', 'false'),
             'ESCAPE'                => $this->get_env('ESCAPE', 'false'),
             'TELEMETRY_ADMIN_ONLY'  => filter_var($this->get_env('TELEMETRY_ADMIN_ONLY', 'false'), FILTER_VALIDATE_BOOLEAN),
             'THEME.envname'         => $this->get_env('THEME', 'default'),
             'QUEUE_DRIVER'          => $this->get_env('QUEUE_DRIVER', 'database'),
-            'QUEUE_NAME'            => $this->get_env('QUEUE_NAME', 'default'), 
+            'QUEUE_NAME'            => $this->get_env('QUEUE_NAME', 'default'),
             'TELEGRAM_BOT_TOKEN'    => $this->get_env('TELEGRAM_BOT_TOKEN', ''), 
             'TELEGRAM_CHAT_ID'      => $this->get_env('TELEGRAM_CHAT_ID', ''),
             'TELEGRAM_LOG_LEVEL'    => $this->get_env('TELEGRAM_LOG_LEVEL', 'error'),
@@ -140,6 +142,9 @@ class ConfigLoader {
         $this->atomic->set('REDIS', [
             'host'                        => $this->get_env('REDIS_HOST', '127.0.0.1'),
             'port'                        => $ports['redis'],
+            'client'                      => $this->get_env('REDIS_CLIENT', 'phpredis'),
+            'password'                    => $this->get_env('REDIS_PASSWORD', ''),
+            'db'                          => (int)$this->get_env('REDIS_DB', 0),
             'ATOMIC_REDIS_PREFIX'         => 'atomic.',
             'ATOMIC_REDIS_QUEUE_PREFIX'   => 'atomic.queue.',
             'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic.session.',

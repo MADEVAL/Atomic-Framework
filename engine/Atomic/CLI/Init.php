@@ -559,9 +559,8 @@ trait Init
         $o->writeln("    'name' => 'YourApp',");
         $o->writeln("    'key'  => '<32 hex chars>',     // generate: see APP_KEY above");
         $o->writeln();
-        $o->writeln('  ' . Style::warning_label() . ' APP_ENCRYPTION_KEY has no PHP config equivalent.');
-        $o->writeln('  Store the sodium key in a secrets manager or a file outside the repo,');
-        $o->writeln('  and load it in bootstrap/ before the framework boots.');
+        $o->writeln('  ' . Style::warning_label() . ' APP_ENCRYPTION_KEY is mirrored in config/app.php as "encryption_key".');
+        $o->writeln('  Keep the sodium key secret and avoid committing it to the repository.');
         $o->writeln();
 
         // ── STEP 3 ────────────────────────────────────────────────────────

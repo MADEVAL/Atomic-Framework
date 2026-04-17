@@ -95,6 +95,7 @@ class PhpConfigLoader {
         // ── Settings array (mirrors ConfigLoader $settings) ──
         $settings = [
             'APP_UUID'              => (string)$this->cfg('app', 'uuid', ''),
+            'APP_ENCRYPTION_KEY'    => (string)$this->cfg('app', 'encryption_key', ''),
             'CACHE'                 => $cache_string,
             'CACHE_PREFIX'          => (string)$this->cfg('cache', 'prefix', 'atomic_'),
             'DOMAIN'                => (string)$this->cfg('app', 'domain', ''),
@@ -106,6 +107,7 @@ class PhpConfigLoader {
             'APP_KEY'               => (string)$this->cfg('app', 'key', ''),
             'DEBUG_MODE'            => $this->cfg('app', 'debug', false) ? 'true' : 'false',
             'DEBUG_LEVEL'           => (string)$this->cfg('app', 'debug_level', 'error'),
+            'ATOMIC_HIVE'           => $this->cfg('app', 'atomic_hive', false) ? 'true' : 'false',
             'ESCAPE'                => $this->cfg('app', 'escape', false) ? 'true' : 'false',
             'TELEMETRY_ADMIN_ONLY'  => (bool)$this->cfg_nested('app', 'telemetry.admin_only', false),
             'THEME.envname'         => (string)$this->cfg('app', 'theme', 'default'),
@@ -163,6 +165,9 @@ class PhpConfigLoader {
         $this->atomic->set('REDIS', [
             'host'                        => (string)($redis['host'] ?? '127.0.0.1'),
             'port'                        => $ports['redis'],
+            'client'                      => (string)($redis['client'] ?? 'phpredis'),
+            'password'                    => (string)($redis['password'] ?? ''),
+            'db'                          => (int)($redis['db'] ?? 0),
             'ATOMIC_REDIS_PREFIX'         => 'atomic.',
             'ATOMIC_REDIS_QUEUE_PREFIX'   => 'atomic.queue.',
             'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic.session.',
