@@ -8,7 +8,7 @@ Access can be restricted to admin users only via `TELEMETRY_ADMIN_ONLY`. All dat
 
 **Queue view** - a paginated, filterable list of all queue jobs across drivers (database, Redis). Jobs can be filtered by status (pending, running, completed, failed), UUID, queue name, and time range. The header shows global status totals that remain accurate regardless of which filter is active.
 
-**Log viewer** - paginated log output for any configured log channel. Supports channel switching, pagination, and live stat polling (line count, last modified). Log lines with an attached dump can be expanded inline.
+**Log viewer** - paginated log output for any configured log channel. Supports channel switching, per-day file selection, pagination, and live stat polling (line count, last modified). Log lines with an attached dump can be expanded inline.
 
 **Dump viewer** - opens a structured JSON dump by its UUID, as written by `Log::dump()`. Useful for inspecting large payloads that would be impractical to inline in a log message.
 
@@ -32,9 +32,9 @@ Log pages are cached based on file modification time. Unchanged pages are served
 | `GET /telemetry/events/@driver/@job_uuid` | Job event timeline |
 | `GET /telemetry/dashboard` | Runtime environment snapshot |
 | `GET /telemetry/hive` | Sanitized hive dump |
-| `GET /telemetry/logs` | Paginated log output |
-| `GET /telemetry/log-channels` | List of configured log channels |
-| `GET /telemetry/log-stat` | Line count and mtime for a channel |
+| `GET /telemetry/logs` | Paginated log output (`channel`, optional `date=YYYY-MM-DD`) |
+| `GET /telemetry/log-channels` | List of configured log channels and available dates per channel |
+| `GET /telemetry/log-stat` | Line count and mtime for a channel/date |
 | `GET /telemetry/dumps/@dump_id` | Retrieve a JSON dump by UUID |
 
 ### Usage notes

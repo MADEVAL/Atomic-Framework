@@ -14,6 +14,17 @@ class LogTest extends TestCase
     private static string $logDir;
     private static string $dumpsDir;
 
+    private static function dated_log_path(string $basename): string
+    {
+        $info = pathinfo($basename);
+        $filename = (string)($info['filename'] ?? $basename);
+        $dated = $filename . '.' . date('Y-m-d');
+        if (isset($info['extension']) && $info['extension'] !== '') {
+            $dated .= '.' . $info['extension'];
+        }
+        return self::$logDir . $dated;
+    }
+
     public static function setUpBeforeClass(): void
     {
         $f3 = \Base::instance();
@@ -299,7 +310,7 @@ class LogTest extends TestCase
         $marker = 'UNIQUE_MARKER_' . uniqid();
         Log::error($marker);
 
-        $logFile = self::$logDir . 'atomic.log';
+        $logFile = self::dated_log_path('atomic.log');
         if (is_file($logFile)) {
             $contents = file_get_contents($logFile);
             $this->assertStringContainsString($marker, $contents);
@@ -352,7 +363,7 @@ class LogTest extends TestCase
         $marker = 'AUTH_MARKER_' . uniqid();
         Log::channel('auth')->error($marker);
 
-        $authLog = self::$logDir . 'auth.log';
+        $authLog = self::dated_log_path('auth.log');
         if (is_file($authLog)) {
             $contents = file_get_contents($authLog);
             $this->assertStringContainsString($marker, $contents);
@@ -375,7 +386,7 @@ class LogTest extends TestCase
         $marker = 'ISOLATED_MARKER_' . uniqid();
         Log::channel('isolated')->error($marker);
 
-        $defaultLog = self::$logDir . 'atomic.log';
+        $defaultLog = self::dated_log_path('atomic.log');
         if (is_file($defaultLog)) {
             $contents = file_get_contents($defaultLog);
             $this->assertStringNotContainsString($marker, $contents);
@@ -401,8 +412,8 @@ class LogTest extends TestCase
         Log::channel('chan_a')->error($markerA);
         Log::channel('chan_b')->error($markerB);
 
-        $fileA = self::$logDir . 'chan_a.log';
-        $fileB = self::$logDir . 'chan_b.log';
+        $fileA = self::dated_log_path('chan_a.log');
+        $fileB = self::dated_log_path('chan_b.log');
 
         if (is_file($fileA) && is_file($fileB)) {
             $contentsA = file_get_contents($fileA);
@@ -435,7 +446,7 @@ class LogTest extends TestCase
         Log::channel('strict')->debug($debugMarker);
         Log::channel('strict')->error($errorMarker);
 
-        $strictLog = self::$logDir . 'strict.log';
+        $strictLog = self::dated_log_path('strict.log');
         if (is_file($strictLog)) {
             $contents = file_get_contents($strictLog);
             $this->assertStringNotContainsString($debugMarker, $contents);

@@ -17,7 +17,7 @@ class Log
     protected static string $dumps_dir = '';
     protected static ?\Base $atomic = null;
 
-    /** @var array<string, array{logger: \Log, level: int}> */
+    /** @var array<string, array{logger: \Log, level: int, path: string}> */
     protected static array $channels = [];
 
     protected static string $default_channel = 'atomic';
@@ -74,10 +74,7 @@ class Log
         }
 
         $default_cfg = self::$channel_configs[self::$default_channel];
-        self::$channels[self::$default_channel] = [
-            'logger' => new \Log($default_cfg['path']),
-            'level'  => LogLevel::from($default_cfg['level'])->to_int(),
-        ];
+        self::$channels[self::$default_channel] = self::build_channel($default_cfg);
 
         Redactor::init_from_hive($atomic);
     }
@@ -93,20 +90,17 @@ class Log
 
     public static function resolve_channel(string $name): ?array
     {
-        if (isset(self::$channels[$name])) {
-            return self::$channels[$name];
-        }
-
         if (!isset(self::$channel_configs[$name])) {
             return null;
         }
 
         $cfg = self::$channel_configs[$name];
-        $logger = new \Log($cfg['path']);
-        self::$channels[$name] = [
-            'logger' => $logger,
-            'level'  => LogLevel::from($cfg['level'])->to_int(),
-        ];
+
+        if (isset(self::$channels[$name]) && self::$channels[$name]['path'] === self::resolve_dated_path($cfg['path'])) {
+            return self::$channels[$name];
+        }
+
+        self::$channels[$name] = self::build_channel($cfg);
 
         return self::$channels[$name];
     }
@@ -134,6 +128,40 @@ class Log
     public static function get_channel_path(string $name): ?string
     {
         return self::$channel_configs[$name]['path'] ?? null;
+    }
+
+    /** @param array{driver: string, path: string, level: string} $cfg */
+    protected static function build_channel(array $cfg): array
+    {
+        $resolved_path = self::resolve_dated_path($cfg['path']);
+        return [
+            'logger' => new \Log($resolved_path),
+            'level'  => LogLevel::from($cfg['level'])->to_int(),
+            'path'   => $resolved_path,
+        ];
+    }
+
+    protected static function resolve_dated_path(string $path): string
+    {
+        $date = date('Y-m-d');
+        $info = pathinfo($path);
+        $filename = (string)($info['filename'] ?? $path);
+        $basename = preg_replace('/\.\d{4}-\d{2}-\d{2}$/', '', $filename);
+        if (!is_string($basename) || $basename === '') {
+            $basename = $filename;
+        }
+
+        $dated = $basename . '.' . $date;
+        if (isset($info['extension']) && $info['extension'] !== '') {
+            $dated .= '.' . $info['extension'];
+        }
+
+        $dirname = $info['dirname'] ?? '';
+        if ($dirname === '' || $dirname === '.') {
+            return $dated;
+        }
+
+        return $dirname . DIRECTORY_SEPARATOR . $dated;
     }
 
     public static function write_to_channel(string $channel, LogLevel $level, string $message): void

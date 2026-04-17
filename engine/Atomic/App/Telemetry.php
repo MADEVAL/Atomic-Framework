@@ -192,7 +192,18 @@ class Telemetry extends Controller
 
     public function log_channels(\Base $atomic, array $params = [], ?string $alias = null): void
     {
-        Response::instance()->send_json(['channels' => Log::get_channel_names()], terminate: false);
+        $logs_dir = rtrim((string)$atomic->get('LOGS'), '/\\');
+        $channels = Log::get_channel_names();
+        $channel_dates = [];
+        foreach ($channels as $channel) {
+            $filename = $this->resolve_channel_filename((string)$channel);
+            $channel_dates[(string)$channel] = $this->list_channel_log_dates($logs_dir, $filename);
+        }
+
+        Response::instance()->send_json([
+            'channels'      => $channels,
+            'channel_dates' => $channel_dates,
+        ], terminate: false);
     }
 
     public function log_stat(\Base $atomic, array $params = [], ?string $alias = null): void
@@ -201,18 +212,18 @@ class Telemetry extends Controller
         $filesystem = Filesystem::instance();
 
         $channel = $atomic->clean((string)($atomic->get('GET.channel') ?? ''));
-        $filename = 'atomic.log';
-        if ($channel !== '') {
-            $channelPath = Log::get_channel_path($channel);
-            if ($channelPath !== null) {
-                $filename = basename($channelPath);
-            }
-        }
-
-        $path = $logsDir ? ($logsDir . DIRECTORY_SEPARATOR . $filename) : null;
+        $requested_date = $atomic->clean((string)($atomic->get('GET.date') ?? ''));
+        $log_target = $this->resolve_channel_log_target($logsDir, $channel, $requested_date);
+        $path = $log_target['path'];
         $res = Response::instance();
         if (!$path || !$filesystem->is_file($path)) {
-            $res->send_json(['count' => 0, 'mtime' => 0], terminate: false);
+            $res->send_json([
+                'count'   => 0,
+                'mtime'   => 0,
+                'channel' => $channel,
+                'date'    => $log_target['date'],
+                'dates'   => $log_target['dates'],
+            ], terminate: false);
             return;
         }
 
@@ -227,7 +238,13 @@ class Telemetry extends Controller
             $mtime = 0;
         }
 
-        $res->send_json(['count' => $count, 'mtime' => (int)$mtime], terminate: false);
+        $res->send_json([
+            'count'   => $count,
+            'mtime'   => (int)$mtime,
+            'channel' => $channel,
+            'date'    => $log_target['date'],
+            'dates'   => $log_target['dates'],
+        ], terminate: false);
     }
 
     public function logs(\Base $atomic, array $params = [], ?string $alias = null): void
@@ -236,25 +253,25 @@ class Telemetry extends Controller
         $filesystem = Filesystem::instance();
 
         $channel = $atomic->clean((string)($atomic->get('GET.channel') ?? ''));
-        $filename = 'atomic.log';
-        if ($channel !== '') {
-            $channelPath = Log::get_channel_path($channel);
-            if ($channelPath !== null) {
-                $filename = basename($channelPath);
-            }
-        }
-
-        $path = $logsDir ? ($logsDir . DIRECTORY_SEPARATOR . $filename) : null;
+        $requested_date = $atomic->clean((string)($atomic->get('GET.date') ?? ''));
+        $log_target = $this->resolve_channel_log_target($logsDir, $channel, $requested_date);
+        $path = $log_target['path'];
         $res = Response::instance();
         if (!$path || !$filesystem->is_file($path)) {
-            $res->send_json(['lines' => [], 'pagination' => ['page' => 1, 'per_page' => 100, 'total' => 0, 'last_page' => 1]], terminate: false);
+            $res->send_json([
+                'channel'    => $channel,
+                'date'       => $log_target['date'],
+                'dates'      => $log_target['dates'],
+                'lines'      => [],
+                'pagination' => ['page' => 1, 'per_page' => 100, 'total' => 0, 'last_page' => 1],
+            ], terminate: false);
             return;
         }
 
         $page     = max(1, (int)($atomic->get('GET.page') ?? 1));
         $per_page = min(500, max(1, (int)($atomic->get('GET.per_page') ?? 100)));
 
-        $cache_channel  = $channel ?: 'default';
+        $cache_channel  = ($channel ?: 'default') . ':' . ($log_target['date'] ?: 'none');
         $meta_key       = "log_meta:{$cache_channel}";
 
         $current_mtime_raw = $filesystem->modified_time($path);
@@ -360,7 +377,10 @@ class Telemetry extends Controller
         }
 
         $response_data = [
-            'lines' => $out,
+            'channel' => $channel,
+            'date'    => $log_target['date'],
+            'dates'   => $log_target['dates'],
+            'lines'   => $out,
             'pagination' => [
                 'page'      => $page,
                 'per_page'  => $per_page,
@@ -374,6 +394,102 @@ class Telemetry extends Controller
         }
 
         $res->send_json($response_data, terminate: false);
+    }
+
+    private function resolve_channel_filename(string $channel): string
+    {
+        $filename = 'atomic.log';
+        if ($channel !== '') {
+            $channelPath = Log::get_channel_path($channel);
+            if ($channelPath !== null) {
+                $filename = basename($channelPath);
+            }
+        }
+        return $filename;
+    }
+
+    private function build_dated_filename(string $filename, string $date): string
+    {
+        $info = pathinfo($filename);
+        $name = (string)($info['filename'] ?? $filename);
+        $dated = $name . '.' . $date;
+        if (isset($info['extension']) && $info['extension'] !== '') {
+            $dated .= '.' . $info['extension'];
+        }
+        return $dated;
+    }
+
+    private function is_valid_log_date(string $date): bool
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return false;
+        }
+        [$year, $month, $day] = array_map('intval', explode('-', $date));
+        return checkdate($month, $day, $year);
+    }
+
+    private function list_channel_log_dates(string $logs_dir, string $filename): array
+    {
+        if ($logs_dir === '' || !is_dir($logs_dir)) {
+            return [];
+        }
+
+        $info = pathinfo($filename);
+        $name = (string)($info['filename'] ?? $filename);
+        $escaped_name = preg_quote($name, '/');
+        $pattern = isset($info['extension']) && $info['extension'] !== ''
+            ? '/^' . $escaped_name . '\.(\d{4}-\d{2}-\d{2})\.' . preg_quote((string)$info['extension'], '/') . '$/'
+            : '/^' . $escaped_name . '\.(\d{4}-\d{2}-\d{2})$/';
+
+        $dates = [];
+        $entries = scandir($logs_dir);
+        if ($entries === false) {
+            return [];
+        }
+        foreach ($entries as $entry) {
+            $path = $logs_dir . DIRECTORY_SEPARATOR . $entry;
+            if (!is_file($path)) {
+                continue;
+            }
+            if (preg_match($pattern, $entry, $m) === 1 && $this->is_valid_log_date($m[1])) {
+                $dates[$m[1]] = true;
+            }
+        }
+
+        $out = array_keys($dates);
+        rsort($out, SORT_STRING);
+        return $out;
+    }
+
+    /** @return array{path: ?string, date: string, dates: array<int, string>} */
+    private function resolve_channel_log_target(string $logs_dir, string $channel, string $requested_date): array
+    {
+        $filename = $this->resolve_channel_filename($channel);
+        $dates = $this->list_channel_log_dates($logs_dir, $filename);
+        $selected_date = '';
+
+        if ($this->is_valid_log_date($requested_date)) {
+            if (empty($dates) || in_array($requested_date, $dates, true)) {
+                $selected_date = $requested_date;
+            }
+        }
+
+        if ($selected_date === '' && !empty($dates)) {
+            $selected_date = (string)$dates[0];
+        }
+
+        if ($selected_date === '') {
+            $selected_date = date('Y-m-d');
+        }
+
+        $dated_filename = $this->build_dated_filename($filename, $selected_date);
+        $path = $logs_dir !== '' ? ($logs_dir . DIRECTORY_SEPARATOR . $dated_filename) : null;
+
+        return [
+            'path'  => $path,
+            'date'  => $selected_date,
+            'dates' => $dates,
+        ];
     }
 
     private function can_use_cached_log_page(int $page, int $cached_last_page): bool
