@@ -6,8 +6,8 @@ use Engine\Atomic\CLI\Console\Output;
 
 class Seeder
 {
-    public static function run(string $source_path): void {
-        $out = new Output();
+    public static function run(string $source_path, ?Output $out = null): void {
+        $out ??= new Output();
         $resolved_source_path = realpath($source_path);
         if ($resolved_source_path === false || !is_file($resolved_source_path) || !is_readable($resolved_source_path)) {
             $out->err("Source file not found or not readable: {$source_path}");
