@@ -2,15 +2,24 @@
 
 `Engine\Atomic\Core\App` is the main bootstrap wrapper around the Fat-Free `Base` instance.
 
-Typical startup flow:
+Typical startup flow (as generated in `bootstrap/app.php`):
 
 ```php
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Config\ConfigLoader;
+use Engine\Atomic\Core\Config\PhpConfigLoader;
 
 $f3 = \Base::instance();
 
-ConfigLoader::init($f3, realpath(__DIR__ . '/../.env'));
+switch (ATOMIC_LOADER) {
+    case 'php':
+        (new PhpConfigLoader($f3))->load();
+        break;
+    case 'env':
+    default:
+        ConfigLoader::init($f3, ATOMIC_ENV);
+        break;
+}
 
 $app = App::instance($f3);
 
@@ -18,14 +27,19 @@ $app->prefly()
     ->register_logger()
     ->register_exception_handler()
     ->register_locales()
-    ->register_locale_hrefs()
+    ->register_unload_handler()
     ->register_middleware()
-    ->init_session()
+    ->register_routes()
     ->register_core_plugins()
     ->register_plugins()
+    ->init_session()
+    ->open_connections()
+    ->register_locale_hrefs()
     ->register_user_provider()
-    ->register_routes()
-    ->run();
+;
+
+\App\Event\Application::instance()->init();
+\App\Hook\Application::instance()->init();
 ```
 
 ### What `App` manages
@@ -61,6 +75,20 @@ Request type is detected from the current path:
 - everything else loads web routes
 
 Framework route files are resolved from `FRAMEWORK_ROUTES`.
+
+### Bootstrap constants and PHP error logging
+
+`bootstrap/const.php` defines Atomic bootstrap constants such as:
+
+- loader mode (`ATOMIC_LOADER`)
+- root and framework paths (`ATOMIC_DIR`, `ATOMIC_FRAMEWORK`, `ATOMIC_ENGINE`, etc.)
+- environment file (`ATOMIC_ENV`)
+- runtime toggles and defaults (`ATOMIC_PHP_ERRORS`, cache/image/http constants)
+
+`bootstrap/error.php` configures native PHP error logging to:
+
+- `storage/logs/php_errors-YYYY-MM-DD.log`
+- only when `storage/logs` is writable
 
 ### Connection lifecycle
 

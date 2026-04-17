@@ -13,6 +13,7 @@ use Engine\Atomic\Queue\Interfaces\Base;
 use Engine\Atomic\Queue\Interfaces\Management;
 use Engine\Atomic\Queue\Interfaces\Telemetry;
 use Engine\Atomic\Queue\Managers\ProcessManager;
+use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Queue\Monitor\Adapters\Redis as RedisMonitorAdapter;
 use Engine\Atomic\Telemetry\Queue\Adapters\Redis as RedisTelemetryAdapter;
 
@@ -294,12 +295,12 @@ class Redis implements Base, Management, Telemetry
 
     public function mark_failed(array $job, \Throwable $exception): bool {
         Log::channel(LogChannel::QUEUE_WORKER)->error("Job with UUID " . ($job['uuid'] ?? 'N/A') . " failed: " . $exception->getMessage());
-        $job['exception'] = [
+        $job['exception'] = Redactor::redact([
             'message' => $exception->getMessage(),
             'file' => $exception->getFile(),
             'line' => $exception->getLine(),
             'trace_string' => $exception->getTraceAsString()
-        ];
+        ]);
 
         return $this->mark_finished($job, true);
     }

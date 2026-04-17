@@ -1,131 +1,44 @@
 ## Telemetry ##
 
-Atomic telemetry is implemented by `Engine\Atomic\App\Telemetry` and routed from `engine/Atomic/Core/Routes/telemetry.php`.
+Atomic telemetry is a built-in diagnostics panel that provides live visibility into the application's runtime state, queue jobs, and log output. It is a separate read-only interface served under `/telemetry`, distinct from the main application.
+
+Access can be restricted to admin users only via `TELEMETRY_ADMIN_ONLY`. All data returned by the telemetry endpoints is sanitized through the Redactor before being served - sensitive values, secrets, and filesystem paths are masked.
+
+### What it provides
+
+**Queue view** - a paginated, filterable list of all queue jobs across drivers (database, Redis). Jobs can be filtered by status (pending, running, completed, failed), UUID, queue name, and time range. The header shows global status totals that remain accurate regardless of which filter is active.
+
+**Log viewer** - paginated log output for any configured log channel. Supports channel switching, pagination, and live stat polling (line count, last modified). Log lines with an attached dump can be expanded inline.
+
+**Dump viewer** - opens a structured JSON dump by its UUID, as written by `Log::dump()`. Useful for inspecting large payloads that would be impractical to inline in a log message.
+
+**Dashboard** - a snapshot of the current runtime environment: PHP version and configuration, framework version, debug settings, database connection info, and system details.
+
+**Hive inspector** - a sanitized view of the current F3 hive state. Useful for inspecting what is in scope at request time without access to a debugger.
+
+### How it works
+
+The telemetry panel is a theme (`Telemetry`) that boots alongside the controller. All data is fetched via JSON endpoints and rendered client-side - the queue and log views update without full page reloads. Queue filter changes update the URL and trigger a server-side re-render of the job list, keeping the browser URL shareable and the back button functional.
+
+Queue status totals in the header are always computed against the full dataset, not just the filtered view. Applying a status filter scopes the job list but never affects the global counts.
+
+Log pages are cached based on file modification time. Unchanged pages are served from cache; a changed file invalidates cached pages for that channel.
 
 ### Routes
 
-Registered telemetry endpoints:
-
-- `GET /telemetry`
-- `GET /telemetry/events/@driver/@job_uuid`
-- `GET /telemetry/dashboard`
-- `GET /telemetry/hive`
-- `GET /telemetry/logs`
-- `GET /telemetry/dumps/@dump_id`
-
-### Theme boot and access control
-
-Controller construction:
-
-- calls `Theme::instance('Telemetry')`
-- sets `__theme_booted` in the app hive so the theme is only booted once per request lifecycle
-
-`beforeroute(...)` behavior:
-
-- `Sanitizer::syncFromHive($atomic)` runs first
-- if `TELEMETRY_ADMIN_ONLY` is truthy and the current user is not admin, the request is rerouted to `/login`
-
-There is no separate JSON authorization response in telemetry routes. The access rule is a reroute.
-
-### Queue view
-
-`queue()` renders `layout/telemetry-queue.atom.php`.
-
-Accepted filters from `GET`:
-
-- `driver`
-- `status`
-- `queue`
-- `uuid`
-- `state`
-- `date_from`
-- `date_to`
-
-How data is built:
-
-- filter values are cleaned with `$atomic->clean(...)`
-- `TelemetryManager::fetch_all_jobs(...)` is used
-- jobs are normalized through `Sanitizer::normalize(...)`
-- status counters are computed for `failed`, `queued`, `running`, `completed`, and `total`
-
-### Events endpoint
-
-`events()` validates:
-
-- `driver` must be `redis` or `database`
-- `job_uuid` must be a valid UUID v4
-
-Example:
-
-```json
-{
-  "job_uuid": "uuid-v4",
-  "driver": "redis",
-  "events": []
-}
-```
-
-### Dashboard endpoint
-
-`dashboard()` returns JSON with:
-
-- `php`: version, sapi, memory limit, max execution time, opcache flag, loaded extensions
-- `f3`: framework version when available
-- `atomic`: debug mode, debug level, logs dir, dumps dir, base
-- `system`: OS family/name and timezone
-- `db`: driver, server version, client version when a SQL connection is available
-
-### Hive endpoint
-
-`hive()` returns the current hive after `Sanitizer::normalize(...)`.
-
-Sanitizer behavior relevant here:
-
-- masks sensitive leaf values
-- masks matching secrets embedded in strings
-- masks the home/root path when `HOME` or `ROOT` is available
-- limits recursion depth and item count
-
-If hive extraction itself throws, the endpoint returns a sanitized error payload instead.
-
-### Logs endpoint
-
-`logs()` reads `LOGS/atomic.log`.
-
-Behavior:
-
-- if the log file does not exist, it returns `{"lines":[]}`
-- reads at most the last 200 KB of the file
-- returns at most 300 parsed log lines
-- extracts `ts`, `level`, `message`, and optional `dump_id`
-- supports multiple timestamp formats and a level-only fallback
-- returns newest lines first
-
-### Dump endpoint
-
-`dump()` validates `dump_id` as UUID v4 and reads:
-
-`DUMPS/<dump_id>.json`
-
-Behavior:
-
-- invalid UUID -> `400`
-- missing file -> `404`
-- valid JSON dump -> decoded JSON payload
-- invalid JSON dump file -> `{"dump_id":"...","error":"dump file could not be decoded"}`
-
-### TelemetryManager behavior
-
-`TelemetryManager`:
-
-- resolves its default driver from `QUEUE_DRIVER`
-- can still fetch events from an explicitly requested driver
-- merges in-progress, failed, and completed jobs for queue listing
-- applies runtime filters for driver, queue, uuid, status, state, and date range
-- pushes telemetry events with queue context from the current queue execution hive keys
+| Route | Purpose |
+|---|---|
+| `GET /telemetry` | Queue view |
+| `GET /telemetry/events/@driver/@job_uuid` | Job event timeline |
+| `GET /telemetry/dashboard` | Runtime environment snapshot |
+| `GET /telemetry/hive` | Sanitized hive dump |
+| `GET /telemetry/logs` | Paginated log output |
+| `GET /telemetry/log-channels` | List of configured log channels |
+| `GET /telemetry/log-stat` | Line count and mtime for a channel |
+| `GET /telemetry/dumps/@dump_id` | Retrieve a JSON dump by UUID |
 
 ### Usage notes
 
-1. Set `TELEMETRY_ADMIN_ONLY` in production.
-2. Ensure `LOGS` is writable; `DUMPS` is derived from the logger setup.
-3. Use telemetry output for diagnostics, not as a raw dump of unsanitized runtime state.
+- Set `TELEMETRY_ADMIN_ONLY=true` in production.
+- `LOGS` must be writable for the log viewer to function.
+- Telemetry output is diagnostic - it reflects live runtime state and should not be used as an application data source.

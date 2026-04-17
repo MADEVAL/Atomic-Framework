@@ -13,7 +13,7 @@
 
 # Atomic Framework
 
-A modular, full-featured PHP framework built on top of [Fat-Free Framework](https://fatfreeframework.com/). Atomic provides a structured application skeleton with authentication, queue processing, scheduling, caching, CLI tooling, and more — while staying lightweight and unopinionated.
+A modular, full-featured PHP framework built on top of [Fat-Free Framework](https://fatfreeframework.com/). Atomic provides a structured application skeleton with authentication, queue processing, scheduling, caching, CLI tooling, and more - while staying lightweight and unopinionated.
 
 ## Table of Contents
 
@@ -46,11 +46,11 @@ A modular, full-featured PHP framework built on top of [Fat-Free Framework](http
 |----------|-----------|
 | **Core** | Fluent bootstrap, dual config loaders (`.env` / PHP arrays), preflight environment checks |
 | **Auth** | Bcrypt password hashing, session binding (IP + User-Agent), dual rate limiting (IP + credential), OAuth 2.0 (Google), Telegram Login Widget, admin impersonation with audit trail |
-| **Database** | MySQL via PDO, Redis, Memcached — managed through `ConnectionManager` with health-check pings |
+| **Database** | MySQL via PDO, Redis, Memcached - managed through `ConnectionManager` with health-check pings |
 | **Migrations** | Timestamp-based migration system with batch tracking, rollback support, and plugin migration auto-discovery |
 | **Queue** | Redis driver (Lua-scripted atomic ops) and Database driver (row-level locks) with retry, TTL, and monitoring |
 | **Scheduler** | Full POSIX cron expression parser, timezone-aware, timeout protection (300 s) |
-| **Cache** | Multi-driver: Redis, Memcached, database, filesystem — with cascade fallback and transient storage |
+| **Cache** | Multi-driver: Redis, Memcached, database, filesystem - with cascade fallback and transient storage |
 | **Middleware** | Parameterized middleware stack with named aliases and route-pattern matching |
 | **Events & Hooks** | Hierarchical event dispatcher with priorities + WordPress-compatible action/filter layer |
 | **Mail** | SMTP mailer with multipart/alternative support, DNS deliverability scoring (SPF/DKIM/DMARC) |
@@ -183,6 +183,8 @@ return [
 ];
 ```
 
+`bootstrap/error.php` configures native PHP error logging to `storage/logs/php_errors-YYYY-MM-DD.log` when the log directory is writable.
+
 ## Core Concepts
 
 ### Application Lifecycle
@@ -198,10 +200,19 @@ $application = App::instance($atomic)
     ->register_unload_handler()
     ->register_middleware()        // Load middleware aliases
     ->register_routes()            // Load route files by request type
+    ->register_core_plugins()      // Register framework plugin providers
     ->register_plugins()           // Activate registered plugins
     ->init_session()               // Start session (lazy: only if cookie exists)
     ->open_connections()           // Opens redis, memcached and db connections
+    ->register_locale_hrefs()      // Normalize prefixed locale path and PARAMS.lang
     ->register_user_provider();    // Wire authentication backend
+```
+
+In generated applications, the bootstrap then initializes app-level event and hook registries:
+
+```php
+\App\Event\Application::instance()->init();
+\App\Hook\Application::instance()->init();
 ```
 
 ### Routing
@@ -449,7 +460,7 @@ php atomic file/csv2pdf          # Convert CSV to PDF
 
 | Layer | Implementation |
 |-------|---------------|
-| **Encryption** | NaCl secretbox (libsodium) — authenticated encryption with random nonces |
+| **Encryption** | NaCl secretbox (libsodium) - authenticated encryption with random nonces |
 | **Passwords** | Bcrypt with automatic salt, constant-time verification |
 | **Sessions** | IP + User-Agent binding, regeneration on login, configurable lifetime |
 | **Rate Limiting** | Dual counters (IP-based + credential-based) with configurable TTL windows |

@@ -424,7 +424,7 @@ class InitTest extends TestCase
 
     public function test_write_php_keys_does_nothing_when_file_absent(): void
     {
-        // No config/app.php — must not throw; just emits a warning via output
+        // No config/app.php - must not throw; just emits a warning via output
         $this->cli->exposeWritePhpKeys($this->tmpDir, $this->validKeys());
 
         $this->assertFileDoesNotExist($this->tmpDir . '/config/app.php');
@@ -440,7 +440,7 @@ class InitTest extends TestCase
 
         $this->cli->exposeWritePhpKeys($this->tmpDir, $this->validKeys());
 
-        // File content unchanged — regex found no keys to replace
+        // File content unchanged - regex found no keys to replace
         $this->assertSame($content, file_get_contents($dir . DIRECTORY_SEPARATOR . 'app.php'));
     }
 

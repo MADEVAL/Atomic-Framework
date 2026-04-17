@@ -12,6 +12,7 @@ use Engine\Atomic\Enums\LogChannel;
 use Engine\Atomic\Queue\Interfaces\Base;
 use Engine\Atomic\Queue\Interfaces\Management;
 use Engine\Atomic\Queue\Interfaces\Telemetry;
+use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Managers\ProcessManager;
 use Engine\Atomic\Queue\Monitor\Adapters\DB as DBMonitorAdapter;
@@ -197,12 +198,12 @@ class DB implements Base, Management, Telemetry
 
         unset($job['payload']['uuid_batch']);
 
-        $error_data = [
+        $error_data = Redactor::redact([
             'message' => $exception->getMessage(),
             'file' => $exception->getFile(),
             'line' => $exception->getLine(),
             'trace_string' => $exception->getTraceAsString()
-        ];
+        ]);
 
         try {
             $sql->begin();

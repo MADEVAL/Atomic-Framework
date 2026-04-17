@@ -518,7 +518,7 @@ class LogTest extends TestCase
         $f3->set('LOG_CHANNELS', []);
         Log::init($f3);
 
-        // Should not throw — falls back to default
+        // Should not throw - falls back to default
         Log::channel('nonexistent')->error('fallback test');
         $this->assertTrue(true);
     }

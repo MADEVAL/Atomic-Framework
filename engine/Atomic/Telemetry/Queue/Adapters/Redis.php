@@ -6,7 +6,6 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
-use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Queue\Enums\Status;
 use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Telemetry\Queue\EventType;
@@ -91,7 +90,6 @@ trait Redis
     }
 
     private function process_finished_jobs(array $res, array &$jobs, bool $completed): void {
-        Redactor::sync_from_hive(App::atomic());
         foreach ($res as $job) {
             $key = $job[0];
             $job_data = $this->deserialize($job[1]);
@@ -103,7 +101,7 @@ trait Redis
             }
             
             if (!empty($job_data['exception'] ?? null)) {
-                $jobs[$key]['exception'] = Redactor::normalize($this->deserialize($job_data['exception']));
+                $jobs[$key]['exception'] = $this->deserialize($job_data['exception']);
             }
             
             $jobs[$key]['status'] = $completed ? Status::COMPLETED->value : Status::FAILED->value;
@@ -232,7 +230,6 @@ trait Redis
     }
 
     private function normalize_registry_job_for_telemetry(array $job_data): array {
-        Redactor::sync_from_hive(App::atomic());
         $out = $job_data;
 
         $p = $out['payload'] ?? null;
@@ -251,7 +248,7 @@ trait Redis
             && !empty($out['exception'] ?? null)
             && \is_string($out['exception'])
         ) {
-            $out['exception'] = Redactor::normalize($this->deserialize($out['exception']));
+            $out['exception'] = $this->deserialize($out['exception']);
         }
 
         $out['status'] = $state !== '' ? $state : Status::PENDING->value;

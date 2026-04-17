@@ -1,56 +1,37 @@
 ## Log ##
 
-`Engine\Atomic\Core\Log` wraps F3 logging and only writes when `DEBUG_MODE` is enabled.
+The Atomic logger provides structured, channel-based logging with built-in output sanitization. All log output passes through the Redactor before being written, ensuring sensitive values are never persisted to disk.
 
-### Bootstrap
+### Channels
 
-```php
-use Engine\Atomic\Core\Log;
+Logs are written to named channels, each backed by its own file. The framework ships five built-in channels covering distinct concerns:
 
-Log::init(\Base::instance());
-```
+| Channel | Purpose |
+|---|---|
+| `atomic` | General application activity (default) |
+| `error` | Errors only |
+| `auth` | Authentication events |
+| `queue_worker` | Job execution activity |
+| `queue_monitor` | Queue health and monitor events |
 
-`init()` configures:
-
-- `DEBUG` based on `DEBUG_LEVEL`
-- `DUMPS` directory under `LOGS/dumps/`
-- the main log file `atomic.log`
+Each channel has its own minimum level. Messages below the channel's level are silently discarded. Channels are configured via env variables (`LOG_*_DRIVER`, `LOG_*_PATH`, `LOG_*_LEVEL`) or via `config/logging.php` depending on the active loader mode.
 
 ### Levels
 
+Standard PSR-3 levels are supported: `emergency`, `alert`, `critical`, `error`, `warning`, `notice`, `info`, `debug`.
+
 ```php
 Log::error('Something failed');
-Log::warning('Retry scheduled');
-Log::info('Worker started');
-Log::debug('Payload received');
+Log::channel('queue_worker')->info('Worker started');
 ```
-
-Supported methods:
-
-- `emergency()`
-- `alert()`
-- `critical()`
-- `error()`
-- `warning()`
-- `notice()`
-- `info()`
-- `debug()`
 
 ### Dumps
 
+Dumps are structured JSON snapshots written to a dedicated `dumps/` directory, separate from log files. Each dump is identified by a UUID and can be linked from a log line via `dump_id`. Dumps are only written when debug mode is active.
+
 ```php
-$path = Log::dump('queue-job', ['uuid' => $uuid, 'payload' => $payload]);
-$hivePath = Log::dumpHive();
+Log::dump('label', ['key' => $value]);
+Log::dump_hive(); // snapshot of the entire F3 hive
 ```
 
-These helpers write JSON files into the dumps directory and log the generated `dump_id`.
-
-### Debug filtering
-
-`DEBUG_LEVEL` maps to the maximum verbosity:
-
-- `debug` or `info`: full debug logging
-- `warning`: warnings and errors
-- `error`: errors only
-
-If `DEBUG_MODE` is false, no log messages or dumps are written.
+Dumps are retrievable through the telemetry UI and the `/telemetry/dumps/@dump_id` endpoint.

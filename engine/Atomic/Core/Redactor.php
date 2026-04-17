@@ -19,10 +19,10 @@ class Redactor
         if ($path === '' || $path === self::$home_path) return;
 
         self::$home_path = $path;
-        self::rebuild_home_variants();
+        self::build_home_variants();
     }
 
-    public static function sync_from_hive(\Base $atomic): void
+    public static function init_from_hive(\Base $atomic): void
     {
         $home = (string)$atomic->get('HOME');
         if ($home === '') {
@@ -36,7 +36,7 @@ class Redactor
         }
     }
 
-    public static function is_ready(): bool
+    public static function is_configured(): bool
     {
         return self::$home_path !== '';
     }
@@ -46,7 +46,7 @@ class Redactor
         return self::$home_path;
     }
 
-    private static function rebuild_home_variants(): void
+    private static function build_home_variants(): void
     {
         $canonical = self::$home_path;
         $forward   = str_replace('\\', '/', $canonical);
@@ -141,7 +141,7 @@ class Redactor
         return false;
     }
 
-    public static function sanitize_string(string $value): string
+    public static function redact_string(string $value): string
     {
         $value = preg_replace(
             array_keys(self::SENSITIVE_VALUE_MAPPING),
@@ -160,12 +160,12 @@ class Redactor
         return $value;
     }
 
-    public static function normalize(mixed $data, int $depth = 0, int $max_depth = 6, int $max_items = 1000): mixed
+    public static function redact(mixed $data, int $depth = 0, int $max_depth = 6, int $max_items = 1000): mixed
     {
         if ($depth >= $max_depth) return '[[max_depth]]';
         if (is_null($data)) return $data;
 
-        if (is_string($data)) return self::sanitize_string($data);
+        if (is_string($data)) return self::redact_string($data);
         if (is_scalar($data)) return $data;
 
         if (is_array($data)) {
@@ -177,7 +177,7 @@ class Redactor
                 if (self::is_sensitive_key($key) && !is_array($value) && !is_object($value)) {
                     $out[$key] = self::MASKED;
                 } else {
-                    $out[$key] = self::normalize($value, $depth + 1, $max_depth, $max_items);
+                    $out[$key] = self::redact($value, $depth + 1, $max_depth, $max_items);
                 }
             }
             return $out;
@@ -193,7 +193,7 @@ class Redactor
                 if (self::is_sensitive_key($name) && !is_array($value) && !is_object($value)) {
                     $props[$name] = self::MASKED;
                 } else {
-                    $props[$name] = self::normalize($value, $depth + 1, $max_depth, $max_items);
+                    $props[$name] = self::redact($value, $depth + 1, $max_depth, $max_items);
                 }
             }
 

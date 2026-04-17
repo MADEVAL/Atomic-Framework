@@ -79,7 +79,7 @@ class Log
             'level'  => LogLevel::from($default_cfg['level'])->to_int(),
         ];
 
-        Redactor::sync_from_hive($atomic);
+        Redactor::init_from_hive($atomic);
     }
 
     public static function channel(string|LogChannelEnum $name): LogChannel
@@ -148,7 +148,7 @@ class Log
 
         if ($level->to_int() > $ch['level']) return;
 
-        $ch['logger']->write('[' . strtoupper($level->value) . '] ' . Redactor::sanitize_string($message));
+        $ch['logger']->write('[' . strtoupper($level->value) . '] ' . Redactor::redact_string($message));
     }
 
     protected static function write(LogLevel $level, string $message): void
@@ -173,7 +173,7 @@ class Log
         }
 
         $path       = self::$dumps_dir . $filename_uuid . '.json';
-        $normalized = Redactor::normalize($payload);
+        $normalized = Redactor::redact($payload);
 
         try {
             $json = Response::instance()->atomic_json_encode(

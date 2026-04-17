@@ -512,7 +512,7 @@ class FilesystemTest extends TestCase
 
     public function test_read_lines_from_end_file_smaller_than_chunk(): void
     {
-        // 10 lines at ~20 bytes each — well under 8192-byte default chunk
+        // 10 lines at ~20 bytes each - well under 8192-byte default chunk
         $file = self::$tmpDir . 'rle_small.log';
         file_put_contents($file, implode("\n", range(1, 10)) . "\n");
 
