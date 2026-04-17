@@ -31,7 +31,7 @@ class System {
         }, 10, 2);
 
         add_filter('body_class', function($classes){
-            $device = Methods::instance()->get_userDevice();
+            $device = Methods::instance()->get_user_device();
             $classes[] = $device;
             return $classes;
         });

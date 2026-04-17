@@ -21,7 +21,7 @@ class Input
         $this->stdin = $stdin ?? (defined('STDIN') ? STDIN : fopen('php://stdin', 'r'));
     }
 
-    public function isInteractive(): bool
+    public function is_interactive(): bool
     {
         if ($this->interactive !== null) {
             return $this->interactive;
@@ -32,17 +32,17 @@ class Input
         );
     }
 
-    public function readLine(): string
+    public function read_line(): string
     {
         return trim((string) fgets($this->stdin));
     }
 
-    public function readSecret(string $label, string $default = ''): string
+    public function read_secret(string $label, string $default = ''): string
     {
         $this->output->prompt("  {$label}: ");
 
-        if (!$this->hasStty()) {
-            $value = $this->readLine();
+        if (!$this->has_stty()) {
+            $value = $this->read_line();
             $this->output->err('');
             return $value === '' ? $default : $value;
         }
@@ -51,7 +51,7 @@ class Input
         shell_exec('stty -echo');
 
         try {
-            $value = $this->readLine();
+            $value = $this->read_line();
         } finally {
             shell_exec("stty {$savedState}");
             $this->output->err('');
@@ -60,7 +60,7 @@ class Input
         return $value === '' ? $default : $value;
     }
 
-    private function hasStty(): bool
+    private function has_stty(): bool
     {
         if (!function_exists('shell_exec')) {
             return false;

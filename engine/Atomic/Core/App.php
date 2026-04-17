@@ -12,6 +12,8 @@ use Engine\Atomic\Core\ExceptionHandlerRegistrar;
 use Engine\Atomic\Core\Prefly;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use Engine\Atomic\App\PluginManager;
+use Engine\Atomic\Auth\Auth;
+use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\ConnectionManager;
@@ -124,17 +126,17 @@ class App {
         return $this;
     }
 
-    public function registerLogger(): self {
+    public function register_logger(): self {
         Log::init($this->atomic);
         return $this;
     }
 
-    public function registerLocales(): self {
+    public function register_locales(): self {
         $i18n = I18n::instance();
         return $this;
     }
 
-    public function registerLocaleHrefs(): self {
+    public function register_locale_hrefs(): self {
         if ($this->atomic->get('i18n.url_mode') === 'prefix') {
             $i18n = I18n::instance();
             $path = (string)$this->atomic->get('PATH');
@@ -149,19 +151,19 @@ class App {
         return $this;
     }
 
-    public function registerRoutes(string ...$routeFiles): self {
-        $requestType = $this->detectRequestType();
+    public function register_routes(string ...$route_files): self {
+        $request_type = $this->detect_request_type();
         
         $routeLoader = RouteLoader::instance();
         $frameworkRoutes = (string)$this->atomic->get('FRAMEWORK_ROUTES', '');
         if ($frameworkRoutes === '') {
             throw new \RuntimeException('Framework routes directory is not configured.');
         }
-        $routeLoader->configurePaths(
+        $routeLoader->configure_paths(
             $frameworkRoutes,
             ATOMIC_APP_ROUTES
         );
-        $filesToLoad = $routeLoader->getFilesFor($requestType);
+        $filesToLoad = $routeLoader->get_files_for($request_type);
 
         foreach ($filesToLoad as $routeFile) {
             $resolvedRouteFile = realpath($routeFile);
@@ -173,7 +175,7 @@ class App {
         return $this;
     }
 
-    public function detectRequestType(): string
+    public function detect_request_type(): string
     {
         if (!empty($this->atomic->CLI)) return 'cli';
 
@@ -190,12 +192,12 @@ class App {
         }
     }
 
-    public function registerExceptionHandler(): self {
+    public function register_exception_handler(): self {
         ExceptionHandlerRegistrar::register($this->atomic);
         return $this;
     }
 
-    public function registerUnloadHandler(): self {
+    public function register_unload_handler(): self {
         $this->atomic->set('UNLOAD', function($atomic) {
             //  Log::info('Request ended'); 
             //  TODO for unload testing only
@@ -204,18 +206,18 @@ class App {
         return $this;
     }
     
-    public function openConnections(): self
+    public function open_connections(): self
     {
         ConnectionManager::instance()->open_all();
         return $this;
     }
 
-    public function initSession(): self {
+    public function init_session(): self {
         Session::init();
         return $this;
     }
 
-    public function handleCommand(array $argv): int {
+    public function handle_command(array $argv): int {
         $this->atomic->CLI = true;
         
         if (count($argv) < 2) {
@@ -223,11 +225,11 @@ class App {
             return 0;
         }
     
-        $rawCommand = strtolower(trim($argv[1]));
-        $command = '/' . ltrim(str_replace(':', '/', $rawCommand), '/');
+        $raw_command = strtolower(trim($argv[1]));
+        $command = '/' . ltrim(str_replace(':', '/', $raw_command), '/');
     
         $cli = new CLI();
-        if ($cli->checkRootWarning($rawCommand, $command)) {
+        if ($cli->check_root_warning($raw_command, $command)) {
             return 1;
         }
     
@@ -237,26 +239,26 @@ class App {
     }
 
     // in base route($pattern,$handler,$ttl=0,$kbps=0)
-    public function route(string $pattern, string $handler, array|int $ttlOrMiddleware = 0, int $kbps = 0): void
+    public function route(string $pattern, string $handler, array|int $ttl_or_middleware = 0, int $kbps = 0): void
     {
         $middleware = [];
         $ttl = 0;
 
-        if (is_array($ttlOrMiddleware)) {
-            $middleware = $ttlOrMiddleware;
+        if (is_array($ttl_or_middleware)) {
+            $middleware = $ttl_or_middleware;
         } else {
-            $ttl = (int)$ttlOrMiddleware;
+            $ttl = (int)$ttl_or_middleware;
         }
 
         if (!empty($middleware)) {
-            MiddlewareStack::forRoute($pattern, $middleware);
+            MiddlewareStack::for_route($pattern, $middleware);
             $ttl = 0;
         }
 
         if (is_string($handler) && preg_match('/^([^>:]+)\s*(?:->|::)\s*\w+$/', $handler, $m)) {
             $class = ltrim($m[1], '\\');
             if (class_exists($class) && is_subclass_of($class, $this->baseControllerClass)) {
-                $hasCustomHook = $this->controllerHasCustomRouteHook($class);
+                $hasCustomHook = $this->controller_has_custom_route_hook($class);
                 if ($hasCustomHook) {
                     $ttl = 0;
                 }
@@ -266,7 +268,7 @@ class App {
         $this->atomic->route($pattern, $handler, $ttl, $kbps);
     }
 
-    protected function controllerHasCustomRouteHook(string $class): bool
+    protected function controller_has_custom_route_hook(string $class): bool
     {
         try {
             $r = new \ReflectionClass($class);
@@ -274,11 +276,11 @@ class App {
             $customAfter = false;
             if ($r->hasMethod('beforeroute')) {
                 $m = $r->getMethod('beforeroute');
-                $customBefore = $m->getDeclaringClass()->getName() !== $this->baseControllerClass;
+                $customBefore = $m->getDeclaringClass()->get_name() !== $this->baseControllerClass;
             } 
             if ($r->hasMethod('afterroute')) {
                 $m = $r->getMethod('afterroute');
-                $customAfter = $m->getDeclaringClass()->getName() !== $this->baseControllerClass;
+                $customAfter = $m->getDeclaringClass()->get_name() !== $this->baseControllerClass;
             }
             return $customBefore || $customAfter;
         } catch (\Throwable $e) {
@@ -306,9 +308,9 @@ class App {
         throw new \Exception("Method {$name} not found");
     }
 
-    public function die($message = '', bool $runAfterroute = false): void
+    public function die($message = '', bool $run_afterroute = false): void
     {
-        if ($runAfterroute) {
+        if ($run_afterroute) {
             $ctrl = $this->atomic->get('__current_controller');
             if (is_object($ctrl) && method_exists($ctrl, 'afterroute')) {
                 $ctrl->afterroute($this->atomic);
@@ -319,7 +321,7 @@ class App {
         exit($message);
     }  
 
-    public function registerMiddleware(): self
+    public function register_middleware(): self
     {
         $configFile = ATOMIC_CONFIG . 'middleware.php';
         $resolvedConfigFile = realpath($configFile);
@@ -327,27 +329,27 @@ class App {
             $aliases = require $resolvedConfigFile;
             if (is_array($aliases)) {
                 foreach ($aliases as $name => $class) {
-                    MiddlewareStack::registerAlias($name, $class);
+                    MiddlewareStack::register_alias($name, $class);
                 }
             }
         }
         return $this;
     }
 
-    public function registerCorePlugins(...$pluginClasses): self
+    public function register_core_plugins(...$plugin_classes): self
     {
-        if (empty($pluginClasses)) {
+        if (empty($plugin_classes)) {
             $providersConfig = ATOMIC_CONFIG . 'providers.php';
             $resolvedProvidersConfig = realpath($providersConfig);
             if ($resolvedProvidersConfig !== false && is_file($resolvedProvidersConfig) && is_readable($resolvedProvidersConfig)) {
                 $providers = require $resolvedProvidersConfig;
-                $pluginClasses = $providers['plugins'] ?? [];
+                $plugin_classes = $providers['plugins'] ?? [];
             }
         }
 
         $manager = PluginManager::instance();
         
-        foreach ($pluginClasses as $pluginClass) {
+        foreach ($plugin_classes as $pluginClass) {
             if (!class_exists($pluginClass)) {
                 Log::warning("Plugin class not found: {$pluginClass}");
                 continue;
@@ -363,44 +365,44 @@ class App {
         return $this;
     }
 
-    public function registerPlugins(): self
+    public function register_plugins(): self
     {
         $manager = PluginManager::instance();
-        $manager->loadUserPlugins();
-        $manager->registerAll();
-        $manager->bootAll();
+        $manager->load_user_plugins();
+        $manager->register_all();
+        $manager->boot_all();
         return $this;
     }
 
-    public function registerUserProvider(?string $providerClass = null): self
+    public function register_user_provider(?string $provider_class = null): self
     {
-        if ($providerClass === null) {
+        if ($provider_class === null) {
             $providersConfig = ATOMIC_CONFIG . 'providers.php';
             $resolvedProvidersConfig = realpath($providersConfig);
             if ($resolvedProvidersConfig !== false && is_file($resolvedProvidersConfig) && is_readable($resolvedProvidersConfig)) {
                 $providers = require $resolvedProvidersConfig;
-                $providerClass = $providers['user_provider'] ?? null;
+                $provider_class = $providers['user_provider'] ?? null;
             }
         }
 
-        if ($providerClass === null) {
+        if ($provider_class === null) {
             Log::warning('No user provider configured.');
             return $this;
         }
 
-        if (!class_exists($providerClass)) {
-            Log::error("User provider class not found: {$providerClass}");
+        if (!class_exists($provider_class)) {
+            Log::error("User provider class not found: {$provider_class}");
             return $this;
         }
 
-        $provider = new $providerClass();
+        $provider = new $provider_class();
 
-        if (!($provider instanceof \Engine\Atomic\Auth\Interfaces\UserProviderInterface)) {
-            Log::error("User provider {$providerClass} must implement UserProviderInterface.");
+        if (!($provider instanceof UserProviderInterface)) {
+            Log::error("User provider {$provider_class} must implement UserProviderInterface.");
             return $this;
         }
 
-        \Engine\Atomic\Auth\Auth::instance()->set_user_provider($provider);
+        Auth::instance()->set_user_provider($provider);
         return $this;
     }
 }

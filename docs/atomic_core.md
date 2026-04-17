@@ -15,16 +15,16 @@ ConfigLoader::init($f3, realpath(__DIR__ . '/../.env'));
 $app = App::instance($f3);
 
 $app->prefly()
-    ->registerLogger()
-    ->registerExceptionHandler()
-    ->registerLocales()
-    ->registerLocaleHrefs()
-    ->registerMiddleware()
-    ->initSession()
-    ->registerCorePlugins()
-    ->registerPlugins()
-    ->registerUserProvider()
-    ->registerRoutes()
+    ->register_logger()
+    ->register_exception_handler()
+    ->register_locales()
+    ->register_locale_hrefs()
+    ->register_middleware()
+    ->init_session()
+    ->register_core_plugins()
+    ->register_plugins()
+    ->register_user_provider()
+    ->register_routes()
     ->run();
 ```
 
@@ -38,7 +38,7 @@ $app->prefly()
 - route loading from framework and app route files
 - middleware alias registration
 - core and user plugin registration
-- CLI command dispatch via `handleCommand()`
+- CLI command dispatch via `handle_command()`
 
 ### Routing helper
 
@@ -72,7 +72,7 @@ $app->open_connections();
 ### CLI entry
 
 ```php
-exit(App::instance()->handleCommand($argv));
+exit(App::instance()->handle_command($argv));
 ```
 
-`handleCommand()` normalizes commands like `schedule:run` into `/schedule/run` before calling `run()`.
+`handle_command()` normalizes commands like `schedule:run` into `/schedule/run` before calling `run()`.

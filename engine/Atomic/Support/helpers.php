@@ -54,16 +54,16 @@ function remove_filter(string $tag, ?callable $callback = null, int $priority = 
 // Template functions
 function get_header(string $name = 'header', ?array $data = null): void { AT::get_header($name, $data); }
 function get_head(?array $data = null): void { AT::get_head($data);}
-function get_custom_head(?array $data = null): void { AT::get_customHead($data);}
+function get_custom_head(?array $data = null): void { AT::get_custom_head($data);}
 function get_sidebar(string $name = 'sidebar', ?array $data = null): void { AT::get_sidebar($name, $data);} 
 function get_section(string $name, ?array $data = null): void { AT::get_section($name, $data);} 
 function get_footer(string $name = 'footer', ?array $data = null): void { AT::get_footer($name, $data);} 
-function get_color(): string { return AT::instance()->getThemeColor(); }
-function set_color(string $color = '#ffffff'): string { return AT::instance()->setThemeColor($color); }
-function get_theme_uri(): string { return AT::instance()->getThemeUrl(); }
-function get_theme_dir(): string { return AT::instance()->getThemeDir(); }
-function get_public_uri(): string { return AT::instance()->getPublicUrl(); }
-function get_public_dir(): string { return AT::instance()->getPublicDir(); }
+function get_color(): string { return AT::instance()->get_theme_color(); }
+function set_color(string $color = '#ffffff'): string { return AT::instance()->set_theme_color($color); }
+function get_theme_uri(): string { return AT::instance()->get_theme_url(); }
+function get_theme_dir(): string { return AT::instance()->get_theme_dir(); }
+function get_public_uri(): string { return AT::instance()->get_public_url(); }
+function get_public_dir(): string { return AT::instance()->get_public_dir(); }
 
 // Head functions
 function get_favicon(): void { Head::instance()->favicon(); }
@@ -75,41 +75,41 @@ function get_preconnect(?string $preset = null): void { Head::instance()->precon
 function get_preload_links(): void { Head::instance()->preload(); }
 function get_analytics(string $system, string $key): void { Head::instance()->analytics($system, $key); }
 function get_schema(string $type, array $data = []): void { Head::instance()->schema($type, $data); }
-function add_preconnect(string $origin, bool $crossorigin = false): Head { return Head::instance()->addPreconnect($origin, $crossorigin); }
-function add_preload(string $href, string $as, ?string $type = null, bool $crossorigin = false): Head { return Head::instance()->addPreload($href, $as, $type, $crossorigin); }
+function add_preconnect(string $origin, bool $crossorigin = false): Head { return Head::instance()->add_preconnect($origin, $crossorigin); }
+function add_preload(string $href, string $as, ?string $type = null, bool $crossorigin = false): Head { return Head::instance()->add_preload($href, $as, $type, $crossorigin); }
 
 // OpenGraph functions
 function get_opengraph(array $data = []): void { OG::instance()->generate($data)->render(); }
-function get_twitter_card(array $data = []): void { OG::instance()->generate($data)->renderTwitter(); }
+function get_twitter_card(array $data = []): void { OG::instance()->generate($data)->render_twitter(); }
 
 // Assets functions
-function enqueue_style(string $handle, string $src, array $deps = [], ?string $version = null, string $media = 'all'): void { Assets::instance()->enqueueStyle($handle, $src, $deps, $version, $media);}
-function enqueue_script(string $handle, string $src, array $deps = [], ?string $version = null, bool $inFooter = true, array $attrs = []): void { Assets::instance()->enqueueScript($handle, $src, $deps, $version, $inFooter, $attrs);}
-function set_script_attrs(string $handle, array $attrs): void {Assets::instance()->setScriptAttrs($handle, $attrs);}
-function localize_script(string $handle, array $data, ?string $varName = null): void {Assets::instance()->localizeScript($handle, $data, $varName);}
-function print_styles(): void { Assets::instance()->printStyles(); }
-function print_scripts(string $position = 'header'): void { $inFooter = ($position === 'footer'); Assets::instance()->printScripts($inFooter);}
-function dequeue_style(string $handle): void { Assets::instance()->dequeueStyle($handle); }
-function dequeue_script(string $handle): void { Assets::instance()->dequeueScript($handle); }
-function add_inline_style(string $handle, string $css): void { Assets::instance()->addInlineStyle($handle, $css); }
-function add_inline_script(string $handle, string $js, string $position = 'footer'): void { Assets::instance()->addInlineScript($handle, $js, $position); }
+function enqueue_style(string $handle, string $src, array $deps = [], ?string $version = null, string $media = 'all'): void { Assets::instance()->enqueue_style($handle, $src, $deps, $version, $media);}
+function enqueue_script(string $handle, string $src, array $deps = [], ?string $version = null, bool $in_footer = true, array $attrs = []): void { Assets::instance()->enqueue_script($handle, $src, $deps, $version, $in_footer, $attrs);}
+function set_script_attrs(string $handle, array $attrs): void {Assets::instance()->set_script_attrs($handle, $attrs);}
+function localize_script(string $handle, array $data, ?string $var_name = null): void {Assets::instance()->localize_script($handle, $data, $var_name);}
+function print_styles(): void { Assets::instance()->print_styles(); }
+function print_scripts(string $position = 'header'): void { $in_footer = ($position === 'footer'); Assets::instance()->print_scripts($in_footer);}
+function dequeue_style(string $handle): void { Assets::instance()->dequeue_style($handle); }
+function dequeue_script(string $handle): void { Assets::instance()->dequeue_script($handle); }
+function add_inline_style(string $handle, string $css): void { Assets::instance()->add_inline_style($handle, $css); }
+function add_inline_script(string $handle, string $js, string $position = 'footer'): void { Assets::instance()->add_inline_script($handle, $js, $position); }
 // Preset asset functions
-function enqueue_jquery(): void { Assets::instance()->enqueuePreset('jquery'); }
-function enqueue_bootstrap(): void { Assets::instance()->enqueuePreset('bootstrap'); }
-function enqueue_w3(): void { Assets::instance()->enqueuePreset('w3'); }
-function enqueue_fa(): void { Assets::instance()->enqueuePreset('fa'); }
-function enqueue_modernizr(): void { Assets::instance()->enqueuePreset('modernizr'); }
-function enqueue_font(string $font): void { Assets::instance()->enqueueFont($font); }
+function enqueue_jquery(): void { Assets::instance()->enqueue_preset('jquery'); }
+function enqueue_bootstrap(): void { Assets::instance()->enqueue_preset('bootstrap'); }
+function enqueue_w3(): void { Assets::instance()->enqueue_preset('w3'); }
+function enqueue_fa(): void { Assets::instance()->enqueue_preset('fa'); }
+function enqueue_modernizr(): void { Assets::instance()->enqueue_preset('modernizr'); }
+function enqueue_font(string $font): void { Assets::instance()->enqueue_font($font); }
 
 // Atomic functions
-function current_path(bool $stripLang = true): string { return AM::instance()->get_currentPath($stripLang); }
-function url_segments(bool $stripLang = true): array { return AM::instance()->segments($stripLang); }
-function get_segment(int $index, ?string $default = null, bool $stripLang = true): ?string { return AM::instance()->segment($index, $default, $stripLang); }
+function current_path(bool $strip_lang = true): string { return AM::instance()->get_current_path($strip_lang); }
+function url_segments(bool $strip_lang = true): array { return AM::instance()->segments($strip_lang); }
+function get_segment(int $index, ?string $default = null, bool $strip_lang = true): ?string { return AM::instance()->segment($index, $default, $strip_lang); }
 function is_home(): bool { return AM::instance()->is_home(); }
-function is_page(string|array $patterns, bool $stripLang = true): bool { return AM::instance()->is_page($patterns, $stripLang); }
-function is_section(string $prefix, bool $stripLang = true): bool { return AM::instance()->is_section($prefix, $stripLang); }
-function is_ssl(): bool { return AM::instance()->get_isSecure(); }
-function is_ajax(): bool { return AM::instance()->get_isAjax(); }
+function is_page(string|array $patterns, bool $strip_lang = true): bool { return AM::instance()->is_page($patterns, $strip_lang); }
+function is_section(string $prefix, bool $strip_lang = true): bool { return AM::instance()->is_section($prefix, $strip_lang); }
+function is_ssl(): bool { return AM::instance()->get_is_secure(); }
+function is_ajax(): bool { return AM::instance()->get_is_ajax(); }
 function is_mobile(): bool { return AM::instance()->is_mobile();}
 function is_404(): bool { return AM::instance()->is_404(); }
 function is_telegram(): bool { return AM::instance()->is_telegram(); }
@@ -117,10 +117,10 @@ function is_botblocker(): bool { return AM::instance()->is_botblocker();}
 function is_gs(): bool { return AM::instance()->is_gs(); }
 function get_encoding(): string { return AM::instance()->get_encoding(); }
 function get_year(): string { return date('Y'); }
-function get_copyright_years(int $startYear): string { return $startYear . ' - ' . date('Y'); }
+function get_copyright_years(int $start_year): string { return $start_year . ' - ' . date('Y'); }
 function get_date(string $format = 'Y-m-d'): string { return date($format); }
 function get_copy(): string { return '©'; }
-function get_error_trace(): string { return AM::instance()->get_formatErrorTrace(); }
+function get_error_trace(): string { return AM::instance()->get_format_error_trace(); }
 
 // Nonce functions
 function create_nonce(string $action = '', int $ttl = 3600): string { return AN::instance()->create_nonce($action, $ttl);}
@@ -130,7 +130,7 @@ function verify_nonce(string $token, string $action = ''): bool { return AN::ins
 function send_json(mixed $data, int $status = 200, bool $terminate = true): void{AR::instance()->send_json($data, $status, $terminate);}
 function send_json_error(string $msg, int $status = 400, array $extra = [], bool $terminate = true): void{ AR::instance()->send_json_error($msg, $status, $extra, $terminate);}
 function send_json_success(array $data = [], int $status = 200, bool $terminate = true): void{ AR::instance()->send_json_success($data, $status, $terminate);}
-function json_response(mixed $data, int $status = 200, bool $terminate = true): void{ AR::instance()->jsonResponse($data, $status, $terminate);}
+function json_response(mixed $data, int $status = 200, bool $terminate = true): void{ AR::instance()->json_response($data, $status, $terminate);}
 function atomic_json_encode(mixed $data, int $flags = 0, int $depth = 512): string{return AR::instance()->atomic_json_encode($data, $flags, $depth);}
 
 // Shortcode functions
@@ -158,7 +158,7 @@ function _nc(string $singular, string $plural, int $count, array $vars = [], ?st
 // Locale management functions
 function set_locale(string $lang): void { AI18n::instance()->set($lang); }
 function get_locale(): string { return AI18n::instance()->get(); }
-function content_locale(?string $lang = null): string {if ($lang !== null) AI18n::instance()->setContent($lang); return AI18n::instance()->getContent();}
+function content_locale(?string $lang = null): string {if ($lang !== null) AI18n::instance()->set_content($lang); return AI18n::instance()->get_content();}
 function get_languages(): array { return AI18n::instance()->languages(); }
 // URL functions
 function lang_url(string $path = '/', ?string $lang = null): string { return AI18n::instance()->url($path, $lang);}
@@ -171,8 +171,8 @@ function remote_post(string $url, mixed $data = null, array $args = []): array {
 function remote_put(string $url, mixed $data = null, array $args = []): array  { return HTTP::instance()->remote_put($url, $data, $args); }
 
 // Telegram functions
-function telegram(?string $token = null, ?string $chatId = null): TG { return TG::instance($token, $chatId); }
-function telegram_send(string $text, ?string $chatId = null, array $opts = []): array { return TG::instance()->send($text, $chatId, $opts); }
+function telegram(?string $token = null, ?string $chat_id = null): TG { return TG::instance($token, $chat_id); }
+function telegram_send(string $text, ?string $chat_id = null, array $opts = []): array { return TG::instance()->send($text, $chat_id, $opts); }
 
 // Options functions
 function add_option(string $key, string $value): bool { return Options::set_option($key, $value); }
@@ -207,7 +207,7 @@ function delete_meta(string $uuid, string $key): bool { return Meta::delete_meta
 // Misc functions
 
 // Error handling functions
-function format_error_trace(int $code, string $text, string $trace): string {return EH::instance()->formatTrace($code, $text, $trace);}
+function format_error_trace(int $code, string $text, string $trace): string {return EH::instance()->format_trace($code, $text, $trace);}
 
 // Plugin functions
 function plugin_manager(): PM { return PM::instance(); }
@@ -225,19 +225,19 @@ function notify_error(string $text, array $data = []): Notifier { return Notifie
 function get_notifications(?string $type = null, bool $clear = true): array { return Notifier::instance()->get($type, $clear); }
 function has_notifications(?string $type = null): bool { return Notifier::instance()->has($type); }
 function clear_notifications(?string $type = null): Notifier { return Notifier::instance()->clear($type); }
-function set_flash(string $key, mixed $value, int $lifetime = 1): Notifier { return Notifier::instance()->setFlash($key, $value, $lifetime); }
-function get_flash(string $key, mixed $default = null): mixed { return Notifier::instance()->getFlash($key, $default); }
-function peek_flash(string $key, mixed $default = null): mixed { return Notifier::instance()->peekFlash($key, $default); }
-function has_flash(string $key): bool { return Notifier::instance()->hasFlash($key); }
+function set_flash(string $key, mixed $value, int $lifetime = 1): Notifier { return Notifier::instance()->set_flash($key, $value, $lifetime); }
+function get_flash(string $key, mixed $default = null): mixed { return Notifier::instance()->get_flash($key, $default); }
+function peek_flash(string $key, mixed $default = null): mixed { return Notifier::instance()->peek_flash($key, $default); }
+function has_flash(string $key): bool { return Notifier::instance()->has_flash($key); }
 
 // Mail functions
-function mail_to(string $email, ?string $name = null): Mailer { return Mailer::instance()->reset()->addTo($email, $name); }
+function mail_to(string $email, ?string $name = null): Mailer { return Mailer::instance()->reset()->add_to($email, $name); }
 function mail_send(string $to, string $subject, string $message, bool $html = true): bool { 
     return $html 
-        ? Mailer::instance()->reset()->addTo($to)->setHTML($message)->send($subject)
-        : Mailer::instance()->reset()->addTo($to)->setText($message)->send($subject);
+        ? Mailer::instance()->reset()->add_to($to)->set_html($message)->send($subject)
+        : Mailer::instance()->reset()->add_to($to)->set_text($message)->send($subject);
 }
-function mail_check_spf(string $domain): array { return MU::instance()->checkSPF($domain); }
-function mail_check_dkim(string $domain, string $selector): array { return MU::instance()->checkDKIM($domain, $selector); }
-function mail_check_dmarc(string $domain): array { return MU::instance()->checkDMARC($domain); }
-function mail_analyze(string $domain, string $selector = ''): array { return MU::instance()->analyzeDeliverability($domain, $selector); }
+function mail_check_spf(string $domain): array { return MU::instance()->check_spf($domain); }
+function mail_check_dkim(string $domain, string $selector): array { return MU::instance()->check_dkim($domain, $selector); }
+function mail_check_dmarc(string $domain): array { return MU::instance()->check_dmarc($domain); }
+function mail_analyze(string $domain, string $selector = ''): array { return MU::instance()->analyze_deliverability($domain, $selector); }

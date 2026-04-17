@@ -16,12 +16,12 @@ class WordPress extends Plugin
     private array $cache = [];
     public string $version = '1.0.0';
 
-    protected function getName(): string
+    protected function get_name(): string
     {
         return 'WordPress';
     }
 
-    public function getVersion(): string
+    public function get_version(): string
     {
         return $this->version;
     }
@@ -85,39 +85,39 @@ class WordPress extends Plugin
         return ['ok' => true, 'data' => $decoded ?? []];
     }
 
-    public function getPosts(int $page = 1, int $perPage = 100, array $params = []): array
+    public function get_posts(int $page = 1, int $per_page = 100, array $params = []): array
     {
-        $query = array_merge(['per_page' => $perPage, 'page' => $page], $params);
+        $query = array_merge(['per_page' => $per_page, 'page' => $page], $params);
         $qs = http_build_query($query, '', '&');
         return $this->request("posts?{$qs}");
     }
 
-    public function getPost(int $id): array
+    public function get_post(int $id): array
     {
         return $this->request("posts/{$id}");
     }
 
-    public function getCategories(int $page = 1, int $perPage = 100): array
+    public function get_categories(int $page = 1, int $per_page = 100): array
     {
-        return $this->request("categories?per_page={$perPage}&page={$page}");
+        return $this->request("categories?per_page={$per_page}&page={$page}");
     }
 
-    public function getTags(int $page = 1, int $perPage = 100): array
+    public function get_tags(int $page = 1, int $per_page = 100): array
     {
-        return $this->request("tags?per_page={$perPage}&page={$page}");
+        return $this->request("tags?per_page={$per_page}&page={$page}");
     }
 
-    public function getMedia(int $page = 1, int $perPage = 100): array
+    public function get_media(int $page = 1, int $per_page = 100): array
     {
-        return $this->request("media?per_page={$perPage}&page={$page}");
+        return $this->request("media?per_page={$per_page}&page={$page}");
     }
 
-    public function getAllPosts(array $params = []): array
+    public function get_all_posts(array $params = []): array
     {
         $all = [];
         $page = 1;
         do {
-            $result = $this->getPosts($page, 100, $params);
+            $result = $this->get_posts($page, 100, $params);
             if (!$result['ok'] || empty($result['data'])) break;
             $all = array_merge($all, $result['data']);
             $page++;
@@ -126,12 +126,12 @@ class WordPress extends Plugin
         return ['ok' => true, 'data' => $all];
     }
 
-    public function getAllCategories(): array
+    public function get_all_categories(): array
     {
         $all = [];
         $page = 1;
         do {
-            $result = $this->getCategories($page, 100);
+            $result = $this->get_categories($page, 100);
             if (!$result['ok'] || empty($result['data'])) break;
             $all = array_merge($all, $result['data']);
             $page++;
@@ -140,7 +140,7 @@ class WordPress extends Plugin
         return ['ok' => true, 'data' => $all];
     }
 
-    public function parsePost(array $raw): array
+    public function parse_post(array $raw): array
     {
         return [
             'id' => $raw['id'] ?? 0,
@@ -159,7 +159,7 @@ class WordPress extends Plugin
         ];
     }
 
-    public function getRssFeed(?int $count = null, ?array $tags = null): array
+    public function get_rss_feed(?int $count = null, ?array $tags = null): array
     {
         if (!$this->url) {
             return ['ok' => false, 'error' => 'Not connected'];
@@ -183,7 +183,7 @@ class WordPress extends Plugin
         }
     }
 
-    public function parseRssItem(array $item): array
+    public function parse_rss_item(array $item): array
     {
         return [
             'title' => $item['title'] ?? '',
@@ -196,20 +196,20 @@ class WordPress extends Plugin
         ];
     }
 
-    public function syncPosts(array $params = []): array
+    public function sync_posts(array $params = []): array
     {
-        $result = $this->getAllPosts($params);
+        $result = $this->get_all_posts($params);
         if (!$result['ok']) return $result;
 
-        $parsed = array_map([$this, 'parsePost'], $result['data']);
+        $parsed = array_map([$this, 'parse_post'], $result['data']);
         $this->cache['posts'] = $parsed;
         
         return ['ok' => true, 'count' => count($parsed), 'data' => $parsed];
     }
 
-    public function syncCategories(): array
+    public function sync_categories(): array
     {
-        $result = $this->getAllCategories();
+        $result = $this->get_all_categories();
         if (!$result['ok']) return $result;
 
         $this->cache['categories'] = $result['data'];
@@ -217,28 +217,28 @@ class WordPress extends Plugin
         return ['ok' => true, 'count' => count($result['data']), 'data' => $result['data']];
     }
 
-    public function syncRssFeed(?int $count = null): array
+    public function sync_rss_feed(?int $count = null): array
     {
-        $result = $this->getRssFeed($count);
+        $result = $this->get_rss_feed($count);
         if (!$result['ok']) return $result;
 
-        $parsed = array_map([$this, 'parseRssItem'], $result['data']);
+        $parsed = array_map([$this, 'parse_rss_item'], $result['data']);
         $this->cache['rss'] = $parsed;
         
         return ['ok' => true, 'count' => count($parsed), 'data' => $parsed];
     }
 
-    public function getCachedPosts(): array
+    public function get_cached_posts(): array
     {
         return $this->cache['posts'] ?? [];
     }
 
-    public function getCachedCategories(): array
+    public function get_cached_categories(): array
     {
         return $this->cache['categories'] ?? [];
     }
 
-    public function getCachedRss(): array
+    public function get_cached_rss(): array
     {
         return $this->cache['rss'] ?? [];
     }
@@ -249,82 +249,82 @@ function wp_connect(string $url, ?string $key = null, ?string $secret = null): W
     return get_plugin('WordPress')->connect($url, $key, $secret);
 }
 
-function wp_get_posts(int $page = 1, int $perPage = 100, array $params = []): array
+function wp_get_posts(int $page = 1, int $per_page = 100, array $params = []): array
 {
-    return get_plugin('WordPress')->getPosts($page, $perPage, $params);
+    return get_plugin('WordPress')->get_posts($page, $per_page, $params);
 }
 
 function wp_get_post(int $id): array
 {
-    return get_plugin('WordPress')->getPost($id);
+    return get_plugin('WordPress')->get_post($id);
 }
 
-function wp_get_categories(int $page = 1, int $perPage = 100): array
+function wp_get_categories(int $page = 1, int $per_page = 100): array
 {
-    return get_plugin('WordPress')->getCategories($page, $perPage);
+    return get_plugin('WordPress')->get_categories($page, $per_page);
 }
 
-function wp_get_tags(int $page = 1, int $perPage = 100): array
+function wp_get_tags(int $page = 1, int $per_page = 100): array
 {
-    return get_plugin('WordPress')->getTags($page, $perPage);
+    return get_plugin('WordPress')->get_tags($page, $per_page);
 }
 
-function wp_get_media(int $page = 1, int $perPage = 100): array
+function wp_get_media(int $page = 1, int $per_page = 100): array
 {
-    return get_plugin('WordPress')->getMedia($page, $perPage);
+    return get_plugin('WordPress')->get_media($page, $per_page);
 }
 
 function wp_get_all_posts(array $params = []): array
 {
-    return get_plugin('WordPress')->getAllPosts($params);
+    return get_plugin('WordPress')->get_all_posts($params);
 }
 
 function wp_get_all_categories(): array
 {
-    return get_plugin('WordPress')->getAllCategories();
+    return get_plugin('WordPress')->get_all_categories();
 }
 
 function wp_parse_post(array $raw): array
 {
-    return get_plugin('WordPress')->parsePost($raw);
+    return get_plugin('WordPress')->parse_post($raw);
 }
 
 function wp_get_rss_feed(?int $count = null, ?array $tags = null): array
 {
-    return get_plugin('WordPress')->getRssFeed($count, $tags);
+    return get_plugin('WordPress')->get_rss_feed($count, $tags);
 }
 
 function wp_parse_rss_item(array $item): array
 {
-    return get_plugin('WordPress')->parseRssItem($item);
+    return get_plugin('WordPress')->parse_rss_item($item);
 }
 
 function wp_sync_posts(array $params = []): array
 {
-    return get_plugin('WordPress')->syncPosts($params);
+    return get_plugin('WordPress')->sync_posts($params);
 }
 
 function wp_sync_categories(): array
 {
-    return get_plugin('WordPress')->syncCategories();
+    return get_plugin('WordPress')->sync_categories();
 }
 
 function wp_sync_rss_feed(?int $count = null): array
 {
-    return get_plugin('WordPress')->syncRssFeed($count);
+    return get_plugin('WordPress')->sync_rss_feed($count);
 }
 
 function wp_cached_posts(): array
 {
-    return get_plugin('WordPress')->getCachedPosts();
+    return get_plugin('WordPress')->get_cached_posts();
 }
 
 function wp_cached_categories(): array
 {
-    return get_plugin('WordPress')->getCachedCategories();
+    return get_plugin('WordPress')->get_cached_categories();
 }
 
 function wp_cached_rss(): array
 {
-    return get_plugin('WordPress')->getCachedRss();
+    return get_plugin('WordPress')->get_cached_rss();
 }

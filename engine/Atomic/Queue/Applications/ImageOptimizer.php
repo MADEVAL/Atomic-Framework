@@ -27,7 +27,7 @@ final class ImageOptimizer
         }
 
         $destDir = dirname($destination);
-        if (!is_dir($destDir) && !Filesystem::instance()->makeDir($destDir, 0755, true)) {
+        if (!is_dir($destDir) && !Filesystem::instance()->make_dir($destDir, 0755, true)) {
             $telemetry->push_telemetry("ImageOptimizer: Cannot create destination directory: {$destDir}");
             return false;
         }
@@ -42,11 +42,11 @@ final class ImageOptimizer
         $telemetry->push_telemetry("ImageOptimizer: Processing {$mimeType} from {$source} to {$destination}");
 
         $result = match($mimeType) {
-            'image/jpeg' => $this->jpegOptimize($source, $destination, $telemetry),
-            'image/png' => $this->pngOptimize($source, $destination, $telemetry),
-            'image/webp' => $this->webpOptimize($source, $destination, $telemetry),
-            'image/avif' => $this->avifOptimize($source, $destination, $telemetry),
-            'image/svg+xml' => $this->svgOptimize($source, $destination, $telemetry),
+            'image/jpeg' => $this->jpeg_optimize($source, $destination, $telemetry),
+            'image/png' => $this->png_optimize($source, $destination, $telemetry),
+            'image/webp' => $this->webp_optimize($source, $destination, $telemetry),
+            'image/avif' => $this->avif_optimize($source, $destination, $telemetry),
+            'image/svg+xml' => $this->svg_optimize($source, $destination, $telemetry),
             default => false
         };
 
@@ -63,7 +63,7 @@ final class ImageOptimizer
         return $result;
     }
 
-    public function jpegOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
+    public function jpeg_optimize(string $source, string $destination, TelemetryManager $telemetry): bool
     {
         $quality = \defined('ATOMIC_JPEG_QUALITY') ? (int)\ATOMIC_JPEG_QUALITY : 85;
         $quality = max(0, min(100, $quality));
@@ -99,7 +99,7 @@ final class ImageOptimizer
         return Filesystem::instance()->copy($source, $destination);
     }
 
-    public function pngOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
+    public function png_optimize(string $source, string $destination, TelemetryManager $telemetry): bool
     {
         $compression = \defined('ATOMIC_PNG_COMPRESSION_LEVEL') ? (int)\ATOMIC_PNG_COMPRESSION_LEVEL : 6;
         $compression = max(0, min(9, $compression));
@@ -133,7 +133,7 @@ final class ImageOptimizer
         return Filesystem::instance()->copy($source, $destination);
     }
 
-    public function webpOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
+    public function webp_optimize(string $source, string $destination, TelemetryManager $telemetry): bool
     {
         $quality = \defined('ATOMIC_WEBP_QUALITY') ? (int)\ATOMIC_WEBP_QUALITY : 85;
         $quality = max(0, min(100, $quality));
@@ -179,7 +179,7 @@ final class ImageOptimizer
         return Filesystem::instance()->copy($source, $destination);
     }
 
-    public function avifOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
+    public function avif_optimize(string $source, string $destination, TelemetryManager $telemetry): bool
     {
         $quality = \defined('ATOMIC_AVIF_QUALITY') ? (int)\ATOMIC_AVIF_QUALITY : 50;
         $quality = max(0, min(100, $quality));
@@ -223,7 +223,7 @@ final class ImageOptimizer
         return Filesystem::instance()->copy($source, $destination);
     }
 
-    public function svgOptimize(string $source, string $destination, TelemetryManager $telemetry): bool
+    public function svg_optimize(string $source, string $destination, TelemetryManager $telemetry): bool
     {
         $telemetry->push_telemetry("ImageOptimizer: SVG optimization skipped (copying as-is)");
         return Filesystem::instance()->copy($source, $destination);

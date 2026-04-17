@@ -14,7 +14,7 @@ $ai = ai_connector('your-api-key');
 
 $text = $ai->completion('Explain queues in one paragraph.');
 
-$result = $ai->chatCompletion([
+$result = $ai->chat_completion([
     ['role' => 'system', 'content' => 'You are concise.'],
     ['role' => 'user', 'content' => 'List three cache strategies.'],
 ]);
@@ -27,8 +27,8 @@ echo $result->choices[0]->message->content ?? '';
 ```php
 $ai = ai_connector(null, 'openai'); // reads ai.openai.api_key from config
 
-$ai->setProvider('openrouter')
-   ->setModel('google/gemini-2.5-flash');
+$ai->set_provider('openrouter')
+   ->set_model('google/gemini-2.5-flash');
 ```
 
 If no model is set manually, the connector picks a provider-specific default:
@@ -41,18 +41,18 @@ If no model is set manually, the connector picks a provider-specific default:
 ### Available models
 
 ```php
-$models = $ai->getAvailableModels();
+$models = $ai->get_available_models();
 print_r($models);
 ```
 
-`getAvailableModels()` returns a curated static list from the connector class. It does not fetch models remotely.
+`get_available_models()` returns a curated static list from the connector class. It does not fetch models remotely.
 
 ### Chat options
 
-`chatCompletion()` accepts an optional second argument:
+`chat_completion()` accepts an optional second argument:
 
 ```php
-$result = $ai->chatCompletion($messages, [
+$result = $ai->chat_completion($messages, [
     'model' => 'gpt-5-mini',
     'temperature' => 0.2,
     'max_tokens' => 800,
@@ -67,16 +67,16 @@ Provider-specific options:
 ### Embeddings
 
 ```php
-$embeddings = $ai->createEmbeddings('Atomic framework docs');
+$embeddings = $ai->create_embeddings('Atomic framework docs');
 $vector = $embeddings->data[0]->embedding ?? [];
 
-$batch = $ai->createEmbeddings([
+$batch = $ai->create_embeddings([
     'First text',
     'Second text',
 ]);
 ```
 
-`createEmbeddings()` sends requests to the `/embeddings` endpoint and defaults to `text-embedding-3-large`.
+`create_embeddings()` sends requests to the `/embeddings` endpoint and defaults to `text-embedding-3-large`.
 
 ### Config
 

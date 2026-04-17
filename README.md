@@ -191,16 +191,17 @@ The bootstrap chain in `bootstrap/app.php` initializes the application via a flu
 
 ```php
 $application = App::instance($atomic)
-    ->prefly()                  // Verify PHP version, extensions, directory permissions
-    ->registerLogger()          // Initialize structured logging
-    ->registerExceptionHandler()
-    ->registerLocales()         // Set up i18n
-    ->registerMiddleware()      // Load middleware aliases
-    ->registerRoutes()          // Load route files by request type
-    ->registerPlugins()         // Activate registered plugins
-    ->initSession()             // Start session (lazy: only if cookie exists)
-    ->setDB()                   // Establish database connection
-    ->registerUserProvider();   // Wire authentication backend
+    ->prefly()                     // Verify PHP version, extensions, directory permissions
+    ->register_logger()            // Initialize structured logging
+    ->register_exception_handler()
+    ->register_locales()           // Set up i18n
+    ->register_unload_handler()
+    ->register_middleware()        // Load middleware aliases
+    ->register_routes()            // Load route files by request type
+    ->register_plugins()           // Activate registered plugins
+    ->init_session()               // Start session (lazy: only if cookie exists)
+    ->open_connections()           // Opens redis, memcached and db connections
+    ->register_user_provider();    // Wire authentication backend
 ```
 
 ### Routing
@@ -234,8 +235,8 @@ return [
 
 ```php
 // Usage with parameters
-$middleware->forRoute('/admin/*', ['auth', 'admin']);
-$middleware->forRoute('/store/*', ['store:banned']);  // Parameterized: Store('banned')
+$middleware->for_route('/admin/*', ['auth', 'admin']);
+$middleware->for_route('/store/*', ['store:banned']);  // Parameterized: Store('banned')
 ```
 
 Middleware implements `MiddlewareInterface`:
@@ -300,8 +301,8 @@ $user = Auth::instance()->login_with_secret(
 );
 
 // OAuth login
-$url = Auth::instance()->google()->getLoginUrl();
-$userId = Auth::instance()->google()->handleCallback($code, $state);
+$url = Auth::instance()->google()->get_login_url();
+$userId = Auth::instance()->google()->handle_callback($code, $state);
 
 // Session management
 $currentUser = Auth::instance()->get_current_user();

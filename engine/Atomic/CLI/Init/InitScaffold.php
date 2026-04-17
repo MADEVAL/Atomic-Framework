@@ -9,7 +9,7 @@ use Engine\Atomic\Core\Migrations;
 
 trait InitScaffold
 {
-    private function createSkeletonDirectories(string $root): int
+    private function create_skeleton_directories(string $root): int
     {
         $dirs = [
             'app/Event',
@@ -40,7 +40,7 @@ trait InitScaffold
             'public/uploads',
         ]);
 
-        $runtimeNotWritable = [];
+        $runtime_not_writable = [];
         $created            = 0;
 
         foreach ($dirs as $dir) {
@@ -52,7 +52,7 @@ trait InitScaffold
                     $created++;
                 } else {
                     $err = error_get_last()['message'] ?? 'unknown error';
-                    $this->output->err("        " . Style::warningLabel() . " could not create {$dir}: {$err}");
+                    $this->output->err("        " . Style::warning_label() . " could not create {$dir}: {$err}");
                     continue;
                 }
             }
@@ -60,50 +60,50 @@ trait InitScaffold
             if ($isRuntime) {
                 @chmod($path, 0775);
                 if (!is_writable($path)) {
-                    $this->output->err("        " . Style::warningLabel() . " {$dir} is not writable by current web user context");
-                    $runtimeNotWritable[] = $dir;
+                    $this->output->err("        " . Style::warning_label() . " {$dir} is not writable by current web user context");
+                    $runtime_not_writable[] = $dir;
                 }
             }
         }
 
-        $this->printRuntimePermissionsGuide($runtimeNotWritable);
+        $this->print_runtime_permissions_guide($runtime_not_writable);
         return $created;
     }
 
-    private function createAppStubs(string $root): int
+    private function create_app_stubs(string $root): int
     {
         $stubs  = 0;
-        $stubs += $this->writeStubIfMissing(
+        $stubs += $this->write_stub_if_missing(
             $root . '/routes/web.php',
             "<?php\ndeclare(strict_types=1);\nif (!defined('ATOMIC_START')) exit;\n\n// Web routes\n"
         );
-        $stubs += $this->writeStubIfMissing(
+        $stubs += $this->write_stub_if_missing(
             $root . '/routes/api.php',
             "<?php\ndeclare(strict_types=1);\nif (!defined('ATOMIC_START')) exit;\n\n// API routes\n"
         );
-        $stubs += $this->writeStubIfMissing(
+        $stubs += $this->write_stub_if_missing(
             $root . '/routes/cli.php',
             "<?php\ndeclare(strict_types=1);\nif (!defined('ATOMIC_START')) exit;\n\n// Application CLI routes\n"
         );
-        $stubs += $this->writeStubIfMissing(
+        $stubs += $this->write_stub_if_missing(
             $root . '/app/Event/Application.php',
             "<?php\ndeclare(strict_types=1);\nnamespace App\\Event;\n\nclass Application {\n    use \\Engine\\Atomic\\Core\\Traits\\Singleton;\n    public function init(): void {}\n}\n"
         );
-        $stubs += $this->writeStubIfMissing(
+        $stubs += $this->write_stub_if_missing(
             $root . '/app/Hook/Application.php',
             "<?php\ndeclare(strict_types=1);\nnamespace App\\Hook;\n\nclass Application {\n    use \\Engine\\Atomic\\Core\\Traits\\Singleton;\n    public function init(): void {}\n}\n"
         );
         return $stubs;
     }
 
-    private function runUserSetupBranch(string $root): void
+    private function run_user_setup_branch(string $root): void
     {
         if (!$this->confirm('Run users migration now?', false)) {
             return;
         }
 
         if (!method_exists($this, 'db_users')) {
-            $this->output->err('  ' . Style::warningLabel() . " CLI method 'db_users' is unavailable, skipping users migration.");
+            $this->output->err('  ' . Style::warning_label() . " CLI method 'db_users' is unavailable, skipping users migration.");
             return;
         }
 
@@ -112,10 +112,10 @@ trait InitScaffold
         $migrations = new Migrations($this->output);
         $migrations->migrate();
 
-        $this->output->writeln('  ' . Style::successLabel() . " Users migration executed.");
+        $this->output->writeln('  ' . Style::success_label() . " Users migration executed.");
     }
 
-    private function generateEncryptionKey(): string
+    private function generate_encryption_key(): string
     {
         if (!function_exists('sodium_crypto_secretbox_keygen')) {
             return '';
@@ -124,7 +124,7 @@ trait InitScaffold
         return base64_encode(sodium_crypto_secretbox_keygen());
     }
 
-    private function writeStubIfMissing(string $path, string $content): int
+    private function write_stub_if_missing(string $path, string $content): int
     {
         $path = str_replace('/', DIRECTORY_SEPARATOR, $path);
         if (file_exists($path)) {
@@ -138,16 +138,16 @@ trait InitScaffold
         return 1;
     }
 
-    private function printRuntimePermissionsGuide(array $runtimeNotWritable): void
+    private function print_runtime_permissions_guide(array $runtime_not_writable): void
     {
-        if ($runtimeNotWritable === []) {
+        if ($runtime_not_writable === []) {
             return;
         }
 
         $this->output->writeln();
         $this->output->writeln("  Runtime permissions guide:");
         $this->output->writeln("    Applications fail with writable/permission errors if these are not writable:");
-        foreach ($runtimeNotWritable as $dir) {
+        foreach ($runtime_not_writable as $dir) {
             $this->output->writeln("      - {$dir}");
         }
         $this->output->writeln();

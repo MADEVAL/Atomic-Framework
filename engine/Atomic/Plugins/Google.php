@@ -8,7 +8,7 @@ use Engine\Atomic\App\Plugin;
 
 class Google extends Plugin
 {
-    protected function getName(): string
+    protected function get_name(): string
     {
         return 'Google';
     }

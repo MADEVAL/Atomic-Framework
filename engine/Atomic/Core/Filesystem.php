@@ -158,25 +158,25 @@ class Filesystem
         return is_file($file);
     }
 
-    public function rename(string $oldName, string $newName): bool
+    public function rename(string $old_name, string $new_name): bool
     {
-        if (!file_exists($oldName)) return false;
-        return rename($oldName, $newName);
+        if (!file_exists($old_name)) return false;
+        return rename($old_name, $new_name);
     }
 
-    public function makeDir(string $path, int $permissions = 0755, bool $recursive = true): bool
+    public function make_dir(string $path, int $permissions = 0755, bool $recursive = true): bool
     {
         return mkdir($path, $permissions, $recursive);
     }
 
-    public function removeDir(string $path, bool $recursive = false): bool
+    public function remove_dir(string $path, bool $recursive = false): bool
     {
         if ($recursive) {
             $files = array_diff(scandir($path), ['.', '..']);
             foreach ($files as $file) {
                 $fullPath = $path . DIRECTORY_SEPARATOR . $file;
                 if (is_dir($fullPath)) {
-                    $this->removeDir($fullPath, true);
+                    $this->remove_dir($fullPath, true);
                 } else {
                     unlink($fullPath);
                 }
@@ -185,7 +185,7 @@ class Filesystem
         return rmdir($path);
     }
 
-    public function listFiles( string $folder = '', int $levels = 100, array $exclusions = [], bool $include_hidden = false ): array|false
+    public function list_files( string $folder = '', int $levels = 100, array $exclusions = [], bool $include_hidden = false ): array|false
     {
         if ( empty( $folder ) ) {
             return false;
@@ -204,7 +204,7 @@ class Filesystem
                     continue;
                 }
                 if ( is_dir( $folder . $file ) ) {
-                    $files2 = $this->listFiles( $folder . $file . DIRECTORY_SEPARATOR, $levels - 1, array(), $include_hidden );
+                    $files2 = $this->list_files( $folder . $file . DIRECTORY_SEPARATOR, $levels - 1, array(), $include_hidden );
                     if ( $files2 ) {
                         $files = array_merge( $files, $files2 );
                     } else {
@@ -230,7 +230,7 @@ class Filesystem
             return false;
         }
 
-        if (!is_dir($destination) && !$this->makeDir($destination)) {
+        if (!is_dir($destination) && !$this->make_dir($destination)) {
             Log::error("Failed to create destination directory: " . $destination);
             return false;
         }
@@ -259,7 +259,7 @@ class Filesystem
         return $this->atomic->get('TEMP');
     }
 
-    public function unzip_file(string $zipFile, string $extractTo): bool
+    public function unzip_file(string $zip_file, string $extract_to): bool
     {
         if (!class_exists('ZipArchive')) {
             Log::error("ZipArchive class is not available.");
@@ -267,22 +267,22 @@ class Filesystem
         }
 
         $zip = new \ZipArchive();
-        if ($zip->open($zipFile) === true) {
-            if (!is_dir($extractTo) && !$this->makeDir($extractTo, 0755, true)) {
-                Log::error("Failed to create extraction directory: " . $extractTo);
+        if ($zip->open($zip_file) === true) {
+            if (!is_dir($extract_to) && !$this->make_dir($extract_to, 0755, true)) {
+                Log::error("Failed to create extraction directory: " . $extract_to);
                 $zip->close();
                 return false;
             }
-            $zip->extractTo($extractTo);
+            $zip->extractTo($extract_to);
             $zip->close();
             return true;
         } else {
-            Log::error("Failed to open zip file: " . $zipFile);
+            Log::error("Failed to open zip file: " . $zip_file);
             return false;
         }
     }
 
-    public function zip_files(array $files, string $zipFile, ?string $baseDir = null): bool
+    public function zip_files(array $files, string $zip_file, ?string $base_dir = null): bool
     {
         if (!class_exists('ZipArchive')) {
             Log::error("ZipArchive class is not available.");
@@ -295,27 +295,27 @@ class Filesystem
         }
 
         $zip = new \ZipArchive();
-        $result = $zip->open($zipFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $result = $zip->open($zip_file, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
         
         if ($result !== true) {
-            Log::error("Failed to create zip file: " . $zipFile . " (Error code: " . $result . ")");
+            Log::error("Failed to create zip file: " . $zip_file . " (Error code: " . $result . ")");
             return false;
         }
 
         $addedCount = 0;
         
         foreach ($files as $file) {
-            $file = $this->normalizePath($file);
+            $file = $this->normalize_path($file);
             
             if (!file_exists($file)) {
                 Log::warning("File does not exist, skipping: " . $file);
                 continue;
             }
 
-            if ($baseDir !== null) {
-                $baseDir = $this->normalizePath($baseDir);
-                if (str_starts_with($file, $baseDir)) {
-                    $localName = ltrim(substr($file, strlen($baseDir)), DIRECTORY_SEPARATOR);
+            if ($base_dir !== null) {
+                $base_dir = $this->normalize_path($base_dir);
+                if (str_starts_with($file, $base_dir)) {
+                    $localName = ltrim(substr($file, strlen($base_dir)), DIRECTORY_SEPARATOR);
                 } else {
                     $localName = basename($file);
                 }
@@ -330,7 +330,7 @@ class Filesystem
                     Log::warning("Failed to add file to archive: " . $file);
                 }
             } elseif (is_dir($file)) {
-                if (!$this->addDirectoryToZip($zip, $file, $localName)) {
+                if (!$this->add_directory_to_zip($zip, $file, $localName)) {
                     Log::warning("Failed to add directory to archive: " . $file);
                 } else {
                     $addedCount++;
@@ -342,31 +342,31 @@ class Filesystem
 
         if ($addedCount === 0) {
             Log::error("No files were added to the archive.");
-            if (file_exists($zipFile)) {
-                unlink($zipFile);
+            if (file_exists($zip_file)) {
+                unlink($zip_file);
             }
             return false;
         }
 
-        Log::info("Successfully created zip archive with " . $addedCount . " items: " . $zipFile);
+        Log::info("Successfully created zip archive with " . $addedCount . " items: " . $zip_file);
         return true;
     }
 
-    private function addDirectoryToZip(\ZipArchive $zip, string $dirPath, string $localPath): bool
+    private function add_directory_to_zip(\ZipArchive $zip, string $dir_path, string $local_path): bool
     {
-        $dirPath = rtrim($this->normalizePath($dirPath), DIRECTORY_SEPARATOR);
-        $localPath = trim($localPath, '/\\');
+        $dir_path = rtrim($this->normalize_path($dir_path), DIRECTORY_SEPARATOR);
+        $local_path = trim($local_path, '/\\');
         
-        if (!is_dir($dirPath)) {
+        if (!is_dir($dir_path)) {
             return false;
         }
 
-        $zip->addEmptyDir($localPath);
-        $items = array_diff(scandir($dirPath), ['.', '..']);
+        $zip->addEmptyDir($local_path);
+        $items = array_diff(scandir($dir_path), ['.', '..']);
         
         foreach ($items as $item) {
-            $itemPath = $dirPath . DIRECTORY_SEPARATOR . $item;
-            $itemLocalPath = $localPath . '/' . $item;
+            $itemPath = $dir_path . DIRECTORY_SEPARATOR . $item;
+            $itemLocalPath = $local_path . '/' . $item;
 
             if (is_file($itemPath)) {
                 if (!$zip->addFile($itemPath, $itemLocalPath)) {
@@ -374,7 +374,7 @@ class Filesystem
                     return false;
                 }
             } elseif (is_dir($itemPath)) {
-                if (!$this->addDirectoryToZip($zip, $itemPath, $itemLocalPath)) {
+                if (!$this->add_directory_to_zip($zip, $itemPath, $itemLocalPath)) {
                     return false;
                 }
             }
@@ -383,14 +383,14 @@ class Filesystem
         return true;
     }
 
-    public function isAbsolutePath(string $path): bool
+    public function is_absolute_path(string $path): bool
     {
         $path = str_replace('\\', '/', $path);
         return str_starts_with($path, '/')
             || (bool) preg_match('#^[A-Za-z]:/#', $path);
     }
 
-    public function normalizePath(string $path): string
+    public function normalize_path(string $path): string
     {
         $path = str_replace('\\', '/', $path);
 
@@ -418,9 +418,9 @@ class Filesystem
         return $root . implode('/', $parts);
     }
 
-    public function joinPaths(string ...$paths): string
+    public function join_paths(string ...$paths): string
     {
         $filteredPaths = array_filter($paths, fn($p) => $p !== '');
-        return $this->normalizePath(implode(DIRECTORY_SEPARATOR, $filteredPaths));
+        return $this->normalize_path(implode(DIRECTORY_SEPARATOR, $filteredPaths));
     }
 }

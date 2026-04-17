@@ -27,7 +27,7 @@ class CapabilitiesTest extends TestCase
         $stream = fopen('php://memory', 'rb');
 
         try {
-            $this->assertFalse(Capabilities::supportsColors($stream));
+            $this->assertFalse(Capabilities::supports_colors($stream));
         } finally {
             fclose($stream);
         }
@@ -40,7 +40,7 @@ class CapabilitiesTest extends TestCase
         $stream = fopen('php://memory', 'rb');
 
         try {
-            $this->assertTrue(Capabilities::supportsColors($stream));
+            $this->assertTrue(Capabilities::supports_colors($stream));
         } finally {
             fclose($stream);
         }
@@ -53,7 +53,7 @@ class CapabilitiesTest extends TestCase
         $stream = fopen('php://memory', 'rb');
 
         try {
-            $this->assertTrue(Capabilities::supportsColors($stream));
+            $this->assertTrue(Capabilities::supports_colors($stream));
         } finally {
             fclose($stream);
         }
@@ -67,7 +67,7 @@ class CapabilitiesTest extends TestCase
         $stream = fopen('php://memory', 'rb');
 
         try {
-            $this->assertFalse(Capabilities::supportsColors($stream));
+            $this->assertFalse(Capabilities::supports_colors($stream));
         } finally {
             fclose($stream);
         }
@@ -81,7 +81,7 @@ class CapabilitiesTest extends TestCase
         $stream = fopen('php://memory', 'rb');
 
         try {
-            $this->assertTrue(Capabilities::supportsColors($stream));
+            $this->assertTrue(Capabilities::supports_colors($stream));
         } finally {
             fclose($stream);
         }
@@ -94,7 +94,7 @@ class CapabilitiesTest extends TestCase
         $stream = fopen('php://memory', 'rb');
 
         try {
-            $this->assertFalse(Capabilities::supportsColors($stream));
+            $this->assertFalse(Capabilities::supports_colors($stream));
         } finally {
             fclose($stream);
         }

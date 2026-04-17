@@ -22,7 +22,7 @@ abstract class Controller
         $this->atomic->set('__current_controller', $this);
         $this->atomic->set('__afterroute_done', false);
 
-        if (!MiddlewareStack::runForRoute($this->atomic)) {
+        if (!MiddlewareStack::run_for_route($this->atomic)) {
             exit;
         }
     }
@@ -38,23 +38,23 @@ abstract class Controller
         define('ATOMIC_TIME', ATOMIC_STOP - ATOMIC_START);
     }
 
-    protected function loadStoreResource(
+    protected function load_store_resource(
         \Base $atomic,
-        string $paramName,
-        string $modelClass,
-        string $hiveKey
+        string $param_name,
+        string $model_class,
+        string $hive_key
     ): void {
-        $id = $atomic->get("PARAMS.{$paramName}");
+        $id = $atomic->get("PARAMS.{$param_name}");
         if (empty($id) || !is_numeric($id)) {
             return;
         }
         $store_id = $atomic->get('CURRENT_STORE')?->_id ?? $atomic->get('PARAMS.store_id');
-        $model = new $modelClass();
+        $model = new $model_class();
         $model->load(['_id = ? AND store = ?', (int)$id, $store_id]);
         if ($model->dry()) {
             $atomic->reroute('/error/404');
         }
-        $atomic->set($hiveKey, $model);
+        $atomic->set($hive_key, $model);
     }
     // Render and Display methods TEST
     // TODO: move to THEME class and i18n support add

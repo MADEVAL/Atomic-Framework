@@ -43,11 +43,11 @@ They render files such as:
 ```php
 $theme = Theme::instance();
 
-$dir = $theme->getThemeDir();
-$url = $theme->getThemeUrl();
-$publicDir = $theme->getPublicDir();
-$publicUrl = $theme->getPublicUrl();
-$meta = $theme->getThemeMeta();
+$dir = $theme->get_theme_dir();
+$url = $theme->get_theme_url();
+$publicDir = $theme->get_public_dir();
+$publicUrl = $theme->get_public_url();
+$meta = $theme->get_theme_meta();
 ```
 
 ### Theme metadata

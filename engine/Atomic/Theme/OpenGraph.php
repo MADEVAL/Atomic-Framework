@@ -39,15 +39,15 @@ final class OpenGraph
     private function __construct()
     {
         $this->atomic = App::instance();
-        $this->loadDefaults();
+        $this->load_defaults();
     }
 
-    private function loadDefaults(): void
+    private function load_defaults(): void
     {
         $scheme = $this->atomic->get('SCHEME') ?? 'https';
         $host = $this->atomic->get('HOST');
         $base = rtrim($this->atomic->get('BASE') ?? '', '/');
-        $path = AM::instance()->get_currentPath(false);
+        $path = AM::instance()->get_current_path(false);
         
         $lang = I18n::instance()->get();
         $locale = self::LOCALES[$lang] ?? self::LOCALES['en'];
@@ -66,62 +66,62 @@ final class OpenGraph
         return $this;
     }
 
-    public function setTitle(string $title): self
+    public function set_title(string $title): self
     {
         $this->meta['title'] = $title;
         return $this;
     }
 
-    public function setDescription(string $description): self
+    public function set_description(string $description): self
     {
         $this->meta['description'] = $description;
         return $this;
     }
 
-    public function setImage(string $image): self
+    public function set_image(string $image): self
     {
         if (!preg_match('~^https?://~i', $image)) {
-            $base = rtrim(AM::instance()->get_publicUrl(), '/');
+            $base = rtrim(AM::instance()->get_public_url(), '/');
             $image = $base . '/' . ltrim($image, '/');
         }
         $this->meta['image'] = $image;
         return $this;
     }
 
-    public function setUrl(?string $url = null): self
+    public function set_url(?string $url = null): self
     {
         if ($url === null) {
             $scheme = $this->atomic->get('SCHEME') ?? 'https';
             $host = $this->atomic->get('HOST');
             $base = rtrim($this->atomic->get('BASE') ?? '', '/');
-            $path = AM::instance()->get_currentPath(false);
+            $path = AM::instance()->get_current_path(false);
             $url = $scheme . '://' . $host . $base . $path;
         }
         $this->meta['url'] = $url;
         return $this;
     }
 
-    public function setType(string $type): self
+    public function set_type(string $type): self
     {
         $this->meta['type'] = $type;
         return $this;
     }
 
-    public function setLocale(string $locale): self
+    public function set_locale(string $locale): self
     {
         $this->meta['locale'] = $locale;
         return $this;
     }
 
-    public function setSiteName(string $siteName): self
+    public function set_site_name(string $site_name): self
     {
-        $this->meta['site_name'] = $siteName;
+        $this->meta['site_name'] = $site_name;
         return $this;
     }
 
-    public function setArticle(array $data): self
+    public function set_article(array $data): self
     {
-        $this->setType('article');
+        $this->set_type('article');
         
         if (isset($data['published_time'])) {
             $this->meta['article:published_time'] = $data['published_time'];
@@ -145,9 +145,9 @@ final class OpenGraph
         return $this;
     }
 
-    public function setProduct(array $data): self
+    public function set_product(array $data): self
     {
-        $this->setType('product');
+        $this->set_type('product');
         
         if (isset($data['price:amount'])) {
             $this->meta['product:price:amount'] = $data['price:amount'];
@@ -170,15 +170,15 @@ final class OpenGraph
         foreach ($this->meta as $property => $content) {
             if (is_array($content)) {
                 foreach ($content as $item) {
-                    $this->printTag($property, $item);
+                    $this->print_tag($property, $item);
                 }
             } else {
-                $this->printTag($property, $content);
+                $this->print_tag($property, $content);
             }
         }
     }
 
-    public function renderTwitter(): void
+    public function render_twitter(): void
     {
         $twitter = [
             'twitter:card' => 'summary_large_image',
@@ -197,28 +197,28 @@ final class OpenGraph
     public function generate(array $data = []): self
     {
         if (isset($data['title'])) {
-            $this->setTitle($data['title']);
+            $this->set_title($data['title']);
         }
         if (isset($data['description'])) {
-            $this->setDescription($data['description']);
+            $this->set_description($data['description']);
         }
         if (isset($data['image'])) {
-            $this->setImage($data['image']);
+            $this->set_image($data['image']);
         }
         if (isset($data['url'])) {
-            $this->setUrl($data['url']);
+            $this->set_url($data['url']);
         }
         if (isset($data['type'])) {
-            $this->setType($data['type']);
+            $this->set_type($data['type']);
         }
         if (isset($data['site_name'])) {
-            $this->setSiteName($data['site_name']);
+            $this->set_site_name($data['site_name']);
         }
 
         return $this;
     }
 
-    private function printTag(string $property, string $content): void
+    private function print_tag(string $property, string $content): void
     {
         if (empty($content)) return;
         

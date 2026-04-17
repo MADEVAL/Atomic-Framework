@@ -18,7 +18,7 @@ class EventTest extends TestCase
     protected function tearDown(): void
     {
         // Cleanup registered events
-        foreach ($this->event->getRegisteredEvents() as $name) {
+        foreach ($this->event->get_registered_events() as $name) {
             $this->event->off($name);
         }
     }
@@ -86,12 +86,12 @@ class EventTest extends TestCase
 
     public function test_getRegisteredEvents(): void
     {
-        // Note: getRegisteredEvents() has a known bug - it iterates top-level
+        // Note: get_registered_events() has a known bug - it iterates top-level
         // hive keys but events are stored as nested arrays under EVENTS.
         // Verify it returns an array (even if empty due to the bug).
         $this->event->on('evt.one', function() {});
         $this->event->on('evt.two', function() {});
-        $events = $this->event->getRegisteredEvents();
+        $events = $this->event->get_registered_events();
         $this->assertIsArray($events);
         // Verify via has() that events were registered correctly
         $this->assertTrue($this->event->has('evt.one'));

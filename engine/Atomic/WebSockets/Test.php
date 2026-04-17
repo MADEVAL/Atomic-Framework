@@ -80,7 +80,7 @@ class Test
         }
         $logs_dir .= '/ws';
         if (!is_dir($logs_dir)) {
-            Filesystem::instance()->makeDir($logs_dir, 0755, true);
+            Filesystem::instance()->make_dir($logs_dir, 0755, true);
         }
         Worker::$pidFile = $logs_dir . '/workerman.ws_test.' . getmypid() . '.pid';
         Worker::$logFile = $logs_dir . '/workerman.ws_test.log';

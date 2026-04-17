@@ -26,8 +26,8 @@ class StyleTest extends TestCase
     {
         $this->setEnvironment('FORCE_COLOR', '1');
 
-        $this->assertStringContainsString("\033[33m", Style::warningLabel());
-        $this->assertStringContainsString('[WARNING]', Style::warningLabel());
+        $this->assertStringContainsString("\033[33m", Style::warning_label());
+        $this->assertStringContainsString('[WARNING]', Style::warning_label());
     }
 
     public function test_bold_returns_plain_text_when_color_is_disabled(): void

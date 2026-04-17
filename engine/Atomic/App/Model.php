@@ -51,6 +51,10 @@ abstract class Model extends Cortex
 
 	protected function before_validate(): void {}
 
+	public function get_field_configuration(): array {
+		return $this->getFieldConfiguration();
+	}
+
 	public function get_last_err_code(): false|string {
 		return $this->last_err_code;
 	}
@@ -63,7 +67,7 @@ abstract class Model extends Cortex
 		return [$this->last_err_code, $this->last_err_vars];
 	}
 
-	public function updateProperty(mixed $filter, string $key, mixed $value): bool
+	public function update_property(mixed $filter, string $key, mixed $value): bool
 	{
 		$this->load($filter);
 		if ($this->dry()) {

@@ -16,12 +16,12 @@ class WooCommerce extends Plugin
     private array $cache = [];
     public string $version = '1.0.0';
 
-    protected function getName(): string
+    protected function get_name(): string
     {
         return 'WooCommerce Atomic Integration';
     }
 
-    public function getVersion(): string
+    public function get_version(): string
     {
         return $this->version;
     }
@@ -84,27 +84,27 @@ class WooCommerce extends Plugin
         return ['ok' => true, 'data' => $decoded ?? []];
     }
 
-    public function getProducts(int $page = 1, int $perPage = 100): array
+    public function get_products(int $page = 1, int $per_page = 100): array
     {
-        return $this->request("products?per_page={$perPage}&page={$page}");
+        return $this->request("products?per_page={$per_page}&page={$page}");
     }
 
-    public function getProduct(int $id): array
+    public function get_product(int $id): array
     {
         return $this->request("products/{$id}");
     }
 
-    public function getCategories(int $page = 1, int $perPage = 100): array
+    public function get_categories(int $page = 1, int $per_page = 100): array
     {
-        return $this->request("products/categories?per_page={$perPage}&page={$page}");
+        return $this->request("products/categories?per_page={$per_page}&page={$page}");
     }
 
-    public function getAllProducts(): array
+    public function get_all_products(): array
     {
         $all = [];
         $page = 1;
         do {
-            $result = $this->getProducts($page, 100);
+            $result = $this->get_products($page, 100);
             if (!$result['ok'] || empty($result['data'])) break;
             $all = array_merge($all, $result['data']);
             $page++;
@@ -113,12 +113,12 @@ class WooCommerce extends Plugin
         return ['ok' => true, 'data' => $all];
     }
 
-    public function getAllCategories(): array
+    public function get_all_categories(): array
     {
         $all = [];
         $page = 1;
         do {
-            $result = $this->getCategories($page, 100);
+            $result = $this->get_categories($page, 100);
             if (!$result['ok'] || empty($result['data'])) break;
             $all = array_merge($all, $result['data']);
             $page++;
@@ -127,7 +127,7 @@ class WooCommerce extends Plugin
         return ['ok' => true, 'data' => $all];
     }
 
-    public function parseProduct(array $raw): array
+    public function parse_product(array $raw): array
     {
         $to_float = fn($v) => (float)str_replace(',', '.', trim((string)($v ?? 0)));
 
@@ -165,53 +165,53 @@ class WooCommerce extends Plugin
         ];
     }
 
-    public function createOrder(array $orderData): array
+    public function create_order(array $order_data): array
     {
-        return $this->request('orders', 'POST', $orderData);
+        return $this->request('orders', 'POST', $order_data);
     }
 
-    public function updateOrder(int $orderId, array $data): array
+    public function update_order(int $order_id, array $data): array
     {
-        return $this->request("orders/{$orderId}", 'PUT', $data);
+        return $this->request("orders/{$order_id}", 'PUT', $data);
     }
 
-    public function getOrder(int $orderId): array
+    public function get_order(int $order_id): array
     {
-        return $this->request("orders/{$orderId}");
+        return $this->request("orders/{$order_id}");
     }
 
-    public function updateOrderStatus(int $orderId, string $status): array
+    public function update_order_status(int $order_id, string $status): array
     {
-        return $this->updateOrder($orderId, ['status' => $status]);
+        return $this->update_order($order_id, ['status' => $status]);
     }
 
-    public function applyCoupon(int $orderId, string $couponCode): array
+    public function apply_coupon(int $order_id, string $coupon_code): array
     {
-        $order = $this->getOrder($orderId);
+        $order = $this->get_order($order_id);
         if (!$order['ok']) return $order;
 
         $coupons = $order['data']['coupon_lines'] ?? [];
-        $coupons[] = ['code' => $couponCode];
+        $coupons[] = ['code' => $coupon_code];
         
-        return $this->updateOrder($orderId, ['coupon_lines' => $coupons]);
+        return $this->update_order($order_id, ['coupon_lines' => $coupons]);
     }
 
-    public function getCustomer(int $customerId): array
+    public function get_customer(int $customer_id): array
     {
-        return $this->request("customers/{$customerId}");
+        return $this->request("customers/{$customer_id}");
     }
 
-    public function createCustomer(array $customerData): array
+    public function create_customer(array $customer_data): array
     {
-        return $this->request('customers', 'POST', $customerData);
+        return $this->request('customers', 'POST', $customer_data);
     }
 
-    public function updateCustomer(int $customerId, array $data): array
+    public function update_customer(int $customer_id, array $data): array
     {
-        return $this->request("customers/{$customerId}", 'PUT', $data);
+        return $this->request("customers/{$customer_id}", 'PUT', $data);
     }
 
-    public function getCustomerByEmail(string $email): array
+    public function get_customer_by_email(string $email): array
     {
         $result = $this->request("customers?email=" . urlencode($email));
         if ($result['ok'] && !empty($result['data'][0])) {
@@ -220,40 +220,40 @@ class WooCommerce extends Plugin
         return ['ok' => false, 'error' => 'Customer not found'];
     }
 
-    public function registerCustomer(string $email, string $username, ?string $firstName = null, ?string $lastName = null, ?string $phone = null): array
+    public function register_customer(string $email, string $username, ?string $first_name = null, ?string $last_name = null, ?string $phone = null): array
     {
         $data = [
             'email' => $email,
             'username' => $username,
-            'first_name' => $firstName ?? '',
-            'last_name' => $lastName ?? '',
+            'first_name' => $first_name ?? '',
+            'last_name' => $last_name ?? '',
         ];
 
         if ($phone) {
             $data['billing'] = ['phone' => $phone];
         }
 
-        return $this->createCustomer($data);
+        return $this->create_customer($data);
     }
 
-    public function registerCustomerFromTelegram(int $telegramId, ?string $username = null, ?string $firstName = null, ?string $lastName = null): array
+    public function register_customer_from_telegram(int $telegram_id, ?string $username = null, ?string $first_name = null, ?string $last_name = null): array
     {
-        $email = "tg_{$telegramId}@telegram.local";
-        $wcUsername = $username ?: "tg_{$telegramId}";
+        $email = "tg_{$telegram_id}@telegram.local";
+        $wcUsername = $username ?: "tg_{$telegram_id}";
         
-        return $this->registerCustomer($email, $wcUsername, $firstName, $lastName);
+        return $this->register_customer($email, $wcUsername, $first_name, $last_name);
     }
 
-    public function updateCustomerAddress(int $customerId, array $billing = [], array $shipping = []): array
+    public function update_customer_address(int $customer_id, array $billing = [], array $shipping = []): array
     {
         $data = [];
         if (!empty($billing)) $data['billing'] = $billing;
         if (!empty($shipping)) $data['shipping'] = $shipping;
         
-        return $this->updateCustomer($customerId, $data);
+        return $this->update_customer($customer_id, $data);
     }
 
-    public function testConnection(string $url, string $key, string $secret): array
+    public function test_connection(string $url, string $key, string $secret): array
     {
         $this->connect($url, $key, $secret);
         $result = $this->request('settings/general');
@@ -265,20 +265,20 @@ class WooCommerce extends Plugin
         return ['success' => true, 'message' => 'WooCommerce connection successful'];
     }
 
-    public function syncProducts(): array
+    public function sync_products(): array
     {
-        $result = $this->getAllProducts();
+        $result = $this->get_all_products();
         if (!$result['ok']) return $result;
 
-        $parsed = array_map([$this, 'parseProduct'], $result['data']);
+        $parsed = array_map([$this, 'parse_product'], $result['data']);
         $this->cache['products'] = $parsed;
         
         return ['ok' => true, 'count' => count($parsed), 'data' => $parsed];
     }
 
-    public function syncCategories(): array
+    public function sync_categories(): array
     {
-        $result = $this->getAllCategories();
+        $result = $this->get_all_categories();
         if (!$result['ok']) return $result;
 
         $this->cache['categories'] = $result['data'];
@@ -286,12 +286,12 @@ class WooCommerce extends Plugin
         return ['ok' => true, 'count' => count($result['data']), 'data' => $result['data']];
     }
 
-    public function getCachedProducts(): array
+    public function get_cached_products(): array
     {
         return $this->cache['products'] ?? [];
     }
 
-    public function getCachedCategories(): array
+    public function get_cached_categories(): array
     {
         return $this->cache['categories'] ?? [];
     }
@@ -302,117 +302,117 @@ function wc_connect(string $url, string $key, string $secret): WooCommerce
     return get_plugin('WooCommerce Atomic Integration')->connect($url, $key, $secret);
 }
 
-function wc_get_products(int $page = 1, int $perPage = 100): array
+function wc_get_products(int $page = 1, int $per_page = 100): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getProducts($page, $perPage);
+    return get_plugin('WooCommerce Atomic Integration')->get_products($page, $per_page);
 }
 
 function wc_get_product(int $id): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getProduct($id);
+    return get_plugin('WooCommerce Atomic Integration')->get_product($id);
 }
 
-function wc_get_categories(int $page = 1, int $perPage = 100): array
+function wc_get_categories(int $page = 1, int $per_page = 100): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getCategories($page, $perPage);
+    return get_plugin('WooCommerce Atomic Integration')->get_categories($page, $per_page);
 }
 
 function wc_get_all_products(): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getAllProducts();
+    return get_plugin('WooCommerce Atomic Integration')->get_all_products();
 }
 
 function wc_get_all_categories(): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getAllCategories();
+    return get_plugin('WooCommerce Atomic Integration')->get_all_categories();
 }
 
 function wc_parse_product(array $raw): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->parseProduct($raw);
+    return get_plugin('WooCommerce Atomic Integration')->parse_product($raw);
 }
 
-function wc_create_order(array $orderData): array
+function wc_create_order(array $order_data): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->createOrder($orderData);
+    return get_plugin('WooCommerce Atomic Integration')->create_order($order_data);
 }
 
-function wc_update_order(int $orderId, array $data): array
+function wc_update_order(int $order_id, array $data): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->updateOrder($orderId, $data);
+    return get_plugin('WooCommerce Atomic Integration')->update_order($order_id, $data);
 }
 
-function wc_get_order(int $orderId): array
+function wc_get_order(int $order_id): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getOrder($orderId);
+    return get_plugin('WooCommerce Atomic Integration')->get_order($order_id);
 }
 
-function wc_update_order_status(int $orderId, string $status): array
+function wc_update_order_status(int $order_id, string $status): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->updateOrderStatus($orderId, $status);
+    return get_plugin('WooCommerce Atomic Integration')->update_order_status($order_id, $status);
 }
 
-function wc_apply_coupon(int $orderId, string $couponCode): array
+function wc_apply_coupon(int $order_id, string $coupon_code): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->applyCoupon($orderId, $couponCode);
+    return get_plugin('WooCommerce Atomic Integration')->apply_coupon($order_id, $coupon_code);
 }
 
-function wc_get_customer(int $customerId): array
+function wc_get_customer(int $customer_id): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getCustomer($customerId);
+    return get_plugin('WooCommerce Atomic Integration')->get_customer($customer_id);
 }
 
-function wc_create_customer(array $customerData): array
+function wc_create_customer(array $customer_data): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->createCustomer($customerData);
+    return get_plugin('WooCommerce Atomic Integration')->create_customer($customer_data);
 }
 
-function wc_update_customer(int $customerId, array $data): array
+function wc_update_customer(int $customer_id, array $data): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->updateCustomer($customerId, $data);
+    return get_plugin('WooCommerce Atomic Integration')->update_customer($customer_id, $data);
 }
 
 function wc_get_customer_by_email(string $email): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getCustomerByEmail($email);
+    return get_plugin('WooCommerce Atomic Integration')->get_customer_by_email($email);
 }
 
-function wc_register_customer(string $email, string $username, ?string $firstName = null, ?string $lastName = null, ?string $phone = null): array
+function wc_register_customer(string $email, string $username, ?string $first_name = null, ?string $last_name = null, ?string $phone = null): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->registerCustomer($email, $username, $firstName, $lastName, $phone);
+    return get_plugin('WooCommerce Atomic Integration')->register_customer($email, $username, $first_name, $last_name, $phone);
 }
 
-function wc_register_customer_from_telegram(int $telegramId, ?string $username = null, ?string $firstName = null, ?string $lastName = null): array
+function wc_register_customer_from_telegram(int $telegram_id, ?string $username = null, ?string $first_name = null, ?string $last_name = null): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->registerCustomerFromTelegram($telegramId, $username, $firstName, $lastName);
+    return get_plugin('WooCommerce Atomic Integration')->register_customer_from_telegram($telegram_id, $username, $first_name, $last_name);
 }
 
-function wc_update_customer_address(int $customerId, array $billing = [], array $shipping = []): array
+function wc_update_customer_address(int $customer_id, array $billing = [], array $shipping = []): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->updateCustomerAddress($customerId, $billing, $shipping);
+    return get_plugin('WooCommerce Atomic Integration')->update_customer_address($customer_id, $billing, $shipping);
 }
 
 function wc_sync_products(): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->syncProducts();
+    return get_plugin('WooCommerce Atomic Integration')->sync_products();
 }
 
 function wc_sync_categories(): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->syncCategories();
+    return get_plugin('WooCommerce Atomic Integration')->sync_categories();
 }
 
 function wc_cached_products(): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getCachedProducts();
+    return get_plugin('WooCommerce Atomic Integration')->get_cached_products();
 }
 
 function wc_cached_categories(): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->getCachedCategories();
+    return get_plugin('WooCommerce Atomic Integration')->get_cached_categories();
 }
 
 function wc_test_connection(string $url, string $key, string $secret): array
 {
-    return get_plugin('WooCommerce Atomic Integration')->testConnection($url, $key, $secret);
+    return get_plugin('WooCommerce Atomic Integration')->test_connection($url, $key, $secret);
 }

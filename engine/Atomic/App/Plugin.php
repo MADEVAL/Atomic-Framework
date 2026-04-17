@@ -18,13 +18,13 @@ abstract class Plugin
     public function __construct(?App $atomic = null)
     {
         $this->atomic = $atomic ?? App::instance();
-        $this->name = $this->getName();
-        $this->path = $this->getPath();
+        $this->name = $this->get_name();
+        $this->path = $this->get_path();
     }
 
-    abstract protected function getName(): string;
+    abstract protected function get_name(): string;
     
-    protected function getPath(): string
+    protected function get_path(): string
     {
         $reflection = new \ReflectionClass($this);
         return dirname($reflection->getFileName());
@@ -38,32 +38,32 @@ abstract class Plugin
     
     public function deactivate(): void {}
 
-    public function isEnabled(): bool
+    public function is_enabled(): bool
     {
         return $this->enabled;
     }
 
-    public function setEnabled(bool $enabled): void
+    public function set_enabled(bool $enabled): void
     {
         $this->enabled = $enabled;
     }
 
-    public function getVersion(): string
+    public function get_version(): string
     {
         return $this->version;
     }
 
-    public function getDependencies(): array
+    public function get_dependencies(): array
     {
         return $this->dependencies;
     }
 
-    public function getPluginName(): string
+    public function get_plugin_name(): string
     {
         return $this->name;
     }
 
-    public function getPluginPath(): string
+    public function get_plugin_path(): string
     {
         return $this->path;
     }
@@ -72,7 +72,7 @@ abstract class Plugin
      * Return the path to the plugin's migrations directory, or null if none.
      * Used by `php atomic migrations/publish <plugin-name>` to auto-discover migrations.
      */
-    public function getMigrationsPath(): ?string
+    public function get_migrations_path(): ?string
     {
         $path = $this->path . DIRECTORY_SEPARATOR . 'Migrations';
         return is_dir($path) ? $path : null;

@@ -78,14 +78,14 @@ The remaining classes are present and can be queued as handlers, but their metho
 
 - `MailChecker::check(array $params)`
 - `MailSender::send(array $params)`
-- `MailSender::sendTest(array $params)`
+- `MailSender::send_test(array $params)`
 - `PageCache::generate(array $params)`
 - `PageCache::purge(array $params)`
 - `PageCache::preload(array $params)`
 - `PluginSync::sync(array $params)`
-- `PluginSync::syncTest(array $params)`
-- `PluginSync::fetchUpdates(array $params)`
-- `PluginSync::applyUpdates(array $params)`
+- `PluginSync::sync_test(array $params)`
+- `PluginSync::fetch_updates(array $params)`
+- `PluginSync::apply_updates(array $params)`
 - `PluginSync::notify(array $params)`
 - `SystemLogs::archive(array $params)`
 - `SystemLogs::delete(array $params)`

@@ -115,7 +115,7 @@ final class Schema
         $template = self::TEMPLATES[$type];
         
         if (empty($data)) {
-            return $this->getDefaults($type);
+            return $this->get_defaults($type);
         }
 
         return $this->populate($template, $data);
@@ -135,14 +135,14 @@ final class Schema
 
         $result = json_decode($json, true);
         
-        return $this->removeEmptyPlaceholders($result);
+        return $this->remove_empty_placeholders($result);
     }
 
-    private function removeEmptyPlaceholders(array $data): array
+    private function remove_empty_placeholders(array $data): array
     {
         foreach ($data as $key => $value) {
             if (is_array($value)) {
-                $data[$key] = $this->removeEmptyPlaceholders($value);
+                $data[$key] = $this->remove_empty_placeholders($value);
                 if (empty($data[$key])) {
                     unset($data[$key]);
                 }
@@ -154,9 +154,9 @@ final class Schema
         return $data;
     }
 
-    private function getDefaults(string $type): array
+    private function get_defaults(string $type): array
     {
-        $base = rtrim(AM::instance()->get_publicUrl(), '/');
+        $base = rtrim(AM::instance()->get_public_url(), '/');
         
         $defaults = [
             'organization' => [

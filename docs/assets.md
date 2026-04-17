@@ -17,7 +17,7 @@ add_inline_script('jquery', 'console.log("jQ ready");', 'header');
 add_inline_script('app', 'console.log("App booted", window.AtomicData?.app);', 'footer');
 
 localize_script('app', [
-    'ajaxUrl' => \Engine\Atomic\Core\Methods::instance()->get_publicUrl() . '/api',
+    'ajaxUrl' => \Engine\Atomic\Core\Methods::instance()->get_public_url() . '/api',
     'i18n'    => [
         'save'   => __('default.Save', [], 'default'),
         'cancel' => __('default.Cancel', [], 'default'),

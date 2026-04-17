@@ -8,7 +8,7 @@ trait ConfigHiveTrait
 {
     protected function build_cache_string(
         string $driver,
-        string $folderPath = '',
+        string $folder_path = '',
         string $server     = '',
         string $port       = '',
         string $password   = '',
@@ -16,7 +16,7 @@ trait ConfigHiveTrait
     ): string|false {
         switch ($driver) {
             case 'folder':
-                return "folder={$folderPath}";
+                return "folder={$folder_path}";
 
             case 'memcache':
             case 'memcached':

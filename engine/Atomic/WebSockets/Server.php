@@ -85,7 +85,7 @@ abstract class Server
         }
         $logs_dir .= '/ws';
         if (!is_dir($logs_dir)) {
-            Filesystem::instance()->makeDir($logs_dir, 0755, true);
+            Filesystem::instance()->make_dir($logs_dir, 0755, true);
         }
         $server_tag = strtolower(str_replace('\\', '.', static::class));
         Worker::$pidFile = $logs_dir . '/workerman.' . $server_tag . '.pid';

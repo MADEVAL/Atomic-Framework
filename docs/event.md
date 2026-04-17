@@ -77,7 +77,7 @@ $events->unwatch($object);
 
 ```php
 if ($events->has('user.login')) {
-    $registered = $events->getRegisteredEvents();
+    $registered = $events->get_registered_events();
 }
 
 $events->off('user.login');

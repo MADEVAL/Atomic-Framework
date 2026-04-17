@@ -238,12 +238,12 @@ class Mutex
         string $name, 
         int $ttl, 
         callable $callback, 
-        ?callable $onLocked = null
+        ?callable $on_locked = null
     ): mixed {
         $token = self::acquire($name, $ttl);
         
         if ($token === null) {
-            return $onLocked !== null ? $onLocked() : null;
+            return $on_locked !== null ? $on_locked() : null;
         }
 
         try {

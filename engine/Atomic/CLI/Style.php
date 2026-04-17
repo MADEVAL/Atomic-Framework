@@ -38,24 +38,24 @@ class Style
         return self::paint($text, null, true);
     }
 
-    public static function warningLabel(): string
+    public static function warning_label(): string
     {
         return self::yellow('[WARNING]', true);
     }
 
-    public static function errorLabel(): string
+    public static function error_label(): string
     {
         return self::red('[ERROR]', true);
     }
 
-    public static function successLabel(): string
+    public static function success_label(): string
     {
         return self::green('[OK]', true);
     }
 
     private static function paint(string $text, ?string $color, bool $bold): string
     {
-        if (!Capabilities::supportsColors()) {
+        if (!Capabilities::supports_colors()) {
             return $text;
         }
 

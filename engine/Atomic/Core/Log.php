@@ -161,7 +161,7 @@ class Log
     {
         if (self::$dumps_dir === '') return false;
         if (is_dir(self::$dumps_dir)) return is_writable(self::$dumps_dir);
-        Filesystem::instance()->makeDir(self::$dumps_dir, 0775, true);
+        Filesystem::instance()->make_dir(self::$dumps_dir, 0775, true);
         return is_dir(self::$dumps_dir) && is_writable(self::$dumps_dir);
     }
 

@@ -15,7 +15,7 @@ class LogChannel
         $this->name = $name;
     }
 
-    public function getName(): string
+    public function get_name(): string
     {
         return $this->name;
     }

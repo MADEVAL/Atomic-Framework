@@ -49,12 +49,12 @@ class DB implements Base, Management, Telemetry
         $this->jobs_completed_mapper = null;
     }
 
-    protected function serialize(array $jobData): string {
-        return \json_encode($jobData, JSON_THROW_ON_ERROR);
+    protected function serialize(array $job_data): string {
+        return \json_encode($job_data, JSON_THROW_ON_ERROR);
     }
 
-    protected function deserialize(string $jobData): array {
-        return \json_decode($jobData, true, 512, JSON_THROW_ON_ERROR);
+    protected function deserialize(string $job_data): array {
+        return \json_decode($job_data, true, 512, JSON_THROW_ON_ERROR);
     }
 
     public function push(array $payload, array $options = []): bool
@@ -72,7 +72,7 @@ class DB implements Base, Management, Telemetry
         $delay        = $options['delay'];
         $priority     = $options['priority'];
         $available_at = \time() + (int)$delay;
-        $jobData = [
+        $job_data = [
             'handler'      => $payload['handler'],
             'data'         => $payload['data'] ?? [],
             'uuid_batch'   => $options['uuid_batch'],
@@ -83,7 +83,7 @@ class DB implements Base, Management, Telemetry
             $this->jobs_mapper->uuid = $uuid;
             $this->jobs_mapper->queue = $queue;
             $this->jobs_mapper->priority = $priority;
-            $this->jobs_mapper->payload = $this->serialize($jobData);
+            $this->jobs_mapper->payload = $this->serialize($job_data);
             $this->jobs_mapper->max_attempts = $max_attempts;
             $this->jobs_mapper->attempts = 0;
             $this->jobs_mapper->timeout = $timeout;

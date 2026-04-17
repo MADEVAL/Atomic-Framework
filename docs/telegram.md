@@ -38,7 +38,7 @@ $bot2->send('Message from bot 2');
 
 // Bot 3 (notifications)
 $notifyBot = telegram('notify_token');
-$notifyBot->setChatId('notify_chat_id');
+$notifyBot->set_chat_id('notify_chat_id');
 $notifyBot->send('Notification message');
 ```
 
@@ -126,8 +126,8 @@ $salesBot->send("New order: \${$order->total}");
 
 ```php
 $bot = telegram()
-    ->setToken('custom_token')
-    ->setChatId('custom_chat_id');
+    ->set_token('custom_token')
+    ->set_chat_id('custom_chat_id');
 
 $result = $bot->send('Custom message');
 

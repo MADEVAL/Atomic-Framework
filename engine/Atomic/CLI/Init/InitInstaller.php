@@ -16,7 +16,7 @@ trait InitInstaller
     private string $initEnvPath    = '';
     private function ask(string $label, ?string $default = null): string
     {
-        if (!$this->input->isInteractive()) {
+        if (!$this->input->is_interactive()) {
             return (string)($default ?? '');
         }
 
@@ -27,18 +27,18 @@ trait InitInstaller
         $text .= ': ';
 
         $this->output->prompt($text);
-        $value = $this->input->readLine();
+        $value = $this->input->read_line();
         return $value === '' ? (string)($default ?? '') : $value;
     }
 
     private function confirm(string $label, bool $default = true): bool
     {
-        if (!$this->input->isInteractive()) {
+        if (!$this->input->is_interactive()) {
             return $default;
         }
 
         $this->output->prompt("  {$label} [" . ($default ? 'Y/n' : 'y/N') . ']: ');
-        $value = strtolower($this->input->readLine());
+        $value = strtolower($this->input->read_line());
 
         if ($value === '') {
             return $default;
@@ -47,42 +47,42 @@ trait InitInstaller
         return in_array($value, ['y', 'yes'], true);
     }
 
-    private function reportInitIssue(string $message, bool $warning = false): void
+    private function report_init_issue(string $message, bool $warning = false): void
     {
-        $label = $warning ? Style::warningLabel() : Style::errorLabel();
+        $label = $warning ? Style::warning_label() : Style::error_label();
         $this->output->err('  ' . $label . ' ' . $message);
     }
 
-    private function ensureEnvFile(string $root): string
+    private function ensure_env_file(string $root): string
     {
-        $envPath = $root . DIRECTORY_SEPARATOR . '.env';
-        if (file_exists($envPath)) {
-            return $envPath;
+        $env_path = $root . DIRECTORY_SEPARATOR . '.env';
+        if (file_exists($env_path)) {
+            return $env_path;
         }
 
         $examplePath = $root . DIRECTORY_SEPARATOR . '.env.example';
         if (file_exists($examplePath)) {
-            if (@copy($examplePath, $envPath)) {
+            if (@copy($examplePath, $env_path)) {
                 $this->output->writeln("        .env generated from .env.example");
-                return $envPath;
+                return $env_path;
             }
             $error = error_get_last()['message'] ?? 'unknown error';
-            $this->reportInitIssue("Could not copy .env.example to .env: {$error}");
+            $this->report_init_issue("Could not copy .env.example to .env: {$error}");
             return '';
         }
 
-        $this->reportInitIssue("No .env found at {$envPath} and no .env.example to generate from.");
+        $this->report_init_issue("No .env found at {$env_path} and no .env.example to generate from.");
         return '';
     }
 
-    private function setEnvValue(string $envPath, string $key, string $value): void
+    private function set_env_value(string $env_path, string $key, string $value): void
     {
-        if ($envPath === '' || !file_exists($envPath)) {
-            $this->reportInitIssue("Cannot update {$key}; .env file is missing.");
+        if ($env_path === '' || !file_exists($env_path)) {
+            $this->report_init_issue("Cannot update {$key}; .env file is missing.");
             return;
         }
 
-        $contents = (string)@file_get_contents($envPath);
+        $contents = (string)@file_get_contents($env_path);
         $line     = $key . '=' . $value;
         $pattern  = '/^' . preg_quote($key, '/') . '=.*$/m';
 
@@ -92,20 +92,20 @@ trait InitInstaller
             $contents = rtrim($contents) . PHP_EOL . $line . PHP_EOL;
         }
 
-        if (@file_put_contents($envPath, $contents) === false) {
+        if (@file_put_contents($env_path, $contents) === false) {
             $error = error_get_last()['message'] ?? 'unknown error';
-            $this->reportInitIssue("Could not write {$key} to {$envPath}: {$error}");
+            $this->report_init_issue("Could not write {$key} to {$env_path}: {$error}");
         }
     }
 
-    private function readEnvValue(string $envPath, string $key, string $default = ''): string
+    private function read_env_value(string $env_path, string $key, string $default = ''): string
     {
-        if ($envPath === '' || !file_exists($envPath)) {
-            $this->reportInitIssue("Cannot read {$key}; .env file is missing.");
+        if ($env_path === '' || !file_exists($env_path)) {
+            $this->report_init_issue("Cannot read {$key}; .env file is missing.");
             return $default;
         }
 
-        $contents = (string)file_get_contents($envPath);
+        $contents = (string)file_get_contents($env_path);
         if (preg_match('/^' . preg_quote($key, '/') . '=(.*)$/m', $contents, $matches) !== 1) {
             return $default;
         }
@@ -113,22 +113,22 @@ trait InitInstaller
         return trim($matches[1]);
     }
 
-    private function configureBasicEnv(string $envPath): void
+    private function configure_basic_env(string $env_path): void
     {
-        $appName = $this->readConfigValue('APP_NAME', 'Atomic');
-        $this->setConfigValue('APP_NAME', $appName);
-        $this->setConfigValue('MAIL_FROM_NAME', $this->readConfigValue('MAIL_FROM_NAME', $appName));
+        $appName = $this->read_config_value('APP_NAME', 'Atomic');
+        $this->set_config_value('APP_NAME', $appName);
+        $this->set_config_value('MAIL_FROM_NAME', $this->read_config_value('MAIL_FROM_NAME', $appName));
     }
 
-    private function chooseConfigSource(): string
+    private function choose_config_source(): string
     {
-        if (!$this->input->isInteractive()) {
+        if (!$this->input->is_interactive()) {
             return 'env';
         }
 
         while (true) {
             $this->output->prompt("  Configuration source [env/php] [env]: ");
-            $value = strtolower($this->input->readLine());
+            $value = strtolower($this->input->read_line());
 
             if ($value === '' || $value === 'env') {
                 return 'env';
@@ -138,24 +138,24 @@ trait InitInstaller
                 return 'php';
             }
 
-            $this->output->err('  ' . Style::warningLabel() . " Please enter 'env' or 'php'.");
+            $this->output->err('  ' . Style::warning_label() . " Please enter 'env' or 'php'.");
         }
     }
 
-    private function initializeConfigSource(string $root, string $mode): void
+    private function initialize_config_source(string $root, string $mode): void
     {
         $this->initRoot       = $root;
         $this->initConfigMode = $mode === 'php' ? 'php' : 'env';
         $this->initEnvPath    = '';
 
-        $this->persistConfigLoaderSelection($root, $this->initConfigMode);
+        $this->persist_config_loader_selection($root, $this->initConfigMode);
 
         if ($this->initConfigMode === 'env') {
-            $this->initEnvPath = $this->ensureEnvFile($root);
+            $this->initEnvPath = $this->ensure_env_file($root);
         }
     }
 
-    private function persistConfigLoaderSelection(string $root, string $mode): void
+    private function persist_config_loader_selection(string $root, string $mode): void
     {
         $target = null;
         $candidates = [
@@ -171,7 +171,7 @@ trait InitInstaller
         }
 
         if ($target === null) {
-            $this->reportInitIssue('Could not persist loader mode; no writable const.php found in bootstrap/const.php or const.php.', true);
+            $this->report_init_issue('Could not persist loader mode; no writable const.php found in bootstrap/const.php or const.php.', true);
             return;
         }
 
@@ -185,44 +185,44 @@ trait InitInstaller
         );
 
         if ($count === 0) {
-            $this->reportInitIssue("{$target} does not define ATOMIC_LOADER; skipping loader mode persistence.", true);
+            $this->report_init_issue("{$target} does not define ATOMIC_LOADER; skipping loader mode persistence.", true);
             return;
         }
 
         if (@file_put_contents($target, $updated) === false) {
             $error = error_get_last()['message'] ?? 'unknown error';
-            $this->reportInitIssue("Could not write loader mode to {$target}: {$error}", true);
+            $this->report_init_issue("Could not write loader mode to {$target}: {$error}", true);
             return;
         }
 
         $this->output->writeln("        Loader mode set to {$mode} in " . basename(dirname($target)) . '/'. basename($target));
     }
 
-    private function configMode(): string
+    private function config_mode(): string
     {
         return $this->initConfigMode;
     }
 
-    private function readConfigValue(string $key, string $default = ''): string
+    private function read_config_value(string $key, string $default = ''): string
     {
         if ($this->initConfigMode === 'env') {
-            return $this->readEnvValue($this->initEnvPath, $key, $default);
+            return $this->read_env_value($this->initEnvPath, $key, $default);
         }
 
-        return $this->readPhpConfigValue($key, $default);
+        return $this->read_php_config_value($key, $default);
     }
 
-    private function setConfigValue(string $key, string $value): void
+    private function set_config_value(string $key, string $value): void
     {
         if ($this->initConfigMode === 'env') {
-            $this->setEnvValue($this->initEnvPath, $key, $value);
+            $this->set_env_value($this->initEnvPath, $key, $value);
             return;
         }
 
-        $this->setPhpConfigValue($key, $value);
+        $this->set_php_config_value($key, $value);
     }
 
-    private function readPhpConfigFile(string $name): array
+    private function read_php_config_file(string $name): array
     {
         $path = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
         if (!file_exists($path)) {
@@ -233,12 +233,12 @@ trait InitInstaller
         return is_array($data) ? $data : [];
     }
 
-    private function writePhpConfigFile(string $name, array $config): void
+    private function write_php_config_file(string $name, array $config): void
     {
         $path = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
         
         if (!file_exists($path)) {
-            $this->reportInitIssue("Config file {$path} does not exist; cannot update.", true);
+            $this->report_init_issue("Config file {$path} does not exist; cannot update.", true);
             return;
         }
         
@@ -257,11 +257,11 @@ trait InitInstaller
         
         if (@file_put_contents($path, $updated) === false) {
             $error = error_get_last()['message'] ?? 'unknown error';
-            $this->reportInitIssue("Could not write config file {$path}: {$error}");
+            $this->report_init_issue("Could not write config file {$path}: {$error}");
         }
     }
 
-    private function setArrayPathValue(array &$array, array $path, mixed $value): void
+    private function set_array_path_value(array &$array, array $path, mixed $value): void
     {
         $ref = &$array;
         foreach ($path as $segment) {
@@ -273,7 +273,7 @@ trait InitInstaller
         $ref = $value;
     }
 
-    private function getArrayPathValue(array $array, array $path, mixed $default = null): mixed
+    private function get_array_path_value(array $array, array $path, mixed $default = null): mixed
     {
         $ref = $array;
         foreach ($path as $segment) {
@@ -285,7 +285,7 @@ trait InitInstaller
         return $ref;
     }
 
-    private function phpConfigKeyMap(string $key): ?array
+    private function php_config_key_map(string $key): ?array
     {
         return match ($key) {
             'APP_UUID'            => ['app',      ['uuid']],
@@ -306,9 +306,9 @@ trait InitInstaller
         };
     }
 
-    private function readPhpConfigValue(string $key, string $default = ''): string
+    private function read_php_config_value(string $key, string $default = ''): string
     {
-        $map = $this->phpConfigKeyMap($key);
+        $map = $this->php_config_key_map($key);
         if ($map === null) {
             return $default;
         }
@@ -316,18 +316,18 @@ trait InitInstaller
         [$file, $path] = $map;
         $configPath = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $file . '.php';
         if (!file_exists($configPath)) {
-            $this->reportInitIssue("Missing config file {$configPath}; cannot read {$key}.");
+            $this->report_init_issue("Missing config file {$configPath}; cannot read {$key}.");
             return $default;
         }
 
-        $config = $this->readPhpConfigFile($file);
-        $value  = $this->getArrayPathValue($config, $path, $default);
+        $config = $this->read_php_config_file($file);
+        $value  = $this->get_array_path_value($config, $path, $default);
         return is_scalar($value) ? (string)$value : $default;
     }
 
-    private function setPhpConfigValue(string $key, string $value): void
+    private function set_php_config_value(string $key, string $value): void
     {
-        $map = $this->phpConfigKeyMap($key);
+        $map = $this->php_config_key_map($key);
         if ($map === null) {
             return;
         }
@@ -335,24 +335,24 @@ trait InitInstaller
         [$file, $path] = $map;
         $configPath = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $file . '.php';
         if (!file_exists($configPath)) {
-            $this->reportInitIssue("Missing config file {$configPath}; skipping {$key}.", true);
+            $this->report_init_issue("Missing config file {$configPath}; skipping {$key}.", true);
             return;
         }
 
-        $config = $this->readPhpConfigFile($file);
-        $this->setArrayPathValue($config, $path, $value);
-        $this->writePhpConfigFile($file, $config);
+        $config = $this->read_php_config_file($file);
+        $this->set_array_path_value($config, $path, $value);
+        $this->write_php_config_file($file, $config);
     }
 
-    private function chooseMainDriver(): string
+    private function choose_main_driver(): string
     {
-        if (!$this->input->isInteractive()) {
+        if (!$this->input->is_interactive()) {
             return 'database';
         }
 
         while (true) {
             $this->output->prompt("  Main backend driver [database/redis] [database]: ");
-            $value = strtolower($this->input->readLine());
+            $value = strtolower($this->input->read_line());
 
             if ($value === '' || $value === 'database') {
                 return 'database';
@@ -360,7 +360,7 @@ trait InitInstaller
 
             if ($value === 'redis') {
                 if (!extension_loaded('redis')) {
-                    $this->output->err('  ' . Style::errorLabel() . ' Redis backend requires the PHP redis extension (ext-redis).');
+                    $this->output->err('  ' . Style::error_label() . ' Redis backend requires the PHP redis extension (ext-redis).');
                     $this->output->err("  Install/enable ext-redis and try again, or choose 'database'.");
                     continue;
                 }
@@ -368,40 +368,40 @@ trait InitInstaller
                 return 'redis';
             }
 
-            $this->output->err('  ' . Style::warningLabel() . " Please enter 'database' or 'redis'.");
+            $this->output->err('  ' . Style::warning_label() . " Please enter 'database' or 'redis'.");
         }
     }
 
-    private function configureDatabase(string $envPath): ?array
+    private function configure_database(string $env_path): ?array
     {
-        if (!$this->input->isInteractive()) {
+        if (!$this->input->is_interactive()) {
             return null;
         }
 
         while (true) {
             $config = [
                 'driver'   => 'mysql',
-                'host'     => $this->ask('DB host',     $this->readConfigValue('DB_HOST',     '127.0.0.1')),
-                'port'     => $this->ask('DB port',     $this->readConfigValue('DB_PORT',     '3306')),
-                'database' => $this->ask('DB name',     $this->readConfigValue('DB_DATABASE', 'atomic')),
-                'username' => $this->ask('DB user',     $this->readConfigValue('DB_USERNAME', 'root')),
-                'password' => $this->input->readSecret('DB password', $this->readConfigValue('DB_PASSWORD', '')),
+                'host'     => $this->ask('DB host',     $this->read_config_value('DB_HOST',     '127.0.0.1')),
+                'port'     => $this->ask('DB port',     $this->read_config_value('DB_PORT',     '3306')),
+                'database' => $this->ask('DB name',     $this->read_config_value('DB_DATABASE', 'atomic')),
+                'username' => $this->ask('DB user',     $this->read_config_value('DB_USERNAME', 'root')),
+                'password' => $this->input->read_secret('DB password', $this->read_config_value('DB_PASSWORD', '')),
             ];
 
-            $error = $this->testDatabaseConnection($config);
+            $error = $this->test_database_connection($config);
             if ($error === null) {
-                $this->setConfigValue('DB_DRIVER',   $config['driver']);
-                $this->setConfigValue('DB_HOST',     $config['host']);
-                $this->setConfigValue('DB_PORT',     $config['port']);
-                $this->setConfigValue('DB_DATABASE', $config['database']);
-                $this->setConfigValue('DB_USERNAME', $config['username']);
-                $this->setConfigValue('DB_PASSWORD', $config['password']);
-                $this->output->writeln('  ' . Style::successLabel() . " Database is ready.");
+                $this->set_config_value('DB_DRIVER',   $config['driver']);
+                $this->set_config_value('DB_HOST',     $config['host']);
+                $this->set_config_value('DB_PORT',     $config['port']);
+                $this->set_config_value('DB_DATABASE', $config['database']);
+                $this->set_config_value('DB_USERNAME', $config['username']);
+                $this->set_config_value('DB_PASSWORD', $config['password']);
+                $this->output->writeln('  ' . Style::success_label() . " Database is ready.");
                 $this->output->writeln();
                 return $config;
             }
 
-            $this->output->err('  ' . Style::errorLabel() . " Could not connect.");
+            $this->output->err('  ' . Style::error_label() . " Could not connect.");
             $this->output->err("  {$error}");
             $this->output->err("  Please retry and check your credentials.");
 
@@ -412,7 +412,7 @@ trait InitInstaller
         }
     }
 
-    private function testDatabaseConnection(array $config): ?string
+    private function test_database_connection(array $config): ?string
     {
         try {
             $dsn = sprintf(
@@ -433,7 +433,7 @@ trait InitInstaller
         }
     }
 
-    private function bootDatabase(array $config): SQL
+    private function boot_database(array $config): SQL
     {
         $atomic   = App::instance();
         $dbConfig = [
@@ -455,24 +455,24 @@ trait InitInstaller
         return ConnectionManager::instance()->get_db();
     }
 
-    private function initializeMigrationDatabase(): bool
+    private function initialize_migration_database(): bool
     {
         $migrations = new CoreMigrations($this->output);
         if (!$migrations->db()) {
-            $this->output->err('  ' . Style::errorLabel() . " Could not initialize migration database.");
+            $this->output->err('  ' . Style::error_label() . " Could not initialize migration database.");
             return false;
         }
 
-        $this->output->writeln('  ' . Style::successLabel() . " Migration database initialized.");
+        $this->output->writeln('  ' . Style::success_label() . " Migration database initialized.");
         return true;
     }
 
-    private function setupOptionalDatabaseSystems(string $root): void
+    private function setup_optional_database_systems(string $root): void
     {
-        $this->runUserSetupBranch($root);
+        $this->run_user_setup_branch($root);
     }
 
-    private function setupDatabaseBackendsMigrations(): void
+    private function setup_database_backends_migrations(): void
     {
         $options = [
             ['label' => 'session', 'method' => 'db_sessions'],
@@ -488,7 +488,7 @@ trait InitInstaller
 
             $method = $option['method'];
             if (!method_exists($this, $method)) {
-                $this->output->err('  ' . Style::warningLabel() . " Missing CLI method '{$method}', skipping.");
+                $this->output->err('  ' . Style::warning_label() . " Missing CLI method '{$method}', skipping.");
                 continue;
             }
 
@@ -500,11 +500,11 @@ trait InitInstaller
             $this->output->writeln();
             $migrations = new CoreMigrations($this->output);
             $migrations->migrate();
-            $this->output->writeln('  ' . Style::successLabel() . " {$queued} backend migration(s) applied.");
+            $this->output->writeln('  ' . Style::success_label() . " {$queued} backend migration(s) applied.");
         }
     }
 
-    private function detectConfigMode(string $root): ?string
+    private function detect_config_mode(string $root): ?string
     {
         $candidates = [
             $root . DIRECTORY_SEPARATOR . 'bootstrap' . DIRECTORY_SEPARATOR . 'const.php',
@@ -523,8 +523,8 @@ trait InitInstaller
         }
 
         // Fallback: check if .env exists
-        $envPath = $root . DIRECTORY_SEPARATOR . '.env';
-        if (file_exists($envPath)) {
+        $env_path = $root . DIRECTORY_SEPARATOR . '.env';
+        if (file_exists($env_path)) {
             return 'env';
         }
 

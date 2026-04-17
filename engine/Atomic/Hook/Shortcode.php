@@ -32,7 +32,7 @@ final class Shortcode
         return preg_replace_callback($pattern, function($match) {
             $full = $match[0];
             $tag = $match[1];
-            $atts = $this->parseAtts($match[2] ?? '');
+            $atts = $this->parse_atts($match[2] ?? '');
             $content = $match[3] ?? null;
             $callback = $this->handlers[$tag] ?? null; 
             if (!$callback) return $full;
@@ -40,12 +40,12 @@ final class Shortcode
         }, $text);
     }
 
-    private function parseAtts(string $attrString): array 
+    private function parse_atts(string $attr_string): array 
     {
         $out = [];
-        if ($attrString === '') return $out;
+        if ($attr_string === '') return $out;
         $attrPattern = '/(\w+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\']+))|(?:"([^"]*)"|\'([^\']*)\'|([^\s"\']+))/u'; // TODO test
-        if (preg_match_all($attrPattern, $attrString, $matches, PREG_SET_ORDER)) { 
+        if (preg_match_all($attrPattern, $attr_string, $matches, PREG_SET_ORDER)) { 
             foreach ($matches as $match) { 
                 $attrName           = $match[1] ?? '';
 

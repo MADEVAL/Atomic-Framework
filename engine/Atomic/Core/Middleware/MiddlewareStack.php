@@ -15,7 +15,7 @@ class MiddlewareStack
     /**
      * Register a middleware alias (e.g. 'auth' → Authenticate::class).
      */
-    public static function registerAlias(string $name, string $class): void
+    public static function register_alias(string $name, string $class): void
     {
         self::$aliases[$name] = $class;
     }
@@ -24,23 +24,23 @@ class MiddlewareStack
      * Assign middleware names to a route pattern.
      * The URL pattern is extracted from the full F3 route string (e.g. "GET /path" → "/path").
      */
-    public static function forRoute(string $routePattern, array $middlewareNames): void
+    public static function for_route(string $route_pattern, array $middleware_names): void
     {
-        $urlPattern = self::extractUrlPattern($routePattern);
-        self::$routeMap[$urlPattern] = $middlewareNames;
+        $urlPattern = self::extract_url_pattern($route_pattern);
+        self::$routeMap[$urlPattern] = $middleware_names;
     }
 
     /**
      * Run all middleware registered for the current request's PATTERN.
      * Returns true if all middleware passed, false if any aborted.
      */
-    public static function runForRoute($atomic): bool
+    public static function run_for_route($atomic): bool
     {
         $pattern = $atomic->get('PATTERN');
-        $middlewareNames = self::$routeMap[$pattern] ?? [];
+        $middleware_names = self::$routeMap[$pattern] ?? [];
 
-        foreach ($middlewareNames as $nameWithParams) {
-            $middleware = self::resolve($nameWithParams);
+        foreach ($middleware_names as $name_with_params) {
+            $middleware = self::resolve($name_with_params);
             if ($middleware === null) {
                 continue;
             }
@@ -56,9 +56,9 @@ class MiddlewareStack
      * Resolve a middleware name (optionally with :parameter) into an instance.
      * Supports parameterized aliases like 'store:banned'.
      */
-    public static function resolve(string $nameWithParams): ?MiddlewareInterface
+    public static function resolve(string $name_with_params): ?MiddlewareInterface
     {
-        [$name, $param] = array_pad(explode(':', $nameWithParams, 2), 2, null);
+        [$name, $param] = array_pad(explode(':', $name_with_params, 2), 2, null);
 
         $class = self::$aliases[$name] ?? null;
         if ($class === null || !class_exists($class)) {
@@ -78,8 +78,8 @@ class MiddlewareStack
      * Extract URL pattern from F3 route string.
      * "GET|POST /account/store/@store_id/settings" → "/account/store/@store_id/settings"
      */
-    private static function extractUrlPattern(string $routePattern): string
+    private static function extract_url_pattern(string $route_pattern): string
     {
-        return ltrim(preg_replace('/^[A-Z|]+\s+/', '', trim($routePattern)));
+        return ltrim(preg_replace('/^[A-Z|]+\s+/', '', trim($route_pattern)));
     }
 }

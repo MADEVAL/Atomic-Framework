@@ -19,7 +19,7 @@ class ErrorHandler
         $this->atomic = App::instance();
     }
 
-    public function formatTrace(int $code, string $text, string $trace): string
+    public function format_trace(int $code, string $text, string $trace): string
     {
         try {
             $output = $text . "\n\n";
@@ -57,7 +57,7 @@ class ErrorHandler
 
             return $output;
         } catch (\Throwable $e) {
-            Log::channel(LogChannel::ERROR)->error('ErrorHandler::formatTrace failed: ' . $e->getMessage());
+            Log::channel(LogChannel::ERROR)->error('ErrorHandler::format_trace failed: ' . $e->getMessage());
             $detail = ((int)App::atomic()->get('DEBUG')) > 0
                 ? ' (' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine() . ')'
                 : '';

@@ -25,7 +25,7 @@ final class RequireAuth implements MiddlewareInterface
 
 ### Register aliases
 
-Atomic loads aliases from `config/middleware.php` through `App::registerMiddleware()`:
+Atomic loads aliases from `config/middleware.php` through `App::register_middleware()`:
 
 ```php
 return [
@@ -45,8 +45,8 @@ The third argument is an array of aliases. Parameterized middleware uses the `na
 
 ### How it works
 
-- `MiddlewareStack::forRoute()` stores middleware by URL pattern
+- `MiddlewareStack::for_route()` stores middleware by URL pattern
 - `MiddlewareStack::resolve()` instantiates aliases and injects the optional single parameter
-- `MiddlewareStack::runForRoute()` executes the chain for the current matched route pattern
+- `MiddlewareStack::run_for_route()` executes the chain for the current matched route pattern
 
 Returning `false` stops controller execution. In practice most middleware abort by calling `reroute()` or a JSON response helper and then returning `false`.

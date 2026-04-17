@@ -12,7 +12,7 @@ class MailSender {
 
     }
 
-    public function sendTest(array $params) {
+    public function send_test(array $params) {
 
     }
 

@@ -17,7 +17,7 @@ class InitTest extends TestCase
         $this->tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_init_test_' . uniqid();
         mkdir($this->tmpDir, 0755, true);
 
-        // Memory streams: non-TTY stdin → isInteractive() = false (no prompts issued)
+        // Memory streams: non-TTY stdin → is_interactive() = false (no prompts issued)
         $stdout = fopen('php://memory', 'r+');
         $stderr = fopen('php://memory', 'r+');
         $stdin  = fopen('php://memory', 'r');
@@ -28,18 +28,18 @@ class InitTest extends TestCase
         $this->cli = new class($output, $input) {
             use \Engine\Atomic\CLI\Init {
                 // InitScaffold methods
-                createSkeletonDirectories  as public exposeCreateDirs;
-                createAppStubs             as public exposeCreateStubs;
-                writeStubIfMissing         as public exposeWriteStub;
-                generateEncryptionKey      as public exposeGenEncKey;
+                create_skeleton_directories  as public exposeCreateDirs;
+                create_app_stubs             as public exposeCreateStubs;
+                write_stub_if_missing         as public exposeWriteStub;
+                generate_encryption_key      as public exposeGenEncKey;
                 // Init.php methods
-                readKeysFromEnv            as public exposeReadEnvKeys;
-                writeKeysToEnv             as public exposeWriteEnvKeys;
-                readKeysFromPhpConfig      as public exposeReadPhpKeys;
-                writeKeysToPhpConfig       as public exposeWritePhpKeys;
-                areKeysValid               as public exposeAreKeysValid;
-                findKeyMismatches          as public exposeFindMismatches;
-                synchronizeApplicationKeys as public exposeSyncKeys;
+                read_keys_from_env            as public exposeReadEnvKeys;
+                write_keys_to_env             as public exposeWriteEnvKeys;
+                read_keys_from_php_config      as public exposeReadPhpKeys;
+                write_keys_to_php_config       as public exposeWritePhpKeys;
+                are_keys_valid               as public exposeAreKeysValid;
+                find_key_mismatches          as public exposeFindMismatches;
+                synchronize_application_keys as public exposeSyncKeys;
             }
 
             protected Output $output;
@@ -80,7 +80,7 @@ class InitTest extends TestCase
 
     /**
      * Creates config/app.php with keys written in the format
-     * writeKeysToPhpConfig's regex expects: 'key' => 'value'
+     * write_keys_to_php_config's regex expects: 'key' => 'value'
      */
     private function makePhpConfig(array $data): void
     {
@@ -105,7 +105,7 @@ class InitTest extends TestCase
         ];
     }
 
-    // ── createSkeletonDirectories ─────────────────────────────────────────────
+    // ── create_skeleton_directories ─────────────────────────────────────────────
 
     public function test_create_dirs_makes_full_structure(): void
     {
@@ -142,7 +142,7 @@ class InitTest extends TestCase
         $this->assertSame(0, $count, 'Second run must report zero new directories');
     }
 
-    // ── createAppStubs ────────────────────────────────────────────────────────
+    // ── create_app_stubs ────────────────────────────────────────────────────────
 
     public function test_create_stubs_makes_all_files(): void
     {
@@ -183,7 +183,7 @@ class InitTest extends TestCase
         );
     }
 
-    // ── writeStubIfMissing ────────────────────────────────────────────────────
+    // ── write_stub_if_missing ────────────────────────────────────────────────────
 
     public function test_write_stub_creates_file_and_parent_dirs(): void
     {
@@ -206,7 +206,7 @@ class InitTest extends TestCase
         $this->assertSame('original', file_get_contents($path));
     }
 
-    // ── generateEncryptionKey ─────────────────────────────────────────────────
+    // ── generate_encryption_key ─────────────────────────────────────────────────
 
     public function test_generate_enc_key_returns_valid_base64_sodium_key(): void
     {
@@ -223,7 +223,7 @@ class InitTest extends TestCase
         $this->assertSame(SODIUM_CRYPTO_SECRETBOX_KEYBYTES, strlen($decoded));
     }
 
-    // ── areKeysValid ──────────────────────────────────────────────────────────
+    // ── are_keys_valid ──────────────────────────────────────────────────────────
 
     public function test_keys_valid_with_real_values(): void
     {
@@ -271,7 +271,7 @@ class InitTest extends TestCase
         $this->assertFalse($this->cli->exposeAreKeysValid($keys));
     }
 
-    // ── findKeyMismatches ─────────────────────────────────────────────────────
+    // ── find_key_mismatches ─────────────────────────────────────────────────────
 
     public function test_no_mismatches_when_both_sets_equal(): void
     {
@@ -305,7 +305,7 @@ class InitTest extends TestCase
         $this->assertArrayNotHasKey('APP_ENCRYPTION_KEY', $result);
     }
 
-    // ── readKeysFromEnv / writeKeysToEnv ──────────────────────────────────────
+    // ── read_keys_from_env / write_keys_to_env ──────────────────────────────────────
 
     public function test_read_env_keys_returns_empty_strings_when_no_file(): void
     {
@@ -370,14 +370,14 @@ class InitTest extends TestCase
 
         $this->cli->exposeWriteEnvKeys($this->tmpDir, $new);
 
-        $envPath = $this->tmpDir . '/.env';
-        $this->assertFileExists($envPath);
-        $content = file_get_contents($envPath);
+        $env_path = $this->tmpDir . '/.env';
+        $this->assertFileExists($env_path);
+        $content = file_get_contents($env_path);
         $this->assertStringContainsString('DB_HOST=127.0.0.1', $content, '.env.example content preserved');
         $this->assertStringContainsString('APP_UUID=' . $new['APP_UUID'], $content);
     }
 
-    // ── readKeysFromPhpConfig / writeKeysToPhpConfig ──────────────────────────
+    // ── read_keys_from_php_config / write_keys_to_php_config ──────────────────────────
 
     public function test_read_php_keys_returns_empty_strings_when_no_file(): void
     {
@@ -444,7 +444,7 @@ class InitTest extends TestCase
         $this->assertSame($content, file_get_contents($dir . DIRECTORY_SEPARATOR . 'app.php'));
     }
 
-    // ── synchronizeApplicationKeys ────────────────────────────────────────────
+    // ── synchronize_application_keys ────────────────────────────────────────────
 
     public function test_sync_generates_new_keys_when_both_sources_empty(): void
     {
@@ -454,9 +454,9 @@ class InitTest extends TestCase
         $result = $this->cli->exposeSyncKeys($this->tmpDir);
 
         $this->assertTrue($result);
-        $envKeys = $this->cli->exposeReadEnvKeys($this->tmpDir);
-        $this->assertTrue(ID::is_valid_uuid_v4($envKeys['APP_UUID']), 'Generated UUID must be valid');
-        $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $envKeys['APP_KEY']);
+        $env_keys = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $this->assertTrue(ID::is_valid_uuid_v4($env_keys['APP_UUID']), 'Generated UUID must be valid');
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $env_keys['APP_KEY']);
     }
 
     public function test_sync_copies_env_keys_to_php_when_only_env_valid(): void
@@ -468,9 +468,9 @@ class InitTest extends TestCase
         $result = $this->cli->exposeSyncKeys($this->tmpDir);
 
         $this->assertTrue($result);
-        $phpKeys = $this->cli->exposeReadPhpKeys($this->tmpDir);
-        $this->assertSame($keys['APP_UUID'], $phpKeys['APP_UUID']);
-        $this->assertSame($keys['APP_KEY'],  $phpKeys['APP_KEY']);
+        $php_keys = $this->cli->exposeReadPhpKeys($this->tmpDir);
+        $this->assertSame($keys['APP_UUID'], $php_keys['APP_UUID']);
+        $this->assertSame($keys['APP_KEY'],  $php_keys['APP_KEY']);
     }
 
     public function test_sync_copies_php_keys_to_env_when_only_php_valid(): void
@@ -486,9 +486,9 @@ class InitTest extends TestCase
         $result = $this->cli->exposeSyncKeys($this->tmpDir);
 
         $this->assertTrue($result);
-        $envKeys = $this->cli->exposeReadEnvKeys($this->tmpDir);
-        $this->assertSame($keys['APP_UUID'], $envKeys['APP_UUID']);
-        $this->assertSame($keys['APP_KEY'],  $envKeys['APP_KEY']);
+        $env_keys = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $this->assertSame($keys['APP_UUID'], $env_keys['APP_UUID']);
+        $this->assertSame($keys['APP_KEY'],  $env_keys['APP_KEY']);
     }
 
     public function test_sync_noop_when_both_sources_match(): void
@@ -511,7 +511,7 @@ class InitTest extends TestCase
     public function test_sync_returns_false_on_mismatch_in_non_interactive_mode(): void
     {
         // Both sources have valid but different keys → mismatch
-        // Non-interactive input → handleKeyMismatch returns false
+        // Non-interactive input → handle_key_mismatch returns false
         $a = $this->validKeys();
         $b = $this->validKeys();
         $this->makeEnv($a);

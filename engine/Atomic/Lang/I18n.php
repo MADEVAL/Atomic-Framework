@@ -73,12 +73,12 @@ final class I18n
         return $this->current;
     }
 
-    public function setContent(string $lang): void
+    public function set_content(string $lang): void
     {
         $this->content = in_array($lang, $this->supported, true) ? $lang : $this->default;
     }
 
-    public function getContent(): string
+    public function get_content(): string
     {
         return $this->content;
     }
@@ -93,10 +93,10 @@ final class I18n
         $domain = $domain ?: 'default';
         $lang   = $lang   ?: $this->current;
         $dict = $this->domain($domain, $lang);
-        $val  = $this->getKey($dict, $key);
+        $val  = $this->get_key($dict, $key);
         if ($val === null && $lang !== $this->default) {
             $dict = $this->domain($domain, $this->default);
-            $val  = $this->getKey($dict, $key);
+            $val  = $this->get_key($dict, $key);
         }
         $val = $val ?? $key;
 
@@ -209,14 +209,14 @@ final class I18n
         }
 
         $cache = \Cache::instance();
-        $theme = Theme::instance()->getThemeName(); 
+        $theme = Theme::instance()->get_theme_name(); 
         $hash  = $this->app->hash('i18n|'.$theme.'|'.$domain.'|'.$lang);
 
         if (($this->ttl > 0) && $cache->exists($hash, $lex)) {
             return $this->domains[$k] = (array)$lex;
         }
 
-        $current_theme  = Theme::instance()->getThemeDir();
+        $current_theme  = Theme::instance()->get_theme_dir();
 
         $paths = array_values(array_unique(array_filter([
             $this->app->get('LOCALES'),
@@ -225,7 +225,7 @@ final class I18n
         ])));
         $dict = [];
         foreach ($paths as $base) {
-            $candidates = $this->candidateFiles($base, $domain, $lang);
+            $candidates = $this->candidate_files($base, $domain, $lang);
             foreach ($candidates as $file) {
                 $resolvedFile = realpath($file);
                 if ($resolvedFile !== false && is_file($resolvedFile) && is_readable($resolvedFile)) {
@@ -251,7 +251,7 @@ final class I18n
         return $this->domains[$k] = $dict;
     }
 
-    private function candidateFiles(string $base, string $domain, string $lang): array
+    private function candidate_files(string $base, string $domain, string $lang): array
     {
         $base = rtrim($base, '/');
         $files = [];
@@ -266,7 +266,7 @@ final class I18n
         return $files;
     }
 
-    private function getKey(array $dict, string $key): mixed
+    private function get_key(array $dict, string $key): mixed
     {
         if (array_key_exists($key, $dict)) return $dict[$key];
         if (strpos($key, '.') === false) return null;
@@ -279,12 +279,12 @@ final class I18n
         return $cur;
     }
     
-    public function urlMode(): string
+    public function url_mode(): string
     {
         return $this->mode;
     }
 
-    public function stripPathLangPrefix(string $path): string
+    public function strip_path_lang_prefix(string $path): string
     {
         $path = '/'.ltrim($path, '/');
         if ($this->mode !== 'prefix') return $path;
@@ -300,7 +300,7 @@ final class I18n
         return $path;
     }
 
-    function decodeField(string $raw, string $content_lang, bool $fallback = true): string
+    function decode_field(string $raw, string $content_lang, bool $fallback = true): string
     {
         $decoded = json_decode($raw, true);
         if (is_array($decoded)) {

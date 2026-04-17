@@ -25,7 +25,7 @@ class AssetsTest extends TestCase
 
     public function test_enqueue_style(): void
     {
-        $this->assets->enqueueStyle('my-style', '/css/style.css');
+        $this->assets->enqueue_style('my-style', '/css/style.css');
         
         $ref = new \ReflectionClass($this->assets);
         $styles = $ref->getProperty('styles');        $val = $styles->getValue($this->assets);
@@ -37,7 +37,7 @@ class AssetsTest extends TestCase
 
     public function test_enqueue_script(): void
     {
-        $this->assets->enqueueScript('my-script', '/js/app.js');
+        $this->assets->enqueue_script('my-script', '/js/app.js');
 
         $ref = new \ReflectionClass($this->assets);
         $scripts = $ref->getProperty('scripts');        $val = $scripts->getValue($this->assets);
@@ -49,7 +49,7 @@ class AssetsTest extends TestCase
 
     public function test_enqueue_script_in_header(): void
     {
-        $this->assets->enqueueScript('header-script', '/js/header.js', [], null, false);
+        $this->assets->enqueue_script('header-script', '/js/header.js', [], null, false);
 
         $ref = new \ReflectionClass($this->assets);
         $scripts = $ref->getProperty('scripts');        $val = $scripts->getValue($this->assets);
@@ -59,8 +59,8 @@ class AssetsTest extends TestCase
 
     public function test_dequeue_style(): void
     {
-        $this->assets->enqueueStyle('removable', '/css/remove.css');
-        $this->assets->dequeueStyle('removable');
+        $this->assets->enqueue_style('removable', '/css/remove.css');
+        $this->assets->dequeue_style('removable');
 
         $ref = new \ReflectionClass($this->assets);
         $styles = $ref->getProperty('styles');        $val = $styles->getValue($this->assets);
@@ -70,8 +70,8 @@ class AssetsTest extends TestCase
 
     public function test_dequeue_script(): void
     {
-        $this->assets->enqueueScript('removable', '/js/remove.js');
-        $this->assets->dequeueScript('removable');
+        $this->assets->enqueue_script('removable', '/js/remove.js');
+        $this->assets->dequeue_script('removable');
 
         $ref = new \ReflectionClass($this->assets);
         $scripts = $ref->getProperty('scripts');        $val = $scripts->getValue($this->assets);
@@ -81,8 +81,8 @@ class AssetsTest extends TestCase
 
     public function test_localize_script(): void
     {
-        $this->assets->enqueueScript('loc', '/js/loc.js');
-        $this->assets->localizeScript('loc', ['foo' => 'bar'], 'myVar');
+        $this->assets->enqueue_script('loc', '/js/loc.js');
+        $this->assets->localize_script('loc', ['foo' => 'bar'], 'myVar');
 
         $ref = new \ReflectionClass($this->assets);
         $localize = $ref->getProperty('localize');        $val = $localize->getValue($this->assets);
@@ -94,7 +94,7 @@ class AssetsTest extends TestCase
 
     public function test_add_inline_style(): void
     {
-        $this->assets->addInlineStyle('custom', 'body { color: red; }');
+        $this->assets->add_inline_style('custom', 'body { color: red; }');
 
         $ref = new \ReflectionClass($this->assets);
         $inline = $ref->getProperty('inlineStyles');        $val = $inline->getValue($this->assets);
@@ -105,7 +105,7 @@ class AssetsTest extends TestCase
 
     public function test_add_inline_script(): void
     {
-        $this->assets->addInlineScript('jsinline', 'console.log("test");', 'footer');
+        $this->assets->add_inline_script('jsinline', 'console.log("test");', 'footer');
 
         $ref = new \ReflectionClass($this->assets);
         $inline = $ref->getProperty('inlineScripts');        $val = $inline->getValue($this->assets);
@@ -116,8 +116,8 @@ class AssetsTest extends TestCase
 
     public function test_set_script_attrs(): void
     {
-        $this->assets->enqueueScript('attrs', '/js/attrs.js', [], null, true, ['defer' => true]);
-        $this->assets->setScriptAttrs('attrs', ['type' => 'module']);
+        $this->assets->enqueue_script('attrs', '/js/attrs.js', [], null, true, ['defer' => true]);
+        $this->assets->set_script_attrs('attrs', ['type' => 'module']);
 
         $ref = new \ReflectionClass($this->assets);
         $scripts = $ref->getProperty('scripts');        $val = $scripts->getValue($this->assets);
@@ -128,7 +128,7 @@ class AssetsTest extends TestCase
 
     public function test_enqueue_preset_jquery(): void
     {
-        $this->assets->enqueuePreset('jquery');
+        $this->assets->enqueue_preset('jquery');
 
         $ref = new \ReflectionClass($this->assets);
         $scripts = $ref->getProperty('scripts');        $val = $scripts->getValue($this->assets);
@@ -140,7 +140,7 @@ class AssetsTest extends TestCase
     public function test_enqueue_preset_unknown(): void
     {
         // Should not throw
-        $this->assets->enqueuePreset('nonexistent');
+        $this->assets->enqueue_preset('nonexistent');
 
         $ref = new \ReflectionClass($this->assets);
         $scripts = $ref->getProperty('scripts');        $val = $scripts->getValue($this->assets);
@@ -150,7 +150,7 @@ class AssetsTest extends TestCase
 
     public function test_duplicate_enqueue_ignored(): void
     {
-        $this->assets->enqueueStyle('dup', '/css/dup.css');
+        $this->assets->enqueue_style('dup', '/css/dup.css');
         
         // Mark as loaded
         $ref = new \ReflectionClass($this->assets);
@@ -159,7 +159,7 @@ class AssetsTest extends TestCase
         $loaded->setValue($this->assets, $loadedVal);
 
         // Enqueue same handle again should not add
-        $this->assets->enqueueStyle('dup2', '/css/different.css');
+        $this->assets->enqueue_style('dup2', '/css/different.css');
 
         $styles = $ref->getProperty('styles');        $val = $styles->getValue($this->assets);
 
@@ -168,7 +168,7 @@ class AssetsTest extends TestCase
 
     public function test_enqueue_style_with_deps(): void
     {
-        $this->assets->enqueueStyle('dependent', '/css/dep.css', ['base']);
+        $this->assets->enqueue_style('dependent', '/css/dep.css', ['base']);
 
         $ref = new \ReflectionClass($this->assets);
         $styles = $ref->getProperty('styles');        $val = $styles->getValue($this->assets);
@@ -178,10 +178,10 @@ class AssetsTest extends TestCase
 
     public function test_print_styles_outputs_html(): void
     {
-        $this->assets->enqueueStyle('print-test', 'https://example.com/style.css');
+        $this->assets->enqueue_style('print-test', 'https://example.com/style.css');
 
         ob_start();
-        $this->assets->printStyles();
+        $this->assets->print_styles();
         $output = ob_get_clean();
 
         $this->assertStringContainsString('<link rel="stylesheet"', $output);

@@ -4,6 +4,7 @@ namespace Engine\Atomic\Plugins;
 
 use Engine\Atomic\App\Plugin;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\Migrations;
 use Engine\Atomic\Enums\Currency;
 use Engine\Atomic\Plugins\Monopay\Api;
 use Engine\Atomic\Plugins\Monopay\Order;
@@ -23,20 +24,20 @@ class Monopay extends Plugin
     private ?Order $order = null;
     private ?string $public_key = null;
 
-    protected function getName(): string
+    protected function get_name(): string
     {
         return 'Monopay';
     }
 
-    public function getMigrationsPath(): ?string
+    public function get_migrations_path(): ?string
     {
         $path = __DIR__ . DIRECTORY_SEPARATOR . 'Monopay' . DIRECTORY_SEPARATOR . 'Migrations';
         return is_dir($path) ? $path : null;
     }
 
-    public function publishMigrations(): void
+    public function publish_migrations(): void
     {
-        (new Migrations())->publishFromPlugin($this->getName());
+        (new Migrations())->publish_from_plugin($this->get_name());
     }
 
     public function register(): void

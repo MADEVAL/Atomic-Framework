@@ -112,7 +112,7 @@ class Event extends \Prefab {
 		$this->atomic->clear('EVENTS_local.'.spl_object_id($obj));
 	}
 
-	public function getRegisteredEvents(): array {
+	public function get_registered_events(): array {
 		$events = [];
 		$prefix = $this->ekey;
 		$prefixLen = strlen($prefix);

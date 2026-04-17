@@ -15,7 +15,7 @@ Inside that callback the handler:
 1. reads the current `ERROR.*` values from the hive
 2. temporarily lowers `DEBUG` from `3+` to `2` while handling the error
 3. increments `ERROR.recursion_counter`
-4. formats the trace with `ErrorHandler::formatTrace(...)`
+4. formats the trace with `ErrorHandler::format_trace(...)`
 5. stores the formatted trace in `ERROR.formatted_trace`
 6. attempts to dump the hive with `Log::dumpHive()`
 7. stores `ERROR.dump_id` and `ERROR.dump_path` when a dump was created
@@ -30,7 +30,7 @@ If `ERROR.recursion_counter` is already greater than `2`, the handler aborts wit
 
 ### Trace formatting
 
-`ErrorHandler::formatTrace(int $code, string $text, string $trace): string`
+`ErrorHandler::format_trace(int $code, string $text, string $trace): string`
 
 Behavior:
 

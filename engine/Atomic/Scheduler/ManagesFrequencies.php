@@ -133,22 +133,22 @@ trait ManagesFrequencies
                     ->splice_into_position(5, '0'); 
     }
 
-    public function weekly_on(int|array|string $dayOfWeek, string $time = '0:0'): self {
+    public function weekly_on(int|array|string $day_of_week, string $time = '0:0'): self {
         $this->daily_at($time);
 
-        if (\is_array($dayOfWeek)) {
-            foreach ($dayOfWeek as $d) {
+        if (\is_array($day_of_week)) {
+            foreach ($day_of_week as $d) {
                 $this->assert_range('day_of_week', (int)$d, 0, 6);
             }
-            $dayOfWeek = \implode(',', $dayOfWeek);
-        } elseif (\is_int($dayOfWeek) || \ctype_digit((string)$dayOfWeek)) {
-            $this->assert_range('day_of_week', (int)$dayOfWeek, 0, 6);
-            $dayOfWeek = (string)$dayOfWeek;
+            $day_of_week = \implode(',', $day_of_week);
+        } elseif (\is_int($day_of_week) || \ctype_digit((string)$day_of_week)) {
+            $this->assert_range('day_of_week', (int)$day_of_week, 0, 6);
+            $day_of_week = (string)$day_of_week;
         } else {
-            $dayOfWeek = (string)$dayOfWeek;
+            $day_of_week = (string)$day_of_week;
         }
 
-        return $this->splice_into_position(5, $dayOfWeek);
+        return $this->splice_into_position(5, $day_of_week);
     }
 
     public function monthly(): self {
@@ -157,10 +157,10 @@ trait ManagesFrequencies
                     ->splice_into_position(3, '1');
     }
 
-    public function monthly_on(int $dayOfMonth = 1, string $time = '0:0'): self {
-        $this->assert_range('day_of_month', $dayOfMonth, 1, 31);
+    public function monthly_on(int $day_of_month = 1, string $time = '0:0'): self {
+        $this->assert_range('day_of_month', $day_of_month, 1, 31);
         $this->daily_at($time);
-        return $this->splice_into_position(3, (string)$dayOfMonth);
+        return $this->splice_into_position(3, (string)$day_of_month);
     }
 
     public function twice_monthly(int $first = 1, int $second = 16, string $time = '0:0'): self {
@@ -179,10 +179,10 @@ trait ManagesFrequencies
                     ->splice_into_position(4, '1,4,7,10');
     }
 
-    public function quarterly_on(int $dayOfQuarter = 1, string $time = '0:0'): self {
-        $this->assert_range('day_of_month', $dayOfQuarter, 1, 31);
+    public function quarterly_on(int $day_of_quarter = 1, string $time = '0:0'): self {
+        $this->assert_range('day_of_month', $day_of_quarter, 1, 31);
         $this->daily_at($time);
-        return $this->splice_into_position(3, (string)$dayOfQuarter)->splice_into_position(4, '1,4,7,10');
+        return $this->splice_into_position(3, (string)$day_of_quarter)->splice_into_position(4, '1,4,7,10');
     }
 
     public function yearly(): self
@@ -193,16 +193,16 @@ trait ManagesFrequencies
                     ->splice_into_position(4, '1');
     }
 
-    public function yearly_on(int $month = 1, int|string $dayOfMonth = 1, string $time = '0:0'): self
+    public function yearly_on(int $month = 1, int|string $day_of_month = 1, string $time = '0:0'): self
     {
         $this->assert_range('month', $month, 1, 12);
 
-        if (\is_int($dayOfMonth) || \ctype_digit((string)$dayOfMonth)) {
-            $this->assert_range('day_of_month', (int)$dayOfMonth, 1, 31);
+        if (\is_int($day_of_month) || \ctype_digit((string)$day_of_month)) {
+            $this->assert_range('day_of_month', (int)$day_of_month, 1, 31);
         }
 
         $this->daily_at($time);
-        return $this->splice_into_position(3, (string)$dayOfMonth)
+        return $this->splice_into_position(3, (string)$day_of_month)
                     ->splice_into_position(4, (string)$month);
     }
 

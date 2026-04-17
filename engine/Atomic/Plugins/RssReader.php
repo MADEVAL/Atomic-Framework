@@ -13,12 +13,12 @@ final class RssReader extends Plugin
     private array $cache = [];
     public string $version = '1.0.0';
 
-    protected function getName(): string
+    protected function get_name(): string
     {
         return 'RSS Reader';
     }
 
-    public function getVersion(): string
+    public function get_version(): string
     {
         return $this->version;
     }
@@ -44,7 +44,7 @@ final class RssReader extends Plugin
         $this->atomic->set('PLUGIN.RssReader.active', false);
     }
 
-    public function addFeed(string $name, string $url): self
+    public function add_feed(string $name, string $url): self
     {
         $this->feeds[$name] = $url;
         return $this;
@@ -68,7 +68,7 @@ final class RssReader extends Plugin
         }
     }
 
-    public function readFeed(string $name, ?int $count = null, ?array $tags = null): array
+    public function read_feed(string $name, ?int $count = null, ?array $tags = null): array
     {
         if (!isset($this->feeds[$name])) {
             return ['ok' => false, 'error' => "Feed '{$name}' not found"];
@@ -105,7 +105,7 @@ final class RssReader extends Plugin
         return ['ok' => true, 'count' => count($parsed), 'data' => $parsed];
     }
 
-    public function syncFeed(string $name, ?int $count = null, ?array $tags = null): array
+    public function sync_feed(string $name, ?int $count = null, ?array $tags = null): array
     {
         if (!isset($this->feeds[$name])) {
             return ['ok' => false, 'error' => "Feed '{$name}' not found"];
@@ -119,28 +119,28 @@ final class RssReader extends Plugin
         return $result;
     }
 
-    public function syncAll(?int $count = null, ?array $tags = null): array
+    public function sync_all(?int $count = null, ?array $tags = null): array
     {
         $results = [];
         foreach ($this->feeds as $name => $url) {
-            $results[$name] = $this->syncFeed($name, $count, $tags);
+            $results[$name] = $this->sync_feed($name, $count, $tags);
         }
         
         $total = array_sum(array_column(array_filter($results, fn($r) => $r['ok']), 'count'));
         return ['ok' => true, 'feeds' => count($results), 'total' => $total, 'results' => $results];
     }
 
-    public function getCached(string $key): array
+    public function get_cached(string $key): array
     {
         return $this->cache[$key] ?? [];
     }
 
-    public function getAllCached(): array
+    public function get_all_cached(): array
     {
         return $this->cache;
     }
 
-    public function clearCache(?string $key = null): self
+    public function clear_cache(?string $key = null): self
     {
         if ($key === null) {
             $this->cache = [];
@@ -150,7 +150,7 @@ final class RssReader extends Plugin
         return $this;
     }
 
-    public function getFeeds(): array
+    public function get_feeds(): array
     {
         return $this->feeds;
     }
@@ -158,7 +158,7 @@ final class RssReader extends Plugin
 
 function rss_add_feed(string $name, string $url): RssReader
 {
-    return get_plugin('RssReader')->addFeed($name, $url);
+    return get_plugin('RssReader')->add_feed($name, $url);
 }
 
 function rss_read(string $url, ?int $count = null, ?array $tags = null): array
@@ -168,7 +168,7 @@ function rss_read(string $url, ?int $count = null, ?array $tags = null): array
 
 function rss_read_feed(string $name, ?int $count = null, ?array $tags = null): array
 {
-    return get_plugin('RssReader')->readFeed($name, $count, $tags);
+    return get_plugin('RssReader')->read_feed($name, $count, $tags);
 }
 
 function rss_parse(array $item): array
@@ -183,30 +183,30 @@ function rss_sync(string $url, ?int $count = null, ?array $tags = null): array
 
 function rss_sync_feed(string $name, ?int $count = null, ?array $tags = null): array
 {
-    return get_plugin('RssReader')->syncFeed($name, $count, $tags);
+    return get_plugin('RssReader')->sync_feed($name, $count, $tags);
 }
 
 function rss_sync_all(?int $count = null, ?array $tags = null): array
 {
-    return get_plugin('RssReader')->syncAll($count, $tags);
+    return get_plugin('RssReader')->sync_all($count, $tags);
 }
 
 function rss_cached(string $key): array
 {
-    return get_plugin('RssReader')->getCached($key);
+    return get_plugin('RssReader')->get_cached($key);
 }
 
 function rss_all_cached(): array
 {
-    return get_plugin('RssReader')->getAllCached();
+    return get_plugin('RssReader')->get_all_cached();
 }
 
 function rss_clear_cache(?string $key = null): RssReader
 {
-    return get_plugin('RssReader')->clearCache($key);
+    return get_plugin('RssReader')->clear_cache($key);
 }
 
 function rss_feeds(): array
 {
-    return get_plugin('RssReader')->getFeeds();
+    return get_plugin('RssReader')->get_feeds();
 }

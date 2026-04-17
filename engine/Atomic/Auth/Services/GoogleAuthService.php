@@ -29,7 +29,7 @@ class GoogleAuthService
         return $this;
     }
 
-    public function getLoginUrl(): string
+    public function get_login_url(): string
     {
         $state = bin2hex(random_bytes(16));
         $this->app->set('SESSION.oauth_google_state', $state);
@@ -37,7 +37,7 @@ class GoogleAuthService
         return $this->google_client->create_auth_url($state);
     }
 
-    public function handleCallback(string $code, ?string $state = null): ?string
+    public function handle_callback(string $code, ?string $state = null): ?string
     {
         $stored_state = $this->app->get('SESSION.oauth_google_state');
         $this->app->clear('SESSION.oauth_google_state');
@@ -55,7 +55,7 @@ class GoogleAuthService
 
         if (!$this->user_resolver) {
             $this->logger->error('[GoogleAuth] User resolver is not configured');
-            throw new \RuntimeException('OAuthUserResolverInterface not configured. Call set_user_resolver() before handleCallback().');
+            throw new \RuntimeException('OAuthUserResolverInterface not configured. Call set_user_resolver() before handle_callback().');
         }
 
         try {
@@ -87,7 +87,7 @@ class GoogleAuthService
         }
     }
 
-    public function isConfigured(): bool
+    public function is_configured(): bool
     {
         $config = $this->app->get('OAUTH.google') ?: [];
         return !empty($config['client_id'])

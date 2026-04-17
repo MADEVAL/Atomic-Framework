@@ -21,7 +21,7 @@ final class Notifier
     {
         $this->atomic = App::instance();
         $this->sessionKey = $key;
-        $this->loadFromSession();
+        $this->load_from_session();
     }
 
     public static function instance(string $key = 'notifier'): self
@@ -29,7 +29,7 @@ final class Notifier
         return self::$instance ??= new self($key);
     }
 
-    private function loadFromSession(): void
+    private function load_from_session(): void
     {
         $data = $this->atomic->get('SESSION.' . $this->sessionKey);
         if (is_array($data)) {
@@ -38,7 +38,7 @@ final class Notifier
         }
     }
 
-    private function saveToSession(): void
+    private function save_to_session(): void
     {
         $this->atomic->set('SESSION.' . $this->sessionKey, [
             'messages' => $this->messages,
@@ -56,7 +56,7 @@ final class Notifier
             'time' => time(),
         ], $data);
 
-        $this->saveToSession();
+        $this->save_to_session();
         return $this;
     }
 
@@ -106,7 +106,7 @@ final class Notifier
 
         if ($clear) {
             $this->messages = $remaining;
-            $this->saveToSession();
+            $this->save_to_session();
         }
 
         return $filtered;
@@ -136,11 +136,11 @@ final class Notifier
             );
         }
 
-        $this->saveToSession();
+        $this->save_to_session();
         return $this;
     }
 
-    public function setFlash(string $key, $value, int $lifetime = 1): self
+    public function set_flash(string $key, $value, int $lifetime = 1): self
     {
         $this->flash[$key] = [
             'value' => $value,
@@ -148,11 +148,11 @@ final class Notifier
             'created' => time(),
         ];
 
-        $this->saveToSession();
+        $this->save_to_session();
         return $this;
     }
 
-    public function getFlash(string $key, $default = null)
+    public function get_flash(string $key, $default = null)
     {
         if (!isset($this->flash[$key])) {
             return $default;
@@ -169,31 +169,31 @@ final class Notifier
             $this->flash[$key] = $item;
         }
 
-        $this->saveToSession();
+        $this->save_to_session();
         return $value;
     }
 
-    public function peekFlash(string $key, $default = null)
+    public function peek_flash(string $key, $default = null)
     {
         return $this->flash[$key]['value'] ?? $default;
     }
 
-    public function hasFlash(string $key): bool
+    public function has_flash(string $key): bool
     {
         return isset($this->flash[$key]);
     }
 
-    public function removeFlash(string $key): self
+    public function remove_flash(string $key): self
     {
         unset($this->flash[$key]);
-        $this->saveToSession();
+        $this->save_to_session();
         return $this;
     }
 
-    public function clearFlash(): self
+    public function clear_flash(): self
     {
         $this->flash = [];
-        $this->saveToSession();
+        $this->save_to_session();
         return $this;
     }
 
@@ -201,7 +201,7 @@ final class Notifier
     {
         $this->messages = [];
         $this->flash = [];
-        $this->saveToSession();
+        $this->save_to_session();
         return $this;
     }
 

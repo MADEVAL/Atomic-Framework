@@ -10,11 +10,11 @@ class TelegramClientAdapter
 {
     public function verify_login_widget(array $auth_data, string $bot_token): array|false
     {
-        return Telegram::instance()->verifyLoginWidget($auth_data, $bot_token);
+        return Telegram::instance()->verify_login_widget($auth_data, $bot_token);
     }
 
     public function get_widget_attributes(string $size, bool $request_access, bool $use_avatar, int $corner_radius): array
     {
-        return Telegram::instance()->getWidgetAttributes($size, $request_access, $use_avatar, $corner_radius);
+        return Telegram::instance()->get_widget_attributes($size, $request_access, $use_avatar, $corner_radius);
     }
 }

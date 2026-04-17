@@ -141,7 +141,7 @@ abstract class Storage extends Model
         }
     }
 
-    protected static function _delete_like(string $uuid, string $keyPattern): bool
+    protected static function _delete_like(string $uuid, string $key_pattern): bool
     {
         if (!ID::is_valid_uuid_v4($uuid)) {
             Log::error('Invalid UUID v4 provided to _delete_like: ' . $uuid);
@@ -149,7 +149,7 @@ abstract class Storage extends Model
         }
         try {
             $storage = new static();
-            return $storage->erase(['uuid = ? AND key LIKE ?', $uuid, $keyPattern]);
+            return $storage->erase(['uuid = ? AND key LIKE ?', $uuid, $key_pattern]);
         } catch (\Throwable $e) {
             Log::error('Error in delete_like: ' . $e->getMessage());
             return false;

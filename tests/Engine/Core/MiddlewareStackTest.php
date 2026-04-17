@@ -56,7 +56,7 @@ class MiddlewareStackTest extends TestCase
 
     public function test_register_alias(): void
     {
-        MiddlewareStack::registerAlias('pass', MiddlewarePassStub::class);
+        MiddlewareStack::register_alias('pass', MiddlewarePassStub::class);
 
         $instance = MiddlewareStack::resolve('pass');
         $this->assertInstanceOf(MiddlewarePassStub::class, $instance);
@@ -69,13 +69,13 @@ class MiddlewareStackTest extends TestCase
 
     public function test_resolve_non_middleware_class(): void
     {
-        MiddlewareStack::registerAlias('bad', NotMiddlewareStub::class);
+        MiddlewareStack::register_alias('bad', NotMiddlewareStub::class);
         $this->assertNull(MiddlewareStack::resolve('bad'));
     }
 
     public function test_resolve_with_parameter(): void
     {
-        MiddlewareStack::registerAlias('param', MiddlewareParamStub::class);
+        MiddlewareStack::register_alias('param', MiddlewareParamStub::class);
 
         $instance = MiddlewareStack::resolve('param:test_value');
         $this->assertInstanceOf(MiddlewareParamStub::class, $instance);
@@ -84,25 +84,25 @@ class MiddlewareStackTest extends TestCase
 
     public function test_for_route_and_run(): void
     {
-        MiddlewareStack::registerAlias('pass', MiddlewarePassStub::class);
-        MiddlewareStack::forRoute('GET /test', ['pass']);
+        MiddlewareStack::register_alias('pass', MiddlewarePassStub::class);
+        MiddlewareStack::for_route('GET /test', ['pass']);
 
         $atomic = \Base::instance();
         $atomic->set('PATTERN', '/test');
 
-        $result = MiddlewareStack::runForRoute($atomic);
+        $result = MiddlewareStack::run_for_route($atomic);
         $this->assertTrue($result);
     }
 
     public function test_run_blocking_middleware(): void
     {
-        MiddlewareStack::registerAlias('block', MiddlewareBlockStub::class);
-        MiddlewareStack::forRoute('GET /blocked', ['block']);
+        MiddlewareStack::register_alias('block', MiddlewareBlockStub::class);
+        MiddlewareStack::for_route('GET /blocked', ['block']);
 
         $atomic = \Base::instance();
         $atomic->set('PATTERN', '/blocked');
 
-        $result = MiddlewareStack::runForRoute($atomic);
+        $result = MiddlewareStack::run_for_route($atomic);
         $this->assertFalse($result);
     }
 
@@ -111,44 +111,44 @@ class MiddlewareStackTest extends TestCase
         $atomic = \Base::instance();
         $atomic->set('PATTERN', '/no-middleware');
 
-        $result = MiddlewareStack::runForRoute($atomic);
+        $result = MiddlewareStack::run_for_route($atomic);
         $this->assertTrue($result);
     }
 
     public function test_extract_url_pattern(): void
     {
-        MiddlewareStack::registerAlias('pass', MiddlewarePassStub::class);
-        MiddlewareStack::forRoute('GET|POST /account/settings', ['pass']);
+        MiddlewareStack::register_alias('pass', MiddlewarePassStub::class);
+        MiddlewareStack::for_route('GET|POST /account/settings', ['pass']);
 
         $atomic = \Base::instance();
         $atomic->set('PATTERN', '/account/settings');
 
-        $result = MiddlewareStack::runForRoute($atomic);
+        $result = MiddlewareStack::run_for_route($atomic);
         $this->assertTrue($result);
     }
 
     public function test_multiple_middleware_chain(): void
     {
-        MiddlewareStack::registerAlias('pass', MiddlewarePassStub::class);
-        MiddlewareStack::forRoute('GET /chain', ['pass', 'pass', 'pass']);
+        MiddlewareStack::register_alias('pass', MiddlewarePassStub::class);
+        MiddlewareStack::for_route('GET /chain', ['pass', 'pass', 'pass']);
 
         $atomic = \Base::instance();
         $atomic->set('PATTERN', '/chain');
 
-        $result = MiddlewareStack::runForRoute($atomic);
+        $result = MiddlewareStack::run_for_route($atomic);
         $this->assertTrue($result);
     }
 
     public function test_chain_stops_on_block(): void
     {
-        MiddlewareStack::registerAlias('pass', MiddlewarePassStub::class);
-        MiddlewareStack::registerAlias('block', MiddlewareBlockStub::class);
-        MiddlewareStack::forRoute('GET /stop', ['pass', 'block', 'pass']);
+        MiddlewareStack::register_alias('pass', MiddlewarePassStub::class);
+        MiddlewareStack::register_alias('block', MiddlewareBlockStub::class);
+        MiddlewareStack::for_route('GET /stop', ['pass', 'block', 'pass']);
 
         $atomic = \Base::instance();
         $atomic->set('PATTERN', '/stop');
 
-        $result = MiddlewareStack::runForRoute($atomic);
+        $result = MiddlewareStack::run_for_route($atomic);
         $this->assertFalse($result);
     }
 }

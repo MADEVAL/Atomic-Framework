@@ -60,8 +60,8 @@ class TelegramAuth extends \Prefab
         return $this->service()->handle_callback($auth_data);
     }
 
-    public function get_widget_attributes(string $size = 'large', bool $requestAccess = false, bool $useAvatar = false, int $cornerRadius = 20): array
+    public function get_widget_attributes(string $size = 'large', bool $request_access = false, bool $use_avatar = false, int $corner_radius = 20): array
     {
-        return $this->service()->get_widget_attributes($size, $requestAccess, $useAvatar, $cornerRadius);
+        return $this->service()->get_widget_attributes($size, $request_access, $use_avatar, $corner_radius);
     }
 }

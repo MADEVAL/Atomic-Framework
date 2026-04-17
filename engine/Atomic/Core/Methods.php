@@ -28,63 +28,63 @@ class Methods {
         self::$instance = null;
     }
 
-    public function get_publicUrl(): string 
+    public function get_public_url(): string 
     {
         return $this->atomic->get('DOMAIN');
     }
 
-    public function get_userLanguage(): string 
+    public function get_user_language(): string 
     {
         return $this->atomic->get('LANGUAGE');
     }
  
-    public function get_userAgent(): string 
+    public function get_user_agent(): string 
     {
         return $this->atomic->get('AGENT');
     }
     
-    public function get_userIP(): string 
+    public function get_user_ip(): string 
     {
         return $this->atomic->get('IP');
     }
 
-    public function get_currentUrl(): string 
+    public function get_current_url(): string 
     {
         return $this->atomic->get('REALM');
     }
 
-    public function get_currentRoute(): string 
+    public function get_current_route(): string 
     {
         return $this->atomic->get('PATTERN');
     }
 
-    public function get_currentMethod(): string 
+    public function get_current_method(): string 
     {
         return $this->atomic->get('VERB');
     }
 
-    public function get_isAjax(): bool 
+    public function get_is_ajax(): bool 
     {
         return (bool)$this->atomic->get('AJAX');
     }
 
-    public function get_isSecure(): bool 
+    public function get_is_secure(): bool 
     {
         return $this->atomic->get('SCHEME') === 'https';
     }
 
-    public function get_isDebug(): bool 
+    public function get_is_debug(): bool 
     {
         $debug = $this->atomic->get('DEBUG');
         return $debug > 0;
     }
 
-    public function get_publicDir(): string 
+    public function get_public_dir(): string 
     {
         return $this->atomic->get('ROOT');
     }
 
-    public function get_formatErrorTrace(): string 
+    public function get_format_error_trace(): string 
     {
         return $this->atomic->get('ERROR.formatted_trace');
     }
@@ -96,7 +96,7 @@ class Methods {
 
     public function is_mobile(): bool 
     {
-        $device = $this->get_userDevice();
+        $device = $this->get_user_device();
         return str_contains($device, 'phone') || str_contains($device, 'tab');
     }
 
@@ -107,26 +107,26 @@ class Methods {
 
     public function is_telegram(): bool 
     {
-        $ua = $this->get_userAgent();
+        $ua = $this->get_user_agent();
         return str_contains($ua, 'TelegramBot');
     }
 
     public function is_botblocker(): bool 
     {
-        $ua = $this->get_userAgent();
+        $ua = $this->get_user_agent();
         return str_contains($ua, 'BotBlocker/Crawler');
     }
 
     public function is_gs(): bool 
     {
-        $ua = $this->get_userAgent();
+        $ua = $this->get_user_agent();
         return str_contains($ua, 'GLOBUS.studio/Crawler');
     }
 
-    public function get_userDevice(bool $accuracy = false): string
+    public function get_user_device(bool $accuracy = false): string
     {
-        if (AtomicCLI::isCli()) return 'pc';
-        $ua = (string)($this->get_userAgent() ?? ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+        if (AtomicCLI::is_cli()) return 'pc';
+        $ua = (string)($this->get_user_agent() ?? ($_SERVER['HTTP_USER_AGENT'] ?? ''));
         $srv = $_SERVER ?? [];
         if (class_exists('\Detection\MobileDetect')) {
             try {
@@ -139,13 +139,13 @@ class Methods {
                 if ($detect->isMobile()) return 'phone';
                 return 'pc';
             } catch (\Throwable $e) {
-                return ($accuracy) ? $this->deviceFromUA($ua, $srv) . '_maybe' : $this->deviceFromUA($ua, $srv);
+                return ($accuracy) ? $this->device_from_ua($ua, $srv) . '_maybe' : $this->device_from_ua($ua, $srv);
             }
         }
-        return ($accuracy) ? $this->deviceFromUA($ua, $srv) . '_maybe' : $this->deviceFromUA($ua, $srv);
+        return ($accuracy) ? $this->device_from_ua($ua, $srv) . '_maybe' : $this->device_from_ua($ua, $srv);
     }
 
-    private function deviceFromUA(string $ua, array $srv): string
+    private function device_from_ua(string $ua, array $srv): string
     {
         $ua = strtolower($ua);
         if ($ua === '') return 'pc';
@@ -172,10 +172,10 @@ class Methods {
         return 'pc';
     } 
     
-    public function listRoutes(): array
+    public function list_routes(): array
     {
         $routes = $this->atomic->get('ROUTES');
-        $base = rtrim($this->get_publicUrl() ?? '', '/');
+        $base = rtrim($this->get_public_url() ?? '', '/');
         $groups = [
             'WEB/CLI'   => [],
             'WEB ERROR' => [],
@@ -211,48 +211,48 @@ class Methods {
         return $groups;
     }
 
-    public function get_currentPath(bool $stripLang = true): string
+    public function get_current_path(bool $strip_lang = true): string
     {
         $path = (string)($this->atomic->get('PATH') ?? '/');
         $path = '/'.ltrim($path, '/');
         if ($path !== '/' && str_ends_with($path, '/')) $path = rtrim($path, '/');
-        return $stripLang ? I18n::instance()->stripPathLangPrefix($path) : $path;
+        return $strip_lang ? I18n::instance()->strip_path_lang_prefix($path) : $path;
     }
 
     public function is_home(): bool
     {
-        return $this->get_currentPath(true) === '/';
+        return $this->get_current_path(true) === '/';
     }
 
-    public function is_page(string|array $patterns, bool $stripLang = true): bool
+    public function is_page(string|array $patterns, bool $strip_lang = true): bool
     {
-        $current = $this->get_currentPath($stripLang);
+        $current = $this->get_current_path($strip_lang);
         foreach ((array)$patterns as $pat) {
-            if ($this->matchPath($current, (string)$pat)) return true;
+            if ($this->match_path($current, (string)$pat)) return true;
         }
         return false;
     }
 
-    public function is_section(string $prefix, bool $stripLang = true): bool
+    public function is_section(string $prefix, bool $strip_lang = true): bool
     {
         $prefix = '/'.trim($prefix, '/');
-        $cur = $this->get_currentPath($stripLang);
+        $cur = $this->get_current_path($strip_lang);
         return $cur === $prefix || str_starts_with($cur, $prefix.'/');
     }
 
-    public function segments(bool $stripLang = true): array 
+    public function segments(bool $strip_lang = true): array 
     {
-        $p = trim($this->get_currentPath($stripLang), '/');
+        $p = trim($this->get_current_path($strip_lang), '/');
         return $p === '' ? [] : explode('/', $p);
     }
 
-    public function segment(int $index, ?string $default = null, bool $stripLang = true): ?string
+    public function segment(int $index, ?string $default = null, bool $strip_lang = true): ?string
     {
-        $segments = $this->segments($stripLang);
+        $segments = $this->segments($strip_lang);
         return $segments[$index] ?? $default;
     }
 
-    private function matchPath(string $current, string $pattern): bool
+    private function match_path(string $current, string $pattern): bool
     {
         $current = $current === '' ? '/' : $current;
         if ($pattern === '' || $pattern === null) return false;

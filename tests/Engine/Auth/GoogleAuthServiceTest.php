@@ -49,7 +49,7 @@ class GoogleAuthServiceTest extends TestCase
         $this->assertSame($this->service, $this->service->set_user_resolver($resolver));
     }
 
-    // ── getLoginUrl ───────────────────────────────────────────────────────────
+    // ── get_login_url ───────────────────────────────────────────────────────────
 
     public function test_get_login_url_delegates_to_google_client(): void
     {
@@ -70,12 +70,12 @@ class GoogleAuthServiceTest extends TestCase
             }))
             ->willReturnCallback(fn (string $state): string => 'https://accounts.google.com/o/oauth2/auth?state=' . $state);
 
-        $url = $this->service->getLoginUrl();
+        $url = $this->service->get_login_url();
 
         $this->assertStringContainsString((string) $captured_state, $url);
     }
 
-    // ── handleCallback ────────────────────────────────────────────────────────
+    // ── handle_callback ────────────────────────────────────────────────────────
 
     public function test_handle_callback_throws_when_resolver_not_configured(): void
     {
@@ -83,7 +83,7 @@ class GoogleAuthServiceTest extends TestCase
         $this->app->expects($this->once())->method('clear')->with('SESSION.oauth_google_state');
 
         $this->expectException(\RuntimeException::class);
-        $this->service->handleCallback('some-code', 'known-state');
+        $this->service->handle_callback('some-code', 'known-state');
     }
 
     public function test_handle_callback_returns_null_when_state_is_missing(): void
@@ -95,7 +95,7 @@ class GoogleAuthServiceTest extends TestCase
         $resolver = $this->createMock(OAuthUserResolverInterface::class);
         $this->service->set_user_resolver($resolver);
 
-        $this->assertNull($this->service->handleCallback('some-code'));
+        $this->assertNull($this->service->handle_callback('some-code'));
     }
 
     public function test_handle_callback_returns_null_when_state_mismatches(): void
@@ -107,7 +107,7 @@ class GoogleAuthServiceTest extends TestCase
         $resolver = $this->createMock(OAuthUserResolverInterface::class);
         $this->service->set_user_resolver($resolver);
 
-        $this->assertNull($this->service->handleCallback('some-code', 'wrong-state'));
+        $this->assertNull($this->service->handle_callback('some-code', 'wrong-state'));
     }
 
     public function test_handle_callback_returns_null_when_token_exchange_fails(): void
@@ -120,7 +120,7 @@ class GoogleAuthServiceTest extends TestCase
         $resolver = $this->createMock(OAuthUserResolverInterface::class);
         $this->service->set_user_resolver($resolver);
 
-        $this->assertNull($this->service->handleCallback('bad-code', 'known-state'));
+        $this->assertNull($this->service->handle_callback('bad-code', 'known-state'));
     }
 
     public function test_handle_callback_returns_null_when_resolver_returns_null(): void
@@ -134,7 +134,7 @@ class GoogleAuthServiceTest extends TestCase
         $resolver->method('resolve_oauth_user')->willReturn(null);
         $this->service->set_user_resolver($resolver);
 
-        $this->assertNull($this->service->handleCallback('code', 'known-state'));
+        $this->assertNull($this->service->handle_callback('code', 'known-state'));
     }
 
     public function test_handle_callback_returns_null_when_resolver_returns_invalid_uuid(): void
@@ -149,7 +149,7 @@ class GoogleAuthServiceTest extends TestCase
         $resolver->method('resolve_oauth_user')->willReturn('not-a-uuid');
         $this->service->set_user_resolver($resolver);
 
-        $this->assertNull($this->service->handleCallback('code', 'known-state'));
+        $this->assertNull($this->service->handle_callback('code', 'known-state'));
     }
 
     public function test_handle_callback_calls_login_by_id_and_returns_identifier_on_success(): void
@@ -169,18 +169,18 @@ class GoogleAuthServiceTest extends TestCase
         $this->auth->expects($this->once())->method('login_by_id')
             ->with($user_id, $this->arrayHasKey('auth_provider'));
 
-        $result = $this->service->handleCallback('valid-code', 'known-state');
+        $result = $this->service->handle_callback('valid-code', 'known-state');
 
         $this->assertSame($user_id, $result);
     }
 
-    // ── isConfigured ─────────────────────────────────────────────────────────
+    // ── is_configured ─────────────────────────────────────────────────────────
 
     public function test_is_configured_returns_false_when_config_is_empty(): void
     {
         $this->app->method('get')->with('OAUTH.google')->willReturn([]);
 
-        $this->assertFalse($this->service->isConfigured());
+        $this->assertFalse($this->service->is_configured());
     }
 
     public function test_is_configured_returns_false_when_client_secret_is_missing(): void
@@ -190,7 +190,7 @@ class GoogleAuthServiceTest extends TestCase
             'redirect_uri' => 'https://example.com/callback',
         ]);
 
-        $this->assertFalse($this->service->isConfigured());
+        $this->assertFalse($this->service->is_configured());
     }
 
     public function test_is_configured_returns_false_when_redirect_uri_is_missing(): void
@@ -200,7 +200,7 @@ class GoogleAuthServiceTest extends TestCase
             'client_secret' => 'secret',
         ]);
 
-        $this->assertFalse($this->service->isConfigured());
+        $this->assertFalse($this->service->is_configured());
     }
 
     public function test_is_configured_returns_true_when_all_required_fields_present(): void
@@ -211,7 +211,7 @@ class GoogleAuthServiceTest extends TestCase
             'redirect_uri'  => 'https://example.com/callback',
         ]);
 
-        $this->assertTrue($this->service->isConfigured());
+        $this->assertTrue($this->service->is_configured());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

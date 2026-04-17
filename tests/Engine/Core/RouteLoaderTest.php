@@ -21,23 +21,23 @@ class RouteLoaderTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->removeDir($this->tmpDir);
+        $this->remove_dir($this->tmpDir);
     }
 
-    private function removeDir(string $dir): void
+    private function remove_dir(string $dir): void
     {
         if (!is_dir($dir)) return;
         foreach (scandir($dir) as $item) {
             if ($item === '.' || $item === '..') continue;
             $path = $dir . DIRECTORY_SEPARATOR . $item;
-            is_dir($path) ? $this->removeDir($path) : unlink($path);
+            is_dir($path) ? $this->remove_dir($path) : unlink($path);
         }
         rmdir($dir);
     }
 
     public function test_configure_paths(): void
     {
-        $result = $this->loader->configurePaths('/fw/', '/app/');
+        $result = $this->loader->configure_paths('/fw/', '/app/');
         $this->assertSame($this->loader, $result);
     }
 
@@ -47,12 +47,12 @@ class RouteLoaderTest extends TestCase
         file_put_contents($this->tmpDir . '/framework/web.php', '<?php // web');
         file_put_contents($this->tmpDir . '/framework/web.error.php', '<?php // error');
 
-        $this->loader->configurePaths(
+        $this->loader->configure_paths(
             $this->tmpDir . '/framework/',
             $this->tmpDir . '/app/'
         );
 
-        $files = $this->loader->getFilesFor('web');
+        $files = $this->loader->get_files_for('web');
         $this->assertCount(2, $files);
         $this->assertStringContainsString('web.php', $files[0]);
         $this->assertStringContainsString('web.error.php', $files[1]);
@@ -62,12 +62,12 @@ class RouteLoaderTest extends TestCase
     {
         file_put_contents($this->tmpDir . '/app/api.php', '<?php // api');
 
-        $this->loader->configurePaths(
+        $this->loader->configure_paths(
             $this->tmpDir . '/framework/',
             $this->tmpDir . '/app/'
         );
 
-        $files = $this->loader->getFilesFor('api');
+        $files = $this->loader->get_files_for('api');
         $this->assertCount(1, $files);
         $this->assertStringContainsString('api.php', $files[0]);
     }
@@ -77,41 +77,41 @@ class RouteLoaderTest extends TestCase
         file_put_contents($this->tmpDir . '/framework/cli.php', '<?php // cli');
         file_put_contents($this->tmpDir . '/app/cli.php', '<?php // app cli');
 
-        $this->loader->configurePaths(
+        $this->loader->configure_paths(
             $this->tmpDir . '/framework/',
             $this->tmpDir . '/app/'
         );
 
-        $files = $this->loader->getFilesFor('cli');
+        $files = $this->loader->get_files_for('cli');
         $this->assertCount(2, $files);
     }
 
     public function test_get_files_for_telemetry(): void
     {
-        $this->loader->configurePaths(
+        $this->loader->configure_paths(
             $this->tmpDir . '/framework/',
             $this->tmpDir . '/app/'
         );
 
-        $files = $this->loader->getFilesFor('telemetry');
+        $files = $this->loader->get_files_for('telemetry');
         $this->assertCount(0, $files);
     }
 
     public function test_invalid_request_type(): void
     {
-        $this->loader->configurePaths('/fw/', '/app/');
+        $this->loader->configure_paths('/fw/', '/app/');
         $this->expectException(\InvalidArgumentException::class);
-        $this->loader->getFilesFor('invalid');
+        $this->loader->get_files_for('invalid');
     }
 
     public function test_case_insensitive(): void
     {
-        $this->loader->configurePaths(
+        $this->loader->configure_paths(
             $this->tmpDir . '/framework/',
             $this->tmpDir . '/app/'
         );
 
-        $files = $this->loader->getFilesFor('WEB');
+        $files = $this->loader->get_files_for('WEB');
         $this->assertIsArray($files);
     }
 
@@ -120,12 +120,12 @@ class RouteLoaderTest extends TestCase
         file_put_contents($this->tmpDir . '/framework/api.php', '<?php // fw api');
         file_put_contents($this->tmpDir . '/app/api.php', '<?php // app api');
 
-        $this->loader->configurePaths(
+        $this->loader->configure_paths(
             $this->tmpDir . '/framework/',
             $this->tmpDir . '/app/'
         );
 
-        $files = $this->loader->getFilesFor('api');
+        $files = $this->loader->get_files_for('api');
         $this->assertCount(2, $files);
         // Framework files come first
         $this->assertStringContainsString('framework', $files[0]);

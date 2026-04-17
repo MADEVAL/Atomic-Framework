@@ -14,32 +14,32 @@ final class Telegram
     private static ?self $instance = null;
 
     protected string $token = '';
-    protected string|int|null $chatId = null;
+    protected string|int|null $chat_id = null;
 
-    private function __construct(?string $token = null, string|int|null $chatId = null)
+    private function __construct(?string $token = null, string|int|null $chat_id = null)
     {
         $this->atomic = App::instance();
         $this->token = $token ?: (string)($this->atomic->get('TELEGRAM_BOT_TOKEN') ?: getenv('TELEGRAM_BOT_TOKEN') ?: '');
-        $this->chatId = $chatId ?: ($this->atomic->get('TELEGRAM_CHAT_ID') ?: getenv('TELEGRAM_CHAT_ID') ?: null);
+        $this->chat_id = $chat_id ?: ($this->atomic->get('TELEGRAM_CHAT_ID') ?: getenv('TELEGRAM_CHAT_ID') ?: null);
     }
 
-    public static function instance(?string $token = null, string|int|null $chatId = null): self
+    public static function instance(?string $token = null, string|int|null $chat_id = null): self
     {
-        if ($token !== null || $chatId !== null) {
-            return new self($token, $chatId);
+        if ($token !== null || $chat_id !== null) {
+            return new self($token, $chat_id);
         }
         return self::$instance ??= new self();
     }
 
-    public function setToken(string $token): self
+    public function set_token(string $token): self
     {
         $this->token = trim($token);
         return $this;
     }
 
-    public function setChatId(string|int $chatId): self
+    public function set_chat_id(string|int $chat_id): self
     {
-        $this->chatId = $chatId;
+        $this->chat_id = $chat_id;
         return $this;
     }
 
@@ -89,9 +89,9 @@ final class Telegram
         return $json;
     }
 
-    public function send(string $text, ?int $chatId = null, array $opts = []): array
+    public function send(string $text, ?int $chat_id = null, array $opts = []): array
     {
-        $chat = $chatId ?? $this->chatId;
+        $chat = $chat_id ?? $this->chat_id;
         if ($chat === null) {
             Log::error('[Telegram] chat_id is empty');
             return ['ok' => false, 'error' => 'empty_chat_id'];
@@ -101,14 +101,14 @@ final class Telegram
         return $this->api('sendMessage', $params);
     }
 
-    public function sendPhoto(string $photo, array $opts = []): array
+    public function send_photo(string $photo, array $opts = []): array
     {
-        $chatId = $opts['chat_id'] ?? $this->chatId;
-        if ($chatId === null) {
-            Log::error('[Telegram] chat_id is empty for sendPhoto');
+        $chat_id = $opts['chat_id'] ?? $this->chat_id;
+        if ($chat_id === null) {
+            Log::error('[Telegram] chat_id is empty for send_photo');
             return ['ok' => false, 'error' => 'empty_chat_id'];
         }
-        $params = ['chat_id' => $chatId];
+        $params = ['chat_id' => $chat_id];
         if (is_file($photo) && is_readable($photo)) {
             $params['photo'] = new \CURLFile($photo, mime_content_type($photo) ?: 'application/octet-stream', basename($photo));
         } else {
@@ -121,17 +121,17 @@ final class Telegram
         if (isset($opts['reply_markup'])) $params['reply_markup'] = is_string($opts['reply_markup']) 
             ? $opts['reply_markup'] 
             : json_encode($opts['reply_markup'], JSON_UNESCAPED_UNICODE);
-        return $this->api('sendPhoto', $params);
+        return $this->api('send_photo', $params);
     }
 
-    public function sendDocument(string $document, array $opts = []): array
+    public function send_document(string $document, array $opts = []): array
     {
-        $chatId = $opts['chat_id'] ?? $this->chatId;
-        if ($chatId === null) {
-            Log::error('[Telegram] chat_id is empty for sendDocument');
+        $chat_id = $opts['chat_id'] ?? $this->chat_id;
+        if ($chat_id === null) {
+            Log::error('[Telegram] chat_id is empty for send_document');
             return ['ok' => false, 'error' => 'empty_chat_id'];
         }
-        $params = ['chat_id' => $chatId];
+        $params = ['chat_id' => $chat_id];
         if (is_file($document) && is_readable($document)) {
             $params['document'] = new \CURLFile($document, mime_content_type($document) ?: 'application/octet-stream', basename($document));
         } else {
@@ -144,38 +144,38 @@ final class Telegram
         if (isset($opts['reply_markup'])) $params['reply_markup'] = is_string($opts['reply_markup']) 
             ? $opts['reply_markup'] 
             : json_encode($opts['reply_markup'], JSON_UNESCAPED_UNICODE);
-        return $this->api('sendDocument', $params);
+        return $this->api('send_document', $params);
     }
 
-    public function getMe(): array
+    public function get_me(): array
     {
-        return $this->api('getMe');
+        return $this->api('get_me');
     }
 
-    public function createInvoiceLink(array $data): ?string
+    public function create_invoice_link(array $data): ?string
     {
         if (isset($data['prices']) && !is_string($data['prices'])) {
             $data['prices'] = json_encode($data['prices'], JSON_UNESCAPED_UNICODE);
         }
-        $response = $this->api('createInvoiceLink', $data);
+        $response = $this->api('create_invoice_link', $data);
         return (!empty($response['ok']) && isset($response['result'])) ? (string)$response['result'] : null;
     }
 
-    public function sendInvoice(array $data): array
+    public function send_invoice(array $data): array
     {
         if (!isset($data['chat_id'])) {
-            $data['chat_id'] = $this->chatId;
+            $data['chat_id'] = $this->chat_id;
         }
         if ($data['chat_id'] === null) {
-            Log::error('[Telegram] chat_id is empty for sendInvoice');
+            Log::error('[Telegram] chat_id is empty for send_invoice');
             return ['ok' => false, 'error' => 'empty_chat_id'];
         }
-        return $this->api('sendInvoice', $data);
+        return $this->api('send_invoice', $data);
     }
 
-    public function verifyWebAppInitData(string|array $initData): array|false
+    public function verify_web_app_init_data(string|array $init_data): array|false
     {
-        $data = is_array($initData) ? $initData : (function ($s) { parse_str($s, $out); return $out; })($initData);
+        $data = is_array($init_data) ? $init_data : (function ($s) { parse_str($s, $out); return $out; })($init_data);
         if (!is_array($data) || empty($data['hash']) || $this->token === '') return false;
         $hash = $data['hash'];
         unset($data['hash']);
@@ -192,32 +192,32 @@ final class Telegram
         return $data;
     }
 
-    public function verifyLoginWidget(array $authData, ?string $botToken = null): array|false
+    public function verify_login_widget(array $auth_data, ?string $bot_token = null): array|false
     {
-        $token = $botToken ?: $this->token;
+        $token = $bot_token ?: $this->token;
         if (empty($token)) {
-            Log::error('[Telegram] Bot token is empty for verifyLoginWidget');
+            Log::error('[Telegram] Bot token is empty for verify_login_widget');
             return false;
         }
 
-        if (empty($authData['hash']) || empty($authData['id']) || empty($authData['auth_date'])) {
-            Log::error('[Telegram] verifyLoginWidget missing required fields');
+        if (empty($auth_data['hash']) || empty($auth_data['id']) || empty($auth_data['auth_date'])) {
+            Log::error('[Telegram] verify_login_widget missing required fields');
             return false;
         }
 
-        $auth_date = (int)$authData['auth_date'];
+        $auth_date = (int)$auth_data['auth_date'];
         $expiry = DAY_IN_SECONDS;
         if ((time() - $auth_date) > $expiry) {
-            Log::error('[Telegram] verifyLoginWidget: auth data is outdated');
+            Log::error('[Telegram] verify_login_widget: auth data is outdated');
             return false;
         }
 
-        $check_hash = $authData['hash'];
-        unset($authData['hash']);
+        $check_hash = $auth_data['hash'];
+        unset($auth_data['hash']);
 
-        ksort($authData);
+        ksort($auth_data);
         $data_check_parts = [];
-        foreach ($authData as $k => $v) {
+        foreach ($auth_data as $k => $v) {
             if (is_array($v)) $v = json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $data_check_parts[] = $k . '=' . $v;
         }
@@ -227,57 +227,57 @@ final class Telegram
         $hash_hex = hash_hmac('sha256', $data_check_string, $secret_key);
 
         if (hash_equals($hash_hex, $check_hash)) {
-            $authData['hash'] = $check_hash;
-            return $authData;
+            $auth_data['hash'] = $check_hash;
+            return $auth_data;
         }
 
-        Log::error('[Telegram] verifyLoginWidget: hash mismatch');
+        Log::error('[Telegram] verify_login_widget: hash mismatch');
         return false;
     }
 
-    public function getWidgetAttributes(string $size = 'large', bool $requestAccess = false, bool $useAvatar = false, int $cornerRadius = 20): array
+    public function get_widget_attributes(string $size = 'large', bool $request_access = false, bool $use_avatar = false, int $corner_radius = 20): array
     {
         $cfg = App::instance()->get('OAUTH.telegram') ?: [];
         return [
             'telegram-login' => $cfg['bot_username'] ?? '',
             'size' => $size,
             'auth-url' => $cfg['callback_url'] ?? '/auth/telegram/callback',
-            'userpic' => $useAvatar ? 'true' : 'false',
-            'radius' => $cornerRadius,
-            'request-access' => $requestAccess ? 'write' : null,
+            'userpic' => $use_avatar ? 'true' : 'false',
+            'radius' => $corner_radius,
+            'request-access' => $request_access ? 'write' : null,
             'bot_id' => explode(':', $cfg['bot_token'])[0] ?? ''
         ];
     }
 
-    public function answerPreCheckoutQuery(string $preCheckoutQueryId, bool $ok, string $errorMessage = ''): array
+    public function answer_pre_checkout_query(string $pre_checkout_query_id, bool $ok, string $error_message = ''): array
     {
-        $packet = ['pre_checkout_query_id' => $preCheckoutQueryId, 'ok' => $ok];
-        if (!$ok && $errorMessage !== '') $packet['error_message'] = $errorMessage;
-        return $this->api('answerPreCheckoutQuery', $packet);
+        $packet = ['pre_checkout_query_id' => $pre_checkout_query_id, 'ok' => $ok];
+        if (!$ok && $error_message !== '') $packet['error_message'] = $error_message;
+        return $this->api('answer_pre_checkout_query', $packet);
     }
 
-    public function answerShippingQuery(string $shippingQueryId, bool $ok, array $shippingOptions = [], string $errorMessage = ''): array
+    public function answer_shipping_query(string $shipping_query_id, bool $ok, array $shipping_options = [], string $error_message = ''): array
     {
-        $packet = ['shipping_query_id' => $shippingQueryId, 'ok' => $ok];
-        if ($ok) $packet['shipping_options'] = json_encode($shippingOptions, JSON_UNESCAPED_UNICODE);
-        if (!$ok && $errorMessage !== '') $packet['error_message'] = $errorMessage;
-        return $this->api('answerShippingQuery', $packet);
+        $packet = ['shipping_query_id' => $shipping_query_id, 'ok' => $ok];
+        if ($ok) $packet['shipping_options'] = json_encode($shipping_options, JSON_UNESCAPED_UNICODE);
+        if (!$ok && $error_message !== '') $packet['error_message'] = $error_message;
+        return $this->api('answer_shipping_query', $packet);
     }
 
-    public function setWebhook(string $url, array $opts = []): array
+    public function set_webhook(string $url, array $opts = []): array
     {
         $packet = ['url' => $url] + $opts;
-        return $this->api('setWebhook', $packet);
+        return $this->api('set_webhook', $packet);
     }
 
-    public function deleteWebhook(bool $dropPendingUpdates = false): array
+    public function delete_webhook(bool $drop_pending_updates = false): array
     {
-        return $this->api('deleteWebhook', ['drop_pending_updates' => $dropPendingUpdates]);
+        return $this->api('delete_webhook', ['drop_pending_updates' => $drop_pending_updates]);
     }
 
-    public function setChatMenuButton(string $text, string $url, string $type = 'web_app'): array
+    public function set_chat_menu_button(string $text, string $url, string $type = 'web_app'): array
     {
-        return $this->api('setChatMenuButton', [
+        return $this->api('set_chat_menu_button', [
             'menu_button' => [
                 'type' => $type,
                 'text' => $text,
@@ -286,40 +286,40 @@ final class Telegram
         ]);
     }
 
-    public function deleteChatMenuButton(): array
+    public function delete_chat_menu_button(): array
     {
-        return $this->api('setChatMenuButton', [
+        return $this->api('set_chat_menu_button', [
             'menu_button' => [
                 'type' => 'default',
             ],
         ]);
     }
 
-    public function setMyDescription(string $description, string $languageCode = ''): array
+    public function set_my_description(string $description, string $language_code = ''): array
     {
         $params = ['description' => $description];
-        if ($languageCode !== '') {
-            $params['language_code'] = $languageCode;
+        if ($language_code !== '') {
+            $params['language_code'] = $language_code;
         }
-        return $this->api('setMyDescription', $params);
+        return $this->api('set_my_description', $params);
     }
 
-    public function setMyShortDescription(string $shortDescription, string $languageCode = ''): array
+    public function set_my_short_description(string $short_description, string $language_code = ''): array
     {
-        $params = ['short_description' => $shortDescription];
-        if ($languageCode !== '') {
-            $params['language_code'] = $languageCode;
+        $params = ['short_description' => $short_description];
+        if ($language_code !== '') {
+            $params['language_code'] = $language_code;
         }
-        return $this->api('setMyShortDescription', $params);
+        return $this->api('set_my_short_description', $params);
     }
 
-    public function setMyName(string $name, string $languageCode = ''): array
+    public function set_my_name(string $name, string $language_code = ''): array
     {
         $params = ['name' => $name];
-        if ($languageCode !== '') {
-            $params['language_code'] = $languageCode;
+        if ($language_code !== '') {
+            $params['language_code'] = $language_code;
         }
-        return $this->api('setMyName', $params);
+        return $this->api('set_my_name', $params);
     }
 
     private function __clone() {}

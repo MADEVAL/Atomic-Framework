@@ -10,7 +10,7 @@ use Engine\Atomic\Core\Log;
 
 class GlobusStudio extends Plugin
 {
-    protected function getName(): string
+    protected function get_name(): string
     {
         return 'GlobusStudio';
     }

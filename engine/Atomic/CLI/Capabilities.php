@@ -6,7 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 class Capabilities
 {
-    public static function supportsColors(mixed $stream = null): bool
+    public static function supports_colors(mixed $stream = null): bool
     {
         if ($stream === null) {
             if (!defined('STDOUT')) {
@@ -19,15 +19,15 @@ class Capabilities
             return false;
         }
 
-        if (self::envHasFlag('NO_COLOR')) {
+        if (self::env_has_flag('NO_COLOR')) {
             return false;
         }
 
-        if (self::envHasFlag('FORCE_COLOR') || self::envHasFlag('CLICOLOR_FORCE')) {
+        if (self::env_has_flag('FORCE_COLOR') || self::env_has_flag('CLICOLOR_FORCE')) {
             return true;
         }
 
-        $isMsysTerminal = self::isMsysTerminal();
+        $is_msys_terminal = self::is_msys_terminal();
 
         $isTty = false;
         if (function_exists('stream_isatty')) {
@@ -36,15 +36,15 @@ class Capabilities
             $isTty = @posix_isatty($stream);
         }
 
-        if (!$isTty && !$isMsysTerminal) {
+        if (!$isTty && !$is_msys_terminal) {
             return false;
         }
 
-        if (self::envValue('CLICOLOR') === '0') {
+        if (self::env_value('CLICOLOR') === '0') {
             return false;
         }
 
-        $term = strtolower(self::envValue('TERM'));
+        $term = strtolower(self::env_value('TERM'));
         if ($term === 'dumb') {
             return false;
         }
@@ -56,38 +56,38 @@ class Capabilities
             return true;
         }
 
-        if (self::hasTerminalHints()) {
+        if (self::has_terminal_hints()) {
             return true;
         }
 
-        return self::isSupportedTerminal($term);
+        return self::is_supported_terminal($term);
     }
 
-    private static function envHasFlag(string $name): bool
+    private static function env_has_flag(string $name): bool
     {
-        return '' !== (self::envValue($name)[0] ?? '');
+        return '' !== (self::env_value($name)[0] ?? '');
     }
 
-    private static function envValue(string $name): string
+    private static function env_value(string $name): string
     {
         $value = $_SERVER[$name] ?? getenv($name);
         return $value === false ? '' : (string) $value;
     }
 
-    private static function isMsysTerminal(): bool
+    private static function is_msys_terminal(): bool
     {
-        return in_array(strtoupper(self::envValue('MSYSTEM')), ['MINGW32', 'MINGW64'], true);
+        return in_array(strtoupper(self::env_value('MSYSTEM')), ['MINGW32', 'MINGW64'], true);
     }
 
-    private static function hasTerminalHints(): bool
+    private static function has_terminal_hints(): bool
     {
-        return self::envValue('TERM_PROGRAM') === 'Hyper'
-            || self::envValue('COLORTERM') !== ''
-            || self::envValue('ANSICON') !== ''
-            || strtoupper(self::envValue('ConEmuANSI')) === 'ON';
+        return self::env_value('TERM_PROGRAM') === 'Hyper'
+            || self::env_value('COLORTERM') !== ''
+            || self::env_value('ANSICON') !== ''
+            || strtoupper(self::env_value('ConEmuANSI')) === 'ON';
     }
 
-    private static function isSupportedTerminal(string $term): bool
+    private static function is_supported_terminal(string $term): bool
     {
         return preg_match('/^((screen|xterm|vt100|vt220|putty|rxvt|ansi|cygwin|linux).*)|(.*-256(color)?(-bce)?)$/', $term) === 1;
     }

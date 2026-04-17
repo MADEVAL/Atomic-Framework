@@ -50,7 +50,7 @@ class Head
 
     public function favicon(): void
     {
-        $base = rtrim(AM::instance()->get_publicUrl(), '/');
+        $base = rtrim(AM::instance()->get_public_url(), '/');
         $favicon = $this->atomic->get('FAVICON') ?? '/favicon.ico';
         $favicon = ltrim($favicon, '/');
         echo '<link rel="icon" href="' . $base . '/' . $favicon . '">' . PHP_EOL;
@@ -73,7 +73,7 @@ class Head
 
     public function iconset(string $path = ''): void
     {
-        $base = rtrim(AM::instance()->get_publicUrl(), '/');
+        $base = rtrim(AM::instance()->get_public_url(), '/');
         
         if ($path !== '') {
             $base .= '/' . ltrim($path, '/');
@@ -97,7 +97,7 @@ class Head
 
     public function manifest(): void
     {
-        $base = rtrim(AM::instance()->get_publicUrl(), '/');
+        $base = rtrim(AM::instance()->get_public_url(), '/');
         $manifest = ltrim('/site.webmanifest', '/');
         echo '<link rel="manifest" href="' . $base . '/' . $manifest . '">' . PHP_EOL;
     }
@@ -107,20 +107,20 @@ class Head
         $scheme = $this->atomic->get('SCHEME') ?? 'https';
         $host = $this->atomic->get('HOST');
         $base = rtrim($this->atomic->get('BASE') ?? '', '/');
-        $path = AM::instance()->get_currentPath(false);
+        $path = AM::instance()->get_current_path(false);
         
         $url = $scheme . '://' . $host . $base . $path;
         
         echo '<link rel="canonical" href="' . htmlspecialchars($url, ENT_QUOTES) . '">' . PHP_EOL;
     }
 
-    public function addPreconnect(string $origin, bool $crossorigin = false): self
+    public function add_preconnect(string $origin, bool $crossorigin = false): self
     {
         $this->preconnects[$origin] = $crossorigin;
         return $this;
     }
 
-    public function addPreload(string $href, string $as, ?string $type = null, bool $crossorigin = false): self
+    public function add_preload(string $href, string $as, ?string $type = null, bool $crossorigin = false): self
     {
         $this->preloads[] = compact('href', 'as', 'type', 'crossorigin');
         return $this;
@@ -129,7 +129,7 @@ class Head
     public function preconnect(?string $preset = null): void
     {
         if ($preset && isset(self::PRECONNECTS_COMMON[$preset])) {
-            $this->addPreconnect(self::PRECONNECTS_COMMON[$preset], $preset === 'google-fonts-static');
+            $this->add_preconnect(self::PRECONNECTS_COMMON[$preset], $preset === 'google-fonts-static');
         }
         
         if (empty($this->preconnects)) {

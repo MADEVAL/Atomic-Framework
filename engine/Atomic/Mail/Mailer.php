@@ -24,7 +24,7 @@ class Mailer
     {
         $this->atomic = App::instance();
         $this->charset = $charset;
-        $this->initSMTP();
+        $this->init_smtp();
     }
 
     public static function instance(): self
@@ -32,7 +32,7 @@ class Mailer
         return self::$instance ??= new self();
     }
 
-    private function initSMTP(): void
+    private function init_smtp(): void
     {
         $this->smtp = new \SMTP(
             $this->atomic->get('mailer.smtp.host'),
@@ -43,11 +43,11 @@ class Mailer
         );
 
         if ($from = $this->atomic->get('mailer.from_mail')) {
-            $this->setFrom($from, $this->atomic->get('mailer.from_name'));
+            $this->set_from($from, $this->atomic->get('mailer.from_name'));
         }
 
         if ($reply = $this->atomic->get('mailer.reply_to')) {
-            $this->setReply($reply);
+            $this->set_reply($reply);
         }
 
         if ($this->atomic->get('mailer.force_tls', false)) {
@@ -55,43 +55,43 @@ class Mailer
         }
     }
 
-    public function setFrom(string $email, ?string $name = null): self
+    public function set_from(string $email, ?string $name = null): self
     {
-        $this->smtp->set('From', $this->buildEmail($email, $name));
+        $this->smtp->set('From', $this->build_email($email, $name));
         return $this;
     }
 
-    public function setReply(string $email, ?string $name = null): self
+    public function set_reply(string $email, ?string $name = null): self
     {
-        $this->smtp->set('Reply-To', $this->buildEmail($email, $name));
+        $this->smtp->set('Reply-To', $this->build_email($email, $name));
         return $this;
     }
 
-    public function addTo(string $email, ?string $name = null): self
+    public function add_to(string $email, ?string $name = null): self
     {
-        if ($this->isValidEmail($email)) {
+        if ($this->is_valid_email($email)) {
             $this->recipients['To'][$email] = $name;
         }
         return $this;
     }
 
-    public function addCc(string $email, ?string $name = null): self
+    public function add_cc(string $email, ?string $name = null): self
     {
-        if ($this->isValidEmail($email)) {
+        if ($this->is_valid_email($email)) {
             $this->recipients['Cc'][$email] = $name;
         }
         return $this;
     }
 
-    public function addBcc(string $email, ?string $name = null): self
+    public function add_bcc(string $email, ?string $name = null): self
     {
-        if ($this->isValidEmail($email)) {
+        if ($this->is_valid_email($email)) {
             $this->recipients['Bcc'][$email] = $name;
         }
         return $this;
     }
 
-    public function setText(string $message): self
+    public function set_text(string $message): self
     {
         $this->message['text/plain'] = [
             'content' => $message,
@@ -100,7 +100,7 @@ class Mailer
         return $this;
     }
 
-    public function setHTML(string $message): self
+    public function set_html(string $message): self
     {
         $this->message['text/html'] = [
             'content' => $message,
@@ -117,7 +117,7 @@ class Mailer
         return $this;
     }
 
-    public function addHeader(string $name, string $value): self
+    public function add_header(string $name, string $value): self
     {
         $this->headers[$name] = $value;
         return $this;
@@ -129,7 +129,7 @@ class Mailer
         foreach ($this->recipients as $type => $rcpts) {
             $emails = [];
             foreach ($rcpts as $email => $name) {
-                $emails[] = $this->buildEmail($email, $name);
+                $emails[] = $this->build_email($email, $name);
             }
             if ($emails) {
                 $this->smtp->set($type, implode(', ', $emails));
@@ -137,7 +137,7 @@ class Mailer
         }
 
         // Set subject
-        $this->smtp->set('Subject', $this->encodeHeader($subject));
+        $this->smtp->set('Subject', $this->encode_header($subject));
 
         // Set custom headers
         foreach ($this->headers as $name => $value) {
@@ -145,7 +145,7 @@ class Mailer
         }
 
         // Build body
-        $body = $this->buildBody();
+        $body = $this->build_body();
 
         // Process attachments
         foreach ($this->attachments as $att) {
@@ -169,11 +169,11 @@ class Mailer
         $this->message = [];
         $this->headers = [];
         $this->attachments = [];
-        $this->initSMTP();
+        $this->init_smtp();
         return $this;
     }
 
-    private function buildBody(): string
+    private function build_body(): string
     {
         if (empty($this->message)) {
             return '';
@@ -200,15 +200,15 @@ class Mailer
         return $body;
     }
 
-    private function buildEmail(string $email, ?string $name = null): string
+    private function build_email(string $email, ?string $name = null): string
     {
         if ($name) {
-            return '"' . $this->encodeHeader($name) . '" <' . $email . '>';
+            return '"' . $this->encode_header($name) . '" <' . $email . '>';
         }
         return '<' . $email . '>';
     }
 
-    private function isValidEmail(string $email): bool
+    private function is_valid_email(string $email): bool
     {
         return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
     }
@@ -231,7 +231,7 @@ class Mailer
         return utf8_decode($str);
     }
 
-    private function encodeHeader(string $str): string
+    private function encode_header(string $str): string
     {
         if (extension_loaded('iconv')) {
             $encoded = iconv_mime_encode('Subject', $str, [

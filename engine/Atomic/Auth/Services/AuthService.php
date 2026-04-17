@@ -174,14 +174,14 @@ class AuthService implements LoginInterface
         }
     }
 
-    public function kill_all_sessions(string $userId, bool $keepCurrent = true): int
+    public function kill_all_sessions(string $user_id, bool $keep_current = true): int
     {
         $current_session_id = $this->php_session->id();
-        $all_sessions = $this->meta->get_meta_like($userId, 'auth_session_%');
+        $all_sessions = $this->meta->get_meta_like($user_id, 'auth_session_%');
 
         $sessions_to_delete = [];
         foreach ($all_sessions as $key => $value) {
-            if ($keepCurrent && $key === 'auth_session_' . $current_session_id) {
+            if ($keep_current && $key === 'auth_session_' . $current_session_id) {
                 continue;
             }
             $sessions_to_delete[$key] = substr($key, 13);
@@ -189,9 +189,9 @@ class AuthService implements LoginInterface
 
         $deleted_count = 0;
         if ($sessions_to_delete !== []) {
-            if ($keepCurrent) {
+            if ($keep_current) {
                 foreach ($sessions_to_delete as $key => $session_id) {
-                    $meta_deleted    = $this->meta->delete_meta($userId, $key);
+                    $meta_deleted    = $this->meta->delete_meta($user_id, $key);
                     $session_deleted = $this->session_manager->delete_session($session_id);
 
                     if ($meta_deleted || $session_deleted) {
@@ -199,16 +199,16 @@ class AuthService implements LoginInterface
                     }
                 }
             } else {
-                $meta_deleted = $this->meta->delete_meta_like($userId, 'auth_session_%');
+                $meta_deleted = $this->meta->delete_meta_like($user_id, 'auth_session_%');
                 $session_deleted_count = $this->session_manager->delete_sessions(array_values($sessions_to_delete));
                 $deleted_count = $meta_deleted ? count($sessions_to_delete) : $session_deleted_count;
             }
         }
 
         $this->logger->info('Sessions invalidated: ' . json_encode([
-            'user_uuid'     => $userId,
+            'user_uuid'     => $user_id,
             'deleted_count' => $deleted_count,
-            'kept_current'  => $keepCurrent,
+            'kept_current'  => $keep_current,
             'driver'        => $this->session_manager->get_driver(),
         ]));
 

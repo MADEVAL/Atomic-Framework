@@ -56,8 +56,8 @@ Built-in metadata added by `Theme::parse()`:
 - `THEME._dir`: active theme directory
 - `THEME._url`: base themes URL, currently `<public_url>themes/`
 - `THEME._theme`: active theme name
-- `THEME._url_public`: public base URL from `Methods::get_publicUrl()`
-- `THEME._dir_public`: public base directory from `Methods::get_publicDir()`
+- `THEME._url_public`: public base URL from `Methods::get_public_url()`
+- `THEME._dir_public`: public base directory from `Methods::get_public_dir()`
 
 Example:
 
@@ -85,7 +85,7 @@ Theme methods render exact partial paths under `partials/`:
 
 ```php
 Theme::get_head();
-Theme::get_customHead();
+Theme::get_custom_head();
 Theme::get_header();
 Theme::get_footer();
 Theme::get_sidebar();
@@ -95,7 +95,7 @@ Theme::get_section('hero', ['title' => 'Atomic']);
 Resolution:
 
 - `get_head()` -> `partials/head.atom.php`
-- `get_customHead()` -> `partials/head.custom.atom.php` if the file exists
+- `get_custom_head()` -> `partials/head.custom.atom.php` if the file exists
 - `get_header('header')` -> `partials/header.atom.php`
 - `get_footer('footer')` -> `partials/footer.atom.php`
 - `get_sidebar('sidebar')` -> `partials/sidebar.atom.php`
@@ -132,24 +132,24 @@ Behavior:
 ```php
 $theme = Theme::instance();
 
-$meta      = $theme->getThemeMeta();
-$themeDir  = $theme->getThemeDir();
-$themeUrl  = $theme->getThemeUrl();
-$themeName = $theme->getThemeName();
-$publicUrl = $theme->getPublicUrl();
-$publicDir = $theme->getPublicDir();
+$meta      = $theme->get_theme_meta();
+$themeDir  = $theme->get_theme_dir();
+$themeUrl  = $theme->get_theme_url();
+$themeName = $theme->get_theme_name();
+$publicUrl = $theme->get_public_url();
+$publicDir = $theme->get_public_dir();
 ```
 
 Getter details:
 
-- `getThemeDir()` returns the active theme directory with a trailing directory separator.
-- `getThemeUrl()` returns `<public_url>themes/<theme_name>` without an added trailing slash.
-- `getPublicUrl()` and `getPublicDir()` are the generic public paths, not theme-specific paths.
+- `get_theme_dir()` returns the active theme directory with a trailing directory separator.
+- `get_theme_url()` returns `<public_url>themes/<theme_name>` without an added trailing slash.
+- `get_public_url()` and `get_public_dir()` are the generic public paths, not theme-specific paths.
 
 Color helpers:
 
-- `getThemeColor()` returns `theme.json` `color` when present, otherwise `#ffffff`.
-- `setThemeColor($fallback)` returns `PAGE.color` when it exists, otherwise the provided fallback.
+- `get_theme_color()` returns `theme.json` `color` when present, otherwise `#ffffff`.
+- `set_theme_color($fallback)` returns `PAGE.color` when it exists, otherwise the provided fallback.
 
 ### Theme development notes
 

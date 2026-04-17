@@ -21,24 +21,24 @@ class System extends Controller
         return $this->cli ??= new CLI();
     }
 
-    public function appInit(): void
+    public function app_init(): void
     {
         $this->cli()->init();
     }
 
-    public function appInitKey(): void
+    public function app_init_key(): void
     {
-        $this->cli()->initKey();
+        $this->cli()->init_key();
     }
 
-    public function appInitGuide(): void
+    public function app_init_guide(): void
     {
-        $this->cli()->initGuide();
+        $this->cli()->init_guide();
     }
 
-    public function logsRotate(): void
+    public function logs_rotate(): void
     {
-        $this->cli()->logsRotate();
+        $this->cli()->logs_rotate();
     }
 
     public function help(): void
@@ -46,7 +46,7 @@ class System extends Controller
         $this->cli()->help();
     }
 
-    public function cacheClear(): void
+    public function cache_clear(): void
     {
         $out = new Output();
         $out->writeln('Clearing cache...');
@@ -62,7 +62,7 @@ class System extends Controller
 
     public function routes(): void
     {
-        $this->cli()->listRoutes();
+        $this->cli()->list_routes();
     }
 
     public function classes(): void
@@ -70,116 +70,116 @@ class System extends Controller
         $this->cli()->classes();
     }
 
-    public function customHive(): void
+    public function custom_hive(): void
     {
-        $this->cli()->customHive();
+        $this->cli()->custom_hive();
     }
 
-    public function dbTables(): void
+    public function db_tables(): void
     {
         $this->cli()->get_tables();
     }
 
-    public function dbTruncate(): void
+    public function db_truncate(): void
     {
         $this->cli()->truncate_table();
     }
 
-    public function dbTruncateQueue(): void
+    public function db_truncate_queue(): void
     {
         $this->cli()->truncate_queue_table();
     }
 
-    public function dbSessions(): void
+    public function db_sessions(): void
     {
         $this->cli()->db_sessions();
     }
 
-    public function dbUsers(): void
+    public function db_users(): void
     {
         $this->cli()->db_users();
     }
 
-    public function dbStores(): void
+    public function db_stores(): void
     {
         $this->cli()->db_stores();
     }
 
-    public function dbStorage(): void
+    public function db_storage(): void
     {
         $this->cli()->db_storage();
     }
 
-    public function dbOrders(): void
+    public function db_orders(): void
     {
         $this->cli()->db_orders();
     }
     
-    public function migrationsCreate(): void {
+    public function migrations_create(): void {
         $this->cli()->migrations_create();
     }
 
-    public function migrationsInit(): void {
+    public function migrations_init(): void {
         $this->cli()->migrations_init();
     }
 
-    public function migrationsMigrate(): void {
+    public function migrations_migrate(): void {
         $this->cli()->migrations_migrate();
     }
 
-    public function migrationsRollback(): void {
+    public function migrations_rollback(): void {
         $this->cli()->migrations_rollback();
     }
     
-    public function migrationsStatus(): void {
+    public function migrations_status(): void {
         $this->cli()->migrations_status();
     }
 
-    public function migrationsPublish(): void {
+    public function migrations_publish(): void {
         $this->cli()->migrations_publish();
     }
 
-    public function seedUsers(): void
+    public function seed_users(): void
     {
         $this->cli()->seed_users();
     }
 
-    public function seedRoles(): void
+    public function seed_roles(): void
     {
         $this->cli()->seed_roles();
     }
 
-    public function seedPages(): void
+    public function seed_pages(): void
     {
         $this->cli()->seed_pages();
     }
     
-    public function seedProducts(): void
+    public function seed_products(): void
     {
         $this->cli()->seed_products();
     }
 
-    public function seedCategories(): void
+    public function seed_categories(): void
     {
         $this->cli()->seed_categories();
     }
 
-    public function seedStores(): void
+    public function seed_stores(): void
     {
         $this->cli()->seed_stores();
     }
 
-    public function queueDb(): void
+    public function queue_db(): void
     {
         $this->cli()->queue_db();
     }
 
-    public function queueWorker(): void
+    public function queue_worker(): void
     {
         $this->cli()->queue_worker();
     }
 
-    public function queueTest(): void
+    public function queue_test(): void
     {
         $queue_manager = new Manager('default');
         $cli = $this->cli();
@@ -194,102 +194,102 @@ class System extends Controller
         );
     }
 
-    public function queueTestMonitor(): void
+    public function queue_test_monitor(): void
     {
         $this->cli()->queue_test_monitor();
     }
 
-    public function queueMonitor(): void
+    public function queue_monitor(): void
     {
         $this->cli()->queue_monitor();
     }
 
-    public function queueRetry(): void
+    public function queue_retry(): void
     {
         $this->cli()->queue_retry();
     }
 
-    public function queueDeleteJob(): void
+    public function queue_delete_job(): void
     {
         $this->cli()->queue_delete_job();
     }
 
-    public function fileCsv2Pdf(): void
+    public function file_csv2_pdf(): void
     {
         $this->cli()->file_csv2pdf();
     }
 
-    public function fileXls2Pdf(): void
+    public function file_xls2_pdf(): void
     {
         $this->cli()->file_xls2pdf();
     }
 
-    public function dbPages(): void
+    public function db_pages(): void
     {
         $this->cli()->db_pages();
     }
 
-    public function dbRecentActivity(): void 
+    public function db_recent_activity(): void 
     {
         $this->cli()->db_recent_activity();
     }
 
-    public function dbCoupons(): void 
+    public function db_coupons(): void 
     {
         $this->cli()->db_coupons();
     }
 
-    public function dbPayments(): void
+    public function db_payments(): void
     {
         $this->cli()->db_payments();
     }
 
-    public function dbTariffs(): void
+    public function db_tariffs(): void
     {
         $this->cli()->db_tariffs();
     }
 
-    public function dbTgFrontErr(): void 
+    public function db_tg_front_err(): void 
     {
         $this->cli()->db_tg_front_err();
     }
 
-    public function dbMutex(): void 
+    public function db_mutex(): void 
     {
         $this->cli()->db_mutex();
     }
 
-    public function scheduleRun(): void
+    public function schedule_run(): void
     {
         $this->cli()->schedule_run();
     }
 
-    public function scheduleWork(): void
+    public function schedule_work(): void
     {
         $this->cli()->schedule_work();
     }
 
-    public function scheduleList(): void
+    public function schedule_list(): void
     {
         $this->cli()->schedule_list();
     }
 
-    public function scheduleTest(): void
+    public function schedule_test(): void
     {
         $this->cli()->schedule_test();
     }
 
-    public function scheduleHelp(): void
+    public function schedule_help(): void
     {
         $this->cli()->schedule_help();
     }
 
-    public function wsTest(): void
+    public function ws_test(): void
     {
         (new \Engine\Atomic\WebSockets\Test())->run();
     }
 
-    public function redisClear(): void
+    public function redis_clear(): void
     {
         $out = new Output();
         $redis = ConnectionManager::instance()->get_redis();

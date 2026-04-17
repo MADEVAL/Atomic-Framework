@@ -10,11 +10,11 @@ trait Migrations {
 
     public function migrations_init(): void {
         if (!(new AM($this->output))->db()) {
-            $this->output->writeln(Style::errorLabel() . ' Could not initialize migrations table. Check DB credentials and connectivity.');
+            $this->output->writeln(Style::error_label() . ' Could not initialize migrations table. Check DB credentials and connectivity.');
             return;
         }
 
-        $this->output->writeln(Style::successLabel() . ' Migrations table is ready.');
+        $this->output->writeln(Style::success_label() . ' Migrations table is ready.');
     }
 
     public function migrations_create() {
@@ -58,6 +58,6 @@ trait Migrations {
             $this->output->writeln('  ' . Style::bold('Publishes all migrations from the specified plugin.'));
             return;
         }
-        (new AM($this->output))->publishFromPlugin($args[0]);
+        (new AM($this->output))->publish_from_plugin($args[0]);
     }
 }

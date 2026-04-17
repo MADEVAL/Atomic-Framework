@@ -65,7 +65,7 @@ class CLI {
         $this->output->writeln('Atomic Version: ' . ATOMIC_VERSION);
     }
 
-    public function listRoutes(): void {
+    public function list_routes(): void {
         $routes = $this->atomic->get('ROUTES');
         $groups = [
             'WEB/CLI'   => [],
@@ -106,7 +106,7 @@ class CLI {
         $this->output->write(print_r($this->atomic->hive(), true));
     }    
 
-    public function customHive(): void {
+    public function custom_hive(): void {
         $keys = [
             'DEBUG', 'BASE', 'LANGUAGE', 'LANG', 'FALLBACK', 'ENCODING', 'TZ',
             'APP_NAME', 'APP_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL', 
@@ -124,34 +124,34 @@ class CLI {
         return array_slice($argv, 2);
     }
 
-    public static function isCli(): bool
+    public static function is_cli(): bool
     {
         return php_sapi_name() === 'cli';
     }
 
-    public static function isUserRoot(): bool
+    public static function is_user_root(): bool
     {
         return function_exists('posix_getuid') && posix_getuid() === 0;
     }
 
-    public function checkRootWarning(string $rawCommand, string $command): bool {
-        if (!self::isUserRoot() || !$this->isRootRestrictedCommand($command)) {
+    public function check_root_warning(string $raw_command, string $command): bool {
+        if (!self::is_user_root() || !$this->is_root_restricted_command($command)) {
             return false;
         }
 
-        if ($this->input->isInteractive()) {
-            $this->output->err(Style::warningLabel() . " You are running '" . Style::bold($rawCommand) . "' as root.");
+        if ($this->input->is_interactive()) {
+            $this->output->err(Style::warning_label() . " You are running '" . Style::bold($raw_command) . "' as root.");
             $this->output->err("Running as root may cause permission issues.");
             $this->output->prompt("Do you want to continue? [y/N]: ");
 
-            $answer = strtolower($this->input->readLine());
+            $answer = strtolower($this->input->read_line());
 
             if ($answer !== 'y' && $answer !== 'yes') {
-                $this->output->err(Style::errorLabel() . " Aborted.");
+                $this->output->err(Style::error_label() . " Aborted.");
                 return true;
             }
         } else {
-            $msg = "Running '{$rawCommand}' as root in non-interactive mode.";
+            $msg = "Running '{$raw_command}' as root in non-interactive mode.";
             $this->output->err("[WARNING] {$msg}");
             Log::warning($msg);
         }
@@ -159,7 +159,7 @@ class CLI {
         return false;
     }
 
-    public function isRootRestrictedCommand(string $command): bool {
+    public function is_root_restricted_command(string $command): bool {
         static $rootRestrictedCommands = [
             '/init',
             '/init/key',

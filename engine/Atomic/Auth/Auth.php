@@ -77,9 +77,9 @@ class Auth extends \Prefab implements LoginInterface
         $this->service()->logout();
     }
 
-    public static function kill_all_sessions(string $userId, bool $keepCurrent = true): int
+    public static function kill_all_sessions(string $user_id, bool $keep_current = true): int
     {
-        return self::instance()->service()->kill_all_sessions($userId, $keepCurrent);
+        return self::instance()->service()->kill_all_sessions($user_id, $keep_current);
     }
 
     public function get_current_user(): ?AuthenticatableInterface

@@ -278,10 +278,10 @@ class PDF
         }
     }
 
-    private function load_cmap($ttfFile)
+    private function load_cmap($ttf_file)
     {
-        $f = \fopen($ttfFile, 'rb');
-        if (!$f) throw new \Exception("Cannot open TTF file: $ttfFile\n");
+        $f = \fopen($ttf_file, 'rb');
+        if (!$f) throw new \Exception("Cannot open TTF file: $ttf_file\n");
         $hdr = \fread($f, 12);
         $numTables = \unpack('n', \substr($hdr, 4, 2))[1];
         $cmapOffset = $cmapLength = null;

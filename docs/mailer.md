@@ -7,12 +7,12 @@ SMTP wrapper for sending emails.
 ```php
 // Send text email
 mail_to('user@example.com', 'John Doe')
-    ->setText('Hello, this is a plain text message.')
+    ->set_text('Hello, this is a plain text message.')
     ->send('Welcome Message');
 
 // Send HTML email
 mail_to('user@example.com')
-    ->setHTML('<h1>Welcome!</h1><p>Thank you for joining us.</p>')
+    ->set_html('<h1>Welcome!</h1><p>Thank you for joining us.</p>')
     ->send('Welcome aboard');
 
 // Quick send
@@ -24,8 +24,8 @@ mail_send('user@example.com', 'Subject', 'Plain text', false);
 
 ```php
 mail_to('primary@example.com', 'Primary User')
-    ->addCc('manager@example.com')
-    ->addBcc('archive@example.com')
+    ->add_cc('manager@example.com')
+    ->add_bcc('archive@example.com')
     ->send('Report');
 
 // Using helpers
@@ -53,8 +53,8 @@ mail_to('client@example.com')
 
 ```php
 mail_to('user@example.com')
-    ->addHeader('X-Custom-Header', 'value')
-    ->addHeader('List-Unsubscribe', '<mailto:unsubscribe@example.com>')
+    ->add_header('X-Custom-Header', 'value')
+    ->add_header('List-Unsubscribe', '<mailto:unsubscribe@example.com>')
     ->send('Newsletter');
 
 // Using helper
@@ -80,7 +80,7 @@ mail_from('custom@example.com', 'Custom Sender')
 mail_to('user1@example.com')->send('Message 1');
 
 // Second email (clear recipients)
-mail_reset()->addTo('user2@example.com')->send('Message 2');
+mail_reset()->add_to('user2@example.com')->send('Message 2');
 ```
 
 ## Examples
@@ -89,7 +89,7 @@ mail_reset()->addTo('user2@example.com')->send('Message 2');
 
 ```php
 mail_to($user->email, $user->name)
-    ->setHTML("
+    ->set_html("
         <h1>Welcome, {$user->name}!</h1>
         <p>Thank you for registering.</p>
         <p><a href='" . lang_url('/activate/' . $user->token) . "'>Activate Account</a></p>
@@ -101,7 +101,7 @@ mail_to($user->email, $user->name)
 
 ```php
 mail_to(get_option('admin_email'))
-    ->setText("New user registered: {$user->email}")
+    ->set_text("New user registered: {$user->email}")
     ->send('New Registration');
 ```
 
@@ -128,7 +128,7 @@ mail_from('noreply@example.com', 'Company Name')
     ->mail_header('X-Campaign-ID', 'newsletter-2024')
     ->mail_attach('/path/to/invoice.pdf', 'Invoice-2024.pdf')
     ->mail_attach('/path/to/logo.png', null, 'company-logo')
-    ->setHTML('
+    ->set_html('
         <img src="cid:company-logo" alt="Logo">
         <h1>Invoice</h1>
         <p>Please find the invoice attached.</p>

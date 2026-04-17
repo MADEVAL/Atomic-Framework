@@ -26,6 +26,6 @@ class AppContextAdapter
 
     public function get_device_type(): string
     {
-        return Methods::instance()->get_userDevice();
+        return Methods::instance()->get_user_device();
     }
 }

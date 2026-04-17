@@ -45,7 +45,7 @@ Helpers:
 
 ```php
 $post = new Post();
-$post->updateProperty(['status = ?', 'draft'], 'status', 'published');
+$post->update_property(['status = ?', 'draft'], 'status', 'published');
 ```
 
-`updateProperty()` loads matching records and updates the selected field on each row.
+`update_property()` loads matching records and updates the selected field on each row.

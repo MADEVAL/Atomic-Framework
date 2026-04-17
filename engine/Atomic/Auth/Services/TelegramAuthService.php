@@ -87,9 +87,9 @@ class TelegramAuthService
         }
     }
 
-    public function get_widget_attributes(string $size = 'large', bool $requestAccess = false, bool $useAvatar = false, int $cornerRadius = 20): array
+    public function get_widget_attributes(string $size = 'large', bool $request_access = false, bool $use_avatar = false, int $corner_radius = 20): array
     {
-        return $this->telegram_client->get_widget_attributes($size, $requestAccess, $useAvatar, $cornerRadius);
+        return $this->telegram_client->get_widget_attributes($size, $request_access, $use_avatar, $corner_radius);
     }
 
     private function normalize_claims(array $verified_data): array

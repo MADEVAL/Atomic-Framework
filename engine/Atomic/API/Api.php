@@ -18,12 +18,12 @@ trait Api   // For use in API controllers
 
     protected function json(mixed $data, int $code = 200): void
     {
-        $this->app()->jsonResponse($data, $code);
+        $this->app()->json_response($data, $code);
     }
 
     protected function fail(string $msg, int $code = 400, array $extra = []): void
     {
-        $this->app()->jsonResponse(['error' => $msg] + $extra, $code);
+        $this->app()->json_response(['error' => $msg] + $extra, $code);
     }
 
     protected function body(): array

@@ -12,15 +12,15 @@ class PluginSync {
 
     }
 
-    public function syncTest(array $params) {
+    public function sync_test(array $params) {
 
     }
 
-    public function fetchUpdates(array $params) {
+    public function fetch_updates(array $params) {
 
     }
 
-    public function applyUpdates(array $params) {
+    public function apply_updates(array $params) {
 
     }
 

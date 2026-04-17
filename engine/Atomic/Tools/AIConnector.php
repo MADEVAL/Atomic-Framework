@@ -10,63 +10,63 @@ class AIConnector {
     /** @var array<string, self> */
     protected static array $instances = [];
     protected App $atomic;
-    protected ?string $apiKey;
+    protected ?string $api_key;
     protected string $provider;
     protected string $model;
-    protected ?string $customDomain = null;
+    protected ?string $custom_domain = null;
     
     const PROVIDER_OPENAI = 'openai';
     const PROVIDER_GROQ = 'groq';
     const PROVIDER_OPENROUTER = 'openrouter';
     const PROVIDER_GLOBUS = 'globus';
 
-    public static function instance(?string $apiKey = null, string $provider = self::PROVIDER_OPENAI): self {
+    public static function instance(?string $api_key = null, string $provider = self::PROVIDER_OPENAI): self {
         if (!isset(self::$instances[$provider])) {
-            self::$instances[$provider] = new self($apiKey, $provider);
+            self::$instances[$provider] = new self($api_key, $provider);
         }
         return self::$instances[$provider];
     }
 
-    protected function __construct(?string $apiKey = null, string $provider = self::PROVIDER_OPENAI) {
+    protected function __construct(?string $api_key = null, string $provider = self::PROVIDER_OPENAI) {
         $this->atomic = App::instance();
-        $this->setProvider($provider);
+        $this->set_provider($provider);
         
         // If API key is not provided, try to get it from config
-        if ($apiKey === null) {
-            $apiKey = $this->atomic->get("ai.{$provider}.api_key");
+        if ($api_key === null) {
+            $api_key = $this->atomic->get("ai.{$provider}.api_key");
         }
         
-        $this->apiKey = $apiKey;
+        $this->api_key = $api_key;
     }
 
-    public function setProvider(string $provider, ?string $customDomain = null): self {
+    public function set_provider(string $provider, ?string $custom_domain = null): self {
         $this->provider = $provider;
-        $this->customDomain = $customDomain;
-        $this->model = $this->getDefaultModel();
+        $this->custom_domain = $custom_domain;
+        $this->model = $this->get_default_model();
 
-        if (empty($this->apiKey)) {
+        if (empty($this->api_key)) {
             $key = $this->atomic->get("ai.{$provider}.api_key");
             if (!empty($key)) {
-                $this->apiKey = (string)$key;
+                $this->api_key = (string)$key;
             }
         }
 
         return $this;
     }
 
-    public function setApiKey(string $apiKey): self {
-        $this->apiKey = $apiKey;
+    public function set_api_key(string $api_key): self {
+        $this->api_key = $api_key;
         return $this;
     }
 
-    public function setModel(string $model): self {
+    public function set_model(string $model): self {
         $this->model = $model;
         return $this;
     }
 
-    public function getBaseUrl(): string {
-        if ($this->customDomain) {
-            return $this->customDomain;
+    public function get_base_url(): string {
+        if ($this->custom_domain) {
+            return $this->custom_domain;
         }
         
         switch ($this->provider) {
@@ -83,7 +83,7 @@ class AIConnector {
         }
     }
     
-    public function getDefaultModel(): string {
+    public function get_default_model(): string {
         switch ($this->provider) {
             case self::PROVIDER_OPENAI:
                 return 'gpt-5-nano';
@@ -98,7 +98,7 @@ class AIConnector {
         }
     }
 
-    public function getAvailableModels(): array {
+    public function get_available_models(): array {
         switch ($this->provider) {
             case self::PROVIDER_OPENAI:
                 return [
@@ -140,12 +140,12 @@ class AIConnector {
         }
     }
 
-    public function chatCompletion(array $messages, array $options = []): mixed {
-        if (empty($this->apiKey)) {
+    public function chat_completion(array $messages, array $options = []): mixed {
+        if (empty($this->api_key)) {
             throw new \Exception("API key is required for " . $this->provider);
         }
 
-        $url = $this->getBaseUrl() . 'chat/completions';
+        $url = $this->get_base_url() . 'chat/completions';
 
         $payload = [
             'messages' => $messages,
@@ -181,29 +181,29 @@ class AIConnector {
         
         switch ($this->provider) {
             case self::PROVIDER_OPENAI:
-                $headers[] = 'Authorization: Bearer ' . $this->apiKey;
+                $headers[] = 'Authorization: Bearer ' . $this->api_key;
                 break;
             case self::PROVIDER_GROQ:
-                $headers[] = 'Authorization: Bearer ' . $this->apiKey;
+                $headers[] = 'Authorization: Bearer ' . $this->api_key;
                 break;
             case self::PROVIDER_OPENROUTER:
-                $headers[] = 'Authorization: Bearer ' . $this->apiKey;
+                $headers[] = 'Authorization: Bearer ' . $this->api_key;
                 $headers[] = 'HTTP-Referer: ' . ($options['referer'] ?? $this->atomic->get('HOST'));
                 $headers[] = 'X-OpenRouter-Title: Atomic Framework';
                 break;
             case self::PROVIDER_GLOBUS:
-                $headers[] = 'X-API-KEY: ' . $this->apiKey;
+                $headers[] = 'X-API-KEY: ' . $this->api_key;
                 break;
         }
 
-        $response = $this->makeRequest($url, $payload, $headers, $options);
+        $response = $this->make_request($url, $payload, $headers, $options);
         
         return $response;
     }
 
-    protected function formatErrorMessage(object $error, int $httpStatus): string
+    protected function format_error_message(object $error, int $http_status): string
     {
-        $code = $error->code ?? $httpStatus;
+        $code = $error->code ?? $http_status;
         $msg  = $error->message ?? 'Unknown error';
         $meta = $error->metadata ?? null;
 
@@ -226,7 +226,7 @@ class AIConnector {
         return '[' . $this->provider . '] ' . $msg . ' (code: ' . $code . ')' . $extra;
     }
 
-    protected function makeRequest(string $url, array $payload, array $headers, array $options = []): mixed {
+    protected function make_request(string $url, array $payload, array $headers, array $options = []): mixed {
         $ch = curl_init($url);
         
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -251,7 +251,7 @@ class AIConnector {
         if ($statusCode >= 400) {
             $msg = null;
             if (isset($decoded->error)) {
-                $msg = $this->formatErrorMessage($decoded->error, $statusCode);
+                $msg = $this->format_error_message($decoded->error, $statusCode);
             }
             throw new \Exception($msg ?? 'API error: HTTP ' . $statusCode);
         }
@@ -262,12 +262,12 @@ class AIConnector {
 
         // Top-level error (pre-stream errors, 200 with error body)
         if (isset($decoded->error)) {
-            throw new \Exception($this->formatErrorMessage($decoded->error, $statusCode));
+            throw new \Exception($this->format_error_message($decoded->error, $statusCode));
         }
 
         // Per-choice error (provider failure, e.g. 502 from upstream)
         if (isset($decoded->choices[0]->error)) {
-            throw new \Exception($this->formatErrorMessage($decoded->choices[0]->error, $statusCode));
+            throw new \Exception($this->format_error_message($decoded->choices[0]->error, $statusCode));
         }
 
         // Mid-stream error: finish_reason="error" with no choices[0]->error field
@@ -278,12 +278,12 @@ class AIConnector {
         return $decoded;
     }
 
-    public function createEmbeddings(string|array $input, array $options = []): mixed {
-        if (empty($this->apiKey)) {
+    public function create_embeddings(string|array $input, array $options = []): mixed {
+        if (empty($this->api_key)) {
             throw new \Exception("API key is required for " . $this->provider);
         }
         
-        $url = $this->getBaseUrl() . 'embeddings';
+        $url = $this->get_base_url() . 'embeddings';
         
         // Ensure input is properly formatted
         if (is_string($input)) {
@@ -297,10 +297,10 @@ class AIConnector {
         
         $headers = [
             'Content-Type: application/json',
-            'Authorization: Bearer ' . $this->apiKey
+            'Authorization: Bearer ' . $this->api_key
         ];
         
-        $response = $this->makeRequest($url, $payload, $headers, $options);
+        $response = $this->make_request($url, $payload, $headers, $options);
         
         return $response;
     }
@@ -311,7 +311,7 @@ class AIConnector {
             ['role' => 'user', 'content' => $prompt]
         ];
         
-        $response = $this->chatCompletion($messages, $options);
+        $response = $this->chat_completion($messages, $options);
         
         // Extract just the generated text
         if (isset($response->choices[0]->message->content)) {
@@ -322,7 +322,7 @@ class AIConnector {
     }
 }
 
-function ai_connector(?string $apiKey = null, string $provider = AIConnector::PROVIDER_OPENAI): AIConnector {
-    return AIConnector::instance($apiKey, $provider);
+function ai_connector(?string $api_key = null, string $provider = AIConnector::PROVIDER_OPENAI): AIConnector {
+    return AIConnector::instance($api_key, $provider);
 }
 

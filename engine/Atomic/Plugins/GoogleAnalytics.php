@@ -10,7 +10,7 @@ class GoogleAnalytics extends Plugin
 {
     protected array $dependencies = ['Google']; 
     
-    protected function getName(): string
+    protected function get_name(): string
     {
         return 'GoogleAnalytics';
     }

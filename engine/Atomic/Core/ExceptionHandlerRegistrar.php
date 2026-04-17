@@ -33,7 +33,7 @@ class ExceptionHandlerRegistrar
 
                 $textTrace = '';
                 try {
-                    $textTrace = ErrorHandler::instance()->formatTrace($code, $text, $trace);
+                    $textTrace = ErrorHandler::instance()->format_trace($code, $text, $trace);
                     $atomic->set('ERROR.formatted_trace', $textTrace);
                 } catch (\Throwable $e) {
                     $detail = $prevDebug > 0
@@ -94,7 +94,7 @@ class ExceptionHandlerRegistrar
 
                     if ($code === 500) {
                         $ctrl = new ErrorController();
-                        Assets::instance()->addInlineStyle('atomic-error', ':root { --primary-color: #f44336; --secondary-color: #d32f2f;}');
+                        Assets::instance()->add_inline_style('atomic-error', ':root { --primary-color: #f44336; --secondary-color: #d32f2f;}');
                         $ctrl->error500($atomic);
                         if ($prevDebug >= 3) $atomic->set('DEBUG', $prevDebug);
                         return;

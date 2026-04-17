@@ -35,103 +35,103 @@ class Upload
         return self::$instance ??= new self();
     }
 
-    public function getUploadPath(): string
+    public function get_upload_path(): string
     {
         return $this->uploadPath;
     }
 
-    public function getSystemUploadPath(): string
+    public function get_system_upload_path(): string
     {
         return $this->uploadSystem;
     }
 
-    public function getUserUploadPath(): string
+    public function get_user_upload_path(): string
     {
         return $this->uploadUser;
     }
 
-    public function generateAccessToken(int|string $id, string $uuid, int $length = 6): string
+    public function generate_access_token(int|string $id, string $uuid, int $length = 6): string
     {
         return ID::generate_access_token($id, $uuid, $length);
     }
 
-    public function verifyAccessToken(string $token, string $uuid): bool
+    public function verify_access_token(string $token, string $uuid): bool
     {
         return ID::verify_access_token($token, $uuid);
     }
 
-    public function storeAccessToken(string $uuid, string $filename, string $token): bool
+    public function store_access_token(string $uuid, string $filename, string $token): bool
     {
         $key = self::META_ACCESS_TOKEN_PREFIX . $filename;
         return Meta::set_meta($uuid, $key, $token);
     }
 
-    public function getStoredAccessToken(string $uuid, string $filename): string|false
+    public function get_stored_access_token(string $uuid, string $filename): string|false
     {
         $key = self::META_ACCESS_TOKEN_PREFIX . $filename;
         return Meta::get_meta($uuid, $key);
     }
 
-    public function createAndStoreAccessToken(int|string $id, string $uuid, string $filename, int $length = 6): string
+    public function create_and_store_access_token(int|string $id, string $uuid, string $filename, int $length = 6): string
     {
-        $token = $this->generateAccessToken($id, $uuid, $length);
-        $this->storeAccessToken($uuid, $filename, $token);
+        $token = $this->generate_access_token($id, $uuid, $length);
+        $this->store_access_token($uuid, $filename, $token);
         return $token;
     }
 
-    public function getOrCreateUserToken(int|string $userId, string $userUuid, int $length = 12): string
+    public function get_or_create_user_token(int|string $user_id, string $user_uuid, int $length = 12): string
     {
-        $metaKey = self::META_USER_TOKEN_PREFIX . $userId;
-        $existingToken = Meta::get_meta($userUuid, $metaKey);
+        $metaKey = self::META_USER_TOKEN_PREFIX . $user_id;
+        $existingToken = Meta::get_meta($user_uuid, $metaKey);
         
         if ($existingToken && is_string($existingToken)) {
             return $existingToken;
         }
         
-        $token = ID::generate_access_token($userId, $userUuid, $length);
-        Meta::set_meta($userUuid, $metaKey, $token);
+        $token = ID::generate_access_token($user_id, $user_uuid, $length);
+        Meta::set_meta($user_uuid, $metaKey, $token);
         
         return $token;
     }
 
-    public function getOrCreateProjectToken(int|string $projectId, string $projectUuid, int $length = 12): string
+    public function get_or_create_project_token(int|string $project_id, string $project_uuid, int $length = 12): string
     {
-        $metaKey = self::META_PROJECT_TOKEN_PREFIX . $projectId;
-        $existingToken = Meta::get_meta($projectUuid, $metaKey);
+        $metaKey = self::META_PROJECT_TOKEN_PREFIX . $project_id;
+        $existingToken = Meta::get_meta($project_uuid, $metaKey);
         
         if ($existingToken && is_string($existingToken)) {
             return $existingToken;
         }
         
-        $token = ID::generate_access_token($projectId, $projectUuid, $length);
-        Meta::set_meta($projectUuid, $metaKey, $token);
+        $token = ID::generate_access_token($project_id, $project_uuid, $length);
+        Meta::set_meta($project_uuid, $metaKey, $token);
         
         return $token;
     }
 
-    public function uploadUserFile(string $userId, string $userUuid, string $projectId, string $projectUuid, array $file): array
+    public function upload_user_file(string $user_id, string $user_uuid, string $project_id, string $project_uuid, array $file): array
     {
-        $userToken = $this->getOrCreateUserToken($userId, $userUuid);
-        $projectToken = $this->getOrCreateProjectToken($projectId, $projectUuid);
+        $userToken = $this->get_or_create_user_token($user_id, $user_uuid);
+        $projectToken = $this->get_or_create_project_token($project_id, $project_uuid);
         
         $userDir = $this->uploadUser . $userToken . DIRECTORY_SEPARATOR;
         $projectDir = $userDir . $projectToken . DIRECTORY_SEPARATOR;
         $srcDir = $projectDir . 'src' . DIRECTORY_SEPARATOR;
         $distDir = $projectDir . 'dist' . DIRECTORY_SEPARATOR;
 
-        if (!is_dir($userDir) && !FS::instance()->makeDir($userDir)) {
+        if (!is_dir($userDir) && !FS::instance()->make_dir($userDir)) {
             return ['ok' => false, 'error' => 'Failed to create user directory'];
         }
 
-        if (!is_dir($projectDir) && !FS::instance()->makeDir($projectDir)) {
+        if (!is_dir($projectDir) && !FS::instance()->make_dir($projectDir)) {
             return ['ok' => false, 'error' => 'Failed to create project directory'];
         }
 
-        if (!is_dir($srcDir) && !FS::instance()->makeDir($srcDir)) {
+        if (!is_dir($srcDir) && !FS::instance()->make_dir($srcDir)) {
             return ['ok' => false, 'error' => 'Failed to create src directory'];
         }
 
-        if (!is_dir($distDir) && !FS::instance()->makeDir($distDir)) {
+        if (!is_dir($distDir) && !FS::instance()->make_dir($distDir)) {
             return ['ok' => false, 'error' => 'Failed to create dist directory'];
         }
 
@@ -140,7 +140,7 @@ class Upload
         }
 
         $originalName = basename($file['name']);
-        $slugName = $this->generateUniqueSlugName($srcDir, $originalName);
+        $slugName = $this->generate_unique_slug_name($srcDir, $originalName);
         $srcPath = $srcDir . $slugName;
 
         if (is_uploaded_file($file['tmp_name'])) {
@@ -153,8 +153,8 @@ class Upload
             }
         }
 
-        $srcUrl = $this->buildPublicUrl($srcPath);
-        $distUrl = $this->buildPublicUrl($distDir . $slugName);
+        $srcUrl = $this->build_public_url($srcPath);
+        $distUrl = $this->build_public_url($distDir . $slugName);
 
         if ($srcUrl === false || $distUrl === false) {
             return ['ok' => false, 'error' => 'Failed to generate public URLs'];
@@ -170,11 +170,11 @@ class Upload
             'dist_path' => $distDir . $slugName,
             'dist_url' => $distUrl,
             'size' => filesize($srcPath),
-            'mime' => $this->getMimeType($srcPath)
+            'mime' => $this->get_mime_type($srcPath)
         ];
     }
 
-    protected function generateUniqueSlugName(string $dir, string $filename): string
+    protected function generate_unique_slug_name(string $dir, string $filename): string
     {
         $pathInfo = pathinfo($filename);
         $extension = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
@@ -192,10 +192,10 @@ class Upload
         return $finalName;
     }
 
-    public function deleteFile(string $userId, string $userUuid, string $projectId, string $projectUuid, string $filename): bool
+    public function delete_file(string $user_id, string $user_uuid, string $project_id, string $project_uuid, string $filename): bool
     {
-        $userToken = $this->getOrCreateUserToken($userId, $userUuid);
-        $projectToken = $this->getOrCreateProjectToken($projectId, $projectUuid);
+        $userToken = $this->get_or_create_user_token($user_id, $user_uuid);
+        $projectToken = $this->get_or_create_project_token($project_id, $project_uuid);
         
         $projectDir = $this->uploadUser . $userToken . DIRECTORY_SEPARATOR . $projectToken . DIRECTORY_SEPARATOR;
         $srcFile = $projectDir . 'src' . DIRECTORY_SEPARATOR . $filename;
@@ -216,10 +216,10 @@ class Upload
         return $srcDeleted && $allDistDeleted;
     }
 
-    public function deleteProjectFiles(string $userId, string $userUuid, string $projectId, string $projectUuid): bool
+    public function delete_project_files(string $user_id, string $user_uuid, string $project_id, string $project_uuid): bool
     {
-        $userToken = $this->getOrCreateUserToken($userId, $userUuid);
-        $projectToken = $this->getOrCreateProjectToken($projectId, $projectUuid);
+        $userToken = $this->get_or_create_user_token($user_id, $user_uuid);
+        $projectToken = $this->get_or_create_project_token($project_id, $project_uuid);
         
         $projectDir = $this->uploadUser . $userToken . DIRECTORY_SEPARATOR . $projectToken . DIRECTORY_SEPARATOR;
         
@@ -228,9 +228,9 @@ class Upload
         }
 
         try {
-            FS::instance()->removeDir($projectDir . 'src', true);
-            FS::instance()->removeDir($projectDir . 'dist', true);
-            FS::instance()->removeDir($projectDir, false);
+            FS::instance()->remove_dir($projectDir . 'src', true);
+            FS::instance()->remove_dir($projectDir . 'dist', true);
+            FS::instance()->remove_dir($projectDir, false);
             return true;
         } catch (\Throwable $e) {
             Log::error('Failed to delete project files: ' . $e->getMessage());
@@ -238,9 +238,9 @@ class Upload
         }
     }
 
-    public function deleteUserFiles(string $userId, string $userUuid): bool
+    public function delete_user_files(string $user_id, string $user_uuid): bool
     {
-        $userToken = $this->getOrCreateUserToken($userId, $userUuid);
+        $userToken = $this->get_or_create_user_token($user_id, $user_uuid);
         
         $userDir = $this->uploadUser . $userToken . DIRECTORY_SEPARATOR;
         
@@ -249,7 +249,7 @@ class Upload
         }
 
         try {
-            FS::instance()->removeDir($userDir, true);
+            FS::instance()->remove_dir($userDir, true);
             return true;
         } catch (\Throwable $e) {
             Log::error('Failed to delete user files: ' . $e->getMessage());
@@ -257,23 +257,23 @@ class Upload
         }
     }
 
-    protected function buildPublicUrl(string $filePath): string|false
+    protected function build_public_url(string $file_path): string|false
     {
         $base = rtrim(str_replace('\\', '/', $this->uploadPath), '/');
-        $file = str_replace('\\', '/', $filePath);
+        $file = str_replace('\\', '/', $file_path);
 
         if (!str_starts_with($file, $base . '/')) {
             return false;
         }
 
         $relative = substr($file, strlen($base) + 1);
-        return rtrim(AT::instance()->getPublicUrl(), '/') . '/uploads/' . $relative;
+        return rtrim(AT::instance()->get_public_url(), '/') . '/uploads/' . $relative;
     }
 
-    public function getFileInfo(string $userId, string $userUuid, string $projectId, string $projectUuid, string $filename, string $variant = 'optimized'): array|false
+    public function get_file_info(string $user_id, string $user_uuid, string $project_id, string $project_uuid, string $filename, string $variant = 'optimized'): array|false
     {
-        $userToken = $this->getOrCreateUserToken($userId, $userUuid);
-        $projectToken = $this->getOrCreateProjectToken($projectId, $projectUuid);
+        $userToken = $this->get_or_create_user_token($user_id, $user_uuid);
+        $projectToken = $this->get_or_create_project_token($project_id, $project_uuid);
         
         $projectDir = realpath($this->uploadUser . $userToken . DIRECTORY_SEPARATOR . $projectToken) . DIRECTORY_SEPARATOR;
         $srcFile = $projectDir . 'src' . DIRECTORY_SEPARATOR . $filename;
@@ -283,9 +283,9 @@ class Upload
             return false;
         }
 
-        $srcUrl = $this->buildPublicUrl($srcFile);
+        $srcUrl = $this->build_public_url($srcFile);
         $dist_exists = file_exists($distFile);
-        $distUrl = $dist_exists ? $this->buildPublicUrl($distFile) : null;
+        $distUrl = $dist_exists ? $this->build_public_url($distFile) : null;
 
         if ($srcUrl === false) {
             return false;
@@ -300,16 +300,16 @@ class Upload
             'dist_url' => $distUrl,
             'dist_exists' => $dist_exists,
             'size' => filesize($srcFile),
-            'mime' => $this->getMimeType($srcFile)
+            'mime' => $this->get_mime_type($srcFile)
         ];
     }
 
-    protected function getMimeType(string $file): string
+    protected function get_mime_type(string $file): string
     {
         return \Web::instance()->mime($file, true);
     }
 
-    public function downloadImageFromUrl(string $url, string $destinationDir, string $defaultFilename = 'image.jpg'): array
+    public function download_image_from_url(string $url, string $destination_dir, string $default_filename = 'image.jpg'): array
     {
         $imageData = @file_get_contents($url);
         if ($imageData === false) {
@@ -330,55 +330,55 @@ class Upload
         $originalName = basename($urlPath);
         
         if (empty($originalName)) {
-            $originalName = $defaultFilename;
+            $originalName = $default_filename;
         }
 
-        if (!is_dir($destinationDir) && !FS::instance()->makeDir($destinationDir)) {
+        if (!is_dir($destination_dir) && !FS::instance()->make_dir($destination_dir)) {
             FS::instance()->delete($tmpFile);
             return ['ok' => false, 'error' => 'Failed to create destination directory'];
         }
 
-        $slugName = $this->generateUniqueSlugName($destinationDir, $originalName);
-        $filePath = $destinationDir . $slugName;
+        $slugName = $this->generate_unique_slug_name($destination_dir, $originalName);
+        $file_path = $destination_dir . $slugName;
 
-        if (!FS::instance()->copy($tmpFile, $filePath)) {
+        if (!FS::instance()->copy($tmpFile, $file_path)) {
             FS::instance()->delete($tmpFile);
             return ['ok' => false, 'error' => 'Failed to save file'];
         }
 
         FS::instance()->delete($tmpFile);
 
-        $fileUrl = $this->buildPublicUrl($filePath);
+        $fileUrl = $this->build_public_url($file_path);
 
         if ($fileUrl === false) {
-            FS::instance()->delete($filePath);
+            FS::instance()->delete($file_path);
             return ['ok' => false, 'error' => 'Failed to generate public URL'];
         }
 
         return [
             'ok' => true,
             'filename' => $slugName,
-            'src_path' => $filePath,
+            'src_path' => $file_path,
             'url' => $fileUrl,
-            'size' => filesize($filePath),
-            'mime' => $this->getMimeType($filePath)
+            'size' => filesize($file_path),
+            'mime' => $this->get_mime_type($file_path)
         ];
     }
 
-    public function downloadUserImage(string $userId, string $userUuid, string $projectId, string $projectUuid, string $url, string $defaultFilename = 'image.jpg'): array
+    public function download_user_image(string $user_id, string $user_uuid, string $project_id, string $project_uuid, string $url, string $default_filename = 'image.jpg'): array
     {
-        $userToken = $this->getOrCreateUserToken($userId, $userUuid);
-        $projectToken = $this->getOrCreateProjectToken($projectId, $projectUuid);
+        $userToken = $this->get_or_create_user_token($user_id, $user_uuid);
+        $projectToken = $this->get_or_create_project_token($project_id, $project_uuid);
         $userDir = $this->uploadUser . $userToken . DIRECTORY_SEPARATOR;
         $projectDir = $userDir . $projectToken . DIRECTORY_SEPARATOR;
         $srcDir = $projectDir . 'src' . DIRECTORY_SEPARATOR;
 
-        $result = $this->downloadImageFromUrl($url, $srcDir, $defaultFilename);
+        $result = $this->download_image_from_url($url, $srcDir, $default_filename);
         
         return $result;
     }
 
-    public function downloadSystemFile(string $filename): array
+    public function download_system_file(string $filename): array
     {
         $systemFile = $this->uploadSystem . $filename;
         
@@ -417,7 +417,7 @@ class Upload
             'ok' => true,
             'path' => $realPath,
             'filename' => basename($systemFile),
-            'mime' => $this->getMimeType($realPath),
+            'mime' => $this->get_mime_type($realPath),
             'size' => filesize($realPath)
         ];
     }

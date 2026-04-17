@@ -26,28 +26,28 @@ class Payment extends Model
     protected $table = 'payments';
     protected $db = 'DB';
 
-    protected static function tariffModel(): ?string { return null; }
-    protected static function storeModel(): ?string { return null; }
-    protected static function userModel(): ?string { return null; }
+    protected static function tariff_model(): ?string { return null; }
+    protected static function store_model(): ?string { return null; }
+    protected static function user_model(): ?string { return null; }
 
     public function __construct()
     {
-        $tariffModel = static::tariffModel();
-        if ($tariffModel !== null) {
+        $tariff_model = static::tariff_model();
+        if ($tariff_model !== null) {
             $this->fieldConf['tariff']['relType'] = 'belongs-to-one';
-            $this->fieldConf['tariff']['belongs-to-one'] = $tariffModel;
+            $this->fieldConf['tariff']['belongs-to-one'] = $tariff_model;
         }
 
-        $storeModel = static::storeModel();
-        if ($storeModel !== null) {
+        $store_model = static::store_model();
+        if ($store_model !== null) {
             $this->fieldConf['store']['relType'] = 'belongs-to-one';
-            $this->fieldConf['store']['belongs-to-one'] = $storeModel;
+            $this->fieldConf['store']['belongs-to-one'] = $store_model;
         }
 
-        $userModel = static::userModel();
-        if ($userModel !== null) {
+        $user_model = static::user_model();
+        if ($user_model !== null) {
             $this->fieldConf['user']['relType'] = 'belongs-to-one';
-            $this->fieldConf['user']['belongs-to-one'] = $userModel;
+            $this->fieldConf['user']['belongs-to-one'] = $user_model;
         }
 
         parent::__construct();
@@ -462,4 +462,3 @@ class Payment extends Model
         ];
     }
 }
-

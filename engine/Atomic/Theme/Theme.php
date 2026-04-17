@@ -18,22 +18,22 @@ class Theme
     protected string $themeUI;
     protected string $themeDir;
     protected string $themeUrl;
-    protected string $themeName;
+    protected string $theme_name;
     protected string $themeCore;
     protected string $themeData;
     protected string $publicUrl;
     protected string $publicDir;
     protected ?array $themeMeta = null;
 
-    private function __construct(?string $themeName = null)
+    private function __construct(?string $theme_name = null)
     {
         $this->atomic    = App::instance();
         // Read UI from config
         $this->themeUI  = rtrim((string)$this->atomic->get('ENQ_UI_FIX'), '/');
         // Theme name from param or config
-        $this->themeName = $themeName ?: (string)$this->atomic->get('THEME.envname', 'default');
+        $this->theme_name = $theme_name ?: (string)$this->atomic->get('THEME.envname', 'default');
         // Set UI path to specific theme
-        $this->atomic->set('UI',  $this->themeUI . DIRECTORY_SEPARATOR . $this->themeName . DIRECTORY_SEPARATOR);
+        $this->atomic->set('UI',  $this->themeUI . DIRECTORY_SEPARATOR . $this->theme_name . DIRECTORY_SEPARATOR);
         // Update local themeDir
         $this->themeDir  = (string)$this->atomic->get('UI');
         if (!is_dir($this->themeDir)) {
@@ -43,16 +43,16 @@ class Theme
         $this->themeCore = $this->themeDir . 'functions.atom.php';
         // Theme data file path
         $this->themeData = $this->themeDir . 'theme.json';
-        $this->themeUrl  = AM::instance()->get_publicUrl() . 'themes/' ;
+        $this->themeUrl  = AM::instance()->get_public_url() . 'themes/' ;
         // Initialize public paths
-        $this->publicUrl = AM::instance()->get_publicUrl();
-        $this->publicDir = AM::instance()->get_publicDir();
+        $this->publicUrl = AM::instance()->get_public_url();
+        $this->publicDir = AM::instance()->get_public_dir();
     }
 
-    public static function instance(?string $themeName = null): self
+    public static function instance(?string $theme_name = null): self
     {
-        if ($themeName !== null) {
-            self::$instance = new self($themeName);
+        if ($theme_name !== null) {
+            self::$instance = new self($theme_name);
             self::$instance->run();
             return self::$instance;
         }
@@ -71,7 +71,7 @@ class Theme
     public function include(string $file): bool
     {
         $file = (string)$file;
-        $fullPath = FS::instance()->isAbsolutePath($file) ? $file : rtrim($this->themeDir, '/\\') . DIRECTORY_SEPARATOR . ltrim($file, '/\\');
+        $fullPath = FS::instance()->is_absolute_path($file) ? $file : rtrim($this->themeDir, '/\\') . DIRECTORY_SEPARATOR . ltrim($file, '/\\');
 
         $realFile = realpath($fullPath);
         if ($realFile === false) {
@@ -122,7 +122,7 @@ class Theme
         $meta['_file']  = $file;
         $meta['_dir']   = $this->themeDir ?? null;
         $meta['_url']   = $this->themeUrl ?? null;
-        $meta['_theme'] = $this->themeName ?? null;
+        $meta['_theme'] = $this->theme_name ?? null;
 
         $this->themeMeta = $meta;
 
@@ -162,7 +162,7 @@ class Theme
         echo \View::instance()->render('partials/head.atom.php', 'text/html', $vars);
     }
 
-    public static function get_customHead(?array $vars = null): void {
+    public static function get_custom_head(?array $vars = null): void {
         $path = 'partials/head.custom.atom.php';
         $fullPath = App::instance()->get('UI') . $path;
         if (!is_file($fullPath)) {
@@ -171,37 +171,37 @@ class Theme
         echo \View::instance()->render($path, 'text/html', $vars);
     }
    
-    public function getThemeMeta(): array
+    public function get_theme_meta(): array
     {
         return $this->themeMeta ?? [];
     }
 
-    public function getThemeDir(): string
+    public function get_theme_dir(): string
     {
         return $this->themeDir;
     }
 
-    public function getThemeUrl(): string
+    public function get_theme_url(): string
     {
-        return $this->themeUrl . $this->themeName;
+        return $this->themeUrl . $this->theme_name;
     }
 
-    public function getThemeName(): string
+    public function get_theme_name(): string
     {
-        return $this->themeName;
+        return $this->theme_name;
     }
 
-    public function getPublicUrl(): string
+    public function get_public_url(): string
     {
         return $this->publicUrl;
     }
 
-    public function getPublicDir(): string
+    public function get_public_dir(): string
     {
         return $this->publicDir;
     }
 
-    public function getThemeColor(): string
+    public function get_theme_color(): string
     {
         if (isset($this->themeMeta) && is_array($this->themeMeta) && array_key_exists('color', $this->themeMeta)) {
             return (string)$this->themeMeta['color'];
@@ -210,7 +210,7 @@ class Theme
         }
     }
 
-    public function setThemeColor(string $color = '#ffffff'): string
+    public function set_theme_color(string $color = '#ffffff'): string
     {
         $pageColor = $this->atomic->get('PAGE.color');
         if (!empty($pageColor)) {

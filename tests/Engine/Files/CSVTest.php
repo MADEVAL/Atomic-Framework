@@ -35,7 +35,7 @@ class CSVTest extends TestCase
 
     public function test_parse_csv_file_not_found(): void
     {
-        $result = @$this->csv->parseCSV('/nonexistent/file.csv');
+        $result = @$this->csv->parse_csv('/nonexistent/file.csv');
         $this->assertFalse($result);
     }
 
@@ -45,7 +45,7 @@ class CSVTest extends TestCase
         // Each line MUST have a trailing delimiter for the framework's regex to match
         file_put_contents($file, "name;age;\nJohn;30;\nJane;25;\n");
 
-        $result = @$this->csv->parseCSV($file, ';');
+        $result = @$this->csv->parse_csv($file, ';');
         $this->assertIsArray($result);
         $this->assertNotEmpty($result);
     }
@@ -58,7 +58,7 @@ class CSVTest extends TestCase
             ['Jane', '25', 'LA'],
         ];
 
-        $result = $this->csv->applyHeader($rows);
+        $result = $this->csv->apply_header($rows);
         $this->assertCount(2, $result);
         $this->assertSame('John', $result[0]['name']);
         $this->assertSame('30', $result[0]['age']);
@@ -73,7 +73,7 @@ class CSVTest extends TestCase
             ['Jane', '25'],
         ];
 
-        $result = $this->csv->applyHeader($rows, ['name', 'age']);
+        $result = $this->csv->apply_header($rows, ['name', 'age']);
         $this->assertCount(2, $result);
         $this->assertSame('John', $result[0]['name']);
         $this->assertSame('30', $result[0]['age']);
@@ -87,7 +87,7 @@ class CSVTest extends TestCase
         ];
         $headers = ['name' => 'Name', 'age' => 'Age'];
 
-        $result = $this->csv->dumpXLS($rows, $headers);
+        $result = $this->csv->dump_xls($rows, $headers);
         $this->assertNotEmpty($result);
         $this->assertIsString($result);
         // XLS BOF marker
@@ -102,7 +102,7 @@ class CSVTest extends TestCase
         // Numeric-keyed headers get auto-ucfirst
         $headers = ['col1', 'col2'];
 
-        $result = $this->csv->dumpXLS($rows, $headers);
+        $result = $this->csv->dump_xls($rows, $headers);
         $this->assertIsString($result);
         $this->assertNotEmpty($result);
     }
@@ -115,7 +115,7 @@ class CSVTest extends TestCase
         ];
         $headers = ['name' => 'Name', 'city' => 'City'];
 
-        $result = $this->csv->dumpCSV($rows, $headers);
+        $result = $this->csv->dump_csv($rows, $headers);
         $this->assertIsString($result);
         $this->assertStringContainsString('Name', $result);
         $this->assertStringContainsString('John', $result);

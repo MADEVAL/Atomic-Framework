@@ -20,7 +20,7 @@ final class MailerUtils
         $this->atomic = App::instance();
     }
 
-    public function checkSPF(string $domain): array
+    public function check_spf(string $domain): array
     {
         $result = ['exists' => false, 'record' => '', 'valid' => false];
 
@@ -39,7 +39,7 @@ final class MailerUtils
         return $result;
     }
 
-    public function checkDKIM(string $domain, string $selector): array
+    public function check_dkim(string $domain, string $selector): array
     {
         $result = ['exists' => false, 'record' => '', 'valid' => false];
 
@@ -59,7 +59,7 @@ final class MailerUtils
         return $result;
     }
 
-    public function checkDMARC(string $domain): array
+    public function check_dmarc(string $domain): array
     {
         $result = ['exists' => false, 'record' => '', 'valid' => false, 'policy' => ''];
 
@@ -83,10 +83,10 @@ final class MailerUtils
         return $result;
     }
 
-    public function analyzeDeliverability(string $domain, string $selector = ''): array
+    public function analyze_deliverability(string $domain, string $selector = ''): array
     {
-        $spf = $this->checkSPF($domain);
-        $dmarc = $this->checkDMARC($domain);
+        $spf = $this->check_spf($domain);
+        $dmarc = $this->check_dmarc($domain);
 
         $result = [
             'spf' => $spf,
@@ -96,7 +96,7 @@ final class MailerUtils
         ];
 
         if ($selector) {
-            $result['dkim'] = $this->checkDKIM($domain, $selector);
+            $result['dkim'] = $this->check_dkim($domain, $selector);
         }
 
         $score = 0;

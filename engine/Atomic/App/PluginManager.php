@@ -25,14 +25,14 @@ class PluginManager
         return self::$instance ??= new self();
     }
 
-    protected function getAtomic(): App
+    protected function get_atomic(): App
     {
         return $this->atomic ??= App::instance();
     }
 
     public function register(Plugin $plugin): void
     {
-        $name = $plugin->getPluginName();
+        $name = $plugin->get_plugin_name();
         
         if (isset($this->plugins[$name])) {
             //Log::warning("Plugin {$name} already registered");
@@ -42,18 +42,18 @@ class PluginManager
         $this->plugins[$name] = $plugin;
     }
 
-    public function registerAll(): void
+    public function register_all(): void
     {
         foreach ($this->plugins as $name => $plugin) {
             if (isset($this->registered[$name])) continue;
             
-            if (!$plugin->isEnabled()) {
+            if (!$plugin->is_enabled()) {
                 //Log::debug("Plugin {$name} disabled");
                 continue;
             }
 
             try {
-                $this->checkDependencies($plugin);
+                $this->check_dependencies($plugin);
                 $plugin->register();
                 $this->registered[$name] = true;
             } catch (\Throwable $e) {
@@ -62,7 +62,7 @@ class PluginManager
         }
     }
 
-    public function bootAll(): void
+    public function boot_all(): void
     {
         foreach ($this->registered as $name => $_) {
             if (isset($this->booted[$name])) continue;
@@ -75,18 +75,18 @@ class PluginManager
             }
         }
 
-        $this->loadPluginRoutes();
+        $this->load_plugin_routes();
     }
 
-    protected function loadPluginRoutes(): void
+    protected function load_plugin_routes(): void
     {
         $atomic = App::instance();
         $routeLoader = RouteLoader::instance();
-        $fileNames = $routeLoader->getFilenamesFor($atomic->detectRequestType());
+        $fileNames = $routeLoader->get_filenames_for($atomic->detect_request_type());
 
         foreach ($this->booted as $name => $_) {
             $plugin = $this->plugins[$name];
-            $routesDir = $plugin->getPluginPath() . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR;
+            $routesDir = $plugin->get_plugin_path() . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR;
 
             foreach ($fileNames as $fileName) {
                 $file = $routesDir . $fileName;
@@ -102,9 +102,9 @@ class PluginManager
         }
     }
 
-    public function loadUserPlugins(): void
+    public function load_user_plugins(): void
     {
-        $pluginsPath = rtrim((string)$this->getAtomic()->get('USER_PLUGINS'), '/\\') . DIRECTORY_SEPARATOR;
+        $pluginsPath = rtrim((string)$this->get_atomic()->get('USER_PLUGINS'), '/\\') . DIRECTORY_SEPARATOR;
         $resolvedPluginsPath = realpath($pluginsPath);
         
         if ($resolvedPluginsPath === false || !is_dir($resolvedPluginsPath)) {
@@ -133,12 +133,12 @@ class PluginManager
         }
     }
 
-    protected function checkDependencies(Plugin $plugin): void
+    protected function check_dependencies(Plugin $plugin): void
     {
-        $deps = $plugin->getDependencies();
+        $deps = $plugin->get_dependencies();
         foreach ($deps as $dep) {
-            if (!isset($this->plugins[$dep]) || !$this->plugins[$dep]->isEnabled()) {
-                throw new \RuntimeException("Plugin {$plugin->getPluginName()} requires {$dep}");
+            if (!isset($this->plugins[$dep]) || !$this->plugins[$dep]->is_enabled()) {
+                throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} requires {$dep}");
             }
         }
     }
@@ -162,7 +162,7 @@ class PluginManager
     {
         if (!isset($this->plugins[$name])) return false;
         
-        $this->plugins[$name]->setEnabled(true);
+        $this->plugins[$name]->set_enabled(true);
         $this->plugins[$name]->activate();
         return true;
     }
@@ -172,7 +172,7 @@ class PluginManager
         if (!isset($this->plugins[$name])) return false;
         
         $this->plugins[$name]->deactivate();
-        $this->plugins[$name]->setEnabled(false);
+        $this->plugins[$name]->set_enabled(false);
         unset($this->registered[$name], $this->booted[$name]);
         return true;
     }

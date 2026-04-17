@@ -189,7 +189,7 @@ class XLS {
         $this->mini_fat_sector_count = unpack('V', substr($this->ole_header, 64, 4))[1];
     }
 
-    private function safe_unpack_V(string $data, int $offset): ?int
+    private function safe_unpack_v(string $data, int $offset): ?int
     {
         if (strlen($data) < $offset + 4) {
             return null;
@@ -207,7 +207,7 @@ class XLS {
         
         $pos = 76; 
         for ($i = 0; $i < min($this->fat_sectors_count, 109); $i++) {
-            $fat_sector = $this->safe_unpack_V($this->ole_header, $pos);
+            $fat_sector = $this->safe_unpack_v($this->ole_header, $pos);
             if ($fat_sector === null) break;
             if ($fat_sector != self::FAT_END_MARK && $fat_sector != 0xFFFFFFFF) {
                 $this->load_fat_sector($fat, $fat_sector);
@@ -215,8 +215,8 @@ class XLS {
             $pos += 4;
         }
 
-        $num_extension_blocks = $this->safe_unpack_V($this->ole_header, 72) ?? 0;
-        $extension_block_start = $this->safe_unpack_V($this->ole_header, 68) ?? self::FAT_END_MARK;
+        $num_extension_blocks = $this->safe_unpack_v($this->ole_header, 72) ?? 0;
+        $extension_block_start = $this->safe_unpack_v($this->ole_header, 68) ?? self::FAT_END_MARK;
 
         if ($num_extension_blocks > 0 && $extension_block_start != self::FAT_END_MARK) {
             $current_block = $extension_block_start;
@@ -238,13 +238,13 @@ class XLS {
                     $offset = $j * 4;
                     if ($offset + 4 > $data_len) break;
                     
-                    $fat_sector = $this->safe_unpack_V($difat_data, $offset);
+                    $fat_sector = $this->safe_unpack_v($difat_data, $offset);
                     if ($fat_sector === null || $fat_sector == self::FAT_END_MARK || $fat_sector == 0xFFFFFFFF) break; 
                     $this->load_fat_sector($fat, $fat_sector);
                 }
                 
                 $next_offset = $limit * 4;
-                $current_block = $this->safe_unpack_V($difat_data, $next_offset) ?? self::FAT_END_MARK;
+                $current_block = $this->safe_unpack_v($difat_data, $next_offset) ?? self::FAT_END_MARK;
             }
         }
         return $fat;

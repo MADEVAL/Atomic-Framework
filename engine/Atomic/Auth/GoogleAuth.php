@@ -36,18 +36,18 @@ class GoogleAuth extends \Prefab
         return $this;
     }
 
-    public function getLoginUrl(): string
+    public function get_login_url(): string
     {
-        return $this->service()->getLoginUrl();
+        return $this->service()->get_login_url();
     }
 
-    public function handleCallback(string $code, ?string $state = null): ?string
+    public function handle_callback(string $code, ?string $state = null): ?string
     {
-        return $this->service()->handleCallback($code, $state);
+        return $this->service()->handle_callback($code, $state);
     }
 
-    public function isConfigured(): bool
+    public function is_configured(): bool
     {
-        return $this->service()->isConfigured();
+        return $this->service()->is_configured();
     }
 }

@@ -54,7 +54,7 @@ final class Assets
         $this->atomic = App::instance();
     }
 
-    public function enqueuePreset(string $name): void
+    public function enqueue_preset(string $name): void
     {
         $name = strtolower($name);
         if (!isset(self::PRESETS[$name])) return;
@@ -63,28 +63,28 @@ final class Assets
         $deps = $preset['deps'] ?? [];
 
         foreach ($deps as $dep) {
-            $this->enqueuePreset($dep);
+            $this->enqueue_preset($dep);
         }
 
         if (isset($preset['css'])) {
-            $this->enqueueStyle($name, $preset['css']);
+            $this->enqueue_style($name, $preset['css']);
         }
 
         if (isset($preset['js'])) {
-            $inFooter = $preset['footer'] ?? true;
-            $this->enqueueScript($name, $preset['js'], $deps, null, $inFooter);
+            $in_footer = $preset['footer'] ?? true;
+            $this->enqueue_script($name, $preset['js'], $deps, null, $in_footer);
         }
     }
 
-    public function enqueueFont(string $font): void
+    public function enqueue_font(string $font): void
     {
         $handle = 'google-font-' . sanitize_key($font);
         $family = str_replace(' ', '+', $font);
         $url = "https://fonts.googleapis.com/css2?family={$family}:wght@300;400;500;600;700&display=swap";
-        $this->enqueueStyle($handle, $url);
+        $this->enqueue_style($handle, $url);
     }
 
-    public function enqueueStyle(
+    public function enqueue_style(
         string $handle,
         string $src,
         array $deps = [],
@@ -100,12 +100,12 @@ final class Assets
         ];
     }
 
-    public function enqueueScript(
+    public function enqueue_script(
         string $handle,
         string $src,
         array $deps = [],
         ?string $version = null,
-        bool $inFooter = true,
+        bool $in_footer = true,
         array $attrs = []         // ['defer'=>true,'type'=>'module']
     ): void {
         if (in_array($handle, $this->loaded['scripts'], true)) return;
@@ -113,42 +113,42 @@ final class Assets
             'src'      => $src,
             'deps'     => array_values(array_unique($deps)),
             'version'  => $version,
-            'inFooter' => $inFooter,
+            'inFooter' => $in_footer,
             'attrs'    => $attrs,
         ];
     }
 
-    public function setScriptAttrs(string $handle, array $attrs): void
+    public function set_script_attrs(string $handle, array $attrs): void
     {
         if (!isset($this->scripts[$handle])) return;
         $this->scripts[$handle]['attrs'] = array_merge($this->scripts[$handle]['attrs'] ?? [], $attrs);
     }
 
-    public function localizeScript(string $handle, array $data, ?string $varName = null): void
+    public function localize_script(string $handle, array $data, ?string $var_name = null): void
     {
-        $var = $this->normalizeVarName($varName ?: ($handle.'Data'));
+        $var = $this->normalize_var_name($var_name ?: ($handle.'Data'));
         $this->localize[$handle] = ['var' => $var, 'data' => $data];
     }
 
-    public function addInlineStyle(string $handle, string $css): void
+    public function add_inline_style(string $handle, string $css): void
     {
         $this->inlineStyles[$handle][] = $css;
     }
 
-    public function addInlineScript(string $handle, string $js, string $position = 'footer'): void
+    public function add_inline_script(string $handle, string $js, string $position = 'footer'): void
     {
         $pos = ($position === 'header') ? 'header' : 'footer';
         $this->inlineScripts[$pos][$handle][] = $js;
     }
 
-    public function dequeueStyle(string $handle): void
+    public function dequeue_style(string $handle): void
     {
         unset($this->styles[$handle]);
         $this->loaded['styles'] = array_values(array_filter($this->loaded['styles'], fn($h) => $h !== $handle));
         unset($this->inlineStyles[$handle]);
     }
 
-    public function dequeueScript(string $handle): void
+    public function dequeue_script(string $handle): void
     {
         unset($this->scripts[$handle]);
         $this->loaded['scripts'] = array_values(array_filter($this->loaded['scripts'], fn($h) => $h !== $handle));
@@ -156,23 +156,23 @@ final class Assets
         unset($this->inlineScripts['header'][$handle], $this->inlineScripts['footer'][$handle]);
     }
 
-    public function printStyles(): void
+    public function print_styles(): void
     {
         $visited = [];
         foreach (array_keys($this->styles) as $handle) {
-            $this->printStyleRecursive($handle, $visited);
+            $this->print_style_recursive($handle, $visited);
         }
     }
 
-    public function printScripts(bool $inFooter = true): void
+    public function print_scripts(bool $in_footer = true): void
     {
         $visited = [];
         foreach ($this->scripts as $handle => $_) {
-            $this->printScriptRecursive($handle, $inFooter, $visited);
+            $this->print_script_recursive($handle, $in_footer, $visited);
         }
     }
 
-    private function printStyleRecursive(string $handle, array &$visited): void
+    private function print_style_recursive(string $handle, array &$visited): void
     {
         if (!isset($this->styles[$handle])) return;
         if (in_array($handle, $this->loaded['styles'], true)) return;
@@ -181,12 +181,12 @@ final class Assets
         $visited[$handle] = true;
 
         foreach ($this->styles[$handle]['deps'] as $dep) {
-            $this->printStyleRecursive($dep, $visited);
+            $this->print_style_recursive($dep, $visited);
         }
 
         $style = $this->styles[$handle];
-        $href  = $this->resolveSrc($style['src']);
-        $ver   = $this->buildVersionParam($style['version'], $href);
+        $href  = $this->resolve_src($style['src']);
+        $ver   = $this->build_version_param($style['version'], $href);
         $media = htmlspecialchars($style['media'], ENT_QUOTES);
 
         echo '<link rel="stylesheet" href="' . htmlspecialchars($href . $ver, ENT_QUOTES) . '" media="' . $media . '">' . PHP_EOL;
@@ -198,63 +198,63 @@ final class Assets
         $this->loaded['styles'][] = $handle;
     }
 
-    private function printScriptRecursive(string $handle, bool $inFooter, array &$visited): void
+    private function print_script_recursive(string $handle, bool $in_footer, array &$visited): void
     {
         if (!isset($this->scripts[$handle])) return;
         if (in_array($handle, $this->loaded['scripts'], true)) return;
-        if ($this->scripts[$handle]['inFooter'] !== $inFooter) return;
+        if ($this->scripts[$handle]['inFooter'] !== $in_footer) return;
 
         if (isset($visited[$handle])) return; 
         $visited[$handle] = true;
 
         foreach ($this->scripts[$handle]['deps'] as $dep) {
-            $this->printScriptRecursive($dep, $inFooter, $visited);
+            $this->print_script_recursive($dep, $in_footer, $visited);
         }
         $script = $this->scripts[$handle];
-        $src    = $this->resolveSrc($script['src']);
-        $ver    = $this->buildVersionParam($script['version'], $src);
+        $src    = $this->resolve_src($script['src']);
+        $ver    = $this->build_version_param($script['version'], $src);
 
         if (isset($this->localize[$handle])) {
             $payload = json_encode($this->localize[$handle]['data'], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-            $varName = $this->localize[$handle]['var'];
+            $var_name = $this->localize[$handle]['var'];
             if ($payload !== false) {
-                echo '<script>(function(w){w['.json_encode($varName).']='.$payload.';})(window);</script>'."\n";
+                echo '<script>(function(w){w['.json_encode($var_name).']='.$payload.';})(window);</script>'."\n";
             }
         }
 
-        if ($inFooter === false && !empty($this->inlineScripts['header'][$handle])) {
+        if ($in_footer === false && !empty($this->inlineScripts['header'][$handle])) {
             echo "<script>\n" . implode("\n", $this->inlineScripts['header'][$handle]) . "\n</script>\n";
         }
-        $attrsHtml = $this->buildScriptAttrsHtml($script['attrs'] ?? []);
+        $attrsHtml = $this->build_script_attrs_html($script['attrs'] ?? []);
         echo '<script src="' . htmlspecialchars($src . $ver, ENT_QUOTES) . '"' . $attrsHtml . '></script>' . PHP_EOL;
-        if ($inFooter === true && !empty($this->inlineScripts['footer'][$handle])) {
+        if ($in_footer === true && !empty($this->inlineScripts['footer'][$handle])) {
             echo "<script>\n" . implode("\n", $this->inlineScripts['footer'][$handle]) . "\n</script>\n";
         }
 
         $this->loaded['scripts'][] = $handle;
     }
 
-    private function resolveSrc(string $src): string
+    private function resolve_src(string $src): string
     {
         if (preg_match('~^(?:https?:)?//~i', $src)) return $src;
         if ($src !== '' && $src[0] === '~') {
-            $base = Theme::instance()->getThemeUrl();  
+            $base = Theme::instance()->get_theme_url();  
             return rtrim($base, '/') . '/' . ltrim(substr($src, 1), '/');
         }
         if ($src !== '' && $src[0] === '/') {
             $base = rtrim((string)$this->atomic->get('BASE'), '/');
             return $base . $src;
         }
-        $base = Theme::instance()->getThemeUrl();
+        $base = Theme::instance()->get_theme_url();
         return rtrim($base, '/') . '/' . ltrim($src, '/');
     }
 
-    private function buildVersionParam(?string $version, string $resolvedUrl): string
+    private function build_version_param(?string $version, string $resolved_url): string
     {
         if ($version !== null && $version !== '') {
             return '?ver=' . rawurlencode($version);
         }
-        $path = parse_url($resolvedUrl, PHP_URL_PATH) ?: '';
+        $path = parse_url($resolved_url, PHP_URL_PATH) ?: '';
         $root = rtrim((string)$this->atomic->get('ROOT'), '/');
         $full = $root . '/' . ltrim($path, '/');
         if (is_file($full)) {
@@ -264,7 +264,7 @@ final class Assets
         return '';
     }
 
-    private function buildScriptAttrsHtml(array $attrs): string
+    private function build_script_attrs_html(array $attrs): string
     {
         if (!$attrs) return '';
         $out = '';
@@ -283,7 +283,7 @@ final class Assets
         return $out;
     }
 
-    private function normalizeVarName(string $name): string
+    private function normalize_var_name(string $name): string
     {
         $name = preg_replace('/[^A-Za-z0-9_]/', '_', $name);
         if (!preg_match('/^[A-Za-z_]/', $name)) $name = '_'.$name;

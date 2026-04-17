@@ -28,7 +28,7 @@ final class ImageThumbnail
         }
 
         $destDir = dirname($destination);
-        if (!is_dir($destDir) && !Filesystem::instance()->makeDir($destDir, 0755, true)) {
+        if (!is_dir($destDir) && !Filesystem::instance()->make_dir($destDir, 0755, true)) {
             $telemetry->push_telemetry("ImageThumbnail: Cannot create destination directory: {$destDir}");
             return false;
         }
@@ -43,11 +43,11 @@ final class ImageThumbnail
         $telemetry->push_telemetry("ImageThumbnail: Processing {$mode} {$mimeType} from {$source}");
 
         $result = match($mimeType) {
-            'image/jpeg' => $this->jpegThumbnail($source, $destination, $mode, $telemetry),
-            'image/png' => $this->pngThumbnail($source, $destination, $mode, $telemetry),
-            'image/webp' => $this->webpThumbnail($source, $destination, $mode, $telemetry),
-            'image/avif' => $this->avifThumbnail($source, $destination, $mode, $telemetry),
-            'image/svg+xml' => $this->svgThumbnail($source, $destination, $mode, $telemetry),
+            'image/jpeg' => $this->jpeg_thumbnail($source, $destination, $mode, $telemetry),
+            'image/png' => $this->png_thumbnail($source, $destination, $mode, $telemetry),
+            'image/webp' => $this->webp_thumbnail($source, $destination, $mode, $telemetry),
+            'image/avif' => $this->avif_thumbnail($source, $destination, $mode, $telemetry),
+            'image/svg+xml' => $this->svg_thumbnail($source, $destination, $mode, $telemetry),
             default => false
         };
 
@@ -60,7 +60,7 @@ final class ImageThumbnail
         return $result;
     }
 
-    public function jpegThumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
+    public function jpeg_thumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
     {
         $quality = \defined('ATOMIC_THUMBNAIL_QUALITY') ? (int)\ATOMIC_THUMBNAIL_QUALITY : 85;
         $quality = max(0, min(100, $quality));
@@ -68,7 +68,7 @@ final class ImageThumbnail
         if (extension_loaded('imagick')) {
             try {
                 $imagick = new \Imagick($source);
-                $this->processImageMagick($imagick, $mode, $quality, 'jpeg');
+                $this->process_image_magick($imagick, $mode, $quality, 'jpeg');
                 $imagick->writeImage($destination);
                 $imagick->destroy();
                 return true;
@@ -81,7 +81,7 @@ final class ImageThumbnail
             $image = @imagecreatefromjpeg($source);
             if ($image === false) return false;
             
-            $processed = $this->processGD($image, $mode);
+            $processed = $this->process_gd($image, $mode);
             if ($processed === false) {
                 imagedestroy($image);
                 return false;
@@ -98,7 +98,7 @@ final class ImageThumbnail
         return false;
     }
 
-    public function pngThumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
+    public function png_thumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
     {
         $compression = \defined('ATOMIC_PNG_COMPRESSION_LEVEL') ? (int)\ATOMIC_PNG_COMPRESSION_LEVEL : 6;
         $compression = max(0, min(9, $compression));
@@ -106,7 +106,7 @@ final class ImageThumbnail
         if (extension_loaded('imagick')) {
             try {
                 $imagick = new \Imagick($source);
-                $this->processImageMagick($imagick, $mode, $compression * 10, 'png');
+                $this->process_image_magick($imagick, $mode, $compression * 10, 'png');
                 $imagick->writeImage($destination);
                 $imagick->destroy();
                 return true;
@@ -119,7 +119,7 @@ final class ImageThumbnail
             $image = @imagecreatefrompng($source);
             if ($image === false) return false;
             
-            $processed = $this->processGD($image, $mode);
+            $processed = $this->process_gd($image, $mode);
             if ($processed === false) {
                 imagedestroy($image);
                 return false;
@@ -137,7 +137,7 @@ final class ImageThumbnail
         return false;
     }
 
-    public function webpThumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
+    public function webp_thumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
     {
         $quality = \defined('ATOMIC_WEBP_QUALITY') ? (int)\ATOMIC_WEBP_QUALITY : 85;
         $quality = max(0, min(100, $quality));
@@ -145,7 +145,7 @@ final class ImageThumbnail
         if (extension_loaded('imagick')) {
             try {
                 $imagick = new \Imagick($source);
-                $this->processImageMagick($imagick, $mode, $quality, 'webp');
+                $this->process_image_magick($imagick, $mode, $quality, 'webp');
                 $imagick->writeImage($destination);
                 $imagick->destroy();
                 return true;
@@ -168,7 +168,7 @@ final class ImageThumbnail
 
             if ($image === false) return false;
             
-            $processed = $this->processGD($image, $mode);
+            $processed = $this->process_gd($image, $mode);
             if ($processed === false) {
                 imagedestroy($image);
                 return false;
@@ -186,7 +186,7 @@ final class ImageThumbnail
         return false;
     }
 
-    public function avifThumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
+    public function avif_thumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
     {
         $quality = \defined('ATOMIC_AVIF_QUALITY') ? (int)\ATOMIC_AVIF_QUALITY : 50;
         $quality = max(0, min(100, $quality));
@@ -194,7 +194,7 @@ final class ImageThumbnail
         if (extension_loaded('imagick')) {
             try {
                 $imagick = new \Imagick($source);
-                $this->processImageMagick($imagick, $mode, $quality, 'avif');
+                $this->process_image_magick($imagick, $mode, $quality, 'avif');
                 $imagick->writeImage($destination);
                 $imagick->destroy();
                 return true;
@@ -217,7 +217,7 @@ final class ImageThumbnail
 
             if ($image === false) return false;
             
-            $processed = $this->processGD($image, $mode);
+            $processed = $this->process_gd($image, $mode);
             if ($processed === false) {
                 imagedestroy($image);
                 return false;
@@ -235,13 +235,13 @@ final class ImageThumbnail
         return false;
     }
 
-    public function svgThumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
+    public function svg_thumbnail(string $source, string $destination, string $mode, TelemetryManager $telemetry): bool
     {
         $telemetry->push_telemetry("ImageThumbnail: SVG copying as-is");
         return Filesystem::instance()->copy($source, $destination);
     }
 
-    private function processImageMagick(\Imagick $imagick, string $mode, int $quality, string $format): void
+    private function process_image_magick(\Imagick $imagick, string $mode, int $quality, string $format): void
     {
         $imagick->setImageFormat($format);
         $imagick->setImageCompressionQuality($quality);
@@ -257,32 +257,32 @@ final class ImageThumbnail
                 $imagick->thumbnailImage($size, $size, true);
             }
         } else {
-            $width = $this->getSizeForMode($mode);
+            $width = $this->get_size_for_mode($mode);
             $imagick->thumbnailImage($width, 0);
         }
     }
 
-    private function processGD($image, string $mode)
+    private function process_gd($image, string $mode)
     {
-        $srcWidth = imagesx($image);
-        $srcHeight = imagesy($image);
+        $src_width = imagesx($image);
+        $src_height = imagesy($image);
 
         if ($mode === 'thumbnail') {
             $size = \defined('ATOMIC_THUMBNAIL_SIZE') ? (int)\ATOMIC_THUMBNAIL_SIZE : 150;
             $crop = \defined('ATOMIC_THUMBNAIL_CROP') ? (bool)\ATOMIC_THUMBNAIL_CROP : true;
             
             if ($crop) {
-                return $this->cropThumbnail($image, $srcWidth, $srcHeight, $size);
+                return $this->crop_thumbnail($image, $src_width, $src_height, $size);
             } else {
-                return $this->resizeProportional($image, $srcWidth, $srcHeight, $size, $size);
+                return $this->resize_proportional($image, $src_width, $src_height, $size, $size);
             }
         } else {
-            $targetWidth = $this->getSizeForMode($mode);
-            return $this->resizeProportional($image, $srcWidth, $srcHeight, $targetWidth, 0);
+            $targetWidth = $this->get_size_for_mode($mode);
+            return $this->resize_proportional($image, $src_width, $src_height, $targetWidth, 0);
         }
     }
 
-    private function cropThumbnail($image, int $srcWidth, int $srcHeight, int $size)
+    private function crop_thumbnail($image, int $src_width, int $src_height, int $size)
     {
         $thumbnail = imagecreatetruecolor($size, $size);
         if ($thumbnail === false) return false;
@@ -292,39 +292,39 @@ final class ImageThumbnail
         $transparent = imagecolorallocatealpha($thumbnail, 255, 255, 255, 127);
         imagefilledrectangle($thumbnail, 0, 0, $size, $size, $transparent);
 
-        $srcRatio = $srcWidth / $srcHeight;
+        $srcRatio = $src_width / $src_height;
         $targetRatio = 1;
 
         if ($srcRatio > $targetRatio) {
-            $cropWidth = (int)($srcHeight * $targetRatio);
-            $cropHeight = $srcHeight;
-            $srcX = (int)(($srcWidth - $cropWidth) / 2);
+            $cropWidth = (int)($src_height * $targetRatio);
+            $cropHeight = $src_height;
+            $srcX = (int)(($src_width - $cropWidth) / 2);
             $srcY = 0;
         } else {
-            $cropWidth = $srcWidth;
-            $cropHeight = (int)($srcWidth / $targetRatio);
+            $cropWidth = $src_width;
+            $cropHeight = (int)($src_width / $targetRatio);
             $srcX = 0;
-            $srcY = (int)(($srcHeight - $cropHeight) / 2);
+            $srcY = (int)(($src_height - $cropHeight) / 2);
         }
 
         imagecopyresampled($thumbnail, $image, 0, 0, $srcX, $srcY, $size, $size, $cropWidth, $cropHeight);
         return $thumbnail;
     }
 
-    private function resizeProportional($image, int $srcWidth, int $srcHeight, int $maxWidth, int $maxHeight)
+    private function resize_proportional($image, int $src_width, int $src_height, int $max_width, int $max_height)
     {
-        if ($maxHeight === 0) {
-            $ratio = $maxWidth / $srcWidth;
-            $destWidth = $maxWidth;
-            $destHeight = (int)($srcHeight * $ratio);
-        } elseif ($maxWidth === 0) {
-            $ratio = $maxHeight / $srcHeight;
-            $destWidth = (int)($srcWidth * $ratio);
-            $destHeight = $maxHeight;
+        if ($max_height === 0) {
+            $ratio = $max_width / $src_width;
+            $destWidth = $max_width;
+            $destHeight = (int)($src_height * $ratio);
+        } elseif ($max_width === 0) {
+            $ratio = $max_height / $src_height;
+            $destWidth = (int)($src_width * $ratio);
+            $destHeight = $max_height;
         } else {
-            $ratio = min($maxWidth / $srcWidth, $maxHeight / $srcHeight);
-            $destWidth = (int)($srcWidth * $ratio);
-            $destHeight = (int)($srcHeight * $ratio);
+            $ratio = min($max_width / $src_width, $max_height / $src_height);
+            $destWidth = (int)($src_width * $ratio);
+            $destHeight = (int)($src_height * $ratio);
         }
 
         $resized = imagecreatetruecolor($destWidth, $destHeight);
@@ -335,11 +335,11 @@ final class ImageThumbnail
         $transparent = imagecolorallocatealpha($resized, 255, 255, 255, 127);
         imagefilledrectangle($resized, 0, 0, $destWidth, $destHeight, $transparent);
 
-        imagecopyresampled($resized, $image, 0, 0, 0, 0, $destWidth, $destHeight, $srcWidth, $srcHeight);
+        imagecopyresampled($resized, $image, 0, 0, 0, 0, $destWidth, $destHeight, $src_width, $src_height);
         return $resized;
     }
 
-    private function getSizeForMode(string $mode): int
+    private function get_size_for_mode(string $mode): int
     {
         return match($mode) {
             'small' => \defined('ATOMIC_IMAGE_SIZE_SMALL') ? (int)\ATOMIC_IMAGE_SIZE_SMALL : 300,

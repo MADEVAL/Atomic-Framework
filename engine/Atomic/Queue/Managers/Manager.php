@@ -241,13 +241,13 @@ class Manager
         $reflection = self::$reflection_cache[$cache_key];
         $orderedParams = [];
         foreach ($reflection->getParameters() as $param) {
-            $paramName = $param->getName();
-            if (isset($params[$paramName])) {
-                $orderedParams[] = $params[$paramName];
+            $param_name = $param->get_name();
+            if (isset($params[$param_name])) {
+                $orderedParams[] = $params[$param_name];
             } elseif ($param->isDefaultValueAvailable()) {
                 $orderedParams[] = $param->getDefaultValue();
             } else {
-                throw new \Exception("Required job handler parameter '{$paramName}' not provided for {$class}@{$method}");
+                throw new \Exception("Required job handler parameter '{$param_name}' not provided for {$class}@{$method}");
             }
         }
         \call_user_func_array([$instance, $method], $orderedParams);

@@ -20,20 +20,20 @@ class Response {
 
     public function send_json(mixed $data, int $status = 200, bool $terminate = true): void
     {
-        $this->jsonResponse($data, $status, $terminate);
+        $this->json_response($data, $status, $terminate);
     }
 
     public function send_json_error(string $msg, int $status = 400, array $extra = [], bool $terminate = true): void
     {
-        $this->jsonResponse(['error' => $msg] + $extra, $status, $terminate);
+        $this->json_response(['error' => $msg] + $extra, $status, $terminate);
     }
 
     public function send_json_success(array $data = [], int $status = 200, bool $terminate = true): void
     {
-        $this->jsonResponse(['success' => true] + $data, $status, $terminate);
+        $this->json_response(['success' => true] + $data, $status, $terminate);
     }
 
-    public function jsonResponse(mixed $data, int $status = 200, bool $terminate = true): void
+    public function json_response(mixed $data, int $status = 200, bool $terminate = true): void
     {
         $this->atomic->status($status);
 

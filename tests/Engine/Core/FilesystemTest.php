@@ -91,9 +91,9 @@ class FilesystemTest extends TestCase
     public function test_makeDir_and_removeDir(): void
     {
         $dir = self::$tmpDir . 'subdir' . DIRECTORY_SEPARATOR;
-        $this->assertTrue($this->fs->makeDir($dir));
+        $this->assertTrue($this->fs->make_dir($dir));
         $this->assertTrue(is_dir($dir));
-        $this->assertTrue($this->fs->removeDir($dir));
+        $this->assertTrue($this->fs->remove_dir($dir));
         $this->assertFalse(is_dir($dir));
     }
 
@@ -104,7 +104,7 @@ class FilesystemTest extends TestCase
         file_put_contents($dir . 'file.txt', 'x');
         mkdir($dir . 'sub', 0755, true);
         file_put_contents($dir . 'sub' . DIRECTORY_SEPARATOR . 'nested.txt', 'y');
-        $this->assertTrue($this->fs->removeDir($dir, true));
+        $this->assertTrue($this->fs->remove_dir($dir, true));
         $this->assertFalse(is_dir($dir));
     }
 
@@ -134,26 +134,26 @@ class FilesystemTest extends TestCase
         mkdir($dir, 0755, true);
         file_put_contents($dir . 'x.txt', 'x');
         file_put_contents($dir . 'y.txt', 'y');
-        $result = $this->fs->listFiles($dir);
+        $result = $this->fs->list_files($dir);
         $this->assertIsArray($result);
         $this->assertGreaterThanOrEqual(2, count($result));
     }
 
     public function test_listFiles_empty_folder_returns_false(): void
     {
-        $this->assertFalse($this->fs->listFiles(''));
+        $this->assertFalse($this->fs->list_files(''));
     }
 
     public function test_normalizePath(): void
     {
-        $result = $this->fs->normalizePath('/a/b/../c/./d');
+        $result = $this->fs->normalize_path('/a/b/../c/./d');
         $this->assertStringNotContainsString('..', $result);
         $this->assertStringNotContainsString('./', $result);
     }
 
     public function test_joinPaths(): void
     {
-        $result = $this->fs->joinPaths('a', 'b', 'c');
+        $result = $this->fs->join_paths('a', 'b', 'c');
         $this->assertStringContainsString('a', $result);
         $this->assertStringContainsString('c', $result);
     }
@@ -161,11 +161,11 @@ class FilesystemTest extends TestCase
     public function test_isAbsolutePath(): void
     {
         if (PHP_OS_FAMILY === 'Windows') {
-            $this->assertTrue($this->fs->isAbsolutePath('C:\\Users'));
-            $this->assertFalse($this->fs->isAbsolutePath('relative/path'));
+            $this->assertTrue($this->fs->is_absolute_path('C:\\Users'));
+            $this->assertFalse($this->fs->is_absolute_path('relative/path'));
         } else {
-            $this->assertTrue($this->fs->isAbsolutePath('/home/user'));
-            $this->assertFalse($this->fs->isAbsolutePath('relative/path'));
+            $this->assertTrue($this->fs->is_absolute_path('/home/user'));
+            $this->assertFalse($this->fs->is_absolute_path('relative/path'));
         }
     }
 
@@ -180,12 +180,12 @@ class FilesystemTest extends TestCase
         file_put_contents($srcDir . 'file1.txt', 'content1');
         file_put_contents($srcDir . 'file2.txt', 'content2');
 
-        $zipFile = self::$tmpDir . 'test.zip';
-        $this->assertTrue($this->fs->zip_files([$srcDir . 'file1.txt', $srcDir . 'file2.txt'], $zipFile, $srcDir));
-        $this->assertFileExists($zipFile);
+        $zip_file = self::$tmpDir . 'test.zip';
+        $this->assertTrue($this->fs->zip_files([$srcDir . 'file1.txt', $srcDir . 'file2.txt'], $zip_file, $srcDir));
+        $this->assertFileExists($zip_file);
 
         $extractDir = self::$tmpDir . 'extracted' . DIRECTORY_SEPARATOR;
-        $this->assertTrue($this->fs->unzip_file($zipFile, $extractDir));
+        $this->assertTrue($this->fs->unzip_file($zip_file, $extractDir));
         $this->assertFileExists($extractDir . 'file1.txt');
         $this->assertSame('content1', file_get_contents($extractDir . 'file1.txt'));
     }
@@ -195,8 +195,8 @@ class FilesystemTest extends TestCase
         if (!class_exists('ZipArchive')) {
             $this->markTestSkipped('ZipArchive not available');
         }
-        $zipFile = self::$tmpDir . 'empty.zip';
-        $this->assertFalse($this->fs->zip_files([], $zipFile));
+        $zip_file = self::$tmpDir . 'empty.zip';
+        $this->assertFalse($this->fs->zip_files([], $zip_file));
     }
 
     // -------------------------------------------------------------------------
@@ -311,12 +311,12 @@ class FilesystemTest extends TestCase
     // read_lines_from_end
     // -------------------------------------------------------------------------
 
-    private function makeLogFile(string $name, int $lineCount, int $lineLength = 40): string
+    private function makeLogFile(string $name, int $line_count, int $line_length = 40): string
     {
         $file = self::$tmpDir . $name;
         $content = '';
-        for ($i = 1; $i <= $lineCount; $i++) {
-            $content .= str_pad("line $i", $lineLength) . "\n";
+        for ($i = 1; $i <= $line_count; $i++) {
+            $content .= str_pad("line $i", $line_length) . "\n";
         }
         file_put_contents($file, $content);
         return $file;
@@ -614,11 +614,11 @@ class FilesystemTest extends TestCase
     public function test_read_lines_from_end_all_pages_cover_entire_file(): void
     {
         // Paginate through a file page by page and verify every line is seen exactly once.
-        $lineCount = 25;
+        $line_count = 25;
         $pageSize = 7;
         $file = self::$tmpDir . 'rle_allpages.log';
         $content = '';
-        for ($i = 1; $i <= $lineCount; $i++) {
+        for ($i = 1; $i <= $line_count; $i++) {
             $content .= "L$i\n";
         }
         file_put_contents($file, $content);
@@ -634,12 +634,12 @@ class FilesystemTest extends TestCase
             $offset += count($page);
         }
 
-        $this->assertCount($lineCount, $all);
+        $this->assertCount($line_count, $all);
         // First element should be last line, last element should be first line.
         $this->assertSame('L25', $all[0]);
-        $this->assertSame('L1', $all[$lineCount - 1]);
+        $this->assertSame('L1', $all[$line_count - 1]);
         // No duplicates.
-        $this->assertCount($lineCount, array_unique($all));
+        $this->assertCount($line_count, array_unique($all));
     }
 
     public function test_read_lines_from_end_all_pages_with_blank_lines(): void

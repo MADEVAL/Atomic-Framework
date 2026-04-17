@@ -52,27 +52,27 @@ class FileMutexDriver implements MutexDriverInterface
         $now = \time();
         $expires_at = $now + $ttl;
 
-        $lockDir = $this->lock_dir($name);
+        $lock_dir = $this->lock_dir($name);
 
         try {
-            if (@\mkdir($lockDir, 0755, false)) {
-                return $this->write_meta($lockDir, [
+            if (@\mkdir($lock_dir, 0755, false)) {
+                return $this->write_meta($lock_dir, [
                     'token'      => $token,
                     'expires_at' => $expires_at,
                     'created_at' => $now,
                 ]);
             }
 
-            $meta = $this->read_meta($lockDir);
+            $meta = $this->read_meta($lock_dir);
             if ($meta === null) {
-                Log::warning('[Mutex] Lock dir exists but meta unreadable: ' . $lockDir);
+                Log::warning('[Mutex] Lock dir exists but meta unreadable: ' . $lock_dir);
                 return false;
             }
 
             $ownerExpiry = (int)$meta['expires_at'];
 
             if ($ownerExpiry <= $now) {
-                return $this->takeover_and_create($lockDir, $token, $expires_at, $now);
+                return $this->takeover_and_create($lock_dir, $token, $expires_at, $now);
             }
 
             return false;
@@ -87,17 +87,17 @@ class FileMutexDriver implements MutexDriverInterface
     {
         if (!$this->initialized) return false;
 
-        $lockDir = $this->lock_dir($name);
+        $lock_dir = $this->lock_dir($name);
 
         try {
-            if (!\is_dir($lockDir)) return false;
+            if (!\is_dir($lock_dir)) return false;
 
-            $meta = $this->read_meta($lockDir);
+            $meta = $this->read_meta($lock_dir);
             if ($meta === null) return false;
 
             if ((string)$meta['token'] !== $token) return false;
 
-            return $this->remove_dir_recursive($lockDir);
+            return $this->remove_dir_recursive($lock_dir);
         } catch (\Throwable $e) {
             Log::error('[Mutex] File release failed: ' . $e->getMessage());
             return false;
@@ -108,12 +108,12 @@ class FileMutexDriver implements MutexDriverInterface
     {
         if (!$this->initialized) return false;
 
-        $lockDir = $this->lock_dir($name);
+        $lock_dir = $this->lock_dir($name);
 
         try {
-            if (!\is_dir($lockDir)) return false;
+            if (!\is_dir($lock_dir)) return false;
 
-            $meta = $this->read_meta($lockDir);
+            $meta = $this->read_meta($lock_dir);
             if ($meta === null) return false;
 
             return (int)$meta['expires_at'] > \time();
@@ -127,11 +127,11 @@ class FileMutexDriver implements MutexDriverInterface
     {
         if (!$this->initialized) return false;
 
-        $lockDir = $this->lock_dir($name);
+        $lock_dir = $this->lock_dir($name);
 
         try {
-            if (!\is_dir($lockDir)) return true;
-            return $this->remove_dir_recursive($lockDir);
+            if (!\is_dir($lock_dir)) return true;
+            return $this->remove_dir_recursive($lock_dir);
         } catch (\Throwable $e) {
             Log::error('[Mutex] File force_release failed: ' . $e->getMessage());
             return false;
@@ -147,12 +147,12 @@ class FileMutexDriver implements MutexDriverInterface
     {
         if (!$this->initialized) return null;
 
-        $lockDir = $this->lock_dir($name);
+        $lock_dir = $this->lock_dir($name);
 
         try {
-            if (!\is_dir($lockDir)) return null;
+            if (!\is_dir($lock_dir)) return null;
 
-            $meta = $this->read_meta($lockDir);
+            $meta = $this->read_meta($lock_dir);
             if ($meta === null) return null;
 
             if ((int)$meta['expires_at'] <= \time()) return null;
@@ -179,14 +179,14 @@ class FileMutexDriver implements MutexDriverInterface
         return $this->base_path . $this->sanitize_name($name) . '.lock';
     }
 
-    protected function meta_path(string $lockDir): string
+    protected function meta_path(string $lock_dir): string
     {
-        return $lockDir . '/meta.json';
+        return $lock_dir . '/meta.json';
     }
 
-    protected function read_meta(string $lockDir): ?array
+    protected function read_meta(string $lock_dir): ?array
     {
-        $path = $this->meta_path($lockDir);
+        $path = $this->meta_path($lock_dir);
         $raw = @\file_get_contents($path);
         if ($raw === false) return null;
 
@@ -198,9 +198,9 @@ class FileMutexDriver implements MutexDriverInterface
         return $data;
     }
 
-    protected function write_meta(string $lockDir, array $meta): bool
+    protected function write_meta(string $lock_dir, array $meta): bool
     {
-        $path = $this->meta_path($lockDir);
+        $path = $this->meta_path($lock_dir);
 
         $tmp = $path . '.tmp.' . \getmypid() . '.' . \bin2hex(\random_bytes(6));
         $json = \json_encode($meta);
@@ -219,12 +219,12 @@ class FileMutexDriver implements MutexDriverInterface
         return true;
     }
 
-    protected function takeover_and_create(string $lockDir, string $token, int $expires_at, int $now): bool
+    protected function takeover_and_create(string $lock_dir, string $token, int $expires_at, int $now): bool
     {
         // Atomic takeover: rename existing lock dir out of the way
-        $stale = $lockDir . '.stale.' . \getmypid() . '.' . \bin2hex(\random_bytes(4));
+        $stale = $lock_dir . '.stale.' . \getmypid() . '.' . \bin2hex(\random_bytes(4));
 
-        if (!@\rename($lockDir, $stale)) {
+        if (!@\rename($lock_dir, $stale)) {
             return false; // someone else raced, or lockDir changed
         }
 
@@ -232,11 +232,11 @@ class FileMutexDriver implements MutexDriverInterface
         $this->remove_dir_recursive($stale);
 
         // create fresh lock dir
-        if (!@\mkdir($lockDir, 0755, false)) {
+        if (!@\mkdir($lock_dir, 0755, false)) {
             return false;
         }
 
-        return $this->write_meta($lockDir, [
+        return $this->write_meta($lock_dir, [
             'token'      => $token,
             'expires_at' => $expires_at,
             'created_at' => $now,

@@ -317,14 +317,14 @@ class LogTest extends TestCase
     {
         $ch = Log::channel('atomic');
         $this->assertInstanceOf(LogChannel::class, $ch);
-        $this->assertSame('atomic', $ch->getName());
+        $this->assertSame('atomic', $ch->get_name());
     }
 
     public function test_channel_accepts_log_channel_enum(): void
     {
         $ch = Log::channel(LogChannelEnum::AUTH);
         $this->assertInstanceOf(LogChannel::class, $ch);
-        $this->assertSame('auth', $ch->getName());
+        $this->assertSame('auth', $ch->get_name());
     }
 
     public function test_add_channel_registers_new_channel(): void

@@ -31,7 +31,7 @@ final class Request
     public function remote_get(string $url, array $args = []): array
     {
         if (!empty($args['query']) && is_array($args['query'])) {
-            $url = $this->appendQuery($url, $args['query']);
+            $url = $this->append_query($url, $args['query']);
         }
         return $this->send('GET', $url, $args);
     }
@@ -39,7 +39,7 @@ final class Request
     public function remote_head(string $url, array $args = []): array
     {
         if (!empty($args['query']) && is_array($args['query'])) {
-            $url = $this->appendQuery($url, $args['query']);
+            $url = $this->append_query($url, $args['query']);
         }
         return $this->send('HEAD', $url, $args);
     }
@@ -73,7 +73,7 @@ final class Request
             $web->engine($this->engine); 
         }
 
-        $headers = $this->buildHeaders($args['headers'] ?? []);
+        $headers = $this->build_headers($args['headers'] ?? []);
         $options = [
             'method'          => strtoupper($method),
             'header'          => $headers,
@@ -105,7 +105,7 @@ final class Request
         return [
             'ok'          => $status >= 200 && $status < 300,
             'status'      => $status,
-            'headers'     => $this->headersAssoc($resp['headers'] ?? []),
+            'headers'     => $this->headers_assoc($resp['headers'] ?? []),
             'raw_headers' => $resp['headers'] ?? [],
             'body'        => (string)($resp['body'] ?? ''),
             'engine'      => $resp['engine'] ?? null,
@@ -117,7 +117,7 @@ final class Request
         
     }
 
-    private function buildHeaders(array $user): array
+    private function build_headers(array $user): array
     {
         $looksLikeLines = isset($user[0]) && is_string($user[0]) && str_contains($user[0], ':');
         if ($looksLikeLines) {
@@ -138,7 +138,7 @@ final class Request
         return $list;
     }
 
-    private function appendQuery(string $url, array $query): string
+    private function append_query(string $url, array $query): string
     {
         $qs = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         if ($qs === '') return $url;
@@ -153,7 +153,7 @@ final class Request
         return 0;
     }
 
-    private function headersAssoc(array $headers): array
+    private function headers_assoc(array $headers): array
     {
         $out = [];
         foreach ($headers as $line) {
