@@ -19,27 +19,9 @@ trait Seeder
         CoreSeed::run($seed_path . 'atomic_seed_roles.php');
     }
 
-    public function seed_stores() {
-        $atomic = App::instance();
-        $seed_path = $atomic->get('SEEDS_BUNDLED');
-        CoreSeed::run($seed_path . 'atomic_seed_stores.php');
-    }
-
     public function seed_pages() {
         $atomic = App::instance();
         $seed_path = $atomic->get('SEEDS_BUNDLED');
         CoreSeed::run($seed_path . 'atomic_seed_pages.php');
-    }
-
-    public function seed_products() {
-        $atomic = App::instance();
-        $seed_path = $atomic->get('SEEDS_BUNDLED');
-        CoreSeed::run($seed_path . 'atomic_seed_products.php');
-    }
-
-    public function seed_categories() {
-        $atomic = App::instance();
-        $seed_path = $atomic->get('SEEDS_BUNDLED');
-        CoreSeed::run($seed_path . 'atomic_seed_categories.php');
     }
 }

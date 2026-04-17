@@ -100,21 +100,11 @@ class System extends Controller
         $this->cli()->db_users();
     }
 
-    public function db_stores(): void
-    {
-        $this->cli()->db_stores();
-    }
-
     public function db_storage(): void
     {
         $this->cli()->db_storage();
     }
 
-    public function db_orders(): void
-    {
-        $this->cli()->db_orders();
-    }
-    
     public function migrations_create(): void {
         $this->cli()->migrations_create();
     }
@@ -154,21 +144,6 @@ class System extends Controller
         $this->cli()->seed_pages();
     }
     
-    public function seed_products(): void
-    {
-        $this->cli()->seed_products();
-    }
-
-    public function seed_categories(): void
-    {
-        $this->cli()->seed_categories();
-    }
-
-    public function seed_stores(): void
-    {
-        $this->cli()->seed_stores();
-    }
-
     public function queue_db(): void
     {
         $this->cli()->queue_db();
@@ -227,31 +202,6 @@ class System extends Controller
     public function db_pages(): void
     {
         $this->cli()->db_pages();
-    }
-
-    public function db_recent_activity(): void 
-    {
-        $this->cli()->db_recent_activity();
-    }
-
-    public function db_coupons(): void 
-    {
-        $this->cli()->db_coupons();
-    }
-
-    public function db_payments(): void
-    {
-        $this->cli()->db_payments();
-    }
-
-    public function db_tariffs(): void
-    {
-        $this->cli()->db_tariffs();
-    }
-
-    public function db_tg_front_err(): void 
-    {
-        $this->cli()->db_tg_front_err();
     }
 
     public function db_mutex(): void 

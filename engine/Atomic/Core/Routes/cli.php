@@ -29,19 +29,9 @@ $atomic->route('GET /queue/delete [cli]', 'Engine\Atomic\App\System->queue_delet
 
 $atomic->route('GET /seed/users [cli]', 'Engine\Atomic\App\System->seed_users');
 $atomic->route('GET /seed/roles [cli]', 'Engine\Atomic\App\System->seed_roles');
-$atomic->route('GET /seed/stores [cli]', 'Engine\Atomic\App\System->seed_stores');
 $atomic->route('GET /seed/pages [cli]', 'Engine\Atomic\App\System->seed_pages');
-$atomic->route('GET /seed/products [cli]', 'Engine\Atomic\App\System->seed_products');
-$atomic->route('GET /seed/categories [cli]', 'Engine\Atomic\App\System->seed_categories');
 
 $atomic->route('GET /db/users [cli]', 'Engine\Atomic\App\System->db_users');
-$atomic->route('GET /db/stores [cli]', 'Engine\Atomic\App\System->db_stores');
-$atomic->route('GET /db/orders [cli]', 'Engine\Atomic\App\System->db_orders');
-$atomic->route('GET /db/recent-activity [cli]', 'Engine\Atomic\App\System->db_recent_activity');
-$atomic->route('GET /db/coupons [cli]', 'Engine\Atomic\App\System->db_coupons');
-$atomic->route('GET /db/payments [cli]', 'Engine\Atomic\App\System->db_payments');
-$atomic->route('GET /db/tariffs [cli]', 'Engine\Atomic\App\System->db_tariffs');
-$atomic->route('GET /db/tg-front-err [cli]', 'Engine\Atomic\App\System->db_tg_front_err');
 $atomic->route('GET /db/pages [cli]', 'Engine\Atomic\App\System->db_pages');
 $atomic->route('GET /db/storage [cli]', 'Engine\Atomic\App\System->db_storage');
 $atomic->route('GET /db/mutex [cli]', 'Engine\Atomic\App\System->db_mutex');

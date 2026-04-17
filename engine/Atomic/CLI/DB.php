@@ -81,43 +81,8 @@ trait DB {
         (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_user_tables');
     }
 
-    public function db_stores() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_store_tables');
-    }
-
     public function db_pages() {
         $atomic = App::instance();
         (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_page_tables');
-    }
-
-    public function db_recent_activity() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_recent_activity_tables');
-    }
-
-    public function db_coupons() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_coupon_tables');
-    }
-
-    public function db_payments() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_payment_tables');
-    }
-
-    public function db_tariffs() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_tariff_tables');
-    }
-    
-    public function db_orders() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_order_tables');
-    }
-    
-    public function db_tg_front_err() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_frontend_error_log_tables');
     }
 }

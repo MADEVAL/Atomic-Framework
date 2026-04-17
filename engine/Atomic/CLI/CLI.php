@@ -43,8 +43,6 @@ class CLI {
         $this->output->writeln('  classes            - View classes list');
         $this->output->writeln('  custom-hive        - View custom HIVE');
         $this->output->writeln('  queue/db           - Create tables for queues');
-        $this->output->writeln('  db/payments        - Publish payments migration');
-        $this->output->writeln('  db/tariffs         - Publish tariffs migration');
         $this->output->writeln('  queue/worker       - Run queue worker');
         $this->output->writeln('  queue/monitor      - Run queue monitor');
         $this->output->writeln('  queue/retry [<job_uuid>|<queue_name>] - Retry failed tasks (optional UUID or queue name)');
@@ -172,10 +170,7 @@ class CLI {
             '/migrations/rollback',
             '/seed/users',
             '/seed/roles',
-            '/seed/stores',
             '/seed/pages',
-            '/seed/products',
-            '/seed/categories',
             '/redis/clear',
             '/queue/worker',
             '/queue/test',
