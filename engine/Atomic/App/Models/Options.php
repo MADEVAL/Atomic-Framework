@@ -61,7 +61,7 @@ class Options extends Storage
         }
     }
 
-    public static function get_option(string $key): mixed {
+    public static function get_option(string $key, mixed $default = null): mixed {
         $atomic = App::instance();
         $uuid = $atomic->get('APP_UUID');
         
@@ -75,7 +75,7 @@ class Options extends Storage
             $storage->load(['uuid = ? AND key = ?', $uuid, $key]);
 
             if ($storage->dry()) {
-                return false;
+                return $default;
             }
 
             if (!empty($storage->expired_at)) {
@@ -84,7 +84,7 @@ class Options extends Storage
                 
                 if ($expired_timestamp <= $now) {
                     static::delete_option($key);
-                    return false;
+                    return $default;
                 }
             }
             

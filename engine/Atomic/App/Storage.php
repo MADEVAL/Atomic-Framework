@@ -84,7 +84,7 @@ abstract class Storage extends Model
         }
     }
 
-    protected static function _get(string $uuid, string $key): string|false
+    protected static function _get(string $uuid, string $key, mixed $default = null): mixed
     {
         if (!ID::is_valid_uuid_v4($uuid)) {
             Log::error('Invalid UUID v4 provided to get: ' . $uuid);
@@ -93,7 +93,9 @@ abstract class Storage extends Model
         try {
             $storage = new static();
             $storage->load(['uuid = ? AND key = ?', $uuid, $key]);
-            if ($storage->dry()) return false;
+            if ($storage->dry()) {
+                return $default;
+            }
             return $storage->value;
         } catch (\Throwable $e) {
             Log::error('Error in get: ' . $e->getMessage());

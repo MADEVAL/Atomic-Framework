@@ -114,7 +114,6 @@ class PathNormalizationTest extends TestCase
 
     // ── PathResolutionTrait::normalize_separators ──────────────────────────────
 
-    /** @return object{normalize: callable} */
     private function traitSubject(): object
     {
         return new class {

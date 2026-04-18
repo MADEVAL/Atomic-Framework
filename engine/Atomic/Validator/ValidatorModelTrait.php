@@ -57,15 +57,15 @@ trait ValidatorModelTrait
 				}
 
 				$result = match ($rule->value) {
-					'enum' => !empty($field_conf['enum']) 
-						? self::enum($field_val, $field_conf['enum']) 
-						: (Log::error("Validation enum is empty for field '{$field_name}' in class '{$class_short}'.") ?? false),
+					'enum' => !empty($field_conf['enum'])
+						? self::enum($field_val, $field_conf['enum'])
+						: self::validation_config_error("Validation enum is empty for field '{$field_name}' in class '{$class_short}'."),
 					'regex' => !empty($field_conf['pattern'])
 						? self::regex($field_val, $field_conf['pattern'])
-						: (Log::error("Validation regex pattern is empty for field '{$field_name}' in class '{$class_short}'.") ?? false),
-					'callback' => is_callable($field_conf['callback'] ?? null) 
-						? self::callback($field_val, $field_conf['callback']) 
-						: (Log::error("Validation callback is not callable for field '{$field_name}' in class '{$class_short}'.") ?? false),
+						: self::validation_config_error("Validation regex pattern is empty for field '{$field_name}' in class '{$class_short}'."),
+					'callback' => is_callable($field_conf['callback'] ?? null)
+						? self::callback($field_val, $field_conf['callback'])
+						: self::validation_config_error("Validation callback is not callable for field '{$field_name}' in class '{$class_short}'."),
 					'num_min' => ($field_conf['min'] ?? null) !== null 
 						? self::num_min($field_val, $field_conf['min']) 
 						: false,
@@ -397,5 +397,11 @@ trait ValidatorModelTrait
 		}
 
 		return $valid;
+	}
+
+	private static function validation_config_error(string $message): bool
+	{
+		Log::error($message);
+		return false;
 	}
 }

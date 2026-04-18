@@ -18,9 +18,9 @@ return [
         $t->addColumn('created_at')->type_timestamp(true)->nullable(false);
         $t->build();
 
-        $schema->alterTable($table, function($table) {
-            $table->addIndex(['payment_uuid']);
-        });
+        $tm = $schema->alterTable($table);
+        $tm->addIndex(['payment_uuid']);
+        $tm->build();
     },
 
     'down' => function () {

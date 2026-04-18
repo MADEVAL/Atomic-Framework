@@ -4,6 +4,7 @@ namespace Engine\Atomic\CLI\Init;
 
 if (!defined('ATOMIC_START')) exit;
 
+use DB\SQL;
 use Engine\Atomic\CLI\Style;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
@@ -452,7 +453,12 @@ trait InitInstaller
 
         $atomic->set('DB_CONFIG', $dbConfig);
 
-        return ConnectionManager::instance()->get_db();
+        $db = ConnectionManager::instance()->get_db();
+        if (!$db instanceof SQL) {
+            throw new \RuntimeException('Database bootstrap did not return a SQL connection.');
+        }
+
+        return $db;
     }
 
     private function initialize_migration_database(): bool

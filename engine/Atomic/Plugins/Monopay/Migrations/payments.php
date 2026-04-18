@@ -35,10 +35,10 @@ return [
         $t->addColumn('fulfilled_at')->type_timestamp()->nullable(true);
         $t->build();
 
-        $schema->alterTable($table, function($table) {
-            $table->addIndex(['uuid']);
-            $table->addIndex(['invoice_id']);
-        });
+        $tm = $schema->alterTable($table);
+        $tm->addIndex(['uuid']);
+        $tm->addIndex(['invoice_id']);
+        $tm->build();
     },
 
     'down' => function () {

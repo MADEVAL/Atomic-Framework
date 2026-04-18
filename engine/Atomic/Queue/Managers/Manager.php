@@ -122,7 +122,7 @@ class Manager
     }
 
     public function retry_by_uuid(string $uuid): bool {
-        return $this->driver->retry_by_uuid($uuid, $this->queue);
+        return $this->driver->retry_by_uuid($uuid);
     }
 
     public function delete_job(string $uuid): bool {
