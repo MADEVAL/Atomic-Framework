@@ -15,7 +15,6 @@ class Manager
 {
     protected DBDriver|RedisDriver $driver;
     public TelemetryManager $telemetry_manager;
-    protected int $batch_size;
 
     /** @var array<string,true> */
     private static array $validated_handlers = [];
@@ -43,7 +42,6 @@ class Manager
             'database' => new DBDriver(),
             default    => throw new \Exception("Unknown queue driver: " . $atomic->get('QUEUE_DRIVER'))
         };
-        $this->batch_size = $atomic->get('QUEUE.' . $atomic->get('QUEUE_DRIVER') . '.queues.' . $this->queue . '.batch_size');
         $this->telemetry_manager = new TelemetryManager();
         $this->config_current = $this->load_config();
     }
@@ -163,7 +161,7 @@ class Manager
     }
 
     public function pop_batch(): array {
-        $pop_res = $this->driver->pop_batch($this->queue, $this->batch_size);
+        $pop_res = $this->driver->pop_batch($this->queue, 1);
 
         if (\is_array($pop_res) && !empty($pop_res)) {
             foreach ($pop_res as $job) {

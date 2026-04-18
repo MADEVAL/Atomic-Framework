@@ -279,7 +279,6 @@ class ConfigLoader {
             'max_attempts' => (int)$this->get_env($prefix . 'DEFAULT_MAX_ATTEMPTS', 3),
             'retry_delay' => (int)$this->get_env($prefix . 'DEFAULT_RETRY_DELAY', 2),
             'worker_cnt' => (int)$this->get_env($prefix . 'DEFAULT_WORKER_CNT', 5),
-            'batch_size' => (int)$this->get_env($prefix . 'DEFAULT_BATCH_SIZE', 10),
             'ttl' => (int)$this->get_env($prefix . 'DEFAULT_TTL', 604800),
         ];
 
@@ -287,7 +286,7 @@ class ConfigLoader {
 
         $queue_names = [];
         foreach ($this->env as $key => $value) {
-            if (preg_match('/^' . preg_quote($prefix, '/') . '([A-Z0-9_]+?)_(RETRY_DELAY|MAX_ATTEMPTS|WORKER_CNT|BATCH_SIZE|PRIORITY|TIMEOUT|DELAY|TTL)$/', $key, $m)) {
+            if (preg_match('/^' . preg_quote($prefix, '/') . '([A-Z0-9_]+?)_(RETRY_DELAY|MAX_ATTEMPTS|WORKER_CNT|PRIORITY|TIMEOUT|DELAY|TTL)$/', $key, $m)) {
                 $queue_name = strtoupper($m[1]);
                 if ($queue_name !== 'DEFAULT') {
                     $queue_names[$queue_name] = true;
@@ -304,7 +303,6 @@ class ConfigLoader {
                 'max_attempts' => (int)$this->get_env($prefix . $queue_name . '_MAX_ATTEMPTS', $default_cfg['max_attempts']),
                 'retry_delay' => (int)$this->get_env($prefix . $queue_name . '_RETRY_DELAY', $default_cfg['retry_delay']),
                 'worker_cnt' => (int)$this->get_env($prefix . $queue_name . '_WORKER_CNT', $default_cfg['worker_cnt']),
-                'batch_size' => (int)$this->get_env($prefix . $queue_name . '_BATCH_SIZE', $default_cfg['batch_size']),
                 'ttl' => (int)$this->get_env($prefix . $queue_name . '_TTL', $default_cfg['ttl']),
             ];
         }

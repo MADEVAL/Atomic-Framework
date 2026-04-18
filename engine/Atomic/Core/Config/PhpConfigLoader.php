@@ -252,7 +252,7 @@ class PhpConfigLoader {
             $defaults = [
                 'delay' => 0, 'priority' => 10, 'timeout' => 20,
                 'max_attempts' => 3, 'retry_delay' => 2,
-                'worker_cnt' => 5, 'batch_size' => 10, 'ttl' => 604800,
+                'worker_cnt' => 5, 'ttl' => 604800,
             ];
             $processed_default = [];
             $default_queue = $driver_queues['default'] ?? [];
