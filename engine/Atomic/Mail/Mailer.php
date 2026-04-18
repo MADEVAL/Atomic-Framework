@@ -35,22 +35,22 @@ class Mailer
     private function init_smtp(): void
     {
         $this->smtp = new \SMTP(
-            $this->atomic->get('mailer.smtp.host'),
-            $this->atomic->get('mailer.smtp.port'),
-            $this->atomic->get('mailer.smtp.scheme'),
-            $this->atomic->get('mailer.smtp.user'),
-            $this->atomic->get('mailer.smtp.pw')
+            $this->atomic->get('MAILER.smtp.host'),
+            $this->atomic->get('MAILER.smtp.port'),
+            $this->atomic->get('MAILER.smtp.scheme'),
+            $this->atomic->get('MAILER.smtp.user'),
+            $this->atomic->get('MAILER.smtp.pw')
         );
 
-        if ($from = $this->atomic->get('mailer.from_mail')) {
-            $this->set_from($from, $this->atomic->get('mailer.from_name'));
+        if ($from = $this->atomic->get('MAILER.from_mail')) {
+            $this->set_from($from, $this->atomic->get('MAILER.from_name'));
         }
 
-        if ($reply = $this->atomic->get('mailer.reply_to')) {
+        if ($reply = $this->atomic->get('MAILER.reply_to')) {
             $this->set_reply($reply);
         }
 
-        if ($this->atomic->get('mailer.force_tls', false)) {
+        if ($this->atomic->get('MAILER.force_tls', false)) {
             $this->smtp->set('SMTPSecure', 'tls');
         }
     }
@@ -156,7 +156,7 @@ class Mailer
         $success = $this->smtp->send($this->encode($body), 'verbose', $mock);
 
         // Handle failure
-        if (!$success && $handler = $this->atomic->get('mailer.on.failure')) {
+        if (!$success && $handler = $this->atomic->get('MAILER.on.failure')) {
             $this->atomic->call($handler, [$this, $this->smtp->log()]);
         }
 

@@ -51,6 +51,7 @@ class ConfigLoader {
         $this->env = $this->parse_env($file);
         $cache_driver  = strtolower($this->get_env('CACHE_DRIVER', 'false'));
         $is_redis      = ($cache_driver === 'redis');
+        $cache_prefix  = (string)$this->get_env('CACHE_PREFIX', 'atomic.');
         $ports = [
             'cache'     => (string)$this->get_env('CACHE_PORT', $is_redis ? '6379' : '11211'),
             'db'        => (string)$this->get_env('DB_PORT', '3306'),
@@ -76,25 +77,21 @@ class ConfigLoader {
             'APP_UUID'              => $this->get_env('APP_UUID', ''),
             'APP_ENCRYPTION_KEY'    => $this->get_env('APP_ENCRYPTION_KEY', ''),
             'CACHE'                 => $cache_string,
-            'CACHE_PREFIX'          => $this->get_env('CACHE_PREFIX', 'atomic_'),
+            'CACHE_PREFIX'          => $cache_prefix,
             'DOMAIN'                => $this->get_env('DOMAIN', ''),
             'LANGUAGE'              => $this->get_env('LANGUAGE') ?? $this->get_env('LANG', 'en'),
-            'FALLBACK'              => $this->get_env('FALLBACK', 'en'),
             'ENCODING'              => $this->get_env('ENCODING', 'UTF-8'),
             'TZ'                    => $this->get_env('TZ', 'UTC'),
             'APP_NAME'              => $this->get_env('APP_NAME', 'Atomic'),
             'APP_KEY'               => $this->get_env('APP_KEY', ''),
             'DEBUG_MODE'            => $this->get_env('DEBUG_MODE', 'false'),
             'DEBUG_LEVEL'           => $this->get_env('DEBUG_LEVEL', 'error'),
-            'ATOMIC_HIVE'           => $this->get_env('ATOMIC_HIVE', 'false'),
-            'ESCAPE'                => $this->get_env('ESCAPE', 'false'),
             'TELEMETRY_ADMIN_ONLY'  => filter_var($this->get_env('TELEMETRY_ADMIN_ONLY', 'false'), FILTER_VALIDATE_BOOLEAN),
             'THEME.envname'         => $this->get_env('THEME', 'default'),
             'QUEUE_DRIVER'          => $this->get_env('QUEUE_DRIVER', 'database'),
             'QUEUE_NAME'            => $this->get_env('QUEUE_NAME', 'default'),
             'TELEGRAM_BOT_TOKEN'    => $this->get_env('TELEGRAM_BOT_TOKEN', ''), 
             'TELEGRAM_CHAT_ID'      => $this->get_env('TELEGRAM_CHAT_ID', ''),
-            'TELEGRAM_LOG_LEVEL'    => $this->get_env('TELEGRAM_LOG_LEVEL', 'error'),
             'UI'                    => $this->get_env('UI', 'public/themes/'),
             'TEMP'                  => $this->fix_path($this->get_env('TEMP', 'storage/framework/cache/data/')),
             'LOGS'                  => $this->fix_path($this->get_env('LOGS', 'storage/logs/')),
@@ -142,10 +139,9 @@ class ConfigLoader {
         $this->atomic->set('REDIS', [
             'host'                        => $this->get_env('REDIS_HOST', '127.0.0.1'),
             'port'                        => $ports['redis'],
-            'client'                      => $this->get_env('REDIS_CLIENT', 'phpredis'),
             'password'                    => $this->get_env('REDIS_PASSWORD', ''),
             'db'                          => (int)$this->get_env('REDIS_DB', 0),
-            'ATOMIC_REDIS_PREFIX'         => 'atomic.',
+            'ATOMIC_REDIS_PREFIX'         => $cache_prefix,
             'ATOMIC_REDIS_QUEUE_PREFIX'   => 'atomic.queue.',
             'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic.session.',
         ]);
@@ -156,6 +152,7 @@ class ConfigLoader {
             'username' => $this->get_env('MEMCACHED_USERNAME', ''),
             'password' => $this->get_env('MEMCACHED_PASSWORD', ''),
             'prefix'   => $this->get_env('MEMCACHED_PREFIX', 'atomic_'),
+            'ATOMIC_MEMCACHED_PREFIX' => $cache_prefix,
         ]);
 
         $this->atomic->set('MUTEX', [
@@ -172,6 +169,7 @@ class ConfigLoader {
             'from_address' => $this->get_env('MAIL_FROM_ADDRESS', ''),
             'from_name'    => $this->get_env('MAIL_FROM_NAME', ''),
         ]);
+        $this->apply_mail_settings_to_hive($this->atomic, (array)$this->atomic->get('MAIL'));
 
         $this->atomic->set('SESSION_CONFIG', [
             'driver'          => $this->get_env('SESSION_DRIVER', 'db'),

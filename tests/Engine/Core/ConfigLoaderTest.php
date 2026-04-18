@@ -91,7 +91,6 @@ class ConfigLoaderTest extends TestCase
             'APP_UUID=test-uuid',
             'DOMAIN=https://load.test/',
             'LANGUAGE=en',
-            'FALLBACK=en',
             'DB_DRIVER=mysql',
             'DB_HOST=127.0.0.1',
             'DB_PORT=3306',
@@ -121,6 +120,9 @@ class ConfigLoaderTest extends TestCase
         file_put_contents($this->envFile, implode("\n", [
             'REDIS_HOST=10.0.0.1',
             'REDIS_PORT=6380',
+            'REDIS_PASSWORD=secret',
+            'REDIS_DB=2',
+            'CACHE_PREFIX=atomic.cache.',
             'CACHE_DRIVER=folder',
         ]));
 
@@ -129,6 +131,9 @@ class ConfigLoaderTest extends TestCase
         $redis = $this->f3->get('REDIS');
         $this->assertSame('10.0.0.1', $redis['host']);
         $this->assertSame('6380', $redis['port']);
+        $this->assertSame('secret', $redis['password']);
+        $this->assertSame(2, $redis['db']);
+        $this->assertSame('atomic.cache.', $redis['ATOMIC_REDIS_PREFIX']);
     }
 
     public function test_load_sets_mail_config(): void
@@ -147,6 +152,10 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame('smtp', $mail['driver']);
         $this->assertSame('mail.test.com', $mail['host']);
         $this->assertSame('test@test.com', $mail['from_address']);
+
+        $this->assertSame('mail.test.com', $this->f3->get('MAILER.smtp.host'));
+        $this->assertSame(465, $this->f3->get('MAILER.smtp.port'));
+        $this->assertSame('test@test.com', $this->f3->get('MAILER.from_mail'));
     }
 
     public function test_load_sets_session_config(): void

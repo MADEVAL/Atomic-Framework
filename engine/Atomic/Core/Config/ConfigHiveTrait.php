@@ -53,6 +53,21 @@ trait ConfigHiveTrait
         $this->sync_domain_to_hive($atomic, $settings);
     }
 
+    protected function apply_mail_settings_to_hive(\Base $atomic, array $mail): void
+    {
+        $encryption = strtolower(trim((string)$mail['encryption']));
+        $scheme = in_array($encryption, ['ssl', 'tls'], true) ? $encryption : '';
+
+        $atomic->set('MAILER.smtp.host', (string)$mail['host']);
+        $atomic->set('MAILER.smtp.port', (int)$mail['port']);
+        $atomic->set('MAILER.smtp.scheme', $scheme);
+        $atomic->set('MAILER.smtp.user', (string)$mail['username']);
+        $atomic->set('MAILER.smtp.pw', (string)$mail['password']);
+        $atomic->set('MAILER.from_mail', (string)$mail['from_address']);
+        $atomic->set('MAILER.from_name', (string)$mail['from_name']);
+        $atomic->set('MAILER.force_tls', $encryption === 'tls');
+    }
+
     protected function sync_domain_to_hive(\Base $atomic, array $settings): void
     {
         $domain = $settings['DOMAIN'] ?? '';

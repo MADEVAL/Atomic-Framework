@@ -22,6 +22,7 @@ class Manager
     /** @var array<string,\ReflectionMethod> */
     private static array $reflection_cache = [];
 
+    protected string $queue = 'default';
     protected array $config_current;
     protected array $config_required = [
         'delay',
@@ -33,9 +34,10 @@ class Manager
     ];
 
     public function __construct(
-        protected string $queue = 'default',
+        ?string $queue = null,
     ) {
         $atomic = App::instance();
+        $this->queue = $queue ?: (string)$atomic->get('QUEUE_NAME');
 
         $this->driver = match ($atomic->get('QUEUE_DRIVER')) {
             'redis'    => new RedisDriver(),

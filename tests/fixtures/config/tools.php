@@ -6,7 +6,6 @@ return [
     'telegram' => [
         'bot_token' => '',
         'chat_id'   => '',
-        'log_level' => 'error'
     ],
 
     'ai' => [

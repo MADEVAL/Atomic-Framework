@@ -651,10 +651,9 @@ trait Init
         $o->writeln('    php -r "new Redis();"        # must produce no fatal error');
         $o->writeln();
         $o->writeln('  In .env, set the Redis connection:');
-        $o->writeln('    REDIS_CLIENT=phpredis');
         $o->writeln('    REDIS_HOST=127.0.0.1         # Redis server hostname or IP');
         $o->writeln('    REDIS_PORT=6379              # Default Redis port');
-        $o->writeln('    REDIS_PASSWORD=null          # Set to your Redis password, or leave null');
+        $o->writeln('    REDIS_PASSWORD=              # Set to your Redis password, or leave empty');
         $o->writeln('    REDIS_DB=0                   # Redis logical database index (0–15)');
         $o->writeln();
         $o->writeln('  In .env, set the backend drivers:');

@@ -63,6 +63,7 @@ class PhpConfigLoader {
         // ── Cache string (mirrors ConfigLoader) ──
         $cache_driver = strtolower((string)$this->cfg('cache', 'default', 'false'));
         $is_redis     = ($cache_driver === 'redis');
+        $cache_prefix = (string)$this->cfg('cache', 'prefix', 'atomic.');
         $db_port        = (string)($conn['port'] ?? '3306');
         $redis_port     = (string)($redis['port'] ?? '6379');
         $memcached_port = (string)($memc['port'] ?? '11211');
@@ -97,25 +98,21 @@ class PhpConfigLoader {
             'APP_UUID'              => (string)$this->cfg('app', 'uuid', ''),
             'APP_ENCRYPTION_KEY'    => (string)$this->cfg('app', 'encryption_key', ''),
             'CACHE'                 => $cache_string,
-            'CACHE_PREFIX'          => (string)$this->cfg('cache', 'prefix', 'atomic_'),
+            'CACHE_PREFIX'          => $cache_prefix,
             'DOMAIN'                => (string)$this->cfg('app', 'domain', ''),
             'LANGUAGE'              => (string)$this->cfg('app', 'language', 'en'),
-            'FALLBACK'              => (string)$this->cfg('app', 'fallback', 'en'),
             'ENCODING'              => (string)$this->cfg('app', 'encoding', 'UTF-8'),
             'TZ'                    => (string)$this->cfg('app', 'timezone', 'UTC'),
             'APP_NAME'              => (string)$this->cfg('app', 'name', 'Atomic'),
             'APP_KEY'               => (string)$this->cfg('app', 'key', ''),
             'DEBUG_MODE'            => $this->cfg('app', 'debug', false) ? 'true' : 'false',
             'DEBUG_LEVEL'           => (string)$this->cfg('app', 'debug_level', 'error'),
-            'ATOMIC_HIVE'           => $this->cfg('app', 'atomic_hive', false) ? 'true' : 'false',
-            'ESCAPE'                => $this->cfg('app', 'escape', false) ? 'true' : 'false',
             'TELEMETRY_ADMIN_ONLY'  => (bool)$this->cfg_nested('app', 'telemetry.admin_only', false),
             'THEME.envname'         => (string)$this->cfg('app', 'theme', 'default'),
             'QUEUE_DRIVER'          => (string)$this->cfg('queue', 'driver', 'database'),
             'QUEUE_NAME'            => (string)$this->cfg('queue', 'name', 'default'),
             'TELEGRAM_BOT_TOKEN'    => (string)$this->cfg_nested('tools', 'telegram.bot_token', ''),
             'TELEGRAM_CHAT_ID'      => (string)$this->cfg_nested('tools', 'telegram.chat_id', ''),
-            'TELEGRAM_LOG_LEVEL'    => (string)$this->cfg_nested('tools', 'telegram.log_level', 'error'),
             'UI'                    => $ui_path,
             'TEMP'                  => $this->fix_path($paths['temp'] ?? 'storage/framework/cache/data/'),
             'LOGS'                  => $this->fix_path($paths['logs'] ?? 'storage/logs/'),
@@ -165,10 +162,9 @@ class PhpConfigLoader {
         $this->atomic->set('REDIS', [
             'host'                        => (string)($redis['host'] ?? '127.0.0.1'),
             'port'                        => $ports['redis'],
-            'client'                      => (string)($redis['client'] ?? 'phpredis'),
             'password'                    => (string)($redis['password'] ?? ''),
             'db'                          => (int)($redis['db'] ?? 0),
-            'ATOMIC_REDIS_PREFIX'         => 'atomic.',
+            'ATOMIC_REDIS_PREFIX'         => $cache_prefix,
             'ATOMIC_REDIS_QUEUE_PREFIX'   => 'atomic.queue.',
             'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic.session.',
         ]);
@@ -180,6 +176,7 @@ class PhpConfigLoader {
             'username' => (string)($memc['username'] ?? ''),
             'password' => (string)($memc['password'] ?? ''),
             'prefix'   => (string)($memc['prefix'] ?? 'atomic_'),
+            'ATOMIC_MEMCACHED_PREFIX' => $cache_prefix,
         ]);
 
         // ── MUTEX ──
@@ -199,6 +196,7 @@ class PhpConfigLoader {
             'from_address' => (string)($mail['from_address'] ?? ''),
             'from_name'    => (string)($mail['from_name'] ?? ''),
         ]);
+        $this->apply_mail_settings_to_hive($this->atomic, (array)$this->atomic->get('MAIL'));
 
         // ── SESSION_CONFIG ──
         $session = $this->configs['session'] ?? [];

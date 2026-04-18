@@ -156,7 +156,7 @@ class System extends Controller
 
     public function queue_test(): void
     {
-        $queue_manager = new Manager('default');
+        $queue_manager = new Manager();
         $cli = $this->cli();
         $args = $cli->get_cli_args();
 

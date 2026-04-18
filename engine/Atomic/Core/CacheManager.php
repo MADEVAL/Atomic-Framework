@@ -29,13 +29,22 @@ class CacheManager extends \Prefab
             $config = [
                 'server' => $redis_config['host'],
                 'port' => $redis_config['port'],
+                'password' => $redis_config['password'],
             ];
         }
         $dsn = "redis={$config['server']}:{$config['port']}";
-        if (!empty($config['login']) && !empty($config['password'])) {
-            $dsn .= "?auth={$config['login']}:{$config['password']}";
-        } elseif (!empty($config['password'])) {
-            $dsn .= "?auth={$config['password']}";
+        $login = trim((string)($config['login'] ?? ''));
+        $password = trim((string)$config['password']);
+        if (strtolower($login) === 'null') {
+            $login = '';
+        }
+        if (strtolower($password) === 'null') {
+            $password = '';
+        }
+        if ($login !== '' && $password !== '') {
+            $dsn .= "?auth={$login}:{$password}";
+        } elseif ($password !== '') {
+            $dsn .= "?auth={$password}";
         }
         $this->hive['redis'] = new \Cache($dsn);
         return $this->hive['redis'];
@@ -73,7 +82,7 @@ class CacheManager extends \Prefab
         $mc = new \Memcached();
         $mc->addServer($config['host'], $config['port']);
 
-        $namespace = ((string) ($atomic->get('MEMCACHED.ATOMIC_MEMCACHED_PREFIX') ?? $atomic->get('REDIS.ATOMIC_REDIS_PREFIX') ?? '')) . 'atomic';
+        $namespace = (string)$atomic->get('MEMCACHED.ATOMIC_MEMCACHED_PREFIX');
 
         $this->hive['memcached'] = new Memcached($mc, $namespace);
 

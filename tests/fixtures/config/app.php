@@ -22,11 +22,8 @@ return [
     'theme'          => 'default',
     'encoding'       => 'UTF-8',
     'language'       => 'en',
-    'fallback'       => 'en',
     'debug'          => false,
     'debug_level'    => 'error',
-    'atomic_hive'    => false,
-    'escape'         => false,
     'paths' => [
         'ui'                  => 'public/themes/',
         'temp'                => 'storage/framework/cache/data/',

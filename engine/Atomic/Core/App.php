@@ -297,8 +297,42 @@ class App {
                 $query = $this->atomic->get('QUERY');
                 $this->atomic->reroute($clean . ($query ? '?' . $query : ''), true);
             }
+            $this->apply_cors();
         }
         $this->atomic->run();
+    }
+
+    private function apply_cors(): void
+    {
+        $cors = (array)$this->atomic->get('CORS');
+        $origin = (string)$cors['origin'];
+        $request_origin = (string)$this->atomic->get('HEADERS.Origin');
+        $credentials = (bool)$cors['credentials'];
+
+        if ($credentials && $origin === '*' && $request_origin !== '') {
+            $origin = $request_origin;
+        }
+
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Access-Control-Allow-Headers: ' . (string)$cors['headers']);
+        header('Access-Control-Expose-Headers: ' . (string)$cors['expose']);
+        header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        if ($credentials) {
+            header('Access-Control-Allow-Credentials: true');
+        }
+        $ttl = (int)$cors['ttl'];
+        if ($ttl > 0) {
+            header('Access-Control-Max-Age: ' . $ttl);
+        }
+        if ($origin !== '*') {
+            header('Vary: Origin');
+        }
+
+        $verb = strtoupper((string)$this->atomic->get('VERB'));
+        if ($verb === 'OPTIONS') {
+            http_response_code(204);
+            exit;
+        }
     }
 
     public function __call(string $name, array $arguments): mixed

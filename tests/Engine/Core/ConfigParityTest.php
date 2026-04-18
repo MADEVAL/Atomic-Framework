@@ -30,18 +30,17 @@ class ConfigParityTest extends TestCase
      */
     private static array $all_keys = [
         // ── Flat scalars ──────────────────────────────────────────────────────
-        'APP_UUID', 'CACHE', 'CACHE_PREFIX', 'DOMAIN', 'LANGUAGE', 'FALLBACK',
+        'APP_UUID', 'CACHE', 'CACHE_PREFIX', 'DOMAIN', 'LANGUAGE',
         'ENCODING', 'TZ', 'APP_NAME', 'APP_KEY', 'APP_ENCRYPTION_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL',
-        'ATOMIC_HIVE',
-        'ESCAPE', 'TELEMETRY_ADMIN_ONLY', 'QUEUE_DRIVER', 'QUEUE_NAME',
-        'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TELEGRAM_LOG_LEVEL',
+        'TELEMETRY_ADMIN_ONLY', 'QUEUE_DRIVER', 'QUEUE_NAME',
+        'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
         'UI', 'ENQ_UI_FIX', 'TEMP', 'LOGS', 'LOCALES', 'FONTS', 'FONTS_TEMP',
         'MIGRATIONS', 'MIGRATIONS_BUNDLED', 'MIGRATIONS_CORE',
         'SEEDS', 'SEEDS_BUNDLED', 'USER_PLUGINS', 'FRAMEWORK_ROUTES',
         // ── Arrays / nested ───────────────────────────────────────────────────
         'THEME', 'PORTS', 'WS',
         'DB_CONFIG', 'REDIS', 'MEMCACHED', 'MUTEX', 'MAIL',
-        'SESSION_CONFIG', 'JAR', 'CORS', 'RATE_LIMIT', 'QUEUE',
+        'MAILER', 'SESSION_CONFIG', 'JAR', 'CORS', 'RATE_LIMIT', 'QUEUE',
         'i18n', 'OAUTH', 'MONOPAY',
     ];
 
@@ -148,12 +147,6 @@ class ConfigParityTest extends TestCase
         $this->assertNotEmpty(self::$php_data['DOMAIN'], 'PHP DOMAIN must not be empty');
     }
 
-    public function test_atomic_hive_has_boolean_string_value(): void
-    {
-        $this->assertContains(self::$env_data['ATOMIC_HIVE'], ['true', 'false']);
-        $this->assertContains(self::$php_data['ATOMIC_HIVE'], ['true', 'false']);
-    }
-
     public function test_db_config_has_required_keys(): void
     {
         $required = ['driver', 'host', 'port', 'database', 'username', 'charset', 'collation',
@@ -167,12 +160,20 @@ class ConfigParityTest extends TestCase
 
     public function test_redis_has_constant_prefix_fields(): void
     {
-        $this->assertArrayHasKey('client', self::$php_data['REDIS']);
         $this->assertArrayHasKey('password', self::$php_data['REDIS']);
         $this->assertArrayHasKey('db', self::$php_data['REDIS']);
         $this->assertSame('atomic.',         self::$php_data['REDIS']['ATOMIC_REDIS_PREFIX']);
         $this->assertSame('atomic.queue.',   self::$php_data['REDIS']['ATOMIC_REDIS_QUEUE_PREFIX']);
         $this->assertSame('atomic.session.', self::$php_data['REDIS']['ATOMIC_REDIS_SESSION_PREFIX']);
+    }
+
+    public function test_mailer_bridge_is_populated(): void
+    {
+        $this->assertSame('smtp.example.com', self::$php_data['MAILER']['smtp']['host']);
+        $this->assertSame(587, self::$php_data['MAILER']['smtp']['port']);
+        $this->assertSame('tls', self::$php_data['MAILER']['smtp']['scheme']);
+        $this->assertSame('no-reply@example.com', self::$php_data['MAILER']['from_mail']);
+        $this->assertTrue(self::$php_data['MAILER']['force_tls']);
     }
 
     public function test_session_kill_on_suspect_is_bool(): void

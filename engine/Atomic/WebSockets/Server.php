@@ -57,10 +57,25 @@ abstract class Server
 
     protected function init_async_redis(): void
     {
-        $cfg  = App::instance()->get('REDIS') ?? [];
-        $host = !empty($cfg['host']) ? $cfg['host'] : '127.0.0.1';
-        $port = !empty($cfg['port']) ? (int)$cfg['port'] : 6379;
-        $this->async_redis = new RedisClient("redis://{$host}:{$port}");
+        $cfg  = (array)App::instance()->get('REDIS');
+        $this->async_redis = new RedisClient($this->build_redis_uri($cfg));
+    }
+
+    protected function build_redis_uri(array $cfg): string
+    {
+        $host = (string)$cfg['host'];
+        $port = (int)$cfg['port'];
+        $password = trim((string)$cfg['password']);
+        $db = (int)$cfg['db'];
+
+        $auth = '';
+        if ($password !== '' && strtolower($password) !== 'null') {
+            $auth = ':' . rawurlencode($password) . '@';
+        }
+
+        $path = $db > 0 ? '/' . $db : '';
+
+        return "redis://{$auth}{$host}:{$port}{$path}";
     }
 
     abstract protected function setup(): void;
@@ -144,10 +159,8 @@ abstract class Server
 
     public function start_pubsub(string $channel): void
     {
-        $cfg   = App::instance()->get('REDIS') ?? [];
-        $host  = !empty($cfg['host']) ? $cfg['host'] : '127.0.0.1';
-        $port  = !empty($cfg['port']) ? (int)$cfg['port'] : 6379;
-        $redis = new RedisClient("redis://{$host}:{$port}");
+        $cfg   = (array)App::instance()->get('REDIS');
+        $redis = new RedisClient($this->build_redis_uri($cfg));
         $self  = $this;
 
         $redis->subscribe([$channel], function(string $chan, string $payload) use ($self): void

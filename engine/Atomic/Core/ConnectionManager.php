@@ -45,6 +45,20 @@ class ConnectionManager
         return \microtime(true);
     }
 
+    private function normalize_optional_string(mixed $value): ?string
+    {
+        if (!is_scalar($value) && $value !== null) {
+            return null;
+        }
+
+        $value = trim((string)$value);
+        if ($value === '' || strtolower($value) === 'null') {
+            return null;
+        }
+
+        return $value;
+    }
+
     private function should_health_check(float $last_used_at, float $interval): bool
     {
         if ($interval <= 0.0) {
@@ -161,12 +175,20 @@ class ConnectionManager
         }
 
         $cfg = $this->get_redis_config($name);
-        $host = !empty($cfg['host']) ? $cfg['host'] : '127.0.0.1';
-        $port = !empty($cfg['port']) ? (int)$cfg['port'] : 6379;
+        $host = (string)$cfg['host'];
+        $port = (int)$cfg['port'];
 
         try {
             $r = new \Redis();
             $r->connect($host, $port, 1.0);
+            $password = $this->normalize_optional_string($cfg['password']);
+            if ($password !== null) {
+                $r->auth($password);
+            }
+            $db = (int)$cfg['db'];
+            if ($db !== 0) {
+                $r->select($db);
+            }
 
             $this->redis_connections[$name] = $r;
             $this->redis_last_used_at[$name] = $this->now();
@@ -204,11 +226,17 @@ class ConnectionManager
         }
 
         $cfg = $this->get_memcached_config($name);
-        $host = !empty($cfg['host']) ? $cfg['host'] : '127.0.0.1';
-        $port = !empty($cfg['port']) ? (int)$cfg['port'] : 11211;
+        $host = (string)$cfg['host'];
+        $port = (int)$cfg['port'];
 
         try {
             $m = new \Memcached();
+            $username = $this->normalize_optional_string($cfg['username']);
+            $password = $this->normalize_optional_string($cfg['password']);
+            if ($username !== null && $password !== null) {
+                $m->setOption(\Memcached::OPT_BINARY_PROTOCOL, true);
+                $m->setSaslAuthData($username, $password);
+            }
             $m->setOptions([
                 \Memcached::OPT_BINARY_PROTOCOL => true,
                 \Memcached::OPT_CONNECT_TIMEOUT => 200,

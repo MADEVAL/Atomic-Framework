@@ -106,7 +106,7 @@ class CLI {
 
     public function custom_hive(): void {
         $keys = [
-            'DEBUG', 'BASE', 'LANGUAGE', 'LANG', 'FALLBACK', 'ENCODING', 'TZ',
+            'DEBUG', 'BASE', 'LANGUAGE', 'LANG', 'ENCODING', 'TZ',
             'APP_NAME', 'APP_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL', 
             'CACHE', 'AUTOLOAD', 'UI', 'TEMP', 'LOGS', 'LOCALES', 'FONTS', 'FONTS_TEMP',
             'QUEUE_DRIVER', 'QUEUE_NAME'

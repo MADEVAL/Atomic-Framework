@@ -42,7 +42,7 @@ trait Queue {
         return "Queue system is unavailable: unsupported QUEUE_DRIVER '{$driver}'.";
     }
 
-    private function create_queue_manager_or_null(string $queue_name = 'default'): ?Manager
+    private function create_queue_manager_or_null(?string $queue_name = null): ?Manager
     {
         try {
             return new Manager($queue_name);
@@ -87,7 +87,7 @@ trait Queue {
     {
         $atomic = App::instance();
         $args = $this->get_cli_args();
-        $queue_name = $args[0] ?? 'default';
+        $queue_name = $args[0] ?? (string)$atomic->get('QUEUE_NAME');
 
         $driver = (string) $atomic->get('QUEUE_DRIVER');
         if ($driver === 'database') {

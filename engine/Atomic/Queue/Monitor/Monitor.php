@@ -29,7 +29,7 @@ class Monitor
     private ProcessManager $process_manager;
     private Manager $queue_manager;
 
-    public function __construct(string $queue = 'default') {
+    public function __construct(?string $queue = null) {
         $this->queue_manager = new Manager($queue);
         $this->process_manager = new ProcessManager(LogChannel::QUEUE_MONITOR);
 
