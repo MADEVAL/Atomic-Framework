@@ -15,6 +15,7 @@ class Log
 {
     protected static bool $debug_mode = false;
     protected static string $dumps_dir = '';
+    protected static string $logs_dir = '';
     protected static ?\Base $atomic = null;
 
     /** @var array<string, array{logger: \Log, level: int, path: string}> */
@@ -46,6 +47,7 @@ class Log
         $atomic->set('LOGGABLE', '');
 
         $logs = rtrim((string)$atomic->get('LOGS'), '/\\') . DIRECTORY_SEPARATOR;
+        self::$logs_dir  = $logs;
         self::$dumps_dir = $logs . 'dumps' . DIRECTORY_SEPARATOR;
         $atomic->set('DUMPS', self::$dumps_dir);
 
@@ -58,18 +60,20 @@ class Log
             $channels = $logging_config['channels'] ?? [];
             foreach ($channels as $name => $cfg) {
                 self::$channel_configs[$name] = [
-                    'driver' => (string)($cfg['driver'] ?? 'file'),
-                    'path'   => (string)($cfg['path'] ?? $name . '.log'),
-                    'level'  => strtolower((string)($cfg['level'] ?? 'debug')),
+                    'driver'   => (string)($cfg['driver'] ?? 'file'),
+                    'path'     => (string)($cfg['path'] ?? $name . '.log'),
+                    'level'    => strtolower((string)($cfg['level'] ?? 'debug')),
+                    'max_days' => (int)($cfg['max_days'] ?? 30),
                 ];
             }
         }
 
         if (!isset(self::$channel_configs[self::$default_channel])) {
             self::$channel_configs[self::$default_channel] = [
-                'driver' => 'file',
-                'path'   => 'atomic.log',
-                'level'  => 'debug',
+                'driver'   => 'file',
+                'path'     => 'atomic.log',
+                'level'    => 'debug',
+                'max_days' => 30,
             ];
         }
 
@@ -130,7 +134,17 @@ class Log
         return self::$channel_configs[$name]['path'] ?? null;
     }
 
-    /** @param array{driver: string, path: string, level: string} $cfg */
+    public static function get_logs_dir(): string
+    {
+        return self::$logs_dir;
+    }
+
+    public static function get_channel_max_days(string $name, int $default = 30): int
+    {
+        return (int)(self::$channel_configs[$name]['max_days'] ?? $default);
+    }
+
+    /** @param array{driver: string, path: string, level: string, max_days: int} $cfg */
     protected static function build_channel(array $cfg): array
     {
         $resolved_path = self::resolve_dated_path($cfg['path']);

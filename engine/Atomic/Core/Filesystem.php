@@ -158,6 +158,16 @@ class Filesystem
         return is_file($file);
     }
 
+    public function is_dir(string $path): bool
+    {
+        return is_dir($path);
+    }
+
+    public function glob(string $pattern, int $flags = 0): array|false
+    {
+        return glob($pattern, $flags);
+    }
+
     public function rename(string $old_name, string $new_name): bool
     {
         if (!file_exists($old_name)) return false;

@@ -69,9 +69,7 @@ trait Scheduler
         if ($list_data['total'] === 0) {
             $this->output->writeln('No scheduled tasks defined.');
             $this->output->writeln();
-            $this->output->writeln('To define tasks, create a schedule.php file in your app directory:');
-            $this->output->writeln('  app/schedule.php');
-            $this->output->writeln('  app/Console/schedule.php');
+            $this->output->writeln('To define tasks, add them to the file:');
             $this->output->writeln('  routes/schedule.php');
             return;
         }
@@ -197,7 +195,7 @@ trait Scheduler
 
         $this->output->writeln();
         $this->output->writeln('Setup:');
-        $this->output->writeln('  1. Create a schedule.php file in your app directory');
+        $this->output->writeln('  1. Create routes/schedule.php');
         $this->output->writeln('  2. Define tasks using the Scheduler API');
         $this->output->writeln('  3. Add a cron job: * * * * * php atomic schedule/run');
 

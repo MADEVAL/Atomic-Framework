@@ -177,11 +177,13 @@ class Scheduler extends \Prefab
 
     public function register_schedule(): self
     {
-        $atomic = App::atomic();
-        
-        $path = \dirname($atomic->get('ROOT')) . '/src/routes/schedule.php';
+        if (!\defined('ATOMIC_DIR')) {
+            return $this;
+        }
 
-        if (\file_exists($path)) {
+        $path = \ATOMIC_DIR . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'schedule.php';
+
+        if (\is_file($path) && \is_readable($path)) {
             $this->load_from($path);
         }
 

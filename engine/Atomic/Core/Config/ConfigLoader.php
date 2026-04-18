@@ -262,7 +262,7 @@ class ConfigLoader {
     protected function build_log_channels(): array {
         $channels = [];
         foreach ($this->env as $key => $value) {
-            if (preg_match('/^LOG_([A-Z][A-Z0-9_]+?)_(DRIVER|PATH|LEVEL)$/', $key, $m)) {
+            if (preg_match('/^LOG_([A-Z][A-Z0-9_]+?)_(DRIVER|PATH|LEVEL|MAX_DAYS)$/', $key, $m)) {
                 $channel = strtolower($m[1]);
                 $field   = strtolower($m[2]);
                 $channels[$channel][$field] = $value;
