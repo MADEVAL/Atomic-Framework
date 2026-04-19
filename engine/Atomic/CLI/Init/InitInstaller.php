@@ -292,7 +292,7 @@ trait InitInstaller
             'DB_DRIVER'           => ['database', ['connections', 'mysql', 'driver']],
             'DB_HOST'             => ['database', ['connections', 'mysql', 'host']],
             'DB_PORT'             => ['database', ['connections', 'mysql', 'port']],
-            'DB_DATABASE'         => ['database', ['connections', 'mysql', 'database']],
+            'DB_DB'               => ['database', ['connections', 'mysql', 'db']],
             'DB_USERNAME'         => ['database', ['connections', 'mysql', 'username']],
             'DB_PASSWORD'         => ['database', ['connections', 'mysql', 'password']],
             'SESSION_DRIVER'      => ['session',  ['driver']],
@@ -343,28 +343,28 @@ trait InitInstaller
     private function choose_main_driver(): string
     {
         if (!$this->input->is_interactive()) {
-            return 'database';
+            return 'db';
         }
 
         while (true) {
-            $this->output->prompt("  Main backend driver [database/redis] [database]: ");
+            $this->output->prompt("  Main backend driver [db/redis] [db]: ");
             $value = strtolower($this->input->read_line());
 
-            if ($value === '' || $value === 'database') {
-                return 'database';
+            if ($value === '' || $value === 'db') {
+                return 'db';
             }
 
             if ($value === 'redis') {
                 if (!extension_loaded('redis')) {
                     $this->output->err('  ' . Style::error_label() . ' Redis backend requires the PHP redis extension (ext-redis).');
-                    $this->output->err("  Install/enable ext-redis and try again, or choose 'database'.");
+                    $this->output->err("  Install/enable ext-redis and try again, or choose 'db'.");
                     continue;
                 }
 
                 return 'redis';
             }
 
-            $this->output->err('  ' . Style::warning_label() . " Please enter 'database' or 'redis'.");
+            $this->output->err('  ' . Style::warning_label() . " Please enter 'db' or 'redis'.");
         }
     }
 
@@ -379,7 +379,7 @@ trait InitInstaller
                 'driver'   => 'mysql',
                 'host'     => $this->ask('DB host',     $this->read_config_value('DB_HOST',     '127.0.0.1')),
                 'port'     => $this->ask('DB port',     $this->read_config_value('DB_PORT',     '3306')),
-                'database' => $this->ask('DB name',     $this->read_config_value('DB_DATABASE', 'atomic')),
+                'db'       => $this->ask('DB name',     $this->read_config_value('DB_DB', 'atomic')),
                 'username' => $this->ask('DB user',     $this->read_config_value('DB_USERNAME', 'root')),
                 'password' => $this->input->read_secret('DB password', $this->read_config_value('DB_PASSWORD', '')),
             ];
@@ -389,7 +389,7 @@ trait InitInstaller
                 $this->set_config_value('DB_DRIVER',   $config['driver']);
                 $this->set_config_value('DB_HOST',     $config['host']);
                 $this->set_config_value('DB_PORT',     $config['port']);
-                $this->set_config_value('DB_DATABASE', $config['database']);
+                $this->set_config_value('DB_DB',       $config['db']);
                 $this->set_config_value('DB_USERNAME', $config['username']);
                 $this->set_config_value('DB_PASSWORD', $config['password']);
                 $this->output->writeln('  ' . Style::success_label() . " Database is ready.");
@@ -415,7 +415,7 @@ trait InitInstaller
                 'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
                 $config['host'],
                 $config['port'],
-                $config['database']
+                $config['db']
             );
 
             new \PDO($dsn, $config['username'], $config['password'], [
@@ -436,7 +436,7 @@ trait InitInstaller
             'driver'                  => $config['driver'],
             'host'                    => $config['host'],
             'port'                    => $config['port'],
-            'database'                => $config['database'],
+            'db'                      => $config['db'],
             'username'                => $config['username'],
             'password'                => $config['password'],
             'unix_socket'             => '',
@@ -516,14 +516,14 @@ trait InitInstaller
                     $this->output->writeln('  Set these values in your .env file:');
                     $this->output->writeln('    DB_HOST=');
                     $this->output->writeln('    DB_PORT=');
-                    $this->output->writeln('    DB_DATABASE=');
+                    $this->output->writeln('    DB_DB=');
                     $this->output->writeln('    DB_USERNAME=');
                     $this->output->writeln('    DB_PASSWORD=');
                 } else {
                     $this->output->writeln('  Set these values in config/database.php:');
                     $this->output->writeln("    'host'     => '',");
                     $this->output->writeln("    'port'     => '',");
-                    $this->output->writeln("    'database' => '',");
+                    $this->output->writeln("    'db'       => '',");
                     $this->output->writeln("    'username' => '',");
                     $this->output->writeln("    'password' => '',");
                 }

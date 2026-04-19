@@ -94,7 +94,7 @@ class ConfigLoaderTest extends TestCase
             'DB_DRIVER=mysql',
             'DB_HOST=127.0.0.1',
             'DB_PORT=3306',
-            'DB_DATABASE=testdb',
+            'DB_DB=testdb',
             'DB_USERNAME=root',
             'DB_PASSWORD=secret',
             'CACHE_DRIVER=folder',
@@ -111,7 +111,7 @@ class ConfigLoaderTest extends TestCase
 
         $dbConfig = $this->f3->get('DB_CONFIG');
         $this->assertSame('mysql', $dbConfig['driver']);
-        $this->assertSame('testdb', $dbConfig['database']);
+        $this->assertSame('testdb', $dbConfig['db']);
         $this->assertSame('root', $dbConfig['username']);
     }
 
@@ -210,18 +210,18 @@ class ConfigLoaderTest extends TestCase
     public function test_build_queue_config(): void
     {
         file_put_contents($this->envFile, implode("\n", [
-            'QUEUE_DATABASE_DEFAULT_DELAY=5',
-            'QUEUE_DATABASE_DEFAULT_MAX_ATTEMPTS=3',
-            'QUEUE_DATABASE_EMAIL_DELAY=10',
-            'QUEUE_DATABASE_EMAIL_MAX_ATTEMPTS=5',
+            'QUEUE_DB_DEFAULT_DELAY=5',
+            'QUEUE_DB_DEFAULT_MAX_ATTEMPTS=3',
+            'QUEUE_DB_EMAIL_DELAY=10',
+            'QUEUE_DB_EMAIL_MAX_ATTEMPTS=5',
             'CACHE_DRIVER=folder',
         ]));
 
         $this->loader->load($this->envFile);
 
         $queue = $this->f3->get('QUEUE');
-        $this->assertArrayHasKey('database', $queue);
-        $dbQueues = $queue['database']['queues'];
+        $this->assertArrayHasKey('db', $queue);
+        $dbQueues = $queue['db']['queues'];
         $this->assertArrayHasKey('default', $dbQueues);
         $this->assertSame(5, $dbQueues['default']['delay']);
         $this->assertArrayHasKey('email', $dbQueues);

@@ -14,7 +14,7 @@ class Transient
 {
     public const DRIVER_REDIS = 'redis';
     public const DRIVER_MEMCACHED = 'memcached';
-    public const DRIVER_DB = 'database';
+    public const DRIVER_DB = 'db';
 
     protected static function get_cache_driver(?string $driver = null): \Cache|DB|Memcached {
         $cm = CacheManager::instance();

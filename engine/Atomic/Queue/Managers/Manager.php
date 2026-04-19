@@ -40,8 +40,8 @@ class Manager
         $this->queue = $queue ?: (string)$atomic->get('QUEUE_NAME');
 
         $this->driver = match ($atomic->get('QUEUE_DRIVER')) {
-            'redis'    => new RedisDriver(),
-            'database' => new DBDriver(),
+            'redis' => new RedisDriver(),
+            'db'    => new DBDriver(),
             default    => throw new \Exception("Unknown queue driver: " . $atomic->get('QUEUE_DRIVER'))
         };
         $this->telemetry_manager = new TelemetryManager();

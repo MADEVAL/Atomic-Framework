@@ -62,7 +62,7 @@ final class AuthIntegrationTest extends TestCase
         $this->pdo = null;
     }
 
-    public function test_database_driver_persists_session_and_meta_to_real_database(): void
+    public function test_db_driver_persists_session_and_meta_to_real_database(): void
     {
         $this->boot_environment('db');
 
@@ -193,7 +193,7 @@ final class AuthIntegrationTest extends TestCase
 
         $db_host = $this->env_value('DB_HOST', '127.0.0.1');
         $db_port = $this->env_value('DB_PORT', '3306');
-        $db_name = $this->env_value('DB_DATABASE', 'atomic_test');
+        $db_name = $this->env_value('DB_DB', 'atomic_test');
         $db_user = $this->env_value('DB_USERNAME', 'root');
         $db_password = $this->env_value('DB_PASSWORD', 'root');
         $db_charset = $this->env_value('DB_CHARSET', 'utf8mb4');
@@ -237,7 +237,7 @@ final class AuthIntegrationTest extends TestCase
             'driver' => 'mysql',
             'host' => $db_host,
             'port' => $db_port,
-            'database' => $db_name,
+            'db' => $db_name,
             'username' => $db_user,
             'password' => $db_password,
             'unix_socket' => '',

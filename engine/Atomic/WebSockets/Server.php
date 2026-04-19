@@ -66,7 +66,7 @@ abstract class Server
         $host = (string)$cfg['host'];
         $port = (int)$cfg['port'];
         $password = trim((string)$cfg['password']);
-        $db = (int)$cfg['db'];
+        $db = (int)($cfg['db'] ?? 0);
 
         $auth = '';
         if ($password !== '' && strtolower($password) !== 'null') {
@@ -183,4 +183,3 @@ abstract class Server
         });
     }
 }
-

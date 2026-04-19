@@ -88,7 +88,7 @@ class ConfigLoader {
             'DEBUG_LEVEL'           => $this->get_env('DEBUG_LEVEL', 'error'),
             'TELEMETRY_ADMIN_ONLY'  => filter_var($this->get_env('TELEMETRY_ADMIN_ONLY', 'false'), FILTER_VALIDATE_BOOLEAN),
             'THEME.envname'         => $this->get_env('THEME', 'default'),
-            'QUEUE_DRIVER'          => $this->get_env('QUEUE_DRIVER', 'database'),
+            'QUEUE_DRIVER'          => $this->get_env('QUEUE_DRIVER', 'db'),
             'QUEUE_NAME'            => $this->get_env('QUEUE_NAME', 'default'),
             'TELEGRAM_BOT_TOKEN'    => $this->get_env('TELEGRAM_BOT_TOKEN', ''), 
             'TELEGRAM_CHAT_ID'      => $this->get_env('TELEGRAM_CHAT_ID', ''),
@@ -126,7 +126,7 @@ class ConfigLoader {
             'driver'      => $this->get_env('DB_DRIVER'),
             'host'        => $this->get_env('DB_HOST', '127.0.0.1'),
             'port'        => $ports['db'],
-            'database'    => $this->get_env('DB_DATABASE', ''),
+            'db'          => $this->get_env('DB_DB', ''),
             'username'    => $this->get_env('DB_USERNAME', ''),
             'password'    => $this->get_env('DB_PASSWORD', ''),
             'unix_socket' => $this->get_env('DB_SOCKET', ''),
@@ -209,8 +209,8 @@ class ConfigLoader {
         ]);
 
         $this->atomic->set('QUEUE', [
-            'database' => [
-                'queues' => $this->build_queue_config('QUEUE_DATABASE_')
+            'db' => [
+                'queues' => $this->build_queue_config('QUEUE_DB_')
             ],
             'redis' => [
                 'queues' => $this->build_queue_config('QUEUE_REDIS_')

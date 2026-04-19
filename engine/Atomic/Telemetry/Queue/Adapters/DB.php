@@ -74,7 +74,7 @@ trait DB
                 $jobs[$job->uuid] = $job->cast();
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
                 $jobs[$job->uuid]['status'] = Status::COMPLETED->value;
-                $jobs[$job->uuid]['driver'] = Driver::DATABASE->value;
+                $jobs[$job->uuid]['driver'] = Driver::DB->value;
             }
 
             return ['items' => $jobs, 'total' => $total];
@@ -121,7 +121,7 @@ trait DB
                 $job_data['exception'] = $this->deserialize($job->exception);
                 $job_data['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
                 $job_data['status'] = Status::FAILED->value;
-                $job_data['driver'] = Driver::DATABASE->value;
+                $job_data['driver'] = Driver::DB->value;
                 $jobs[$uuid] = $job_data;
             }
 
@@ -168,7 +168,7 @@ trait DB
                 $jobs[$job->uuid]['status'] = isset($job->process_start_ticks) && $job->process_start_ticks
                     ? Status::RUNNING->value
                     : Status::QUEUED->value;
-                $jobs[$job->uuid]['driver'] = Driver::DATABASE->value;
+                $jobs[$job->uuid]['driver'] = Driver::DB->value;
             }
 
             return ['items' => $jobs, 'total' => $total];
@@ -214,7 +214,7 @@ trait DB
                 $jobs[$job->uuid] = $job->cast();
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
                 $jobs[$job->uuid]['status'] = Status::QUEUED->value;
-                $jobs[$job->uuid]['driver'] = Driver::DATABASE->value;
+                $jobs[$job->uuid]['driver'] = Driver::DB->value;
             }
 
             return ['items' => $jobs, 'total' => $total];
@@ -286,7 +286,7 @@ trait DB
                 $createdAt = (int)($row['created_at'] ?? 0);
                 $row['created_at_formatted'] = date('Y-m-d H:i:s', $createdAt);
                 $row['status'] = $status;
-                $row['driver'] = Driver::DATABASE->value;
+                $row['driver'] = Driver::DB->value;
                 $jobs[$row['uuid']] = $row;
             }
 

@@ -80,8 +80,8 @@ trait Init
             $this->output->writeln('  ' . Style::success_label() . " Redis selected for queue/mutex/session backends.");
         } else {
             $this->set_config_value('SESSION_DRIVER', 'db');
-            $this->set_config_value('MUTEX_DRIVER',   'database');
-            $this->set_config_value('QUEUE_DRIVER',   'database');
+            $this->set_config_value('MUTEX_DRIVER',   'db');
+            $this->set_config_value('QUEUE_DRIVER',   'db');
             $this->setup_database_backends_migrations($db_migrated);
         }
 
@@ -580,7 +580,7 @@ trait Init
         $o->writeln('       DB_DRIVER=mysql');
         $o->writeln('       DB_HOST=127.0.0.1        # Use 127.0.0.1 (not "localhost") to force TCP');
         $o->writeln('       DB_PORT=3306             # Default MySQL port');
-        $o->writeln('       DB_DATABASE=atomic       # The database you created above');
+        $o->writeln('       DB_DB=atomic             # The database you created above');
         $o->writeln('       DB_USERNAME=root         # MySQL user');
         $o->writeln('       DB_PASSWORD=secret       # MySQL password');
         $o->writeln('       DB_CHARSET=utf8mb4       # Recommended - optional');
@@ -590,7 +590,7 @@ trait Init
         $o->writeln("       ['connections']['mysql']['driver']   = 'mysql'");
         $o->writeln("       ['connections']['mysql']['host']     = '127.0.0.1'");
         $o->writeln("       ['connections']['mysql']['port']     = '3306'");
-        $o->writeln("       ['connections']['mysql']['database'] = 'atomic'");
+        $o->writeln("       ['connections']['mysql']['db'] = 'atomic'");
         $o->writeln("       ['connections']['mysql']['username'] = 'root'");
         $o->writeln("       ['connections']['mysql']['password'] = 'secret'");
         $o->writeln();
@@ -618,13 +618,13 @@ trait Init
         $o->writeln();
         $o->writeln('  In .env:');
         $o->writeln('    SESSION_DRIVER=db');
-        $o->writeln('    MUTEX_DRIVER=database');
-        $o->writeln('    QUEUE_DRIVER=database');
+        $o->writeln('    MUTEX_DRIVER=db');
+        $o->writeln('    QUEUE_DRIVER=db');
         $o->writeln();
         $o->writeln('  PHP config equivalents:');
         $o->writeln("    config/session.php   → ['driver'] = 'db'");
-        $o->writeln("    config/database.php  → ['mutex']['driver'] = 'database'");
-        $o->writeln("    config/queue.php     → ['driver'] = 'database'");
+        $o->writeln("    config/database.php  → ['mutex']['driver'] = 'db'");
+        $o->writeln("    config/queue.php     → ['driver'] = 'db'");
         $o->writeln();
         $o->writeln('  Run the three backend migrations (run each command, confirm when prompted):');
         $o->writeln('    php atomic db/sessions   # creates the sessions table');
@@ -688,7 +688,7 @@ trait Init
         $o->writeln('         APP_NAME, MAIL_FROM_NAME');
         $o->writeln('  [ ] 3. DB credentials set; database exists; php atomic migrations/init run');
         $o->writeln('         before php atomic migrations/migrate');
-        $o->writeln('  [ ] 4. Backend driver chosen (database or redis) and configured');
+        $o->writeln('  [ ] 4. Backend driver chosen (db or redis) and configured');
         $o->writeln('  [ ] 5. For Redis: ext-redis loaded and Redis server reachable');
         $o->writeln('  [ ] 6. Web server document root pointed to public/');
         $o->writeln();

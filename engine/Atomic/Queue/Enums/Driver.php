@@ -7,7 +7,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 enum Driver: string
 {
     case REDIS = 'redis';
-    case DATABASE = 'database';
+    case DB = 'db';
 
     public static function all(): array
     {

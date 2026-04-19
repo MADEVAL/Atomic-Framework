@@ -5,7 +5,7 @@ if (!defined('ATOMIC_START')) exit;
 return [
     'providers' => [
         'users' => [
-            'driver' => 'database',
+            'driver' => 'db',
             'table'  => 'users',
         ],
     ],

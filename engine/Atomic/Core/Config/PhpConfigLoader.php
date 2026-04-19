@@ -109,7 +109,7 @@ class PhpConfigLoader {
             'DEBUG_LEVEL'           => (string)$this->cfg('app', 'debug_level', 'error'),
             'TELEMETRY_ADMIN_ONLY'  => (bool)$this->cfg_nested('app', 'telemetry.admin_only', false),
             'THEME.envname'         => (string)$this->cfg('app', 'theme', 'default'),
-            'QUEUE_DRIVER'          => (string)$this->cfg('queue', 'driver', 'database'),
+            'QUEUE_DRIVER'          => (string)$this->cfg('queue', 'driver', 'db'),
             'QUEUE_NAME'            => (string)$this->cfg('queue', 'name', 'default'),
             'TELEGRAM_BOT_TOKEN'    => (string)$this->cfg_nested('tools', 'telegram.bot_token', ''),
             'TELEGRAM_CHAT_ID'      => (string)$this->cfg_nested('tools', 'telegram.chat_id', ''),
@@ -148,7 +148,7 @@ class PhpConfigLoader {
             'driver'                 => (string)($conn['driver'] ?? $default_conn),
             'host'                   => (string)($conn['host'] ?? '127.0.0.1'),
             'port'                   => $ports['db'],
-            'database'               => (string)($conn['database'] ?? ''),
+            'db'                     => (string)($conn['db'] ?? ''),
             'username'               => (string)($conn['username'] ?? ''),
             'password'               => (string)($conn['password'] ?? ''),
             'unix_socket'            => (string)($conn['unix_socket'] ?? ''),
@@ -245,7 +245,7 @@ class PhpConfigLoader {
         // ── QUEUE ──
         $queue_config = $this->configs['queue'] ?? [];
         $queue = [];
-        foreach (['database', 'redis'] as $driver) {
+        foreach (['db', 'redis'] as $driver) {
             $driver_queues = $queue_config[$driver]['queues'] ?? ['default' => []];
             $defaults = [
                 'delay' => 0, 'priority' => 10, 'timeout' => 20,

@@ -149,7 +149,7 @@ class ConfigParityTest extends TestCase
 
     public function test_db_config_has_required_keys(): void
     {
-        $required = ['driver', 'host', 'port', 'database', 'username', 'charset', 'collation',
+        $required = ['driver', 'host', 'port', 'db', 'username', 'charset', 'collation',
                      'ATOMIC_DB_PREFIX', 'ATOMIC_DB_QUEUE_PREFIX'];
         foreach ($required as $k) {
             $this->assertArrayHasKey($k, self::$php_data['DB_CONFIG'], "DB_CONFIG missing '{$k}'");
@@ -194,9 +194,9 @@ class ConfigParityTest extends TestCase
         $this->assertArrayHasKey('login',    self::$php_data['RATE_LIMIT']);
     }
 
-    public function test_queue_has_database_and_redis_drivers(): void
+    public function test_queue_has_db_and_redis_drivers(): void
     {
-        $this->assertArrayHasKey('database', self::$php_data['QUEUE']);
+        $this->assertArrayHasKey('db', self::$php_data['QUEUE']);
         $this->assertArrayHasKey('redis',    self::$php_data['QUEUE']);
     }
 

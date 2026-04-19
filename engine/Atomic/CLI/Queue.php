@@ -32,11 +32,11 @@ trait Queue {
             return "Queue driver 'redis' is unavailable: Redis service is not reachable or queue Redis config is incomplete. Check REDIS_HOST/REDIS_PORT and QUEUE.redis settings.";
         }
 
-        if ($driver === 'database') {
+        if ($driver === 'db') {
             if (!\extension_loaded('pdo_mysql')) {
-                return "Queue driver 'database' is unavailable: ext-pdo_mysql is not loaded. Install/enable pdo_mysql and verify DB_* settings.";
+                return "Queue driver 'db' is unavailable: ext-pdo_mysql is not loaded. Install/enable pdo_mysql and verify DB_* settings.";
             }
-            return "Queue driver 'database' is unavailable: database connection failed or queue tables are missing. Check DB_* and run 'php atomic queue/db'.";
+            return "Queue driver 'db' is unavailable: database connection failed or queue tables are missing. Check DB_* and run 'php atomic queue/db'.";
         }
 
         return "Queue system is unavailable: unsupported QUEUE_DRIVER '{$driver}'.";
@@ -90,7 +90,7 @@ trait Queue {
         $queue_name = $args[0] ?? (string)$atomic->get('QUEUE_NAME');
 
         $driver = (string) $atomic->get('QUEUE_DRIVER');
-        if ($driver === 'database') {
+        if ($driver === 'db') {
             $this->seed_monitor_test_cases_db($queue_name);
             return;
         }

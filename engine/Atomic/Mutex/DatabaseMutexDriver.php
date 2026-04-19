@@ -169,7 +169,7 @@ class DatabaseMutexDriver implements MutexDriverInterface
 
     public function get_name(): string
     {
-        return 'database';
+        return 'db';
     }
 
     public function is_available(): bool

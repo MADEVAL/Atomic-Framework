@@ -23,7 +23,7 @@ class TelemetryManager {
         $driver_name = $atomic->get('QUEUE_DRIVER');
         $this->driver = match ($driver_name) {
             Driver::REDIS->value => new Redis(),
-            Driver::DATABASE->value => new DB(),
+            Driver::DB->value    => new DB(),
             default    => throw new \Exception("Unknown queue driver: " . $driver_name)
         };
         $this->drivers[$driver_name] = $this->driver;

@@ -17,7 +17,7 @@ class Mutex
 {
     public const DRIVER_REDIS = 'redis';
     public const DRIVER_MEMCACHED = 'memcached';
-    public const DRIVER_DB = 'database';
+    public const DRIVER_DB = 'db';
     public const DRIVER_FILE = 'file';
 
     protected static ?MutexDriverInterface $driver = null;

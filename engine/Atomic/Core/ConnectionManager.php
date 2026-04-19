@@ -118,11 +118,11 @@ class ConnectionManager
         $username = $cfg['username'];
         $password = $cfg['password'];
         $host = $cfg['host'];
-        $database = $cfg['database'];
+        $db = $cfg['db'];
         $charset = $cfg['charset'];
         $collation = $cfg['collation'];
 
-        $dsn = "mysql:host={$host};dbname={$database}";
+        $dsn = "mysql:host={$host};dbname={$db}";
         if (!empty($charset)) {
             $dsn .= ";charset={$charset}";
         }
@@ -185,7 +185,7 @@ class ConnectionManager
             if ($password !== null) {
                 $r->auth($password);
             }
-            $db = (int)$cfg['db'];
+            $db = (int)($cfg['db'] ?? 0);
             if ($db !== 0) {
                 $r->select($db);
             }
@@ -336,7 +336,7 @@ class ConnectionManager
         $db_cfg = $atomic->get('DB_CONFIG') ?? [];
         if (
             !empty($db_cfg['host']) &&
-            !empty($db_cfg['database']) &&
+            !empty($db_cfg['db']) &&
             !empty($db_cfg['username']) &&
             !empty($db_cfg['password'])
         ) {
