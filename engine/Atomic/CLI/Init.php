@@ -90,13 +90,14 @@ trait Init
         $this->output->writeln("  " . Style::success_label() . " Done.");
         $this->output->writeln();
         $this->output->writeln("  Next:");
+        $this->output->writeln("    1. Point your server to public/.");
         if ($this->config_mode() === 'env') {
-            $this->output->writeln("    1. Open .env if you want to change anything.");
+            $this->output->writeln("    2. Open .env and set your domain.");
         } else {
-            $this->output->writeln("    1. Review config/*.php if you want to change anything.");
+            $this->output->writeln("    2. Open config/app.php and set your domain.");
         }
-        $this->output->writeln("    2. Point your server to public/.");
-        $this->output->writeln("    3. Open the site.");
+        $this->output->writeln('    3. Scheduler: create a system cron task:');
+        $this->output->writeln('         * * * * * cd /path/to/this/project && php atomic schedule/run');
         $this->output->writeln();
     }
 
