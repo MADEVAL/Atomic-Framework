@@ -483,7 +483,7 @@ trait InitInstaller
         $options = [
             ['label' => 'session', 'method' => 'db_sessions'],
             ['label' => 'mutex',   'method' => 'db_mutex'],
-            ['label' => 'queue',   'method' => 'queue_db'],
+            ['label' => 'queue',   'method' => 'db_queue'],
         ];
 
         $queued = 0;
