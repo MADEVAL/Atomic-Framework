@@ -342,13 +342,5 @@ class ConnectionManager
         ) {
             $this->open_db();
         }
-
-        if (\extension_loaded('redis') && !empty($atomic->get('REDIS'))) {
-            $this->open_redis();
-        }
-
-        if (!empty($atomic->get('MEMCACHED'))) {
-            $this->open_memcached();
-        }
     }
 }
