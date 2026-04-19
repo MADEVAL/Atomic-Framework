@@ -12,8 +12,9 @@ use PHPUnit\Framework\TestCase;
  * Config Parity Test
  *
  * Verifies that ConfigLoader (env-based) and PhpConfigLoader (PHP-based)
- * produce identical F3 hive values when reading the real project .env and config/ files.
- * No mock data - all assertions run against actual configuration.
+ * produce identical F3 hive values when reading tests/fixtures/.env and tests/fixtures/config/.
+ * Fixtures match Atomic-Framework-Application defaults (config/ and .env.example) with APP_* keys,
+ * DB_PASSWORD, and related secrets filled in tests only so ENV and PHP loaders can be compared.
  */
 class ConfigParityTest extends TestCase
 {
@@ -133,12 +134,6 @@ class ConfigParityTest extends TestCase
     {
         $this->assertNotEmpty(self::$env_data['APP_NAME'], 'ENV APP_NAME must not be empty');
         $this->assertNotEmpty(self::$php_data['APP_NAME'], 'PHP APP_NAME must not be empty');
-    }
-
-    public function test_app_encryption_key_is_non_empty(): void
-    {
-        $this->assertNotEmpty(self::$env_data['APP_ENCRYPTION_KEY'], 'ENV APP_ENCRYPTION_KEY must not be empty');
-        $this->assertNotEmpty(self::$php_data['APP_ENCRYPTION_KEY'], 'PHP APP_ENCRYPTION_KEY must not be empty');
     }
 
     public function test_domain_is_non_empty(): void

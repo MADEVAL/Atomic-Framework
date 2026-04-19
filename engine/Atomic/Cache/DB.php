@@ -21,7 +21,8 @@ class DB extends \Prefab
     }
 
     public function get(string $key): mixed {
-        return $this->options->get_option($key);
+        $value = $this->options->get_option($key);
+        return $value === null ? false : $value;
     }
 
     public function clear(string $key): bool {

@@ -15,7 +15,8 @@ class CacheManager extends \Prefab
 
     public function redis(array $config = []): \Cache 
     {
-        if (isset($this->hive['redis'])) {
+        $use_shared_instance = empty($config);
+        if ($use_shared_instance && isset($this->hive['redis'])) {
             return $this->hive['redis'];
         }
 
@@ -25,11 +26,11 @@ class CacheManager extends \Prefab
 
         $atomic = App::instance();
         if (empty($config)) {
-            $redis_config = $atomic->get('REDIS');
+            $redis_config = (array) $atomic->get('REDIS');
             $config = [
-                'server' => $redis_config['host'],
-                'port' => $redis_config['port'],
-                'password' => $redis_config['password'],
+                'server' => (string) ($redis_config['host'] ?? '127.0.0.1'),
+                'port' => $redis_config['port'] ?? 6379,
+                'password' => (string) ($redis_config['password'] ?? ''),
             ];
         }
         $dsn = "redis={$config['server']}:{$config['port']}";
@@ -46,8 +47,17 @@ class CacheManager extends \Prefab
         } elseif ($password !== '') {
             $dsn .= "?auth={$password}";
         }
-        $this->hive['redis'] = new \Cache($dsn);
-        return $this->hive['redis'];
+        try {
+            $cache = new \Cache($dsn);
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Redis cache unavailable: ' . $e->getMessage(), 0, $e);
+        }
+
+        if ($use_shared_instance) {
+            $this->hive['redis'] = $cache;
+        }
+
+        return $cache;
     }
 
 
@@ -61,7 +71,8 @@ class CacheManager extends \Prefab
 
     public function memcached(array $config = []): Memcached
     {
-        if (isset($this->hive['memcached'])) {
+        $use_shared_instance = empty($config);
+        if ($use_shared_instance && isset($this->hive['memcached'])) {
             return $this->hive['memcached'];
         }
 
@@ -82,11 +93,29 @@ class CacheManager extends \Prefab
         $mc = new \Memcached();
         $mc->addServer($config['host'], $config['port']);
 
+        $version = $mc->getVersion();
+        $reachable = is_array($version) && $version !== [];
+        if ($reachable) {
+            foreach ($version as $server_version) {
+                if ($server_version !== false && $server_version !== '') {
+                    $reachable = true;
+                    break;
+                }
+                $reachable = false;
+            }
+        }
+        if (!$reachable) {
+            throw new \RuntimeException('Memcached cache unavailable.');
+        }
+
         $namespace = (string)$atomic->get('MEMCACHED.ATOMIC_MEMCACHED_PREFIX');
+        $cache = new Memcached($mc, $namespace);
 
-        $this->hive['memcached'] = new Memcached($mc, $namespace);
+        if ($use_shared_instance) {
+            $this->hive['memcached'] = $cache;
+        }
 
-        return $this->hive['memcached'];
+        return $cache;
     }
 
     public function cascade(): \Cache|DB
@@ -100,18 +129,18 @@ class CacheManager extends \Prefab
         foreach (self::DRIVER_PRIORITY as $driver) {
             try {
                 $cache = null;
-                $extensionRequired = null;
+                $extension_required = null;
 
                 switch ($driver) {
                     case 'redis':
-                        $extensionRequired = 'redis';
-                        if (extension_loaded($extensionRequired)) {
+                        $extension_required = 'redis';
+                        if (extension_loaded($extension_required)) {
                             $cache = $this->redis();
                         }
                         break;
                     case 'memcached':
-                        $extensionRequired = 'memcached';
-                        if (extension_loaded($extensionRequired)) {
+                        $extension_required = 'memcached';
+                        if (extension_loaded($extension_required)) {
                             $cache = $this->memcached();
                         }
                         break;

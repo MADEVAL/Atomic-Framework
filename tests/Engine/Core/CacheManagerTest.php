@@ -41,12 +41,12 @@ class CacheManagerTest extends TestCase
 
     public function test_redis_throws_when_not_available(): void
     {
-        if (extension_loaded('redis')) {
-            $this->markTestSkipped('ext-redis is loaded');
-        }
-
         $this->expectException(\RuntimeException::class);
-        $this->manager->redis();
+        $this->manager->redis([
+            'server' => '127.0.0.1',
+            'port' => 1,
+            'password' => '',
+        ]);
     }
 
     public function test_db_returns_cache_db(): void
@@ -72,12 +72,11 @@ class CacheManagerTest extends TestCase
 
     public function test_memcached_throws_when_not_available(): void
     {
-        if (extension_loaded('memcached')) {
-            $this->markTestSkipped('Memcached extension is loaded');
-        }
-
         $this->expectException(\RuntimeException::class);
-        $this->manager->memcached();
+        $this->manager->memcached([
+            'host' => '127.0.0.1',
+            'port' => 1,
+        ]);
     }
 
     public function test_cascade_returns_cache(): void

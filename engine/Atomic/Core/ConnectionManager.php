@@ -181,7 +181,7 @@ class ConnectionManager
         try {
             $r = new \Redis();
             $r->connect($host, $port, 1.0);
-            $password = $this->normalize_optional_string($cfg['password']);
+            $password = $this->normalize_optional_string($cfg['password'] ?? null);
             if ($password !== null) {
                 $r->auth($password);
             }

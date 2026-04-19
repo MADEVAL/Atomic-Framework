@@ -194,8 +194,8 @@ final class AuthIntegrationTest extends TestCase
         $db_host = $this->env_value('DB_HOST', '127.0.0.1');
         $db_port = $this->env_value('DB_PORT', '3306');
         $db_name = $this->env_value('DB_DB', 'atomic_test');
-        $db_user = $this->env_value('DB_USERNAME', 'root');
-        $db_password = $this->env_value('DB_PASSWORD', 'root');
+        $db_user = $this->env_value('DB_USERNAME', 'atomic_test_user');
+        $db_password = $this->env_value('DB_PASSWORD', 'atomic_test_pass');
         $db_charset = $this->env_value('DB_CHARSET', 'utf8mb4');
         $db_collation = $this->env_value('DB_COLLATION', 'utf8mb4_general_ci');
         $redis_host = $this->env_value('REDIS_HOST', '127.0.0.1');
@@ -250,6 +250,8 @@ final class AuthIntegrationTest extends TestCase
         $base->set('REDIS', [
             'host' => $redis_host,
             'port' => $redis_port,
+            'password' => $this->env_value('REDIS_PASSWORD', ''),
+            'db' => (int) $this->env_value('REDIS_DB', '0'),
             'ATOMIC_REDIS_SESSION_PREFIX' => $this->redis_prefix,
         ]);
         $base->set('SESSION_CONFIG', [

@@ -43,14 +43,83 @@ $atomic->set('TEMP', $tempDir);
 $atomic->set('REDIS', [
     'host' => getenv('REDIS_HOST') ?: '127.0.0.1',
     'port' => (int) (getenv('REDIS_PORT') ?: 6379),
+    'password' => (string) (getenv('REDIS_PASSWORD') ?: ''),
+    'db' => (int) (getenv('REDIS_DB') ?: 0),
     'ATOMIC_REDIS_PREFIX' => 'atomic_test:',
     'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic_test:sess:',
+    'ATOMIC_REDIS_QUEUE_PREFIX' => 'atomic_test:queue:',
 ]);
 $atomic->set('MEMCACHED', [
     'host' => getenv('MEMCACHED_HOST') ?: '127.0.0.1',
     'port' => (int) (getenv('MEMCACHED_PORT') ?: 11211),
     'ATOMIC_MEMCACHED_PREFIX' => 'atomic_test:',
 ]);
+$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
+$dbPort = getenv('DB_PORT') ?: '3306';
+$dbName = getenv('DB_DB') ?: 'atomic_test';
+$dbUser = getenv('DB_USERNAME') ?: 'atomic_test_user';
+$dbPassword = getenv('DB_PASSWORD') ?: 'atomic_test_pass';
+$dbCharset = getenv('DB_CHARSET') ?: 'utf8mb4';
+$dbCollation = getenv('DB_COLLATION') ?: 'utf8mb4_general_ci';
+$dbPrefix = getenv('ATOMIC_DB_PREFIX') ?: 'atomic_';
+$dbQueuePrefix = getenv('ATOMIC_DB_QUEUE_PREFIX') ?: 'atomic_queue_';
+
+$atomic->set('DB_CONFIG', [
+    'driver' => getenv('DB_DRIVER') ?: 'mysql',
+    'host' => $dbHost,
+    'port' => $dbPort,
+    'db' => $dbName,
+    'username' => $dbUser,
+    'password' => $dbPassword,
+    'unix_socket' => '',
+    'charset' => $dbCharset,
+    'collation' => $dbCollation,
+    'ATOMIC_DB_PREFIX' => $dbPrefix,
+    'ATOMIC_DB_QUEUE_PREFIX' => $dbQueuePrefix,
+]);
+
+Engine\Atomic\Core\App::instance($atomic);
+
+if (extension_loaded('pdo_mysql')) {
+    try {
+        $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $dbHost, $dbPort, $dbName, $dbCharset);
+        $options = [];
+        if (defined('Pdo\\Mysql::ATTR_INIT_COMMAND')) {
+            $options[Pdo\Mysql::ATTR_INIT_COMMAND] = "SET NAMES '{$dbCharset}' COLLATE '{$dbCollation}'";
+        }
+
+        $db = new \DB\SQL($dsn, $dbUser, $dbPassword, $options);
+        $atomic->set('DB', $db);
+
+        $quotedPrefix = str_replace('`', '``', $dbPrefix);
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS `{$quotedPrefix}meta` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `uuid` VARCHAR(128) NOT NULL,
+                `key` VARCHAR(128) NOT NULL,
+                `value` TEXT NULL,
+                `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET={$dbCharset} COLLATE={$dbCollation}
+        ");
+        $db->exec("
+            CREATE TABLE IF NOT EXISTS `{$quotedPrefix}options` (
+                `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                `uuid` VARCHAR(128) NOT NULL,
+                `key` VARCHAR(128) NOT NULL,
+                `value` TEXT NULL,
+                `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                `expired_at` DATETIME NULL,
+                `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET={$dbCharset} COLLATE={$dbCollation}
+        ");
+    } catch (Throwable) {
+        // DB-backed tests decide whether to skip when MySQL is unavailable.
+    }
+}
+
 $atomic->set('DEBUG_MODE', 'true');
 $atomic->set('DEBUG_LEVEL', 'debug');
 $atomic->set('DEBUG', 3);

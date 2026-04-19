@@ -26,9 +26,13 @@ class TransientTest extends TestCase
         $redis_prefix = getenv('REDIS_PREFIX') ?: 'test.';
 
         $base->set('REDIS', [
-            'host'                => $redis_host,
-            'port'                => $redis_port,
-            'ATOMIC_REDIS_PREFIX' => $redis_prefix,
+            'host'                        => $redis_host,
+            'port'                        => $redis_port,
+            'password'                    => (string) (getenv('REDIS_PASSWORD') ?: ''),
+            'db'                          => (int) (getenv('REDIS_DB') ?: 0),
+            'ATOMIC_REDIS_PREFIX'         => $redis_prefix,
+            'ATOMIC_REDIS_SESSION_PREFIX' => getenv('ATOMIC_REDIS_SESSION_PREFIX') ?: ($redis_prefix . 'sess:'),
+            'ATOMIC_REDIS_QUEUE_PREFIX'   => getenv('ATOMIC_REDIS_QUEUE_PREFIX') ?: ($redis_prefix . 'queue:'),
         ]);
 
         $memcached_host = getenv('MEMCACHED_HOST') ?: '127.0.0.1';
