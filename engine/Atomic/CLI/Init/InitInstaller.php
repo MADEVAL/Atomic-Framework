@@ -234,44 +234,39 @@ trait InitInstaller
         return is_array($data) ? $data : [];
     }
 
-    private function write_php_config_file(string $name, array $config): void
+    private function replace_php_config_value(string $filePath, array $path, string $newValue): bool
     {
-        $path = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
-        
-        if (!file_exists($path)) {
-            $this->report_init_issue("Config file {$path} does not exist; cannot update.", true);
-            return;
-        }
-        
-        $content = (string)file_get_contents($path);
-        
-        $exportedConfig = var_export($config, true);
-        
-        $pattern = '/(return\s+)(\[[\s\S]*?\];)/';
-        $replacement = '$1' . $exportedConfig . ';';
-        
-        $updated = preg_replace($pattern, $replacement, $content, 1, $count);
-        
-        if ($count === 0 || $updated === null) {
-            $updated = "<?php\ndeclare(strict_types=1);\nif (!defined('ATOMIC_START')) exit;\n\nreturn " . $exportedConfig . ";\n";
-        }
-        
-        if (@file_put_contents($path, $updated) === false) {
-            $error = error_get_last()['message'] ?? 'unknown error';
-            $this->report_init_issue("Could not write config file {$path}: {$error}");
-        }
-    }
+        $contents = (string)file_get_contents($filePath);
+        $leafKey  = array_pop($path);
+        $escaped  = addcslashes($newValue, "'\\");
 
-    private function set_array_path_value(array &$array, array $path, mixed $value): void
-    {
-        $ref = &$array;
-        foreach ($path as $segment) {
-            if (!isset($ref[$segment]) || !is_array($ref[$segment])) {
-                $ref[$segment] = [];
+        $leafPattern = "/('" . preg_quote($leafKey, '/') . "'\s*=>\s*)('[^']*'|\d+)/";
+        $replacement = "$1'" . $escaped . "'";
+
+        $offset = 0;
+        foreach ($path as $ancestor) {
+            $ancestorRegex = "/'" . preg_quote($ancestor, '/') . "'\s*=>/";
+            if (preg_match($ancestorRegex, $contents, $m, PREG_OFFSET_CAPTURE, $offset)) {
+                $offset = $m[0][1];
             }
-            $ref = &$ref[$segment];
         }
-        $ref = $value;
+
+        if ($offset > 0) {
+            $before = substr($contents, 0, $offset);
+            $after  = substr($contents, $offset);
+            $after  = (string)preg_replace($leafPattern, $replacement, $after, 1, $count);
+
+            if ($count > 0) {
+                return @file_put_contents($filePath, $before . $after) !== false;
+            }
+        }
+
+        $updated = (string)preg_replace($leafPattern, $replacement, $contents, 1, $count);
+        if ($count > 0) {
+            return @file_put_contents($filePath, $updated) !== false;
+        }
+
+        return false;
     }
 
     private function get_array_path_value(array $array, array $path, mixed $default = null): mixed
@@ -340,9 +335,9 @@ trait InitInstaller
             return;
         }
 
-        $config = $this->read_php_config_file($file);
-        $this->set_array_path_value($config, $path, $value);
-        $this->write_php_config_file($file, $config);
+        if (!$this->replace_php_config_value($configPath, $path, $value)) {
+            $this->report_init_issue("Could not update '{$key}' in {$configPath}; key not found or write failed.", true);
+        }
     }
 
     private function choose_main_driver(): string
@@ -478,7 +473,7 @@ trait InitInstaller
         $this->run_user_setup_branch($root);
     }
 
-    private function setup_database_backends_migrations(): void
+    private function setup_database_backends_migrations(bool $run = true): void
     {
         $options = [
             ['label' => 'session', 'method' => 'db_sessions'],
@@ -488,7 +483,13 @@ trait InitInstaller
 
         $queued = 0;
         foreach ($options as $option) {
-            if (!$this->confirm('Run ' . $option['label'] . ' migration?', false)) {
+            $verb = $run ? 'Run' : 'Create';
+            if (!$this->confirm("{$verb} " . $option['label'] . ' migration?', false)) {
+                continue;
+            }
+
+            if (!$run) {
+                $queued++;
                 continue;
             }
 
@@ -504,9 +505,35 @@ trait InitInstaller
 
         if ($queued > 0) {
             $this->output->writeln();
-            $migrations = new CoreMigrations($this->output);
-            $migrations->migrate();
-            $this->output->writeln('  ' . Style::success_label() . " {$queued} backend migration(s) applied.");
+            if ($run) {
+                $migrations = new CoreMigrations($this->output);
+                $migrations->migrate();
+                $this->output->writeln('  ' . Style::success_label() . " {$queued} backend migration(s) applied.");
+            } else {
+                $this->output->writeln('  ' . Style::warning_label() . " {$queued} migration(s) pending. Configure your database first, then run migrations.");
+                $this->output->writeln();
+                if ($this->config_mode() === 'env') {
+                    $this->output->writeln('  Set these values in your .env file:');
+                    $this->output->writeln('    DB_HOST=');
+                    $this->output->writeln('    DB_PORT=');
+                    $this->output->writeln('    DB_DATABASE=');
+                    $this->output->writeln('    DB_USERNAME=');
+                    $this->output->writeln('    DB_PASSWORD=');
+                } else {
+                    $this->output->writeln('  Set these values in config/database.php:');
+                    $this->output->writeln("    'host'     => '',");
+                    $this->output->writeln("    'port'     => '',");
+                    $this->output->writeln("    'database' => '',");
+                    $this->output->writeln("    'username' => '',");
+                    $this->output->writeln("    'password' => '',");
+                }
+                $this->output->writeln();
+                $this->output->writeln('  Then check pending migrations:');
+                $this->output->writeln('    php atomic migrations/status');
+                $this->output->writeln();
+                $this->output->writeln('  Then run migrations:');
+                $this->output->writeln('    php atomic migrations/migrate');
+            }
         }
     }
 

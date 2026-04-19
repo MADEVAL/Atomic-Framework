@@ -57,30 +57,32 @@ trait Init
         $this->output->writeln();
 
         $this->output->writeln("  " . Style::yellow('[5/6]', true) . " Database and backend setup...");
-        $dbConfig = $this->configure_database('');
-        if ($dbConfig !== null) {
-            $this->boot_database($dbConfig);
+        $db_config   = $this->configure_database('');
+        $db_migrated = false;
+        if ($db_config !== null) {
+            $this->boot_database($db_config);
             if ($this->initialize_migration_database()) {
                 (new CoreMigrations($this->output))->migrate();
                 $this->output->writeln();
-
-                $driver = $this->choose_main_driver();
-                $this->output->writeln();
-
-                if ($driver === 'redis') {
-                    $this->set_config_value('SESSION_DRIVER', 'redis');
-                    $this->set_config_value('MUTEX_DRIVER',   'redis');
-                    $this->set_config_value('QUEUE_DRIVER',   'redis');
-                    $this->output->writeln('  ' . Style::success_label() . " Redis selected for queue/mutex/session backends.");
-                } else {
-                    $this->set_config_value('SESSION_DRIVER', 'db');
-                    $this->set_config_value('MUTEX_DRIVER',   'database');
-                    $this->set_config_value('QUEUE_DRIVER',   'database');
-                    $this->setup_database_backends_migrations();
-                }
+                $db_migrated = true;
             }
         } else {
             $this->output->writeln("  Database setup skipped.");
+        }
+
+        $driver = $this->choose_main_driver();
+        $this->output->writeln();
+
+        if ($driver === 'redis') {
+            $this->set_config_value('SESSION_DRIVER', 'redis');
+            $this->set_config_value('MUTEX_DRIVER',   'redis');
+            $this->set_config_value('QUEUE_DRIVER',   'redis');
+            $this->output->writeln('  ' . Style::success_label() . " Redis selected for queue/mutex/session backends.");
+        } else {
+            $this->set_config_value('SESSION_DRIVER', 'db');
+            $this->set_config_value('MUTEX_DRIVER',   'database');
+            $this->set_config_value('QUEUE_DRIVER',   'database');
+            $this->setup_database_backends_migrations($db_migrated);
         }
 
         $this->output->writeln();
