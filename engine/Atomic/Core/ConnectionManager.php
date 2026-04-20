@@ -340,7 +340,7 @@ class ConnectionManager
             !empty($db_cfg['username']) &&
             !empty($db_cfg['password'])
         ) {
-            $this->open_db();
+            $atomic->set('DB', $this->get_db());
         }
     }
 }
