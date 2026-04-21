@@ -9,10 +9,13 @@ use Engine\Atomic\Codes\Code;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Enums\Cast;
+use Engine\Atomic\Validator\PreValidation\NullableEmptyToNullTrait;
 use Engine\Atomic\Validator\Validator;
 
 abstract class Model extends Cortex 
 {
+	use NullableEmptyToNullTrait;
+	
 	protected $table = null;
 	protected $db = 'DB';
 	protected $fieldConf = null;
@@ -49,7 +52,9 @@ abstract class Model extends Cortex
 		$this->beforesave($saveHandler);
 	}
 
-	protected function before_validate(): void {}
+	protected function before_validate(): void {
+		$this->pre_validate_nullable_empty_to_null();
+	}
 
 	public function get_field_configuration(): array {
 		return $this->getFieldConfiguration();
