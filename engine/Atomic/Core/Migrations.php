@@ -260,7 +260,10 @@ class Migrations
                 $file_path = $this->resolve_migration_file($migrations_dir, $file_name);
                 $migration = include $file_path;
                 if (isset($migration['up']) && is_callable($migration['up'])) {
-                    $migration['up']();
+                    $result = $migration['up']();
+                    if ($result === false) {
+                        throw new \RuntimeException("Migration '{$file_name}' returned failure.");
+                    }
                     $this->outln(Style::success_label() . ' ' . Style::bold("Migration '{$file_name}'") . ' applied successfully.');
                 } else throw new \Exception("Invalid migration structure in $file_path.");
                 $mapper->reset();
@@ -383,3 +386,4 @@ class Migrations
         return $resolved;
     }
 }
+
