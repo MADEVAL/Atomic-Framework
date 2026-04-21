@@ -9,9 +9,7 @@ use Engine\Atomic\App\Model;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Enums\Rule;
 use Engine\Atomic\Lang\I18n;
-use Engine\Atomic\Plugins\Monopay;
-
-use function Engine\Atomic\Plugins\monopay_get_order;
+use Engine\Atomic\Plugins\Monopay\Monopay;
 
 class Payment extends Model
 {

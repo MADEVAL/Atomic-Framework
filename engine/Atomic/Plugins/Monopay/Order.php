@@ -5,7 +5,7 @@ namespace Engine\Atomic\Plugins\Monopay;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Log;
-use Engine\Atomic\Plugins\Monopay;
+use Engine\Atomic\Plugins\Monopay\Monopay;
 use Engine\Atomic\Plugins\Monopay\Models\Payment;
 
 class Order

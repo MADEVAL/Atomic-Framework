@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 namespace {
-    use Engine\Atomic\Plugins\Monopay;
+    use Engine\Atomic\Plugins\Monopay\Monopay;
     use Engine\Atomic\Plugins\Monopay\Order;
 
     if (!function_exists('monopay')) {
@@ -67,3 +67,4 @@ namespace {
         }
     }
 }
+

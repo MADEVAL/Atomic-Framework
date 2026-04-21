@@ -6,7 +6,6 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Request;
 use Engine\Atomic\Core\Log;
-use Engine\Atomic\Plugins\Monopay;
 
 class Api
 {

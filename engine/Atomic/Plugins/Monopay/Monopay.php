@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace Engine\Atomic\Plugins;
+namespace Engine\Atomic\Plugins\Monopay;
 
 use Engine\Atomic\App\Plugin;
 use Engine\Atomic\Core\Log;
@@ -238,6 +238,6 @@ class Monopay extends Plugin
     
     private function register_helpers(): void
     {
-        require_once __DIR__ . '/Monopay/global_functions.php';
+        require_once __DIR__ . '/global_functions.php';
     }
 }

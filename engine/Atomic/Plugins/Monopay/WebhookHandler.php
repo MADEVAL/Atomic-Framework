@@ -8,8 +8,6 @@ use Engine\Atomic\Core\Log;
 use Engine\Atomic\Plugins\Monopay\Models\Payment;
 use Engine\Atomic\Plugins\Monopay\Models\PaymentHistory;
 
-use function Engine\Atomic\Plugins\monopay;
-
 class WebhookHandler
 {
     public static function handle(): void
