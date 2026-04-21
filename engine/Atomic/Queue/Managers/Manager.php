@@ -241,7 +241,7 @@ class Manager
         $reflection = self::$reflection_cache[$cache_key];
         $orderedParams = [];
         foreach ($reflection->getParameters() as $param) {
-            $param_name = $param->get_name();
+            $param_name = $param->getName();
             if (isset($params[$param_name])) {
                 $orderedParams[] = $params[$param_name];
             } elseif ($param->isDefaultValueAvailable()) {
