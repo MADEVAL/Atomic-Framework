@@ -16,9 +16,9 @@ abstract class Server
     /** @var array<string,int> task_id -> socket_int */
     protected array $memory_map = [];
     /** @var array<int,array<string,true>> socket_int -> {task_id: true} */
-    private array $socket_tasks = [];
+    protected array $socket_tasks = [];
     /** @var array<int,Connection> socket_int -> Connection */
-    private array $connections = [];
+    protected array $connections = [];
     private ?string $pubsub_channel = null;
     protected ?RedisClient $async_redis = null;
 
@@ -183,3 +183,4 @@ abstract class Server
         });
     }
 }
+
