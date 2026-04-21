@@ -121,7 +121,7 @@ final class Telegram
         if (isset($opts['reply_markup'])) $params['reply_markup'] = is_string($opts['reply_markup']) 
             ? $opts['reply_markup'] 
             : json_encode($opts['reply_markup'], JSON_UNESCAPED_UNICODE);
-        return $this->api('send_photo', $params);
+        return $this->api('sendPhoto', $params);
     }
 
     public function send_document(string $document, array $opts = []): array
@@ -144,12 +144,12 @@ final class Telegram
         if (isset($opts['reply_markup'])) $params['reply_markup'] = is_string($opts['reply_markup']) 
             ? $opts['reply_markup'] 
             : json_encode($opts['reply_markup'], JSON_UNESCAPED_UNICODE);
-        return $this->api('send_document', $params);
+        return $this->api('sendDocument', $params);
     }
 
     public function get_me(): array
     {
-        return $this->api('get_me');
+        return $this->api('getMe');
     }
 
     public function create_invoice_link(array $data): ?string
@@ -157,7 +157,7 @@ final class Telegram
         if (isset($data['prices']) && !is_string($data['prices'])) {
             $data['prices'] = json_encode($data['prices'], JSON_UNESCAPED_UNICODE);
         }
-        $response = $this->api('create_invoice_link', $data);
+        $response = $this->api('createInvoiceLink', $data);
         return (!empty($response['ok']) && isset($response['result'])) ? (string)$response['result'] : null;
     }
 
@@ -170,7 +170,7 @@ final class Telegram
             Log::error('[Telegram] chat_id is empty for send_invoice');
             return ['ok' => false, 'error' => 'empty_chat_id'];
         }
-        return $this->api('send_invoice', $data);
+        return $this->api('sendInvoice', $data);
     }
 
     public function verify_web_app_init_data(string|array $init_data): array|false
@@ -253,7 +253,7 @@ final class Telegram
     {
         $packet = ['pre_checkout_query_id' => $pre_checkout_query_id, 'ok' => $ok];
         if (!$ok && $error_message !== '') $packet['error_message'] = $error_message;
-        return $this->api('answer_pre_checkout_query', $packet);
+        return $this->api('answerPreCheckoutQuery', $packet);
     }
 
     public function answer_shipping_query(string $shipping_query_id, bool $ok, array $shipping_options = [], string $error_message = ''): array
@@ -261,23 +261,23 @@ final class Telegram
         $packet = ['shipping_query_id' => $shipping_query_id, 'ok' => $ok];
         if ($ok) $packet['shipping_options'] = json_encode($shipping_options, JSON_UNESCAPED_UNICODE);
         if (!$ok && $error_message !== '') $packet['error_message'] = $error_message;
-        return $this->api('answer_shipping_query', $packet);
+        return $this->api('answerShippingQuery', $packet);
     }
 
     public function set_webhook(string $url, array $opts = []): array
     {
         $packet = ['url' => $url] + $opts;
-        return $this->api('set_webhook', $packet);
+        return $this->api('setWebhook', $packet);
     }
 
     public function delete_webhook(bool $drop_pending_updates = false): array
     {
-        return $this->api('delete_webhook', ['drop_pending_updates' => $drop_pending_updates]);
+        return $this->api('deleteWebhook', ['drop_pending_updates' => $drop_pending_updates]);
     }
 
     public function set_chat_menu_button(string $text, string $url, string $type = 'web_app'): array
     {
-        return $this->api('set_chat_menu_button', [
+        return $this->api('setChatMenuButton', [
             'menu_button' => [
                 'type' => $type,
                 'text' => $text,
@@ -288,7 +288,7 @@ final class Telegram
 
     public function delete_chat_menu_button(): array
     {
-        return $this->api('set_chat_menu_button', [
+        return $this->api('setChatMenuButton', [
             'menu_button' => [
                 'type' => 'default',
             ],
@@ -301,7 +301,7 @@ final class Telegram
         if ($language_code !== '') {
             $params['language_code'] = $language_code;
         }
-        return $this->api('set_my_description', $params);
+        return $this->api('setMyDescription', $params);
     }
 
     public function set_my_short_description(string $short_description, string $language_code = ''): array
@@ -310,7 +310,7 @@ final class Telegram
         if ($language_code !== '') {
             $params['language_code'] = $language_code;
         }
-        return $this->api('set_my_short_description', $params);
+        return $this->api('setMyShortDescription', $params);
     }
 
     public function set_my_name(string $name, string $language_code = ''): array
@@ -319,7 +319,7 @@ final class Telegram
         if ($language_code !== '') {
             $params['language_code'] = $language_code;
         }
-        return $this->api('set_my_name', $params);
+        return $this->api('setMyName', $params);
     }
 
     private function __clone() {}
