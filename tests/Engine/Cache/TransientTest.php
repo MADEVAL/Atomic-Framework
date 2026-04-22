@@ -30,9 +30,7 @@ class TransientTest extends TestCase
             'port'                        => $redis_port,
             'password'                    => (string) (getenv('REDIS_PASSWORD') ?: ''),
             'db'                          => (int) (getenv('REDIS_DB') ?: 0),
-            'ATOMIC_REDIS_PREFIX'         => $redis_prefix,
-            'ATOMIC_REDIS_SESSION_PREFIX' => getenv('ATOMIC_REDIS_SESSION_PREFIX') ?: ($redis_prefix . 'sess:'),
-            'ATOMIC_REDIS_QUEUE_PREFIX'   => getenv('ATOMIC_REDIS_QUEUE_PREFIX') ?: ($redis_prefix . 'queue:'),
+            'prefix'                      => $redis_prefix,
         ]);
 
         $memcached_host = getenv('MEMCACHED_HOST') ?: '127.0.0.1';
@@ -53,8 +51,7 @@ class TransientTest extends TestCase
         $db_pass = getenv('DB_PASSWORD');
         $db_charset = getenv('DB_CHARSET') ?: 'utf8mb4';
         $db_collation = getenv('DB_COLLATION') ?: 'utf8mb4_general_ci';
-        $db_prefix = getenv('ATOMIC_DB_PREFIX') ?: 'atomic_';
-        $db_queue_prefix = getenv('ATOMIC_DB_QUEUE_PREFIX') ?: 'atomic_queue_';
+        $db_prefix = getenv('DB_PREFIX') ?: 'atomic_';
 
         $base->set('DB_CONFIG', [
             'driver'                 => $db_driver,
@@ -66,8 +63,7 @@ class TransientTest extends TestCase
             'unix_socket'            => '',
             'charset'                => $db_charset,
             'collation'              => $db_collation,
-            'ATOMIC_DB_PREFIX'       => $db_prefix,
-            'ATOMIC_DB_QUEUE_PREFIX' => $db_queue_prefix,
+            'prefix'                 => $db_prefix,
         ]);
 
         try {

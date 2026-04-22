@@ -17,7 +17,7 @@ class SessionDriverFactoryAdapter
         switch (strtolower($driver)) {
             case 'redis':
                 new RedisSession(
-                    $this->app->get('REDIS.ATOMIC_REDIS_SESSION_PREFIX'),
+                    $this->app->get('REDIS.prefix'),
                     (int) $this->app->get('SESSION_CONFIG.lifetime'),
                     $onsuspect
                 );
@@ -26,7 +26,7 @@ class SessionDriverFactoryAdapter
             default:
                 new SQLSession(
                     ConnectionManager::instance()->get_db(),
-                    $this->app->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'sessions',
+                    $this->app->get('DB_CONFIG.prefix') . 'sessions',
                     false,
                     $onsuspect
                 );

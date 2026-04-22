@@ -52,6 +52,9 @@ class ConfigLoader {
         $cache_driver  = strtolower($this->get_env('CACHE_DRIVER', 'false'));
         $is_redis      = ($cache_driver === 'redis');
         $cache_prefix  = (string)$this->get_env('CACHE_PREFIX', 'atomic.');
+        $db_prefix = (string)$this->get_env('DB_PREFIX', 'atomic_');
+        $redis_prefix = (string)$this->get_env('REDIS_PREFIX', $cache_prefix);
+        $memcached_prefix = (string)$this->get_env('MEMCACHED_PREFIX', 'atomic.');
         $ports = [
             'cache'     => (string)$this->get_env('CACHE_PORT', $is_redis ? '6379' : '11211'),
             'db'        => (string)$this->get_env('DB_PORT', '3306'),
@@ -132,8 +135,7 @@ class ConfigLoader {
             'unix_socket' => $this->get_env('DB_SOCKET', ''),
             'charset' => $this->get_env('DB_CHARSET', 'utf8mb4'),
             'collation' => $this->get_env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'ATOMIC_DB_PREFIX'    => 'atomic_',
-            'ATOMIC_DB_QUEUE_PREFIX'    => 'atomic_queue_',
+            'prefix'    => $db_prefix,
         ]);
 
         $this->atomic->set('REDIS', [
@@ -141,9 +143,7 @@ class ConfigLoader {
             'port'                        => $ports['redis'],
             'password'                    => $this->get_env('REDIS_PASSWORD', ''),
             'db'                          => (int)$this->get_env('REDIS_DB', 0),
-            'ATOMIC_REDIS_PREFIX'         => $cache_prefix,
-            'ATOMIC_REDIS_QUEUE_PREFIX'   => 'atomic.queue.',
-            'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic.session.',
+            'prefix'                      => $redis_prefix,
         ]);
 
         $this->atomic->set('MEMCACHED', [
@@ -151,8 +151,7 @@ class ConfigLoader {
             'host'     => $this->get_env('MEMCACHED_HOST', '127.0.0.1'),
             'username' => $this->get_env('MEMCACHED_USERNAME', ''),
             'password' => $this->get_env('MEMCACHED_PASSWORD', ''),
-            'prefix'   => $this->get_env('MEMCACHED_PREFIX', 'atomic_'),
-            'ATOMIC_MEMCACHED_PREFIX' => $cache_prefix,
+            'prefix'   => $memcached_prefix,
         ]);
 
         $this->atomic->set('MUTEX', [

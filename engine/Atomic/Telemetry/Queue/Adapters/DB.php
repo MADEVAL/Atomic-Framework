@@ -20,7 +20,7 @@ trait DB
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->queue_telemetry_mapper) {
-            $this->queue_telemetry_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'telemetry');
+            $this->queue_telemetry_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'telemetry');
         }
 
         try {
@@ -43,7 +43,7 @@ trait DB
     public function fetch_completed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_completed_mapper) {
-            $this->jobs_completed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_completed');
+            $this->jobs_completed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs_completed');
         }
 
         $jobs = [];
@@ -87,7 +87,7 @@ trait DB
     public function fetch_failed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_failed_mapper) {
-            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_failed');
+            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs_failed');
         }
 
         $jobs = [];
@@ -135,7 +135,7 @@ trait DB
     public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
         }
 
         $jobs = [];
@@ -181,7 +181,7 @@ trait DB
     public function fetch_pending_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
         }
 
         $jobs = [];
@@ -232,7 +232,7 @@ trait DB
 
         [$sql] = $this->connection_manager->get_db(true, true);
 
-        $prefix = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX');
+        $prefix = App::instance()->get('DB_CONFIG.prefix');
         $qj = $sql->quotekey($prefix . 'jobs');
         $qf = $sql->quotekey($prefix . 'jobs_failed');
         $qc = $sql->quotekey($prefix . 'jobs_completed');
@@ -300,7 +300,7 @@ trait DB
     public function fetch_events(string $queue, string $uuid): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->queue_telemetry_mapper) {
-            $this->queue_telemetry_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'telemetry');
+            $this->queue_telemetry_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'telemetry');
         }
 
         try {

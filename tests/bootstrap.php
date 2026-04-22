@@ -45,14 +45,12 @@ $atomic->set('REDIS', [
     'port' => (int) (getenv('REDIS_PORT') ?: 6379),
     'password' => (string) (getenv('REDIS_PASSWORD') ?: ''),
     'db' => (int) (getenv('REDIS_DB') ?: 0),
-    'ATOMIC_REDIS_PREFIX' => 'atomic_test:',
-    'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic_test:sess:',
-    'ATOMIC_REDIS_QUEUE_PREFIX' => 'atomic_test:queue:',
+    'prefix' => getenv('REDIS_PREFIX') ?: 'atomic_test:',
 ]);
 $atomic->set('MEMCACHED', [
     'host' => getenv('MEMCACHED_HOST') ?: '127.0.0.1',
     'port' => (int) (getenv('MEMCACHED_PORT') ?: 11211),
-    'ATOMIC_MEMCACHED_PREFIX' => 'atomic_test:',
+    'prefix' => getenv('MEMCACHED_PREFIX') ?: 'atomic_test:',
 ]);
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbPort = getenv('DB_PORT') ?: '3306';
@@ -61,8 +59,7 @@ $dbUser = getenv('DB_USERNAME') ?: 'atomic_test_user';
 $dbPassword = getenv('DB_PASSWORD') ?: 'atomic_test_pass';
 $dbCharset = getenv('DB_CHARSET') ?: 'utf8mb4';
 $dbCollation = getenv('DB_COLLATION') ?: 'utf8mb4_general_ci';
-$dbPrefix = getenv('ATOMIC_DB_PREFIX') ?: 'atomic_';
-$dbQueuePrefix = getenv('ATOMIC_DB_QUEUE_PREFIX') ?: 'atomic_queue_';
+$dbPrefix = getenv('DB_PREFIX') ?: 'atomic_';
 
 $atomic->set('DB_CONFIG', [
     'driver' => getenv('DB_DRIVER') ?: 'mysql',
@@ -74,8 +71,7 @@ $atomic->set('DB_CONFIG', [
     'unix_socket' => '',
     'charset' => $dbCharset,
     'collation' => $dbCollation,
-    'ATOMIC_DB_PREFIX' => $dbPrefix,
-    'ATOMIC_DB_QUEUE_PREFIX' => $dbQueuePrefix,
+    'prefix' => $dbPrefix,
 ]);
 
 Engine\Atomic\Core\App::instance($atomic);

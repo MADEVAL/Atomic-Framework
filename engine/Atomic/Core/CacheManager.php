@@ -108,7 +108,7 @@ class CacheManager extends \Prefab
             throw new \RuntimeException('Memcached cache unavailable.');
         }
 
-        $namespace = (string)$atomic->get('MEMCACHED.ATOMIC_MEMCACHED_PREFIX');
+        $namespace = (string)$atomic->get('MEMCACHED.prefix');
         $cache = new Memcached($mc, $namespace);
 
         if ($use_shared_instance) {

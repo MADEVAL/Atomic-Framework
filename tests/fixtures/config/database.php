@@ -22,14 +22,16 @@ return [
         'port'     => 6379,
         'password' => '',
         'db'       => 0,
+        'prefix'   => 'atomic.',
     ],
     'memcached' => [
         'host'     => '127.0.0.1',
         'port'     => 11211,
         'username' => '',
         'password' => '',
-        'prefix'   => 'atomic_',
+        'prefix'   => 'atomic.',
     ],
+    'prefix' => 'atomic_',
     'mutex' => [
         'driver' => 'redis',
     ],

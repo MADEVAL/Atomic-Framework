@@ -25,7 +25,7 @@ abstract class Model extends Cortex
 	public function __construct() {
 		$this->db = 'DB';
 		if ($this->table !== null) {
-			$prefix = (string) App::instance()->get('DB_CONFIG.ATOMIC_DB_PREFIX');
+			$prefix = (string) App::instance()->get('DB_CONFIG.prefix');
 			if ($prefix !== '' && !str_starts_with((string) $this->table, $prefix)) {
 				$this->table = $prefix . $this->table;
 			}

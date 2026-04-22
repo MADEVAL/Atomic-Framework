@@ -44,7 +44,7 @@ class Redis implements Base, Management, Telemetry
 
 
     private function get_prefix(): string {
-        return App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        return App::instance()->get('REDIS.prefix');
     }
 
     private function load_lua_scripts(): bool 

@@ -135,7 +135,7 @@ class Options extends Storage
     public function __construct(...$args)
     {
         $atomic = App::instance();
-        $prefix = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX');
+        $prefix = $atomic->get('DB_CONFIG.prefix');
         $this->table = $prefix . $this->table;
         $this->fieldConf = array_merge($this->fieldConf, parent::get_field_conf());
         parent::__construct(...$args);

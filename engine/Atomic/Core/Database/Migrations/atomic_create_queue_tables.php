@@ -14,7 +14,7 @@ return [
         $atomic = App::instance();
         $db = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
-        $prefix = $atomic->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX');
+        $prefix = $atomic->get('DB_CONFIG.prefix');
 
         try {
             $tables = $schema->getTables();
@@ -105,7 +105,7 @@ return [
         $atomic = App::instance();
         $db = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
-        $prefix = $atomic->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX');
+        $prefix = $atomic->get('DB_CONFIG.prefix');
 
         try {
             $tables = $schema->getTables();

@@ -16,7 +16,7 @@ trait Redis
     {
         try {
             $redis = $this->connection_manager->get_redis(true);
-            $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+            $prefix = App::instance()->get('REDIS.prefix');
 
             $uuid_job = $entry['uuid_job'];
             $uuid_batch = $entry['uuid_batch'];
@@ -52,7 +52,7 @@ trait Redis
 
     private function fetch_finished_jobs(string $queue, bool $completed, int $page = 1, int $per_page = 50): array {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = App::instance()->get('REDIS.prefix');
 
         $jobs = [];
         $total = 0;
@@ -113,7 +113,7 @@ trait Redis
 
     public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = App::instance()->get('REDIS.prefix');
 
         $jobs = [];
         $total = 0;
@@ -161,7 +161,7 @@ trait Redis
 
     public function fetch_pending_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = App::instance()->get('REDIS.prefix');
 
         $jobs = [];
         $total = 0;
@@ -206,7 +206,7 @@ trait Redis
         }
 
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = App::instance()->get('REDIS.prefix');
         $keyUuid = \strtolower($uuid);
 
         try {
@@ -261,7 +261,7 @@ trait Redis
 
     public function fetch_events(string $queue, string $uuid): array {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = App::instance()->get('REDIS.prefix');
 
         $events = [];
 

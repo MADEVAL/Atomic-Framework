@@ -31,7 +31,7 @@ class RedisMutexDriver implements MutexDriverInterface
             if ($this->redis) {
                 $atomic = App::instance();
                 $config = $atomic->get('REDIS');
-                $this->prefix = ($config['ATOMIC_REDIS_PREFIX'] ?? 'atomic.') . 'mutex.';
+                $this->prefix = ($config['prefix'] ?? 'atomic.') . 'mutex.';
             }
 
         } catch (\Throwable $e) {

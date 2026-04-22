@@ -44,7 +44,7 @@ class Migrations
             return false;
         }
         $schema = new Schema($db);
-        $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
+        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
 
         try {
             $tables = $schema->getTables();
@@ -70,7 +70,7 @@ class Migrations
         }
         $atomic = App::instance();
         $db = ConnectionManager::instance()->get_db();
-        $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
+        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
 
         $timestamp = date('YmdHis');
@@ -220,7 +220,7 @@ class Migrations
         }
         $atomic = App::instance();
         $db = ConnectionManager::instance()->get_db();
-        $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
+        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
 
         $migrations_dir = $atomic->get('MIGRATIONS');
@@ -290,7 +290,7 @@ class Migrations
 
         $atomic = App::instance();
         $db = ConnectionManager::instance()->get_db();
-        $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
+        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
 
         try {
@@ -333,7 +333,7 @@ class Migrations
         }
         $atomic = App::instance();
         $db = ConnectionManager::instance()->get_db();
-        $migrations_table = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX') . 'migrations';
+        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
 
         $migrations_dir = $atomic->get('MIGRATIONS');

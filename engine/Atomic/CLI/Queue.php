@@ -113,7 +113,7 @@ trait Queue {
         }
         $connection_manager = ConnectionManager::instance();
         $sql = $connection_manager->get_db();
-        $jobs_mapper = new Cortex($sql, $atomic->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+        $jobs_mapper = new Cortex($sql, $atomic->get('DB_CONFIG.prefix') . 'jobs');
 
         $now = \time();
         $monitor_cases = $this->build_monitor_test_cases($now);
@@ -163,7 +163,7 @@ trait Queue {
         }
         $connection_manager = ConnectionManager::instance();
         $redis = $connection_manager->get_redis();
-        $prefix = (string) $atomic->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = (string) $atomic->get('REDIS.prefix');
 
         $pending_key = $prefix . $queue_name . '.idx.pending';
         $running_key = $prefix . $queue_name . '.idx.running';

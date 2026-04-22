@@ -57,6 +57,9 @@ class PhpConfigLoader {
         $redis = $this->cfg('database', 'redis', []);
         $memc = $this->cfg('database', 'memcached', []);
         $mail = $this->configs['mail'] ?? [];
+        $db_prefix = (string)$this->cfg('database', 'prefix', $this->cfg('database', 'atomic_db_prefix', 'atomic_'));
+        $redis_prefix = (string)($redis['prefix'] ?? $this->cfg('database', 'atomic_redis_prefix', $this->cfg('cache', 'prefix', 'atomic.')));
+        $memcached_prefix = (string)($memc['prefix'] ?? $this->cfg('database', 'atomic_memcached_prefix', 'atomic.'));
 
         $ws = $this->cfg('app', 'websocket', []);
 
@@ -154,8 +157,7 @@ class PhpConfigLoader {
             'unix_socket'            => (string)($conn['unix_socket'] ?? ''),
             'charset'                => (string)($conn['charset'] ?? 'utf8mb4'),
             'collation'              => (string)($conn['collation'] ?? 'utf8mb4_unicode_ci'),
-            'ATOMIC_DB_PREFIX'       => 'atomic_',
-            'ATOMIC_DB_QUEUE_PREFIX' => 'atomic_queue_',
+            'prefix'                 => $db_prefix,
         ]);
 
         // ── REDIS ──
@@ -164,9 +166,7 @@ class PhpConfigLoader {
             'port'                        => $ports['redis'],
             'password'                    => (string)($redis['password'] ?? ''),
             'db'                          => (int)($redis['db'] ?? 0),
-            'ATOMIC_REDIS_PREFIX'         => $cache_prefix,
-            'ATOMIC_REDIS_QUEUE_PREFIX'   => 'atomic.queue.',
-            'ATOMIC_REDIS_SESSION_PREFIX' => 'atomic.session.',
+            'prefix'                      => $redis_prefix,
         ]);
 
         // ── MEMCACHED ──
@@ -175,8 +175,7 @@ class PhpConfigLoader {
             'host'     => (string)($memc['host'] ?? '127.0.0.1'),
             'username' => (string)($memc['username'] ?? ''),
             'password' => (string)($memc['password'] ?? ''),
-            'prefix'   => (string)($memc['prefix'] ?? 'atomic_'),
-            'ATOMIC_MEMCACHED_PREFIX' => $cache_prefix,
+            'prefix'   => $memcached_prefix,
         ]);
 
         // ── MUTEX ──

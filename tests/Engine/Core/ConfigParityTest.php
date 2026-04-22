@@ -145,21 +145,18 @@ class ConfigParityTest extends TestCase
     public function test_db_config_has_required_keys(): void
     {
         $required = ['driver', 'host', 'port', 'db', 'username', 'charset', 'collation',
-                     'ATOMIC_DB_PREFIX', 'ATOMIC_DB_QUEUE_PREFIX'];
+                     'prefix'];
         foreach ($required as $k) {
             $this->assertArrayHasKey($k, self::$php_data['DB_CONFIG'], "DB_CONFIG missing '{$k}'");
         }
-        $this->assertSame('atomic_',       self::$php_data['DB_CONFIG']['ATOMIC_DB_PREFIX']);
-        $this->assertSame('atomic_queue_', self::$php_data['DB_CONFIG']['ATOMIC_DB_QUEUE_PREFIX']);
+        $this->assertSame('atomic_',       self::$php_data['DB_CONFIG']['prefix']);
     }
 
     public function test_redis_has_constant_prefix_fields(): void
     {
         $this->assertArrayHasKey('password', self::$php_data['REDIS']);
         $this->assertArrayHasKey('db', self::$php_data['REDIS']);
-        $this->assertSame('atomic.',         self::$php_data['REDIS']['ATOMIC_REDIS_PREFIX']);
-        $this->assertSame('atomic.queue.',   self::$php_data['REDIS']['ATOMIC_REDIS_QUEUE_PREFIX']);
-        $this->assertSame('atomic.session.', self::$php_data['REDIS']['ATOMIC_REDIS_SESSION_PREFIX']);
+        $this->assertSame('atomic.',       self::$php_data['REDIS']['prefix']);
     }
 
     public function test_mailer_bridge_is_populated(): void

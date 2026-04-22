@@ -15,7 +15,7 @@ trait DB
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
         }
 
         try {
@@ -54,7 +54,7 @@ trait DB
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
         }
 
         try {
@@ -107,7 +107,7 @@ trait DB
     {
         $sql = $this->connection_manager->get_db();
         if (!$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
         }
 
         try {

@@ -97,6 +97,7 @@ class ConfigLoaderTest extends TestCase
             'DB_DB=testdb',
             'DB_USERNAME=root',
             'DB_PASSWORD=secret',
+            'DB_PREFIX=custom_',
             'CACHE_DRIVER=folder',
             'CACHE_PATH=tmp/',
             'DEBUG_MODE=true',
@@ -113,6 +114,7 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame('mysql', $dbConfig['driver']);
         $this->assertSame('testdb', $dbConfig['db']);
         $this->assertSame('root', $dbConfig['username']);
+        $this->assertSame('custom_', $dbConfig['prefix']);
     }
 
     public function test_load_sets_redis_config(): void
@@ -123,6 +125,7 @@ class ConfigLoaderTest extends TestCase
             'REDIS_PASSWORD=secret',
             'REDIS_DB=2',
             'CACHE_PREFIX=atomic.cache.',
+            'REDIS_PREFIX=atomic.redis.',
             'CACHE_DRIVER=folder',
         ]));
 
@@ -133,7 +136,7 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame('6380', $redis['port']);
         $this->assertSame('secret', $redis['password']);
         $this->assertSame(2, $redis['db']);
-        $this->assertSame('atomic.cache.', $redis['ATOMIC_REDIS_PREFIX']);
+        $this->assertSame('atomic.redis.', $redis['prefix']);
     }
 
     public function test_load_sets_mail_config(): void

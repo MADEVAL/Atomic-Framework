@@ -442,8 +442,7 @@ trait InitInstaller
             'unix_socket'             => '',
             'charset'                 => 'utf8mb4',
             'collation'               => 'utf8mb4_general_ci',
-            'ATOMIC_DB_PREFIX'        => 'atomic_',
-            'ATOMIC_DB_QUEUE_PREFIX'  => 'atomic_queue_',
+            'prefix'                  => 'atomic_',
         ];
 
         $atomic->set('DB_CONFIG', $dbConfig);

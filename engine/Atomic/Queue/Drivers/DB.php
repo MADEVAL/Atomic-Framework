@@ -62,7 +62,7 @@ class DB implements Base, Management, Telemetry
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
         }
 
         $queue        = $options['queue'];
@@ -103,7 +103,7 @@ class DB implements Base, Management, Telemetry
     public function pop_batch(string $queue, int $limit): array
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
-        $table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
+        $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_mapper) {
             $this->jobs_mapper = new Cortex($sql, $table);
         }
@@ -152,7 +152,7 @@ class DB implements Base, Management, Telemetry
     public function release(array $job, int $delay): bool
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
-        $table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
+        $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_mapper) {
             $this->jobs_mapper = new Cortex($sql, $table);
         }
@@ -191,9 +191,9 @@ class DB implements Base, Management, Telemetry
     public function mark_failed(array $job, \Throwable $exception): bool
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
-        $jobs_table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
+        $jobs_table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_failed_mapper) {
-            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_failed');
+            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs_failed');
         }
 
         unset($job['payload']['uuid_batch']);
@@ -239,9 +239,9 @@ class DB implements Base, Management, Telemetry
 
     public function mark_completed(array $job): bool {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
-        $jobs_table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
+        $jobs_table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_completed_mapper) {
-            $this->jobs_completed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_completed');
+            $this->jobs_completed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs_completed');
         }
 
         try {
@@ -278,7 +278,7 @@ class DB implements Base, Management, Telemetry
     public function delete(string $uuid): bool {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
         }
 
         try {
@@ -296,7 +296,7 @@ class DB implements Base, Management, Telemetry
     public function set_pid(array $job): bool
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
-        $table = App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs';
+        $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_mapper) {
             $this->jobs_mapper = new Cortex($sql, $table);
         }
@@ -355,7 +355,7 @@ class DB implements Base, Management, Telemetry
     public function retry(string $queue = '*'): bool {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_failed_mapper) {
-            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_failed');
+            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs_failed');
         }
 
         try {
@@ -404,7 +404,7 @@ class DB implements Base, Management, Telemetry
     public function retry_by_uuid(string $uuid): bool {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_failed_mapper) {
-            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_failed');
+            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs_failed');
         }
 
         try {
@@ -451,17 +451,17 @@ class DB implements Base, Management, Telemetry
     public function delete_job(string $uuid): bool {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
-            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs');
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
         }
         if ($reconnected || !$this->jobs_failed_mapper) {
-            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_failed');
+            $this->jobs_failed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs_failed');
         }
         if ($reconnected || !$this->jobs_completed_mapper) {
-            $this->jobs_completed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'jobs_completed');
+            $this->jobs_completed_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs_completed');
         }
 
         if ($reconnected || !$this->queue_telemetry_mapper) {
-            $this->queue_telemetry_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.ATOMIC_DB_QUEUE_PREFIX') . 'telemetry');
+            $this->queue_telemetry_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'telemetry');
         }
 
         try {

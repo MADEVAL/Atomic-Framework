@@ -12,7 +12,7 @@ trait Redis {
     public function load_stuck_jobs(array $exclude, string $queue = '*'): array
     {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = App::instance()->get('REDIS.prefix');
         $now = \time();
         $stuck_jobs = [];
         $exclude_json = $this->serialize($exclude);
@@ -58,7 +58,7 @@ trait Redis {
     public function load_jobs_in_progress(string $queue = '*'): array
     {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = App::instance()->get('REDIS.prefix');
         $res = [];
 
         try {
@@ -119,7 +119,7 @@ trait Redis {
     public function exists_in_jobs_table(string $uuid, int $pid): bool
     {
         $redis = $this->connection_manager->get_redis();
-        $prefix = App::instance()->get('REDIS.ATOMIC_REDIS_QUEUE_PREFIX');
+        $prefix = App::instance()->get('REDIS.prefix');
 
         try {
             $stored_pid = $redis->hGet($prefix . 'registry.' . $uuid, 'pid');

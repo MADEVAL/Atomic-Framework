@@ -243,8 +243,7 @@ final class AuthIntegrationTest extends TestCase
             'unix_socket' => '',
             'charset' => $db_charset,
             'collation' => $db_collation,
-            'ATOMIC_DB_PREFIX' => $this->db_prefix,
-            'ATOMIC_DB_QUEUE_PREFIX' => $this->db_prefix . 'queue_',
+            'prefix' => $this->db_prefix,
         ]);
         $base->set('DB', new \DB\SQL($dsn, $db_user, $db_password));
         $base->set('REDIS', [
@@ -252,7 +251,7 @@ final class AuthIntegrationTest extends TestCase
             'port' => $redis_port,
             'password' => $this->env_value('REDIS_PASSWORD', ''),
             'db' => (int) $this->env_value('REDIS_DB', '0'),
-            'ATOMIC_REDIS_SESSION_PREFIX' => $this->redis_prefix,
+            'prefix' => $this->redis_prefix,
         ]);
         $base->set('SESSION_CONFIG', [
             'driver' => $driver,

@@ -36,7 +36,7 @@ class Transient
         if ($cache instanceof DB) {
             return 'transient_' . $name;
         }
-        return $atomic->get('REDIS.ATOMIC_REDIS_PREFIX') . 'transient.' . $name;
+        return $atomic->get('REDIS.prefix') . 'transient.' . $name;
     }
 
     public static function set(string $name, mixed $value, int $expiration, ?string $driver = null): bool {

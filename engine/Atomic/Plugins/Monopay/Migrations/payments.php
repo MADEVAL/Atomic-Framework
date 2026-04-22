@@ -8,7 +8,7 @@ return [
         $atomic = App::instance();
         $db     = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
-        $prefix = (string)$atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX');
+        $prefix = (string)$atomic->get('DB_CONFIG.prefix');
         $table  = $prefix . 'payments';
 
         $t = $schema->createTable($table);
@@ -45,7 +45,7 @@ return [
         $atomic = App::instance();
         $db     = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
-        $prefix = (string)$atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX');
+        $prefix = (string)$atomic->get('DB_CONFIG.prefix');
 
         $schema->dropTable($prefix . 'payments');
     },

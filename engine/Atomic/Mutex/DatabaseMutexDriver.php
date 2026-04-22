@@ -23,7 +23,7 @@ class DatabaseMutexDriver implements MutexDriverInterface
         $this->db = $this->connectionManager->get_db(false);
 
         $cfg = App::instance()->get('DB_CONFIG') ?? [];
-        $prefix = $cfg['ATOMIC_DB_PREFIX'] ?? '';
+        $prefix = $cfg['prefix'] ?? '';
         $this->table = (string)$prefix . 'mutex_locks';
     }
 
