@@ -22,7 +22,7 @@ class Filesystem
 
     public function copy(string $source, string $destination): bool
     {
-       return $this->atomic->copy($source, $destination);
+        return copy($source, $destination);
     }
 
     public function move(string $source, string $destination): bool
@@ -434,3 +434,4 @@ class Filesystem
         return $this->normalize_path(implode(DIRECTORY_SEPARATOR, $filteredPaths));
     }
 }
+

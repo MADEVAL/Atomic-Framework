@@ -88,6 +88,18 @@ class FilesystemTest extends TestCase
         $this->assertFalse($this->fs->rename(self::$tmpDir . 'nope', self::$tmpDir . 'nope2'));
     }
 
+    public function test_copy_file(): void
+    {
+        $src = self::$tmpDir . 'copy-source.txt';
+        $dst = self::$tmpDir . 'copy-destination.txt';
+
+        file_put_contents($src, 'copied data');
+
+        $this->assertTrue($this->fs->copy($src, $dst));
+        $this->assertFileExists($dst);
+        $this->assertSame('copied data', file_get_contents($dst));
+    }
+
     public function test_makeDir_and_removeDir(): void
     {
         $dir = self::$tmpDir . 'subdir' . DIRECTORY_SEPARATOR;
@@ -669,3 +681,4 @@ class FilesystemTest extends TestCase
         $this->assertSame('L1', $all[14]);
     }
 }
+
