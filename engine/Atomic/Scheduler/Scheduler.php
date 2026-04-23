@@ -22,6 +22,16 @@ class Scheduler extends \Prefab
 
     public function job(string $class, string $method = 'handle', array $parameters = []): Event
     {
+        try {
+            $reflection = new \ReflectionMethod($class, $method);
+        } catch (\ReflectionException $e) {
+            return $this->call([$class, $method], $parameters);
+        }
+
+        if (!$reflection->isStatic()) {
+            return $this->call([new $class(), $method], $parameters);
+        }
+
         return $this->call([$class, $method], $parameters);
     }
 
@@ -190,3 +200,4 @@ class Scheduler extends \Prefab
         return $this;
     }
 }
+
