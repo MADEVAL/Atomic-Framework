@@ -23,10 +23,6 @@ abstract class Model extends Cortex
 	protected array $last_err_vars = [];
 	private static array $inherited_field_conf_cache = [];
 
-	protected static function extended_field_conf(): array {
-		return [];
-	}
-
 	private function merge_field_conf_from_class_traits(\ReflectionClass $classRef, array &$merged): void {
 		$seen = [];
 		foreach ($classRef->getTraits() as $traitRef) {
@@ -89,9 +85,8 @@ abstract class Model extends Cortex
 
 	protected function initialize_field_conf(): void {
 		$base = $this->collect_inherited_field_conf();
-		$extra = static::extended_field_conf();
-		if (!empty($base) || !empty($extra) || is_array($this->fieldConf)) {
-			$this->fieldConf = array_replace_recursive($base, $extra);
+		if (!empty($base) || is_array($this->fieldConf)) {
+			$this->fieldConf = $base;
 		}
 	}
 
