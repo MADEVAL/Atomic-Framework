@@ -13,12 +13,15 @@ Monobank Acquiring API integration plugin for processing payments in Ukrainian H
 
 ## Installation
 
-The plugin is located at `/src/app/Plugins/Monopay/` and includes:
+The plugin is located at `engine/Atomic/Plugins/Monopay/` and includes:
 
 - `Monopay.php` - Main plugin class
 - `Api.php` - Monobank API client
 - `Order.php` - Order management
 - `WebhookHandler.php` - Webhook processing
+- `global_functions.php` - global helper wrappers
+- `Models/Payment.php` - payment record model
+- `Models/PaymentHistory.php` - payment webhook history logging
 
 ## Configuration
 
@@ -32,7 +35,6 @@ if ($monopay) {
     $monopay->configure(
         token: 'your_api_token_here',
         options: [
-            'test_mode' => true,
             'cms_version' => '1.0.0',
             'webhook_url' => 'https://yourdomain.com/monopay/webhook',
             'redirect_url' => 'https://yourdomain.com/payment/result'
@@ -53,11 +55,11 @@ Alternatively, set configuration in your app config:
 ```php
 $f3->set('MONOPAY.TOKEN', 'your_token');
 $f3->set('MONOPAY.TEST_MODE', true);
-$f3->set('MONOPAY.CMS_NAME', 'Atomic Framework');
-$f3->set('MONOPAY.CMS_VERSION', '1.0.0');
 $f3->set('MONOPAY.WEBHOOK_URL', 'https://yourdomain.com/monopay/webhook');
 $f3->set('MONOPAY.REDIRECT_URL', 'https://yourdomain.com/payment/result');
 ```
+
+`MONOPAY.TEST_MODE` is read by config loader but the current plugin implementation uses the same Monobank API host for all requests.
 
 ## Usage
 
@@ -96,7 +98,7 @@ $result = monopay_create_payment(
         'customerEmails' => ['customer@example.com'],
         'validity' => 3600, // Valid for 1 hour
         'paymentType' => 'debit', // or 'hold' for authorization
-        'webhookUrl' => 'https://yourdomain.com/webhook/custom',
+        'webHookUrl' => 'https://yourdomain.com/webhook/custom',
         'redirectUrl' => 'https://yourdomain.com/thank-you',
         
         // Basket items for detailed receipt
@@ -123,7 +125,13 @@ $result = monopay_create_payment(
         'saveCardData' => [
             'saveCard' => true,
             'walletId' => 'customer_wallet_123'
-        ]
+        ],
+        
+        // Additional optional fields
+        'qrId' => 'your_qr_id',
+        'code' => 'ORDER-123',
+        'tipsEmployeeId' => 'employee_321',
+        'agentFeePercent' => 5.0
     ]
 );
 ```
@@ -160,6 +168,9 @@ if ($status['ok']) {
 ```php
 $monopay = monopay();
 $order = $monopay->get_order();
+
+// You can also use the global helper directly:
+// $order = monopay_get_order();
 
 // Check various statuses
 if ($order->is_paid($invoiceId)) {
@@ -289,6 +300,54 @@ The webhook handler processes the following statuses:
 - `reversed` - Payment cancelled/refunded
 - `hold` - Payment authorized but not captured
 
+## Hooks
+
+The Monopay plugin exposes hooks for invoice creation and webhook lifecycle
+events. Use these to customize invoice payloads, react to payment updates, or
+change whether a successful payment is marked fulfilled.
+
+### Filters
+
+- `monopay.payment.invoice_data` - Filter invoice payload before the API
+    request is sent.
+    - Arguments: `($invoice_data, $payment, $options)`
+- `monopay.payment.should_mark_fulfilled` - Decide whether a verified payment
+    should be marked as fulfilled.
+    - Arguments: `($should_mark_fulfilled, $payment, $data, $verification)`
+
+### Actions
+
+- `monopay.payment.created` - Fired after a payment invoice is created.
+    - Arguments: `($payment, $options, $api_response, $invoice_data)`
+- `monopay.payment.create_failed` - Fired when invoice creation fails.
+    - Arguments: `($payment, $options, $api_response, $invoice_data)`
+- `monopay.payment.updated` - Fired when a webhook updates an existing payment
+    record.
+    - Arguments: `($payment, $data, $old_status, $new_status)`
+- `monopay.payment.status` - Fired for every webhook status transition.
+    - Arguments: `($payment, $data, $new_status, $old_status)`
+- `monopay.payment.status.{status}` - Fired for a specific webhook status.
+    - Examples: `monopay.payment.status.success`,
+        `monopay.payment.status.failure`, `monopay.payment.status.hold`
+    - Arguments: `($payment, $data, $old_status)`
+- `monopay.payment.verification_failed` - Fired when Monobank verification of
+    a successful payment fails.
+    - Arguments: `($payment, $data, $verification)`
+- `monopay.payment.verified` - Fired after a successful payment is verified.
+    - Arguments: `($payment, $data, $verification)`
+- `monopay.payment.success` - Fired after a verified successful payment.
+    - Arguments: `($payment, $data, $verification)`
+- `monopay.payment.failed` - Fired when the webhook reports a failed payment.
+    - Arguments: `($payment, $data)`
+- `monopay.payment.pending` - Fired when the webhook reports a created or
+    processing payment.
+    - Arguments: `($payment, $data)`
+- `monopay.payment.reversed` - Fired when the webhook reports a reversed
+    payment.
+    - Arguments: `($payment, $data)`
+- `monopay.payment.hold` - Fired when the webhook reports a hold payment.
+    - Arguments: `($payment, $data)`
+
 
 
 ## Error Handling
@@ -318,13 +377,7 @@ if (!$result['ok']) {
 
 ### Test Environment
 
-Set `testMode: true` in configuration to use the test environment.
-
-In test mode:
-- Use any valid card number (must pass Luhn algorithm)
-- Use any expiration date and CVV
-- Real cards are accepted but not charged
-- All API endpoints work identically to production
+Monopay can use Monobank test tokens while keeping the same API host. Set a Monobank sandbox/test token when configuring the plugin.
 
 ### Test Card Numbers
 
@@ -336,10 +389,9 @@ In test mode:
 ### Example Test Flow
 
 ```php
-// Enable test mode
+// Configure using a Monobank test token
 $monopay->configure(
-    token: 'test_token_from_api.monobank.ua',
-    options: ['test_mode' => true]
+    token: 'test_token_from_api.monobank.ua'
 );
 
 // Create test payment
@@ -392,6 +444,7 @@ $result = monopay_create_payment(
 ### Helper Functions
 
 - `monopay()` - Get plugin instance
+- `monopay_get_order()` - Get the plugin order manager
 - `monopay_create_payment($amount, $destination, $options)` - Create payment invoice
 - `monopay_get_status($invoiceId)` - Get payment status
 - `monopay_is_paid($invoiceId)` - Check if paid

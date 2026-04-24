@@ -132,12 +132,4 @@ class Options extends Storage
         return parent::_delete_like($uuid, $key_pattern);
     }
 
-    public function __construct(...$args)
-    {
-        $atomic = App::instance();
-        $prefix = $atomic->get('DB_CONFIG.prefix');
-        $this->table = $prefix . $this->table;
-        $this->fieldConf = array_merge($this->fieldConf, parent::get_field_conf());
-        parent::__construct(...$args);
-    }
 }

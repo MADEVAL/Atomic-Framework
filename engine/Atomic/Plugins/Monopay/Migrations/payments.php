@@ -9,12 +9,10 @@ return [
         $db     = ConnectionManager::instance()->get_db();
         $schema = new Schema($db);
         $prefix = (string)$atomic->get('DB_CONFIG.prefix');
-        $table  = $prefix . 'payments';
+        $payments_table = $prefix . 'payments';
+        $history_table  = $prefix . 'payment_history';
 
-        $t = $schema->createTable($table);
-        $t->addColumn('tariff')->type_int()->nullable(true);
-        $t->addColumn('store')->type_int()->nullable(true);
-        $t->addColumn('user')->type_int()->nullable(true);
+        $t = $schema->createTable($payments_table);
         $t->addColumn('uuid')->type_varchar(128)->nullable(false);
         $t->addColumn('invoice_id')->type_varchar(256)->nullable(true);
         $t->addColumn('status')->type_varchar(128)->nullable(false)->defaults('created');
@@ -35,10 +33,25 @@ return [
         $t->addColumn('fulfilled_at')->type_timestamp()->nullable(true);
         $t->build();
 
-        $tm = $schema->alterTable($table);
+        $tm = $schema->alterTable($payments_table);
         $tm->addIndex(['uuid']);
         $tm->addIndex(['invoice_id']);
         $tm->build();
+
+        $h = $schema->createTable($history_table);
+        $h->addColumn('payment')->type_int()->nullable(false);
+        $h->addColumn('payment_uuid')->type_varchar(256)->nullable(false);
+        $h->addColumn('status')->type_varchar(128)->nullable(false);
+        $h->addColumn('raw_data')->type_text()->nullable(false);
+        $h->addColumn('created_at')->type_timestamp(true)->nullable(false);
+        $h->build();
+
+        $hm = $schema->alterTable($history_table);
+        $hm->addIndex(['payment']);
+        $hm->addIndex(['payment_uuid']);
+        $hm->build();
+
+        $schema->addForeignKey($history_table, 'payment', $payments_table, 'id', 'CASCADE');
     },
 
     'down' => function () {
@@ -47,6 +60,7 @@ return [
         $schema = new Schema($db);
         $prefix = (string)$atomic->get('DB_CONFIG.prefix');
 
+        $schema->dropTable($prefix . 'payment_history');
         $schema->dropTable($prefix . 'payments');
     },
 ];

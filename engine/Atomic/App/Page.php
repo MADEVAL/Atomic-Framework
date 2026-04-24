@@ -11,31 +11,7 @@ abstract class Page extends Model
 {
     protected $db = 'DB';
 
-    protected static function category_model(): ?string { return null; }
-    protected static function author_model(): ?string { return null; }
-
-    public function get_field_configuration(): array {
-        return $this->fieldConf ?? $this->_fieldConf ?? [];
-    }
-
-    public function __construct()
-    {
-        $category_model = static::category_model();
-        if ($category_model !== null) {
-            $this->_fieldConf['category']['relType'] = 'belongs-to-one';
-            $this->_fieldConf['category']['belongs-to-one'] = $category_model;
-        }
-
-        $author_model = static::author_model();
-        if ($author_model !== null) {
-            $this->_fieldConf['author']['relType'] = 'belongs-to-one';
-            $this->_fieldConf['author']['belongs-to-one'] = $author_model;
-        }
-
-        parent::__construct();
-    }
-
-    protected $_fieldConf = [
+    protected $fieldConf = [
         'route' => [
             'type' => Schema::DT_VARCHAR256,
             'nullable' => true,

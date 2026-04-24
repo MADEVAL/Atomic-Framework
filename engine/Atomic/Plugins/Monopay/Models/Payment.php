@@ -6,64 +6,19 @@ if (!defined('ATOMIC_START')) exit;
 
 use DB\Cortex\Schema\Schema;
 use Engine\Atomic\App\Model;
+use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Enums\Rule;
 use Engine\Atomic\Lang\I18n;
+use Engine\Atomic\Plugins\Monopay\Enums\PaymentStatus;
 use Engine\Atomic\Plugins\Monopay\Monopay;
 
 class Payment extends Model
 {
-    const STATUS_CREATED = 'created';
-    const STATUS_PROCESSING = 'processing';
-    const STATUS_HOLD = 'hold';
-    const STATUS_SUCCESS = 'success';
-    const STATUS_FAILURE = 'failure';
-    const STATUS_REVERSED = 'reversed';
-    const STATUS_EXPIRED = 'expired';
-
     protected $table = 'payments';
     protected $db = 'DB';
 
-    protected static function tariff_model(): ?string { return null; }
-    protected static function store_model(): ?string { return null; }
-    protected static function user_model(): ?string { return null; }
-
-    public function __construct()
-    {
-        $tariff_model = static::tariff_model();
-        if ($tariff_model !== null) {
-            $this->fieldConf['tariff']['relType'] = 'belongs-to-one';
-            $this->fieldConf['tariff']['belongs-to-one'] = $tariff_model;
-        }
-
-        $store_model = static::store_model();
-        if ($store_model !== null) {
-            $this->fieldConf['store']['relType'] = 'belongs-to-one';
-            $this->fieldConf['store']['belongs-to-one'] = $store_model;
-        }
-
-        $user_model = static::user_model();
-        if ($user_model !== null) {
-            $this->fieldConf['user']['relType'] = 'belongs-to-one';
-            $this->fieldConf['user']['belongs-to-one'] = $user_model;
-        }
-
-        parent::__construct();
-    }
-
     protected $fieldConf = [
-        'tariff' => [
-            'type' => Schema::DT_INT,
-            'nullable' => true,
-        ],
-        'store' => [
-            'type' => Schema::DT_INT,
-            'nullable' => true,
-        ],
-        'user' => [
-            'type' => Schema::DT_INT,
-            'nullable' => true,
-        ],
         'uuid' => [
             'type' => Schema::DT_VARCHAR128,
             'unique' => true,
@@ -157,40 +112,33 @@ class Payment extends Model
         return $this->afind(['status = ?', $status], $options) ?? [];
     }
 
-    public function get_by_store(int $store_id, array $options = []): array
+    public function get_by_field(string $field, mixed $value, array $options = []): array
     {
-        return $this->afind(['store = ?', $store_id], $options) ?? [];
-    }
+        if (!array_key_exists($field, $this->getFieldConfiguration())) {
+            return [];
+        }
 
-    public function get_by_user(int $user_id, array $options = []): array
-    {
-        return $this->afind(['user = ?', $user_id], $options) ?? [];
-    }
-
-    public function get_by_tariff(int $tariff_id, array $options = []): array
-    {
-        return $this->afind(['tariff = ?', $tariff_id], $options) ?? [];
+        return $this->afind([$field . ' = ?', $value], $options) ?? [];
     }
 
     public function is_successful(): bool
     {
-        return $this->get('status') === self::STATUS_SUCCESS;
+        return PaymentStatus::is_successful_status((string)$this->get('status'));
     }
 
     public function is_pending(): bool
     {
-        $status = $this->get('status');
-        return in_array($status, [self::STATUS_CREATED, self::STATUS_PROCESSING], true);
+        return PaymentStatus::is_pending_status((string)$this->get('status'));
     }
 
     public function is_failed(): bool
     {
-        return $this->get('status') === self::STATUS_FAILURE;
+        return PaymentStatus::is_failed_status((string)$this->get('status'));
     }
 
     public function is_hold(): bool
     {
-        return $this->get('status') === self::STATUS_HOLD;
+        return PaymentStatus::is_hold_status((string)$this->get('status'));
     }
 
     public function is_fulfilled(): bool
@@ -204,38 +152,9 @@ class Payment extends Model
         return (bool)$this->save();
     }
 
-    private const STATUS_WEIGHT = [
-        self::STATUS_CREATED    => 0,
-        self::STATUS_PROCESSING => 1,
-        self::STATUS_HOLD       => 2,
-        self::STATUS_SUCCESS    => 3,
-        self::STATUS_FAILURE    => 3,
-        self::STATUS_REVERSED   => 4,
-        self::STATUS_EXPIRED    => 3,
-    ];
-
     public static function is_valid_status_transition(string $from, string $to): bool
     {
-        if ($from === $to) {
-            return true;
-        }
-
-        $from_weight = self::STATUS_WEIGHT[$from] ?? -1;
-        $to_weight = self::STATUS_WEIGHT[$to] ?? -1;
-
-        if ($to_weight < $from_weight) {
-            return false;
-        }
-
-        if ($from === self::STATUS_SUCCESS && $to !== self::STATUS_REVERSED) {
-            return false;
-        }
-
-        if (in_array($from, [self::STATUS_FAILURE, self::STATUS_EXPIRED], true)) {
-            return false;
-        }
-
-        return true;
+        return PaymentStatus::is_valid_status_transition($from, $to);
     }
 
     public function update_from_webhook(array $webhook_data): bool
@@ -288,29 +207,17 @@ class Payment extends Model
         return (bool)$this->save();
     }
 
-    public static function create_preliminary(float $amount, $currency, ?int $tariff_id = null, ?int $store_id = null, ?int $user_id = null): ?self
+    public static function create_preliminary(float $amount, $currency): ?self
     {
         $model = new self();
         
         $data = [
             'uuid' => ID::uuid_v4(),
-            'status' => self::STATUS_CREATED,
+            'status' => PaymentStatus::CREATED->value,
             'amount' => $amount,
             'currency' => $currency,
             'created_date' => date('Y-m-d H:i:s'),
         ];
-
-        if ($tariff_id) {
-            $data['tariff'] = $tariff_id;
-        }
-        
-        if ($store_id) {
-            $data['store'] = $store_id;
-        }
-        
-        if ($user_id) {
-            $data['user'] = $user_id;
-        }
         
         foreach ($data as $key => $value) {
             $model->set($key, $value);
@@ -358,37 +265,22 @@ class Payment extends Model
             return $val;
         }
 
-        $map = [
-            self::STATUS_CREATED => 'payment.status.created',
-            self::STATUS_PROCESSING => 'payment.status.processing',
-            self::STATUS_HOLD => 'payment.status.hold',
-            self::STATUS_SUCCESS => 'payment.status.success',
-            self::STATUS_FAILURE => 'payment.status.failure',
-            self::STATUS_REVERSED => 'payment.status.reversed',
-            self::STATUS_EXPIRED => 'payment.status.expired',
-        ];
-
-        $key = $map[$status] ?? 'payment.status.unknown';
+        $enum = PaymentStatus::tryFrom($status);
+        $key = $enum ? $enum->label_key() : 'payment.status.unknown';
         return $i18n->t($key);
     }
 
     public function get_status_badge_class(): string
     {
-        return match($this->get('status')) {
-            self::STATUS_SUCCESS => 'success',
-            self::STATUS_FAILURE => 'danger',
-            self::STATUS_HOLD => 'warning',
-            self::STATUS_PROCESSING => 'info',
-            self::STATUS_CREATED => 'secondary',
-            self::STATUS_REVERSED => 'warning',
-            self::STATUS_EXPIRED => 'secondary',
-            default => 'secondary'
-        };
+        $enum = PaymentStatus::tryFrom((string)$this->get('status'));
+        return $enum ? $enum->badge_class() : 'secondary';
     }
 
     public function verify_with_monopay(): array
     {
-        if (!$this->atomic->get('PLUGIN.Monopay.booted')) {
+        $atomic = App::instance();
+
+        if (!$atomic->get('PLUGIN.Monopay.booted')) {
             return [
                 'ok' => false,
                 'error' => 'Monopay plugin not loaded',
@@ -447,7 +339,7 @@ class Payment extends Model
             $errors[] = 'Amount mismatch';
         }
 
-        if ($monopay_status !== self::STATUS_SUCCESS) {
+        if ($monopay_status !== PaymentStatus::SUCCESS->value) {
             $verified = false;
             $errors[] = 'Monopay status is not success (got: ' . $monopay_status . ')';
         }

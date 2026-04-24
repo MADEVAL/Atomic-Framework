@@ -5,6 +5,9 @@ namespace Engine\Atomic\Plugins\Monopay;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Hook\Hook;
+use Engine\Atomic\Plugins\Monopay\Enums\MonopayHook;
+use Engine\Atomic\Plugins\Monopay\Enums\PaymentStatus;
 use Engine\Atomic\Plugins\Monopay\Monopay;
 use Engine\Atomic\Plugins\Monopay\Models\Payment;
 
@@ -28,10 +31,7 @@ class Order
         try {
             $payment = Payment::create_preliminary(
                 $amount,
-                $options['ccy'] ?? Monopay::CURRENCY_DEFAULT,
-                $options['tariff_id'] ?? null,
-                $options['store_id'] ?? null,
-                $options['user_id'] ?? null
+                $options['ccy'] ?? Monopay::CURRENCY_DEFAULT
             );
 
             if (!$payment) {
@@ -56,6 +56,13 @@ class Order
                 'destination' => $destination,
             ],
         ];
+
+        $invoice_data = Hook::instance()->apply_filters(
+            MonopayHook::PAYMENT_INVOICE_DATA,
+            $invoice_data,
+            $payment,
+            $options
+        );
         
         if (isset($options['comment'])) {
             $invoice_data['merchantPaymInfo']['comment'] = $options['comment'];
@@ -133,7 +140,22 @@ class Order
             $payment->set('page_url', $result['data']['pageUrl']);
             $payment->save();
 
+            Hook::instance()->do_action(
+                MonopayHook::PAYMENT_CREATED,
+                $payment,
+                $options,
+                $result['data'],
+                $invoice_data
+            );
+
         } else {
+            Hook::instance()->do_action(
+                MonopayHook::PAYMENT_CREATE_FAILED,
+                $payment,
+                $options,
+                $result,
+                $invoice_data
+            );
             $payment->erase();
             Log::error('Monopay: Invoice creation failed, preliminary payment deleted ' . json_encode([
                 'payment_uuid' => $payment_uuid,
@@ -178,7 +200,7 @@ class Order
     public function is_paid(string $invoice_id, ?array $status_result = null): bool
     {
         $result = $status_result ?? $this->get_status($invoice_id);
-        return $result['ok'] && $result['status'] === 'success';
+        return $result['ok'] && $result['status'] === PaymentStatus::SUCCESS->value;
     }
 
     public function is_pending(string $invoice_id, ?array $status_result = null): bool
@@ -189,19 +211,19 @@ class Order
             return false;
         }
 
-        return in_array($result['status'], ['created', 'processing'], true);
+        return in_array($result['status'], PaymentStatus::pending_values(), true);
     }
 
     public function is_failed(string $invoice_id, ?array $status_result = null): bool
     {
         $result = $status_result ?? $this->get_status($invoice_id);
-        return $result['ok'] && $result['status'] === 'failure';
+        return $result['ok'] && $result['status'] === PaymentStatus::FAILURE->value;
     }
 
     public function is_hold(string $invoice_id, ?array $status_result = null): bool
     {
         $result = $status_result ?? $this->get_status($invoice_id);
-        return $result['ok'] && $result['status'] === 'hold';
+        return $result['ok'] && $result['status'] === PaymentStatus::HOLD->value;
     }
     
     public function cancel(string $invoice_id, ?float $amount = null, array $options = []): array

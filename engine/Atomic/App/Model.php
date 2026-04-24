@@ -21,9 +21,83 @@ abstract class Model extends Cortex
 	protected $fieldConf = null;
 	protected ?string $last_err_code = null;
 	protected array $last_err_vars = [];
+	private static array $inherited_field_conf_cache = [];
+
+	protected static function extended_field_conf(): array {
+		return [];
+	}
+
+	private function merge_field_conf_from_class_traits(\ReflectionClass $classRef, array &$merged): void {
+		$seen = [];
+		foreach ($classRef->getTraits() as $traitRef) {
+			$this->merge_field_conf_from_trait($traitRef, $merged, $seen);
+		}
+	}
+
+	private function merge_field_conf_from_trait(
+		\ReflectionClass $traitRef,
+		array &$merged,
+		array &$seen,
+	): void {
+		$name = $traitRef->getName();
+		if (isset($seen[$name])) {
+			return;
+		}
+		$seen[$name] = true;
+		foreach ($traitRef->getTraits() as $nested) {
+			$this->merge_field_conf_from_trait($nested, $merged, $seen);
+		}
+		if ($traitRef->hasProperty('fieldConf')) {
+			$prop = $traitRef->getProperty('fieldConf');
+			if ($prop->getDeclaringClass()->getName() === $name) {
+				$defaults = $traitRef->getDefaultProperties();
+				$conf = $defaults['fieldConf'] ?? null;
+				if (is_array($conf) && !empty($conf)) {
+					$merged = array_replace_recursive($merged, $conf);
+				}
+			}
+		}
+	}
+
+	private function collect_inherited_field_conf(): array {
+		if (isset(self::$inherited_field_conf_cache[static::class])) {
+			return self::$inherited_field_conf_cache[static::class];
+		}
+
+		$chain = array_reverse(class_parents(static::class));
+		$chain[] = static::class;
+
+		$merged = [];
+		foreach ($chain as $class_name) {
+			$ref = new \ReflectionClass($class_name);
+			$this->merge_field_conf_from_class_traits($ref, $merged);
+			if ($ref->hasProperty('fieldConf')) {
+				$prop = $ref->getProperty('fieldConf');
+				if ($prop->getDeclaringClass()->getName() === $class_name) {
+					$defaults = $ref->getDefaultProperties();
+					$conf = $defaults['fieldConf'] ?? null;
+					if (is_array($conf) && !empty($conf)) {
+						$merged = array_replace_recursive($merged, $conf);
+					}
+				}
+			}
+		}
+
+		self::$inherited_field_conf_cache[static::class] = $merged;
+		return $merged;
+	}
+
+	protected function initialize_field_conf(): void {
+		$base = $this->collect_inherited_field_conf();
+		$extra = static::extended_field_conf();
+		if (!empty($base) || !empty($extra) || is_array($this->fieldConf)) {
+			$this->fieldConf = array_replace_recursive($base, $extra);
+		}
+	}
 
 	public function __construct() {
 		$this->db = 'DB';
+		$this->initialize_field_conf();
 		if ($this->table !== null) {
 			$prefix = (string) App::instance()->get('DB_CONFIG.prefix');
 			if ($prefix !== '' && !str_starts_with((string) $this->table, $prefix)) {
@@ -31,7 +105,7 @@ abstract class Model extends Cortex
 			}
 		}
 		parent::__construct();
-		$saveHandler = function(Cortex $self): bool {
+		$saveHandler = function(self $self): bool {
 			$self->before_validate();
 			$valid = true;
 			foreach ($self->getFieldConfiguration() as $field => $conf) {

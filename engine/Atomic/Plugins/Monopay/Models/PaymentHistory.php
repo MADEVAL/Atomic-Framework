@@ -12,6 +12,13 @@ class PaymentHistory extends Model
     protected $table = 'payment_history';
     protected $db = 'DB';
     protected $fieldConf = [
+        'payment' => [
+            'type' => Schema::DT_INT,
+            'nullable' => false,
+            'required' => true,
+            'relType' => 'belongs-to-one',
+            'belongs-to-one' => Payment::class,
+        ],
         'payment_uuid' => [
             'type' => Schema::DT_VARCHAR256,
             'nullable' => false,
@@ -33,10 +40,11 @@ class PaymentHistory extends Model
         ],
     ];
 
-    public static function log_operation(string $payment_uuid, string $status, array $webhook_data): bool
+    public static function log_operation(int $payment_id, string $payment_uuid, string $status, array $webhook_data): bool
     {
         $history = new self();
-        
+
+        $history->payment = $payment_id;
         $history->payment_uuid = $payment_uuid;
         $history->status = $status;
         $history->raw_data = json_encode($webhook_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -44,20 +52,41 @@ class PaymentHistory extends Model
         return (bool)$history->save();
     }
 
-    /**
-    * @return self[]
-    */
-    public static function get_by_payment_uuid(string $payment_uuid, array $options = []) 
+    /** @return self[] */
+    public static function get_by_payment(int $payment_id, array $options = [])
     {
         $model = new self();
-        
+
         $default_options = [
             'order' => 'created_at DESC'
         ];
-        
+
         $options = array_merge($default_options, $options);
-        
-        return $model->find(['payment_uuid = ?', $payment_uuid], $options) ?? [];
+
+        return $model->find(['payment = ?', $payment_id], $options) ?: [];
+    }
+
+    public static function get_latest_by_payment(int $payment_id): ?self
+    {
+        $model = new self();
+        return $model->findone(
+            ['payment = ?', $payment_id],
+            ['order' => 'created_at DESC']
+        );
+    }
+
+    /** @return self[] */
+    public static function get_by_payment_uuid(string $payment_uuid, array $options = []): array
+    {
+        $model = new self();
+
+        $default_options = [
+            'order' => 'created_at DESC'
+        ];
+
+        $options = array_merge($default_options, $options);
+
+        return $model->find(['payment_uuid = ?', $payment_uuid], $options) ?: [];
     }
 
     public static function get_latest_by_payment_uuid(string $payment_uuid): ?self
@@ -80,7 +109,7 @@ class PaymentHistory extends Model
         
         $options = array_merge($default_options, $options);
         
-        return $model->find(['status = ?', $status], $options) ?? [];
+        return $model->find(['status = ?', $status], $options) ?: [];
     }
 
     public function get_raw_data_decoded(): array
@@ -94,6 +123,12 @@ class PaymentHistory extends Model
         $decoded = json_decode($raw, true);
         
         return is_array($decoded) ? $decoded : [];
+    }
+
+    public static function count_by_payment(int $payment_id): int
+    {
+        $model = new self();
+        return $model->count(['payment = ?', $payment_id], null, 0);
     }
 
     public static function count_by_payment_uuid(string $payment_uuid): int
