@@ -15,7 +15,7 @@ abstract class Plugin
     protected bool $enabled = true;
     protected array $dependencies = [];
 
-    public function __construct(?App $atomic = null)
+    public function __construct()
     {
         $this->atomic = $atomic ?? App::instance();
         $this->name = $this->get_name();

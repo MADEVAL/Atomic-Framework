@@ -31,7 +31,7 @@ class Monopay extends Plugin
 
     public function get_migrations_path(): ?string
     {
-        $path = __DIR__ . DIRECTORY_SEPARATOR . 'Monopay' . DIRECTORY_SEPARATOR . 'Migrations';
+        $path = __DIR__ . DIRECTORY_SEPARATOR . DIRECTORY_SEPARATOR . 'Migrations';
         return is_dir($path) ? $path : null;
     }
 
