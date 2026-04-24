@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Engine\Hook;
 
 use Engine\Atomic\Hook\Hook;
+use Engine\Atomic\Plugins\Monopay\Enums\MonopayHook;
 use PHPUnit\Framework\TestCase;
 
 class HookTest extends TestCase
@@ -108,5 +109,18 @@ class HookTest extends TestCase
         }, 10, 1);
         $this->hook->do_action($tag, 'first', 'second');
         $this->assertSame(['first'], $received);
+    }
+
+    public function test_enum_tag_support(): void
+    {
+        $called = false;
+
+        $this->hook->add_action(MonopayHook::PAYMENT_CREATED, function () use (&$called) {
+            $called = true;
+        });
+
+        $this->hook->do_action(MonopayHook::PAYMENT_CREATED);
+
+        $this->assertTrue($called);
     }
 }

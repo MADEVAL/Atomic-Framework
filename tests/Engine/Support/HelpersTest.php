@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Engine\Support;
 
+use Engine\Atomic\Plugins\Monopay\Enums\MonopayHook;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -75,6 +76,19 @@ class HelpersTest extends TestCase
         });
         $result = apply_filters('test_helpers_filter', 'input');
         $this->assertSame('input_filtered', $result);
+    }
+
+    public function test_add_action_with_enum_tag(): void
+    {
+        $called = false;
+
+        add_action(MonopayHook::PAYMENT_FAILED, function () use (&$called) {
+            $called = true;
+        });
+
+        do_action(MonopayHook::PAYMENT_FAILED);
+
+        $this->assertTrue($called);
     }
 
     public function test_has_filter(): void

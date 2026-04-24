@@ -40,16 +40,16 @@ SysEvents::instance()->init();
 SysHooks::instance()->init();
 
 // Hook functions
-function add_action(string $tag, callable $callback, int $priority = 10, int $accepted_args = 1): bool { return AH::instance()->add_action($tag, $callback, $priority, $accepted_args);}
-function has_action(string $tag, ?callable $callback = null): bool {return AH::instance()->has_action($tag, $callback);}
-function do_action(string $tag, mixed ...$args): void { AH::instance()->do_action($tag, ...$args);}
-function remove_action(string $tag, ?callable $callback = null, int $priority = 10): bool {return AH::instance()->remove_action($tag, $callback, $priority);}
+function add_action(string|\UnitEnum $tag, callable $callback, int $priority = 10, int $accepted_args = 1): bool { return AH::instance()->add_action($tag, $callback, $priority, $accepted_args);}
+function has_action(string|\UnitEnum $tag, ?callable $callback = null): bool {return AH::instance()->has_action($tag, $callback);}
+function do_action(string|\UnitEnum $tag, mixed ...$args): void { AH::instance()->do_action($tag, ...$args);}
+function remove_action(string|\UnitEnum $tag, ?callable $callback = null, int $priority = 10): bool {return AH::instance()->remove_action($tag, $callback, $priority);}
 
 // Filter functions
-function add_filter(string $tag, callable $callback, int $priority = 10, int $accepted_args = 1): bool {return AH::instance()->add_filter($tag, $callback, $priority, $accepted_args);}
-function has_filter(string $tag, ?callable $callback = null): bool {return AH::instance()->has_filter($tag, $callback);}
-function apply_filters(string $tag, mixed $value, mixed ...$args): mixed {return AH::instance()->apply_filters($tag, $value, ...$args);}
-function remove_filter(string $tag, ?callable $callback = null, int $priority = 10): bool {return AH::instance()->remove_filter($tag, $callback, $priority);}
+function add_filter(string|\UnitEnum $tag, callable $callback, int $priority = 10, int $accepted_args = 1): bool {return AH::instance()->add_filter($tag, $callback, $priority, $accepted_args);}
+function has_filter(string|\UnitEnum $tag, ?callable $callback = null): bool {return AH::instance()->has_filter($tag, $callback);}
+function apply_filters(string|\UnitEnum $tag, mixed $value, mixed ...$args): mixed {return AH::instance()->apply_filters($tag, $value, ...$args);}
+function remove_filter(string|\UnitEnum $tag, ?callable $callback = null, int $priority = 10): bool {return AH::instance()->remove_filter($tag, $callback, $priority);}
 
 // Template functions
 function get_header(string $name = 'header', ?array $data = null): void { AT::get_header($name, $data); }

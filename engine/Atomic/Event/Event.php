@@ -23,8 +23,8 @@ class Event extends \Prefab {
 		$this->atomic->clear(rtrim($this->ekey,'.'));
 	}
 
-	public function on(string $key, callable|array $func, int $priority=10, array $options=[]): void {
-		$full = $this->ekey.$key;
+	public function on(string|\UnitEnum $key, callable|array $func, int $priority=10, array $options=[]): void {
+		$full = $this->ekey.$this->normalize_key($key);
 		$call = $options ? [$func,$options] : $func;
 		$e = $this->atomic->exists($full) ? $this->atomic->get($full) : [];
 		$e[(int)$priority][] = $call;
@@ -32,15 +32,16 @@ class Event extends \Prefab {
 		$this->atomic->set($full, $e);
 	}
 
-	public function off(string $key): void {
-		$this->atomic->clear($this->ekey.$key);
+	public function off(string|\UnitEnum $key): void {
+		$this->atomic->clear($this->ekey.$this->normalize_key($key));
 	}
 
-	public function has(string $key): bool {
-		return (bool)$this->atomic->exists($this->ekey.$key);
+	public function has(string|\UnitEnum $key): bool {
+		return (bool)$this->atomic->exists($this->ekey.$this->normalize_key($key));
 	}
 
-	public function broadcast(string $key, mixed $args=null, array &$context=[], bool $hold=true): mixed {
+	public function broadcast(string|\UnitEnum $key, mixed $args=null, array &$context=[], bool $hold=true): mixed {
+		$key = $this->normalize_key($key);
 		$full = $this->ekey.$key;
 		if (!$this->atomic->exists($full)) return $args;
 
@@ -75,7 +76,8 @@ class Event extends \Prefab {
 		return $args;
 	}
 
-	public function emit(string $key, mixed $args=null, array &$context=[], bool $hold=true): mixed {
+	public function emit(string|\UnitEnum $key, mixed $args=null, array &$context=[], bool $hold=true): mixed {
+		$key = $this->normalize_key($key);
 		$nodes = explode('.',$key);
 		foreach ($nodes as $i=>$slot) {
 			$key = implode('.',$nodes);
@@ -124,5 +126,13 @@ class Event extends \Prefab {
 		}
 		
 		return $events;
+	}
+
+	protected function normalize_key(string|\UnitEnum $key): string {
+		if (is_string($key)) {
+			return $key;
+		}
+
+		return $key instanceof \BackedEnum ? (string)$key->value : $key->name;
 	}
 }
