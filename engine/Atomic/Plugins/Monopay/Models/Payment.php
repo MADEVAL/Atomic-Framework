@@ -64,11 +64,11 @@ class Payment extends Model
             'type' => Schema::DT_VARCHAR128,
             'nullable' => true,
         ],
-        'created_date' => [
+        'created_at' => [
             'type' => Schema::DT_TIMESTAMP,
             'nullable' => true,
         ],
-        'modified_date' => [
+        'updated_at' => [
             'type' => Schema::DT_TIMESTAMP,
             'nullable' => true,
         ],
@@ -182,8 +182,12 @@ class Payment extends Model
             $this->set('error_code', $webhook_data['error_code']);
         }
         
-        if (isset($webhook_data['modified_date'])) {
-            $this->set('modified_date', $webhook_data['modified_date']);
+        if (isset($webhook_data['created_at'])) {
+            $this->set('created_at', $webhook_data['created_at']);
+        }
+
+        if (isset($webhook_data['updated_at'])) {
+            $this->set('updated_at', $webhook_data['updated_at']);
         }
         
         if (isset($webhook_data['payment_info'])) {
@@ -216,7 +220,8 @@ class Payment extends Model
             'status' => PaymentStatus::CREATED->value,
             'amount' => $amount,
             'currency' => $currency,
-            'created_date' => date('Y-m-d H:i:s'),
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
         ];
         
         foreach ($data as $key => $value) {

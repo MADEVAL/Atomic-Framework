@@ -32,8 +32,8 @@ return [
                 $t->addColumn('destination')->type(Schema::DT_TEXT)->nullable(true);
                 $t->addColumn('failure_reason')->type(Schema::DT_TEXT)->nullable(true);
                 $t->addColumn('error_code')->type(Schema::DT_VARCHAR128)->nullable(true);
-                $t->addColumn('created_date')->type(Schema::DT_TIMESTAMP)->nullable(true);
-                $t->addColumn('modified_date')->type(Schema::DT_TIMESTAMP)->nullable(true);
+                $t->addColumn('created_at')->type(Schema::DT_TIMESTAMP)->nullable(true);
+                $t->addColumn('updated_at')->type(Schema::DT_TIMESTAMP)->nullable(true);
                 $t->addColumn('payment_info')->type(Schema::DT_TEXT)->nullable(true);
                 $t->addColumn('cancel_list')->type(Schema::DT_TEXT)->nullable(true);
                 $t->addColumn('wallet_data')->type(Schema::DT_TEXT)->nullable(true);
