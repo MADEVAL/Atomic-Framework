@@ -16,6 +16,7 @@ class PaymentHistory extends Model
             'type' => Schema::DT_INT,
             'nullable' => false,
             'required' => true,
+            'onDelete' => 'RESTRICT',
             'relType' => 'belongs-to-one',
             'belongs-to-one' => Payment::class,
         ],

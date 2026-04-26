@@ -276,11 +276,11 @@ class App {
             $customAfter = false;
             if ($r->hasMethod('beforeroute')) {
                 $m = $r->getMethod('beforeroute');
-                $customBefore = $m->getDeclaringClass()->get_name() !== $this->baseControllerClass;
+                $customBefore = $m->getDeclaringClass()->getName() !== $this->baseControllerClass;
             } 
             if ($r->hasMethod('afterroute')) {
                 $m = $r->getMethod('afterroute');
-                $customAfter = $m->getDeclaringClass()->get_name() !== $this->baseControllerClass;
+                $customAfter = $m->getDeclaringClass()->getName() !== $this->baseControllerClass;
             }
             return $customBefore || $customAfter;
         } catch (\Throwable $e) {

@@ -50,7 +50,7 @@ class GoogleClientAdapter
         return [
             'id'          => (string) $info->getId(),
             'email'       => $info->getEmail(),
-            'name'        => $info->get_name(),
+            'name'        => $info->getName(),
             'given_name'  => $info->getGivenName(),
             'family_name' => $info->getFamilyName(),
             'picture'     => $info->getPicture(),
