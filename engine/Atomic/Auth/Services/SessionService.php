@@ -51,8 +51,10 @@ class SessionService implements AuthSessionInterface
             return !$app->get('SESSION_CONFIG.kill_on_suspect');
         };
 
-        $driver = strtolower($this->app->get('SESSION_CONFIG.driver') ?? 'db');
-        $this->session_factory->start($driver, $onsuspect);
+        if ($this->php_session->status() !== PHP_SESSION_ACTIVE) {
+            $driver = strtolower($this->app->get('SESSION_CONFIG.driver') ?? 'db');
+            $this->session_factory->start($driver, $onsuspect);
+        }
 
         if (!empty($uuid)) {
             $this->app->set('SESSION.user_uuid', $uuid);
@@ -61,13 +63,10 @@ class SessionService implements AuthSessionInterface
         }
 
         $stored_uuid = $this->app->get('SESSION.user_uuid');
-        if (!$stored_uuid || !$this->id_validator->is_valid_uuid_v4($stored_uuid)) {
-            $this->destroy();
-            return;
-        }
-
-        if ($this->is_expired()) {
-            $this->destroy();
+        if ($stored_uuid) {
+            if (!$this->id_validator->is_valid_uuid_v4($stored_uuid) || $this->is_expired()) {
+                $this->destroy();
+            }
         }
     }
 
@@ -91,3 +90,4 @@ class SessionService implements AuthSessionInterface
         $this->app->clear('SESSION');
     }
 }
+
