@@ -70,14 +70,47 @@ class WooCommerce extends Plugin
         ];
 
         $result = match($method) {
-            'POST' => HTTP::instance()->remote_post($url, $data, $args),
-            'PUT' => HTTP::instance()->remote_put($url, $data, $args),
+            'POST'  => HTTP::instance()->remote_post($url, $data, $args),
+            'PUT'   => HTTP::instance()->remote_put($url, $data, $args),
             default => HTTP::instance()->remote_get($url, $args),
         };
 
         if (!$result['ok']) {
-            Log::error('WooCommerce API error: ' . $result['error']);
-            return ['ok' => false, 'error' => $result['error']];
+            $http_status = $result['status'];
+            $http_error  = $result['error'];
+            $body        = $result['body'];
+    
+            $json       = json_decode($body, true);
+            $wc_code    = $json['code']    ?? '';
+            $wc_message = $json['message'] ?? '';
+    
+            if ($wc_message) {
+                $error_msg = $wc_code ? "[{$wc_code}] {$wc_message}" : $wc_message;
+            } elseif ($wc_code) {
+                $error_msg = $http_status ? "[{$wc_code}] HTTP {$http_status}" : "[{$wc_code}]";
+            } elseif ($http_error) {
+                $error_msg = $http_error;
+            } elseif ($http_status >= 300 && $http_status < 400) {
+                $location  = $result['headers']['location'] ?? '';
+                $error_msg = $location
+                    ? "HTTP {$http_status} redirect to {$location} (check URL, auth keys, or permalink settings)"
+                    : "HTTP {$http_status} redirect (check store URL and API credentials)";
+            } elseif (!empty($body) && $json === null) {
+                $title = '';
+                if (preg_match('/<title>([^<]*)<\/title>/i', $body, $m)) {
+                    $title = trim($m[1]);
+                }
+                $error_msg = $title
+                    ? "HTTP {$http_status}: {$title}"
+                    : "HTTP {$http_status} (non-JSON response — check store URL and API path)";
+            } else {
+                $error_msg = $http_status
+                    ? "HTTP {$http_status}"
+                    : 'Request failed (no status, no body)';
+            }
+    
+            Log::error('WooCommerce API error: ' . $error_msg);
+            return ['ok' => false, 'error' => $error_msg];
         }
 
         $decoded = json_decode($result['body'], true);
