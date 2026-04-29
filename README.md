@@ -15,6 +15,10 @@
 
 A modular, full-featured PHP framework built on top of [Fat-Free Framework](https://fatfreeframework.com/). Atomic provides a structured application skeleton with authentication, queue processing, scheduling, caching, CLI tooling, and more - while staying lightweight and unopinionated.
 
+## Application skeleton
+Download the application skeleton for a quick start:
+[Atomic Application](https://github.com/MADEVAL/Atomic-Framework-Application)
+
 ## Table of Contents
 
 - [Features](#features)
@@ -75,9 +79,14 @@ A modular, full-featured PHP framework built on top of [Fat-Free Framework](http
 
 ## Installation
 
+Quick start and install the framework via Composer:
+
 ```bash
-composer require atomic/framework
+composer require globus-studio/atomic-framework
 ```
+
+Download the application skeleton for a quick start:
+[Atomic Application](https://github.com/MADEVAL/Atomic-Framework-Application)
 
 Create your project entry point:
 
