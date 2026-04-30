@@ -20,6 +20,41 @@ class RequestTest extends TestCase
         $this->assertSame(Request::instance(), Request::instance());
     }
 
+    public function test_parsed_body_decodes_json(): void
+    {
+        $result = $this->request->parsed_body('{"name":"Atomic","count":2}', 'application/json; charset=utf-8');
+
+        $this->assertSame(['name' => 'Atomic', 'count' => 2], $result);
+    }
+
+    public function test_parsed_body_decodes_form_data(): void
+    {
+        $result = $this->request->parsed_body('name=Atomic&tags%5B0%5D=php', 'application/x-www-form-urlencoded');
+
+        $this->assertSame(['name' => 'Atomic', 'tags' => ['php']], $result);
+    }
+
+    public function test_parsed_body_returns_empty_array_for_invalid_json(): void
+    {
+        $this->assertSame([], $this->request->parsed_body('{bad-json', 'application/json'));
+    }
+
+    public function test_is_json_request_uses_server_content_type(): void
+    {
+        $previous = $_SERVER['CONTENT_TYPE'] ?? null;
+        $_SERVER['CONTENT_TYPE'] = 'application/json';
+
+        try {
+            $this->assertTrue($this->request->is_json_request());
+        } finally {
+            if ($previous === null) {
+                unset($_SERVER['CONTENT_TYPE']);
+            } else {
+                $_SERVER['CONTENT_TYPE'] = $previous;
+            }
+        }
+    }
+
     public function test_remote_get_returns_array(): void
     {
         $result = $this->request->remote_get('https://httpbin.org/get', ['timeout' => 5]);

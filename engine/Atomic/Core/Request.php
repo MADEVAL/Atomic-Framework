@@ -4,10 +4,25 @@ namespace Engine\Atomic\Core;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\Traits\Singleton;
+
 final class Request
 {
-    protected App $atomic;
-    private static ?self $instance = null;
+    use Singleton;
+
+    private const HEADER_CONTENT_TYPE = 'Content-Type';
+    private const SERVER_CONTENT_TYPE = 'CONTENT_TYPE';
+    private const SERVER_HTTP_CONTENT_TYPE = 'HTTP_CONTENT_TYPE';
+    private const CONTENT_TYPE_FORM = 'application/x-www-form-urlencoded';
+    private const CONTENT_TYPE_JSON = 'application/json';
+    private const CONTENT_TYPE_MULTIPART = 'multipart/form-data';
+    private const METHOD_GET = 'GET';
+    private const METHOD_HEAD = 'HEAD';
+    private const METHOD_POST = 'POST';
+    private const METHOD_PUT = 'PUT';
+    private const METHOD_PATCH = 'PATCH';
+    private const METHOD_DELETE = 'DELETE';
 
     private string $ua;
     private int $retries;
@@ -16,16 +31,63 @@ final class Request
 
     private function __construct()
     {
-        $this->atomic  = App::instance();
         $this->ua      = \defined('ATOMIC_HTTP_USERAGENT') ? (string)\ATOMIC_HTTP_USERAGENT : ('AtomicHTTP PHP/'.PHP_VERSION);
         $this->retries = \defined('ATOMIC_HTTP_RETRIES')   ? (int)\ATOMIC_HTTP_RETRIES       : 0;
         $this->timeout = \defined('ATOMIC_HTTP_TIMEOUT')   ? (int)\ATOMIC_HTTP_TIMEOUT       : ((int)ini_get('default_socket_timeout') ?: 30);
         $this->engine  = \defined('ATOMIC_HTTP_ENGINE')    ? strtolower((string)\ATOMIC_HTTP_ENGINE) : null;
     }
 
-    public static function instance(): self
+    public function raw_body(): string
     {
-        return self::$instance ??= new self();
+        $body = file_get_contents('php://input');
+        return $body === false ? '' : $body;
+    }
+
+    public function parsed_body(?string $raw = null, ?string $content_type = null): array
+    {
+        $content_type = strtolower($content_type ?? $this->content_type());
+
+        if (str_contains($content_type, self::CONTENT_TYPE_MULTIPART)) {
+            return $_POST;
+        }
+
+        $raw ??= $this->raw_body();
+        if ($raw === '') {
+            return [];
+        }
+
+        if (str_contains($content_type, self::CONTENT_TYPE_JSON)) {
+            try {
+                $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+                return is_array($data) ? $data : [];
+            } catch (\JsonException $e) {
+                Log::error('JSON decode error: ' . $e->getMessage());
+                return [];
+            }
+        }
+
+        if (str_contains($content_type, self::CONTENT_TYPE_FORM)) {
+            parse_str($raw, $data);
+            return $data;
+        }
+
+        return [];
+    }
+
+    public function input(?string $key = null, mixed $default = null): mixed
+    {
+        $data = $this->parsed_body();
+
+        if ($key === null) {
+            return $data;
+        }
+
+        return $data[$key] ?? $default;
+    }
+
+    public function is_json_request(): bool
+    {
+        return str_contains(strtolower($this->content_type()), self::CONTENT_TYPE_JSON);
     }
 
     public function remote_get(string $url, array $args = []): array
@@ -33,7 +95,7 @@ final class Request
         if (!empty($args['query']) && is_array($args['query'])) {
             $url = $this->append_query($url, $args['query']);
         }
-        return $this->send('GET', $url, $args);
+        return $this->send(self::METHOD_GET, $url, $args);
     }
 
     public function remote_head(string $url, array $args = []): array
@@ -41,29 +103,64 @@ final class Request
         if (!empty($args['query']) && is_array($args['query'])) {
             $url = $this->append_query($url, $args['query']);
         }
-        return $this->send('HEAD', $url, $args);
+        return $this->send(self::METHOD_HEAD, $url, $args);
     }
 
     public function remote_post(string $url, array|string|null $data = null, array $args = []): array
     {
-        if (is_array($data) && empty($args['raw'])) {
-            $args['content'] = http_build_query($data, '', '&', PHP_QUERY_RFC3986);
-            $args['headers']['Content-Type'] = $args['headers']['Content-Type'] ?? 'application/x-www-form-urlencoded';
-        } elseif (is_string($data)) {
-            $args['content'] = $data;
-        }
-        return $this->send('POST', $url, $args);
+        $args = $this->prepare_body($data, $args);
+        return $this->send(self::METHOD_POST, $url, $args);
     }
 
     public function remote_put(string $url, array|string|null $data = null, array $args = []): array
     {
-        if (is_array($data) && empty($args['raw'])) {
-            $args['content'] = http_build_query($data, '', '&', PHP_QUERY_RFC3986);
-            $args['headers']['Content-Type'] = $args['headers']['Content-Type'] ?? 'application/x-www-form-urlencoded';
-        } elseif (is_string($data)) {
-            $args['content'] = $data;
+        $args = $this->prepare_body($data, $args);
+        return $this->send(self::METHOD_PUT, $url, $args);
+    }
+
+    public function remote_patch(string $url, array|string|null $data = null, array $args = []): array
+    {
+        $args = $this->prepare_body($data, $args);
+        return $this->send(self::METHOD_PATCH, $url, $args);
+    }
+
+    public function remote_delete(string $url, array $args = []): array
+    {
+        return $this->send(self::METHOD_DELETE, $url, $args);
+    }
+
+    public function json(array $response, bool $assoc = true): mixed
+    {
+        $body = (string)($response['body'] ?? '');
+        if ($body === '') {
+            return null;
         }
-        return $this->send('PUT', $url, $args);
+
+        try {
+            return json_decode($body, $assoc, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            return null;
+        }
+    }
+
+    public function is_json(array $response): bool
+    {
+        $header = $this->get_header($response, self::HEADER_CONTENT_TYPE);
+        if (is_array($header)) {
+            foreach ($header as $value) {
+                if (stripos((string)$value, self::CONTENT_TYPE_JSON) !== false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        return is_string($header) && stripos($header, self::CONTENT_TYPE_JSON) !== false;
+    }
+
+    public function get_header(array $response, string $name): string|array|null
+    {
+        return $response['headers'][strtolower($name)] ?? null;
     }
 
     private function send(string $method, string $url, array $args): array
@@ -138,6 +235,23 @@ final class Request
         return $list;
     }
 
+    private function prepare_body(array|string|null $data, array $args): array
+    {
+        if (is_array($data)) {
+            if (!empty($args['json'])) {
+                $args['content'] = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+                $args['headers'][self::HEADER_CONTENT_TYPE] = $args['headers'][self::HEADER_CONTENT_TYPE] ?? self::CONTENT_TYPE_JSON;
+            } elseif (empty($args['raw'])) {
+                $args['content'] = http_build_query($data, '', '&', PHP_QUERY_RFC3986);
+                $args['headers'][self::HEADER_CONTENT_TYPE] = $args['headers'][self::HEADER_CONTENT_TYPE] ?? self::CONTENT_TYPE_FORM;
+            }
+        } elseif (is_string($data)) {
+            $args['content'] = $data;
+        }
+
+        return $args;
+    }
+
     private function append_query(string $url, array $query): string
     {
         $qs = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
@@ -168,5 +282,18 @@ final class Request
             }
         }
         return $out;
+    }
+
+    private function content_type(): string
+    {
+        $type = $_SERVER[self::SERVER_CONTENT_TYPE]
+            ?? $_SERVER[self::SERVER_HTTP_CONTENT_TYPE]
+            ?? null;
+
+        if ($type === null && class_exists(App::class, false)) {
+            $type = App::atomic()->get('HEADERS.' . self::HEADER_CONTENT_TYPE);
+        }
+
+        return is_string($type) ? $type : '';
     }
 }
