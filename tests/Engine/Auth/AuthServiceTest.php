@@ -46,7 +46,12 @@ class AuthServiceTest extends TestCase
         $this->hasher          = $this->createMock(BcryptHasherAdapter::class);
         $this->session_manager = $this->createMock(SessionManagerAdapter::class);
 
-        $this->service = new AuthService(
+        $this->service = $this->make_service();
+    }
+
+    private function make_service(): AuthService
+    {
+        return new AuthService(
             $this->app,
             $this->session,
             $this->meta,
@@ -57,69 +62,6 @@ class AuthServiceTest extends TestCase
             $this->hasher,
             $this->session_manager,
         );
-    }
-
-    // ── check_rate_limit ──────────────────────────────────────────────────────
-
-    public function test_check_rate_limit_allows_first_attempt(): void
-    {
-        $this->app->method('get')->willReturnMap([
-            ['IP', '1.2.3.4'],
-            ['RATE_LIMIT', ['register' => [
-                'ip'             => 5,
-                'credential'     => 3,
-                'ip_ttl'         => 3600,
-                'credential_ttl' => 3600,
-            ]]],
-        ]);
-
-        $this->cache->method('get')->willReturn(0);
-        $this->cache->expects($this->exactly(2))->method('set');
-
-        $result = $this->service->check_rate_limit(['email' => 'a@b.com'], 'register');
-
-        $this->assertTrue($result);
-    }
-
-    public function test_check_rate_limit_blocks_when_ip_limit_reached(): void
-    {
-        $this->app->method('get')->willReturnMap([
-            ['IP', '1.2.3.4'],
-            ['RATE_LIMIT', ['register' => [
-                'ip'             => 5,
-                'credential'     => 3,
-                'ip_ttl'         => 3600,
-                'credential_ttl' => 3600,
-            ]]],
-        ]);
-
-        $this->cache->method('get')->willReturn(5); // already at limit
-        $this->cache->expects($this->never())->method('set');
-
-        $result = $this->service->check_rate_limit(['email' => 'a@b.com'], 'register');
-
-        $this->assertFalse($result);
-    }
-
-    public function test_check_rate_limit_blocks_when_credential_limit_reached(): void
-    {
-        $this->app->method('get')->willReturnMap([
-            ['IP', '1.2.3.4'],
-            ['RATE_LIMIT', ['register' => [
-                'ip'             => 5,
-                'credential'     => 3,
-                'ip_ttl'         => 3600,
-                'credential_ttl' => 3600,
-            ]]],
-        ]);
-
-        // First call (ip key) returns 0, second call (cred key) returns 3 (at limit)
-        $this->cache->method('get')->willReturnOnConsecutiveCalls(0, 3);
-        $this->cache->expects($this->never())->method('set');
-
-        $result = $this->service->check_rate_limit(['email' => 'a@b.com'], 'register');
-
-        $this->assertFalse($result);
     }
 
     // ── login_with_secret ─────────────────────────────────────────────────────
@@ -415,33 +357,6 @@ class AuthServiceTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function test_login_with_secret_clears_rate_limit_cache_on_success(): void
-    {
-        $user_uuid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
-
-        $user = $this->createMock(AuthenticatableInterface::class);
-        $user->method('get_password_hash')->willReturn('$2y$...');
-        $user->method('get_auth_id')->willReturn($user_uuid);
-
-        $provider = $this->createMock(UserProviderInterface::class);
-        $provider->method('find_by_credentials')->willReturn($user);
-
-        $this->hasher->method('verify')->willReturn(true);
-        $this->app->method('get')->willReturnMap([
-            ['IP',    '1.2.3.4'],
-            ['AGENT', 'TestAgent/1.0'],
-        ]);
-        $this->app->method('get_device_type')->willReturn('desktop');
-        $this->clock->method('now')->willReturn(1_700_000_000);
-        $this->php_session->method('id')->willReturn('sess_abc');
-        $this->session->method('start');
-
-        $this->cache->expects($this->exactly(2))->method('delete');
-
-        $this->service->set_user_provider($provider);
-        $this->service->login_with_secret(['email' => 'a@b.com'], 'correct');
-    }
-
     // ── logout (additional) ───────────────────────────────────────────────────
 
     public function test_logout_does_nothing_when_user_not_found_in_provider(): void
@@ -535,6 +450,8 @@ class AuthServiceTest extends TestCase
         $result = $this->service->get_current_user(); // must use cached value
 
         $this->assertSame($user, $result);
+        $this->assertSame(0, $store->get('auth:login:ip:' . hash('sha256', '1.2.3.4')));
+        $this->assertSame(0, $store->get('auth:login:credential:' . hash('sha256', json_encode(['email' => 'a@b.com']))));
     }
 
     // ── impersonate_user ──────────────────────────────────────────────────────

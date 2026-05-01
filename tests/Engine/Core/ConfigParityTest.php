@@ -41,7 +41,7 @@ class ConfigParityTest extends TestCase
         // ── Arrays / nested ───────────────────────────────────────────────────
         'THEME', 'PORTS', 'WS',
         'DB_CONFIG', 'REDIS', 'MEMCACHED', 'MUTEX', 'MAIL',
-        'MAILER', 'SESSION_CONFIG', 'JAR', 'CORS', 'RATE_LIMIT', 'QUEUE',
+        'MAILER', 'SESSION_CONFIG', 'JAR', 'CORS', 'RATE_LIMITER', 'QUEUE',
         'i18n', 'OAUTH', 'MONOPAY',
     ];
 
@@ -180,10 +180,12 @@ class ConfigParityTest extends TestCase
         $this->assertIsBool(self::$php_data['CORS']['credentials']);
     }
 
-    public function test_rate_limit_has_register_and_login(): void
+    public function test_rate_limiter_has_default_policies(): void
     {
-        $this->assertArrayHasKey('register', self::$php_data['RATE_LIMIT']);
-        $this->assertArrayHasKey('login',    self::$php_data['RATE_LIMIT']);
+        $this->assertSame('open', self::$php_data['RATE_LIMITER']['fail']);
+        $this->assertArrayHasKey('default', self::$php_data['RATE_LIMITER']['policies']);
+        $this->assertArrayHasKey('api', self::$php_data['RATE_LIMITER']['policies']);
+        $this->assertArrayHasKey('user', self::$php_data['RATE_LIMITER']['policies']);
     }
 
     public function test_queue_has_db_and_redis_drivers(): void

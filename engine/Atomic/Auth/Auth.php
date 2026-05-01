@@ -62,10 +62,6 @@ class Auth extends \Prefab implements LoginInterface
         $this->service()->login_by_id($auth_id, $context);
     }
 
-    public function check_rate_limit(array $credentials, string $operation = 'register'): bool
-    {
-        return $this->service()->check_rate_limit($credentials, $operation);
-    }
 
     public function login_with_secret(array $credentials, string $secret): ?AuthenticatableInterface
     {

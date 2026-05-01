@@ -11,7 +11,7 @@ class Code
     public const BAD_REQUEST = '400';
     public const UNAUTHORIZED = '401';
     public const FORBIDDEN = '403';
-    public const RATE_LIMIT = '429';
+    public const TOO_MANY_REQUESTS = '429';
     public const NONCE_INVALID = '440';
     public const SERVER_ERROR = '500';
     public const SERVICE_UNAVAILABLE = '503';

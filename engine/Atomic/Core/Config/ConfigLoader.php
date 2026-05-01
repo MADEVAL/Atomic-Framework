@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Engine\Atomic\Core\Config;
 
+use Engine\Atomic\RateLimit\RateLimiter;
+
 if (!defined( 'ATOMIC_START' ) ) exit; 
 
 class ConfigLoader {
@@ -192,19 +194,9 @@ class ConfigLoader {
             'ttl'         => (int)$this->get_env('CORS_TTL', 0),
         ]);
 
-        $this->atomic->set('RATE_LIMIT', [
-            'register' => [
-                'ip' => (int)$this->get_env('RATE_LIMIT_REGISTER_IP', 10),
-                'credential' => (int)$this->get_env('RATE_LIMIT_REGISTER_CREDENTIAL', 3),
-                'ip_ttl' => (int)$this->get_env('RATE_LIMIT_REGISTER_IP_TTL', 3600),
-                'credential_ttl' => (int)$this->get_env('RATE_LIMIT_REGISTER_CREDENTIAL_TTL', 86400),
-            ],
-            'login' => [
-                'ip' => (int)$this->get_env('RATE_LIMIT_LOGIN_IP', 20),
-                'credential' => (int)$this->get_env('RATE_LIMIT_LOGIN_CREDENTIAL', 5),
-                'ip_ttl' => (int)$this->get_env('RATE_LIMIT_LOGIN_IP_TTL', 3600),
-                'credential_ttl' => (int)$this->get_env('RATE_LIMIT_LOGIN_CREDENTIAL_TTL', 1800),
-            ],
+        $this->atomic->set('RATE_LIMITER', [
+            'fail'     => $this->get_env('RATE_LIMITER_FAIL', RateLimiter::FAIL_OPEN),
+            'policies' => $this->build_rate_limiter_policies(),
         ]);
 
         $this->atomic->set('QUEUE', [
@@ -305,5 +297,20 @@ class ConfigLoader {
         }
         
         return $queues;
+    }
+
+    protected function build_rate_limiter_policies(): array {
+        $policies = [];
+        foreach ($this->env as $key => $value) {
+            if (!preg_match('/^RATE_LIMITER_([A-Z0-9_]+?)_(STRATEGY|KEY|LIMIT|WINDOW)$/', $key, $m)) {
+                continue;
+            }
+
+            $policy = strtolower($m[1]);
+            $field = strtolower($m[2]);
+            $policies[$policy][$field] = in_array($field, ['limit', 'window'], true) ? (int)$value : $value;
+        }
+
+        return $policies;
     }
 }

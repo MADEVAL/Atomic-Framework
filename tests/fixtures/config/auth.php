@@ -11,20 +11,6 @@ return [
     ],
     'password_timeout' => 10800,
     'password_confirm' => true,
-    'rate_limit' => [
-        'register' => [
-            'ip'             => 10,
-            'credential'     => 3,
-            'ip_ttl'         => 3600,
-            'credential_ttl' => 86400,
-        ],
-        'login' => [
-            'ip'             => 20,
-            'credential'     => 5,
-            'ip_ttl'         => 3600,
-            'credential_ttl' => 1800,
-        ],
-    ],
     'oauth' => [
         'google' => [
             'client_id'     => '',  // OAUTH_GOOGLE_CLIENT_ID from .env

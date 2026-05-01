@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Engine\Atomic\Core\Config;
 
+use Engine\Atomic\RateLimit\RateLimiter;
+
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 class PhpConfigLoader { 
@@ -46,7 +48,7 @@ class PhpConfigLoader {
         $config_files = [
             'app', 'auth', 'cache', 'database', 'filesystems',
             'i18n', 'logging', 'mail', 'middleware', 'queue',
-            'session', 'tools', 'providers'
+            'session', 'tools', 'providers', 'rate_limiter'
         ];
         foreach ($config_files as $config) {
             $this->configs[$config] = $this->load_config($config);
@@ -224,21 +226,20 @@ class PhpConfigLoader {
             'ttl'         => (int)($cors['ttl'] ?? 0),
         ]);
 
-        // ── RATE_LIMIT ──
-        $rate_limit = $this->cfg('auth', 'rate_limit', []);
-        $this->atomic->set('RATE_LIMIT', [
-            'register' => [
-                'ip'             => (int)($rate_limit['register']['ip'] ?? 10),
-                'credential'     => (int)($rate_limit['register']['credential'] ?? 3),
-                'ip_ttl'         => (int)($rate_limit['register']['ip_ttl'] ?? 3600),
-                'credential_ttl' => (int)($rate_limit['register']['credential_ttl'] ?? 86400),
-            ],
-            'login' => [
-                'ip'             => (int)($rate_limit['login']['ip'] ?? 20),
-                'credential'     => (int)($rate_limit['login']['credential'] ?? 5),
-                'ip_ttl'         => (int)($rate_limit['login']['ip_ttl'] ?? 3600),
-                'credential_ttl' => (int)($rate_limit['login']['credential_ttl'] ?? 1800),
-            ],
+        // ── RATE_LIMITER ──
+        $rate_limiter = $this->configs['rate_limiter'] ?? [];
+        $resolved_rate_limiter_policies = [];
+        foreach ((array)($rate_limiter['policies'] ?? []) as $policy => $config) {
+            $resolved_rate_limiter_policies[$policy] = [
+                'strategy' => (string)$config['strategy'],
+                'key'      => (string)$config['key'],
+                'limit'    => (int)$config['limit'],
+                'window'   => (int)$config['window'],
+            ];
+        }
+        $this->atomic->set('RATE_LIMITER', [
+            'fail'     => (string)($rate_limiter['fail'] ?? RateLimiter::FAIL_OPEN),
+            'policies' => $resolved_rate_limiter_policies,
         ]);
 
         // ── QUEUE ──

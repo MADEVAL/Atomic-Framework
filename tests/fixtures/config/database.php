@@ -11,7 +11,7 @@ return [
             'port'        => 3306,
             'db'          => 'atomic',
             'username'    => 'atomic',
-            'password'    => 'pass',
+            'password'    => '',
             'unix_socket' => '',
             'charset'     => 'utf8mb4',
             'collation'   => 'utf8mb4_general_ci',
@@ -33,6 +33,6 @@ return [
     ],
     'prefix' => 'atomic_',
     'mutex' => [
-        'driver' => 'redis',
+        'driver' => 'db',
     ],
 ];

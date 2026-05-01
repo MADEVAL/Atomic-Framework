@@ -28,9 +28,9 @@ class CodeTest extends TestCase
         $this->assertSame('403', Code::FORBIDDEN);
     }
 
-    public function test_generic_rate_limit(): void
+    public function test_generic_too_many_requests(): void
     {
-        $this->assertSame('429', Code::RATE_LIMIT);
+        $this->assertSame('429', Code::TOO_MANY_REQUESTS);
     }
 
     public function test_generic_nonce_invalid(): void

@@ -329,8 +329,7 @@ $currentUser = Auth::instance()->get_current_user();
 Auth::instance()->logout();
 Auth::instance()->kill_all_sessions($userId);
 
-// Rate limiting (dual: IP + credential)
-$blocked = Auth::instance()->check_rate_limit(['email' => $email], 'login');
+// Auth throttling: use RateLimit middleware or app-specific policies.
 
 // Admin impersonation
 Auth::instance()->impersonate_user($targetUuid);
@@ -341,7 +340,7 @@ Auth::instance()->stop_impersonation();
 - **Bcrypt** password hashing (timing-safe verification)
 - Session regeneration on login (session fixation protection)
 - IP and User-Agent binding with suspicious activity detection
-- Configurable dual rate limiting per IP and per credential
+- RateLimit middleware for IP, user, and route throttling
 - OAuth state parameter with `hash_equals()` verification
 - Comprehensive audit logging (no credentials in logs)
 

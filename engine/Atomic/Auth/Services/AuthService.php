@@ -72,43 +72,6 @@ class AuthService implements LoginInterface
         }
     }
 
-    public function check_rate_limit(array $credentials, string $operation = 'register'): bool
-    {
-        $ip     = $this->app->get('IP');
-        $config = $this->app->get('RATE_LIMIT')[$operation];
-
-        $ip_limit   = (int) $config['ip'];
-        $cred_limit = (int) $config['credential'];
-        $ip_ttl     = (int) $config['ip_ttl'];
-        $cred_ttl   = (int) $config['credential_ttl'];
-
-        $ip_key      = "auth_{$operation}_ip_" . hash('sha256', $ip);
-        $ip_attempts = $this->cache->get($ip_key) ?: 0;
-        if ($ip_attempts >= $ip_limit) {
-            $this->logger->warning('Rate limit exceeded by IP', [
-                'operation' => $operation,
-                'ip' => $ip,
-            ]);
-            return false;
-        }
-
-        $cred_for_hash = $credentials;
-        ksort($cred_for_hash);
-        $cred_key      = 'auth_' . $operation . '_cred_' . hash('sha256', json_encode($cred_for_hash));
-        $cred_attempts = $this->cache->get($cred_key) ?: 0;
-        if ($cred_attempts >= $cred_limit) {
-            $this->logger->warning('Rate limit exceeded by credential fingerprint', [
-                'operation' => $operation,
-                'ip' => $ip,
-            ]);
-            return false;
-        }
-
-        $this->cache->set($ip_key, $ip_attempts + 1, $ip_ttl);
-        $this->cache->set($cred_key, $cred_attempts + 1, $cred_ttl);
-        return true;
-    }
-
     public function login_with_secret(array $credentials, string $secret): ?AuthenticatableInterface
     {
         if (!$this->user_provider) {
@@ -144,12 +107,6 @@ class AuthService implements LoginInterface
             'auth_provider' => 'password',
             'credentials'   => $sanitized,
         ]);
-
-        $ip = $this->app->get('IP');
-        $cred_for_hash = $credentials;
-        ksort($cred_for_hash);
-        $this->cache->delete("auth_login_ip_" . hash('sha256', $ip));
-        $this->cache->delete('auth_login_cred_' . hash('sha256', json_encode($cred_for_hash)));
 
         $this->current_user = $user;
         return $user;
