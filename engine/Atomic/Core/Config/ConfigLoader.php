@@ -108,7 +108,7 @@ class ConfigLoader {
             'MIGRATIONS_CORE'       => $this->fix_path($this->get_env('MIGRATIONS_CORE', 'Atomic/Core/Database/Migrations/')),
             'SEEDS'                 => $this->fix_path($this->get_env('SEEDS', 'database/seeds/')),
             'SEEDS_BUNDLED'         => $this->fix_path($this->get_env('SEEDS', 'database/seeds/') . 'atomic/'),
-            'USER_PLUGINS'          => $this->fix_path($this->get_env('USER_PLUGINS', 'public/plugins/')),
+            'USER_PLUGINS'          => $this->fix_path($this->get_env('USER_PLUGINS', 'plugins/')),
             'FRAMEWORK_ROUTES'      => $this->fix_path($this->get_env('FRAMEWORK_ROUTES', 'Atomic/Core/Routes/')),
         ];
 

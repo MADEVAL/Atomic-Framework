@@ -21,7 +21,7 @@ trait InitScaffold
             'config',
             'database/migrations',
             'database/seeds',
-            'public/plugins',
+            'plugins',
             'public/themes/default',
             'public/uploads',
             'resources/views',

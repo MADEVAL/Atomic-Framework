@@ -24,8 +24,7 @@ class Output
 
     public function write(string $message): void
     {
-        fwrite($this->stdout, $message);
-        fflush($this->stdout);
+        $this->write_to($this->stdout, $message);
     }
 
     public function writeln(string $message = ''): void
@@ -35,14 +34,18 @@ class Output
 
     public function prompt(string $message): void
     {
-        fwrite($this->stderr, $message);
-        fflush($this->stderr);
+        $this->write_to($this->stderr, $message);
     }
 
     public function err(string $message): void
     {
-        fwrite($this->stderr, $message . PHP_EOL);
-        fflush($this->stderr);
+        $this->write_to($this->stderr, $message . PHP_EOL);
+    }
+
+    private function write_to(mixed $stream, string $message): void
+    {
+        fwrite($stream, $message);
+        fflush($stream);
     }
 
     /** @return resource */

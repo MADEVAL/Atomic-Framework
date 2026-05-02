@@ -129,7 +129,7 @@ class PhpConfigLoader {
             'MIGRATIONS_CORE'       => $this->fix_path($paths['migrations_core'] ?? 'Atomic/Core/Database/Migrations/'),
             'SEEDS'                 => $this->fix_path($paths['seeds'] ?? 'database/seeds/'),
             'SEEDS_BUNDLED'         => $this->fix_path($paths['seeds'] ?? 'database/seeds/') . 'atomic/',
-            'USER_PLUGINS'          => $this->fix_path($paths['user_plugins'] ?? 'public/plugins/'),
+            'USER_PLUGINS'          => $this->fix_path($paths['user_plugins'] ?? 'plugins/'),
             'FRAMEWORK_ROUTES'      => $this->fix_path($paths['framework_routes'] ?? 'Atomic/Core/Routes/'),
         ];
 

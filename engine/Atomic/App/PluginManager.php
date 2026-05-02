@@ -44,7 +44,7 @@ class PluginManager
 
     public function register_all(): void
     {
-        foreach ($this->plugins as $name => $plugin) {
+        foreach ($this->ordered_plugins($this->plugins) as $name => $plugin) {
             if (isset($this->registered[$name])) continue;
             
             if (!$plugin->is_enabled()) {
@@ -54,6 +54,7 @@ class PluginManager
 
             try {
                 $this->check_dependencies($plugin);
+                $this->check_dependency_state($plugin, $this->registered, 'registered successfully');
                 $plugin->register();
                 $this->registered[$name] = true;
             } catch (\Throwable $e) {
@@ -64,11 +65,13 @@ class PluginManager
 
     public function boot_all(): void
     {
-        foreach ($this->registered as $name => $_) {
+        $registered_plugins = array_intersect_key($this->plugins, $this->registered);
+        foreach ($this->ordered_plugins($registered_plugins) as $name => $plugin) {
             if (isset($this->booted[$name])) continue;
 
             try {
-                $this->plugins[$name]->boot();
+                $this->check_dependency_state($plugin, $this->booted, 'booted successfully');
+                $plugin->boot();
                 $this->booted[$name] = true;
             } catch (\Throwable $e) {
                 Log::error("Plugin {$name} boot failed: " . $e->getMessage());
@@ -141,6 +144,89 @@ class PluginManager
                 throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} requires {$dependency_class}, but it is disabled.");
             }
         }
+    }
+
+    protected function check_dependency_state(Plugin $plugin, array $state, string $label): void
+    {
+        foreach ($plugin->get_dependencies() as $dependency_class) {
+            $dependency = $this->resolve_dependency($plugin, $dependency_class);
+            if (!isset($state[$dependency->get_plugin_name()])) {
+                throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} requires {$dependency_class}, but it was not {$label}.");
+            }
+        }
+    }
+
+    protected function ordered_plugins(array $plugins): array
+    {
+        $visiting = [];
+        $visited = [];
+        $skipped = [];
+        $ordered = [];
+
+        foreach (array_keys($plugins) as $name) {
+            $this->order_plugin($name, $plugins, [], $visiting, $visited, $skipped, $ordered);
+        }
+
+        return $ordered;
+    }
+
+    protected function order_plugin(
+        string $name,
+        array $plugins,
+        array $stack,
+        array &$visiting,
+        array &$visited,
+        array &$skipped,
+        array &$ordered
+    ): bool {
+        if (isset($visited[$name])) return true;
+        if (isset($skipped[$name])) return false;
+
+        if (isset($visiting[$name])) {
+            $cycle_start = array_search($name, $stack, true);
+            $cycle = $cycle_start === false ? [$name] : array_slice($stack, $cycle_start);
+            foreach ($cycle as $cycle_name) {
+                $skipped[$cycle_name] = true;
+            }
+            Log::error('Plugin dependency cycle detected: ' . implode(' -> ', array_merge($cycle, [$name])));
+            return false;
+        }
+
+        $plugin = $plugins[$name] ?? null;
+        if (!$plugin instanceof Plugin) return false;
+
+        $visiting[$name] = true;
+        $stack[] = $name;
+
+        foreach ($plugin->get_dependencies() as $dependency_class) {
+            try {
+                $dependency = $this->resolve_dependency($plugin, $dependency_class);
+            } catch (\Throwable $e) {
+                Log::error("Plugin {$name} dependency failed: " . $e->getMessage());
+                unset($visiting[$name]);
+                $skipped[$name] = true;
+                return false;
+            }
+
+            $dependency_name = $dependency->get_plugin_name();
+            if (!isset($plugins[$dependency_name])) {
+                unset($visiting[$name]);
+                $skipped[$name] = true;
+                return false;
+            }
+
+            if (!$this->order_plugin($dependency_name, $plugins, $stack, $visiting, $visited, $skipped, $ordered)) {
+                unset($visiting[$name]);
+                $skipped[$name] = true;
+                return false;
+            }
+        }
+
+        unset($visiting[$name]);
+
+        $visited[$name] = true;
+        $ordered[$name] = $plugin;
+        return true;
     }
 
     public function resolve_dependency(Plugin $plugin, mixed $dependency_class): Plugin

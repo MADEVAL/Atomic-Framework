@@ -14,7 +14,7 @@ Core plugin bootstrap happens in two stages:
    - `PluginManager::register_all()`
    - `PluginManager::boot_all()`
 
-User plugins are loaded from the configured `USER_PLUGINS` directory. The manager scans each direct subdirectory for `plugin.php` and only loads files that resolve inside the real `USER_PLUGINS` path.
+User plugins are loaded from the configured `USER_PLUGINS` directory, which defaults to `plugins/` at the project root. The manager scans each direct subdirectory for `plugin.php` and only loads files that resolve inside the real `USER_PLUGINS` path.
 
 ### Base plugin API
 
@@ -74,18 +74,26 @@ Important runtime rules:
 
 ### Dependencies
 
-Declare dependencies by plugin name:
+Declare dependencies by plugin class name:
 
 ```php
-protected array $dependencies = ['Google'];
+use Engine\Atomic\Plugins\Google;
+
+protected array $dependencies = [Google::class];
 ```
 
-Current dependency checking is minimal:
+Dependency behavior:
 
-- The dependency name must already exist in the manager.
+- The dependency class must exist and extend `Engine\Atomic\App\Plugin`.
+- The dependency plugin instance must already exist in the manager.
 - The dependency plugin must be enabled.
+- `register_all()` runs dependencies before dependents, regardless of discovery order.
+- A dependent plugin is not registered if one of its dependencies fails registration.
+- `boot_all()` runs registered dependencies before registered dependents, regardless of discovery order.
+- A dependent plugin is not booted if one of its dependencies fails booting.
+- Dependency cycles are detected, logged, and skipped so unrelated plugins can continue bootstrapping.
 
-It does **not** guarantee that the dependency has already finished `register()` or `boot()`. If your plugin needs another plugin's fully initialized services, do that work in `boot()` and keep registration order in mind.
+This guarantees that if plugin `B` depends on plugin `A`, `A::register()` completes successfully before `B::register()` runs, and `A::boot()` completes successfully before `B::boot()` runs. Keep `register()` focused on declaring your own services/config, and use `boot()` for cross-plugin integration that needs dependencies to be registered.
 
 ### Global plugin helpers
 
@@ -166,11 +174,18 @@ MyPlugin/
 declare(strict_types=1);
 
 use Engine\Atomic\App\PluginManager;
-use App\Plugins\MyPlugin\MyPlugin;
 
 if (!defined('ATOMIC_START')) exit;
 
-PluginManager::instance()->register(new MyPlugin());
+require_once __DIR__ . '/MyPlugin.php';
+
+PluginManager::instance()->register(new \App\Plugins\MyPlugin\MyPlugin());
+```
+
+You can scaffold this layout with:
+
+```bash
+php atomic plugin/make MyPlugin
 ```
 
 ### Minimal plugin example
@@ -219,8 +234,8 @@ final class MyPlugin extends Plugin
 
 ### Development notes
 
-1. Keep `get_name()` stable. It is the lookup key used by dependencies and helpers.
-2. Use exact dependency names, not class names.
+1. Keep `get_name()` stable. It is the lookup key used by helpers.
+2. Use plugin class names in `$dependencies`, for example `Google::class`.
 3. Keep `register()` lightweight when it depends on other plugins; defer cross-plugin work to `boot()`.
 4. Add only the route files needed for the request types you support.
 5. Add a `Migrations/` directory only if the plugin actually ships migrations.

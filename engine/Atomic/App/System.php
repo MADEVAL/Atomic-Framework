@@ -41,6 +41,11 @@ class System extends Controller
         $this->cli()->logs_rotate();
     }
 
+    public function plugin_make(): void
+    {
+        $this->cli()->plugin_make();
+    }
+
     public function help(): void
     {
         $this->cli()->help();

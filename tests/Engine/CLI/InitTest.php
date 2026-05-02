@@ -114,7 +114,7 @@ class InitTest extends TestCase
         foreach ([
             'app/Event', 'app/Hook', 'app/Http/Controllers', 'app/Http/Middleware',
             'app/Models', 'bootstrap', 'config', 'database/migrations', 'database/seeds',
-            'public/plugins', 'public/themes/default', 'public/uploads',
+            'plugins', 'public/themes/default', 'public/uploads',
             'resources/views', 'routes',
             'storage/framework/cache/data', 'storage/framework/cache/fonts',
             'storage/framework/fonts', 'storage/logs',

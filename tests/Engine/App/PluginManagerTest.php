@@ -5,6 +5,7 @@ namespace Tests\Engine\App;
 
 use Engine\Atomic\App\Plugin;
 use Engine\Atomic\App\PluginManager;
+use Engine\Atomic\Core\App;
 use PHPUnit\Framework\TestCase;
 
 class TestPlugin extends Plugin
@@ -70,6 +71,152 @@ class InvalidDependencyPlugin extends Plugin
     }
 }
 
+class OrderedRootPlugin extends Plugin
+{
+    public static array $events = [];
+
+    protected function get_name(): string
+    {
+        return 'ordered-root';
+    }
+
+    public function register(): void
+    {
+        self::$events[] = 'root:register';
+    }
+
+    public function boot(): void
+    {
+        self::$events[] = 'root:boot';
+    }
+}
+
+class OrderedMiddlePlugin extends Plugin
+{
+    protected array $dependencies = [OrderedRootPlugin::class];
+
+    protected function get_name(): string
+    {
+        return 'ordered-middle';
+    }
+
+    public function register(): void
+    {
+        OrderedRootPlugin::$events[] = 'middle:register';
+    }
+
+    public function boot(): void
+    {
+        OrderedRootPlugin::$events[] = 'middle:boot';
+    }
+}
+
+class OrderedLeafPlugin extends Plugin
+{
+    protected array $dependencies = [OrderedMiddlePlugin::class];
+
+    protected function get_name(): string
+    {
+        return 'ordered-leaf';
+    }
+
+    public function register(): void
+    {
+        OrderedRootPlugin::$events[] = 'leaf:register';
+    }
+
+    public function boot(): void
+    {
+        OrderedRootPlugin::$events[] = 'leaf:boot';
+    }
+}
+
+class FailingRegisterPlugin extends Plugin
+{
+    protected function get_name(): string
+    {
+        return 'failing-register';
+    }
+
+    public function register(): void
+    {
+        throw new \RuntimeException('register failed intentionally');
+    }
+}
+
+class DependsOnFailingRegisterPlugin extends Plugin
+{
+    protected array $dependencies = [FailingRegisterPlugin::class];
+
+    protected function get_name(): string
+    {
+        return 'depends-on-failing-register';
+    }
+
+    public function register(): void
+    {
+        OrderedRootPlugin::$events[] = 'dependent:register';
+    }
+}
+
+class FailingBootPlugin extends Plugin
+{
+    protected function get_name(): string
+    {
+        return 'failing-boot';
+    }
+
+    public function boot(): void
+    {
+        throw new \RuntimeException('boot failed intentionally');
+    }
+}
+
+class DependsOnFailingBootPlugin extends Plugin
+{
+    protected array $dependencies = [FailingBootPlugin::class];
+
+    protected function get_name(): string
+    {
+        return 'depends-on-failing-boot';
+    }
+
+    public function boot(): void
+    {
+        OrderedRootPlugin::$events[] = 'dependent:boot';
+    }
+}
+
+class CyclicAPlugin extends Plugin
+{
+    protected array $dependencies = [CyclicBPlugin::class];
+
+    protected function get_name(): string
+    {
+        return 'cyclic-a';
+    }
+
+    public function register(): void
+    {
+        OrderedRootPlugin::$events[] = 'cyclic-a:register';
+    }
+}
+
+class CyclicBPlugin extends Plugin
+{
+    protected array $dependencies = [CyclicAPlugin::class];
+
+    protected function get_name(): string
+    {
+        return 'cyclic-b';
+    }
+
+    public function register(): void
+    {
+        OrderedRootPlugin::$events[] = 'cyclic-b:register';
+    }
+}
+
 class PluginManagerTest extends TestCase
 {
     private PluginManager $manager;
@@ -82,6 +229,7 @@ class PluginManagerTest extends TestCase
         $prop->setValue(null, null);
 
         $this->manager = PluginManager::instance();
+        OrderedRootPlugin::$events = [];
     }
 
     public function test_singleton(): void
@@ -211,6 +359,14 @@ class PluginManagerTest extends TestCase
         $this->assertNotEmpty($plugin->get_plugin_path());
     }
 
+    public function test_plugin_constructor_accepts_app_instance(): void
+    {
+        $app = App::instance();
+        $plugin = new TestPlugin($app);
+
+        $this->assertSame('test-plugin', $plugin->get_plugin_name());
+    }
+
     public function test_plugin_dependencies(): void
     {
         $dep = new DependentPlugin();
@@ -262,5 +418,69 @@ class PluginManagerTest extends TestCase
 
         $ref = new \ReflectionMethod($this->manager, 'check_dependencies');
         $ref->invoke($this->manager, $dependent);
+    }
+
+    public function test_register_all_runs_dependencies_before_dependents(): void
+    {
+        $this->manager->register(new OrderedLeafPlugin());
+        $this->manager->register(new OrderedMiddlePlugin());
+        $this->manager->register(new OrderedRootPlugin());
+
+        $this->manager->register_all();
+
+        $this->assertSame([
+            'root:register',
+            'middle:register',
+            'leaf:register',
+        ], OrderedRootPlugin::$events);
+    }
+
+    public function test_boot_all_runs_dependencies_before_dependents(): void
+    {
+        $this->manager->register(new OrderedLeafPlugin());
+        $this->manager->register(new OrderedMiddlePlugin());
+        $this->manager->register(new OrderedRootPlugin());
+
+        $this->manager->register_all();
+        OrderedRootPlugin::$events = [];
+        $this->manager->boot_all();
+
+        $this->assertSame([
+            'root:boot',
+            'middle:boot',
+            'leaf:boot',
+        ], OrderedRootPlugin::$events);
+    }
+
+    public function test_dependency_cycle_plugins_are_skipped_without_blocking_others(): void
+    {
+        $this->manager->register(new CyclicAPlugin());
+        $this->manager->register(new OrderedRootPlugin());
+        $this->manager->register(new CyclicBPlugin());
+
+        $this->manager->register_all();
+
+        $this->assertSame(['root:register'], OrderedRootPlugin::$events);
+    }
+
+    public function test_dependent_does_not_register_when_dependency_registration_fails(): void
+    {
+        $this->manager->register(new DependsOnFailingRegisterPlugin());
+        $this->manager->register(new FailingRegisterPlugin());
+
+        $this->manager->register_all();
+
+        $this->assertSame([], OrderedRootPlugin::$events);
+    }
+
+    public function test_dependent_does_not_boot_when_dependency_boot_fails(): void
+    {
+        $this->manager->register(new DependsOnFailingBootPlugin());
+        $this->manager->register(new FailingBootPlugin());
+
+        $this->manager->register_all();
+        $this->manager->boot_all();
+
+        $this->assertSame([], OrderedRootPlugin::$events);
     }
 }

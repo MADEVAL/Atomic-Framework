@@ -34,7 +34,7 @@ return [
         'migrations'          => 'database/migrations/',
         'seeds'               => 'database/seeds/',
         'migrations_core'     => 'engine/Atomic/Core/Database/Migrations/',
-        'user_plugins'        => 'public/plugins/',
+        'user_plugins'        => 'plugins/',
         'framework_routes'    => 'engine/Atomic/Core/Routes/',
     ],
     'websocket' => [
