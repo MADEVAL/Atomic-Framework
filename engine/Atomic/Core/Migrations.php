@@ -8,6 +8,7 @@ use DB\Cortex;
 use DB\Cortex\Schema\Schema;
 use Engine\Atomic\CLI\Style;
 use Engine\Atomic\CLI\Console\Output;
+use Engine\Atomic\App\Plugin;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Filesystem;
@@ -73,32 +74,22 @@ class Migrations
         $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
         $mapper = new Cortex($db, $migrations_table);
 
-        $timestamp = date('YmdHis');
         if ($name !== preg_replace('/[^a-zA-Z0-9_]/', '', $name)) {
             $this->errln(Style::warning_label() . ' ' . Style::bold('Migration name contains invalid characters.') . ' Only numbers and letters are allowed.');
             return;
         }
-        $file_name = $timestamp . '_' . $name . '.php';
         $migrations_dir = $atomic->get('MIGRATIONS');
         if (!is_dir($migrations_dir)) {
             Filesystem::instance()->make_dir($migrations_dir, 0777, true);
         }
+        $timestamp = $this->next_migration_timestamp($migrations_dir);
+        $file_name = $timestamp . '_' . $name . '.php';
         $file_path = $migrations_dir . $file_name;
 
         $migration_files = array_filter(
             glob($migrations_dir . '*.php'),
             fn($f) => basename($f) !== 'index.php'
         );
-        foreach ($migration_files as $file) {
-            $basename = basename($file, '.php');
-            if (preg_match('/^(\d{14})_/', $basename, $matches)) {
-                $file_timestamp = $matches[1];
-                if ($file_timestamp >= $timestamp) {
-                    $this->errln(Style::error_label() . ' ' . Style::bold("Migration file '{$basename}.php'") . ' has a timestamp equal to or greater than the new migration. Aborting to prevent collision or breaking migration order.');
-                    return;
-                }
-            }
-        }
         if (empty($template)) {
             $template = <<<PHP
             <?php
@@ -134,43 +125,77 @@ class Migrations
 
     public function publish_from_plugin(string $plugin_name): void {
         $manager = PluginManager::instance();
-        $plugin = $manager->get($plugin_name);
-
-        if ($plugin === null) {
-            foreach ($manager->all() as $name => $p) {
-                if (strtolower($name) === strtolower($plugin_name)) {
-                    $plugin = $p;
-                    break;
-                }
-            }
-        }
+        $plugin = $this->find_plugin($manager, $plugin_name);
 
         if ($plugin === null) {
             $this->errln(Style::error_label() . ' ' . Style::bold("Plugin '{$plugin_name}' not found.") . ' Available plugins:');
             foreach ($manager->all() as $name => $p) {
-                $hasMigrations = $p->get_migrations_path() !== null ? '(has migrations)' : '';
-                $this->outln('  - ' . Style::bold($name) . ($hasMigrations !== '' ? ' ' . Style::cyan($hasMigrations, true) : ''));
+                $has_migrations = $p->get_migrations_path() !== null ? '(has migrations)' : '';
+                $this->outln('  - ' . Style::bold($name) . ($has_migrations !== '' ? ' ' . Style::cyan($has_migrations, true) : ''));
             }
             return;
         }
 
-        $migrationsPath = $plugin->get_migrations_path();
-        if ($migrationsPath === null) {
-            $this->errln(Style::warning_label() . ' ' . Style::bold("Plugin '{$plugin->get_plugin_name()}'") . ' has no Migrations directory.');
+        $published = 0;
+        $processed = [];
+        if (!$this->publish_plugin_migrations($manager, $plugin, $processed, [], $published)) {
             return;
         }
 
+        $this->outln();
+        $this->outln(Style::success_label() . ' ' . Style::bold((string)$published) . ' migration(s) processed for plugin ' . Style::bold($plugin->get_plugin_name()) . ' and dependencies.');
+    }
+
+    private function publish_plugin_migrations(PluginManager $manager, Plugin $plugin, array &$processed, array $stack, int &$published): bool
+    {
+        $plugin_name = $plugin->get_plugin_name();
+
+        if (isset($processed[$plugin_name])) {
+            return true;
+        }
+
+        if (in_array($plugin_name, $stack, true)) {
+            $stack[] = $plugin_name;
+            $this->errln(Style::error_label() . ' ' . Style::bold('Plugin migration dependency cycle detected:') . ' ' . implode(' -> ', $stack));
+            return false;
+        }
+
+        $stack[] = $plugin_name;
+        foreach ($plugin->get_dependencies() as $dependency_class) {
+            try {
+                $dependency = $manager->resolve_dependency($plugin, $dependency_class);
+            } catch (\RuntimeException $e) {
+                $this->errln(Style::error_label() . ' ' . Style::bold($e->getMessage()));
+                return false;
+            }
+
+            if (!$dependency->is_enabled()) {
+                $this->errln(Style::error_label() . ' ' . Style::bold("Plugin '{$plugin_name}' requires '{$dependency_class}', but it is disabled."));
+                return false;
+            }
+
+            if (!$this->publish_plugin_migrations($manager, $dependency, $processed, $stack, $published)) {
+                return false;
+            }
+        }
+
+        $migrations_path = $plugin->get_migrations_path();
+        if ($migrations_path === null) {
+            $processed[$plugin_name] = true;
+            return true;
+        }
+
         $files = array_filter(
-            glob($migrationsPath . DIRECTORY_SEPARATOR . '*.php'),
+            glob($migrations_path . DIRECTORY_SEPARATOR . '*.php'),
             fn($f) => basename($f) !== 'index.php'
         );
 
         if (empty($files)) {
-            $this->errln(Style::warning_label() . ' ' . Style::bold('No migration files found') . ' in ' . Style::bold($migrationsPath) . '.');
-            return;
+            $processed[$plugin_name] = true;
+            return true;
         }
 
-        $published = 0;
+        sort($files);
         foreach ($files as $file) {
             $name = basename($file, '.php');
             $this->out('Publishing ' . Style::bold($name) . '... ');
@@ -178,8 +203,8 @@ class Migrations
             $published++;
         }
 
-        $this->outln();
-        $this->outln(Style::success_label() . ' ' . Style::bold((string)$published) . ' migration(s) processed from plugin ' . Style::bold($plugin->get_plugin_name()) . '.');
+        $processed[$plugin_name] = true;
+        return true;
     }
 
     public function publish(string $source_path): void {
@@ -357,9 +382,9 @@ class Migrations
             $status = isset($db_migrations[$basename]) ? 'applied' : 'pending';
             $batch_uuid = $db_migrations[$basename]['batch_uuid'] ?? '-';
             $applied_at = $db_migrations[$basename]['applied_at'] ?? '-';
-            $statusLabel = $status === 'applied' ? Style::success_label() : Style::warning_label();
+            $status_label = $status === 'applied' ? Style::success_label() : Style::warning_label();
             $this->outln(Style::bold('File:') . ' ' . Style::bold($basename));
-            $this->outln('  ' . Style::bold('Status:') . ' ' . $statusLabel . ' ' . Style::bold($status));
+            $this->outln('  ' . Style::bold('Status:') . ' ' . $status_label . ' ' . Style::bold($status));
             $this->outln('  ' . Style::bold('Batch UUID:') . ' ' . Style::bold((string)$batch_uuid));
             $this->outln('  ' . Style::bold('Applied At:') . ' ' . Style::bold((string)$applied_at));
             $this->outln();
@@ -385,5 +410,39 @@ class Migrations
 
         return $resolved;
     }
-}
 
+    private function find_plugin(PluginManager $manager, string $plugin_name): ?Plugin
+    {
+        $plugin = $manager->get($plugin_name);
+        if ($plugin !== null) {
+            return $plugin;
+        }
+
+        foreach ($manager->all() as $name => $plugin) {
+            if (strtolower($name) === strtolower($plugin_name)) {
+                return $plugin;
+            }
+        }
+
+        return null;
+    }
+
+    private function next_migration_timestamp(string $migrations_dir): string
+    {
+        $timestamp = date('YmdHis');
+        $migration_files = array_filter(
+            glob($migrations_dir . '*.php') ?: [],
+            fn($f) => basename($f) !== 'index.php'
+        );
+
+        foreach ($migration_files as $file) {
+            $basename = basename($file, '.php');
+            if (preg_match('/^(\d{14})_/', $basename, $matches) && $matches[1] >= $timestamp) {
+                $date = \DateTimeImmutable::createFromFormat('YmdHis', $matches[1]);
+                $timestamp = $date->modify('+1 second')->format('YmdHis');
+            }
+        }
+
+        return $timestamp;
+    }
+}

@@ -42,11 +42,31 @@ class TestPlugin extends Plugin
 
 class DependentPlugin extends Plugin
 {
-    protected array $dependencies = ['test-plugin'];
+    protected array $dependencies = [TestPlugin::class];
 
     protected function get_name(): string
     {
         return 'dependent-plugin';
+    }
+}
+
+class MissingDependencyPlugin extends Plugin
+{
+    protected array $dependencies = ['Tests\\Engine\\App\\NoSuchPlugin'];
+
+    protected function get_name(): string
+    {
+        return 'missing-dependency-plugin';
+    }
+}
+
+class InvalidDependencyPlugin extends Plugin
+{
+    protected array $dependencies = [\stdClass::class];
+
+    protected function get_name(): string
+    {
+        return 'invalid-dependency-plugin';
     }
 }
 
@@ -194,6 +214,53 @@ class PluginManagerTest extends TestCase
     public function test_plugin_dependencies(): void
     {
         $dep = new DependentPlugin();
-        $this->assertSame(['test-plugin'], $dep->get_dependencies());
+        $this->assertSame([TestPlugin::class], $dep->get_dependencies());
+    }
+
+    public function test_resolve_dependency_returns_registered_plugin_by_class(): void
+    {
+        $plugin = new TestPlugin();
+        $dependent = new DependentPlugin();
+        $this->manager->register($plugin);
+
+        $this->assertSame($plugin, $this->manager->resolve_dependency($dependent, TestPlugin::class));
+    }
+
+    public function test_resolve_dependency_throws_for_missing_class(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('requires missing plugin class');
+
+        $this->manager->resolve_dependency(new MissingDependencyPlugin(), 'Tests\\Engine\\App\\NoSuchPlugin');
+    }
+
+    public function test_resolve_dependency_throws_for_non_plugin_class(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('must extend');
+
+        $this->manager->resolve_dependency(new InvalidDependencyPlugin(), \stdClass::class);
+    }
+
+    public function test_resolve_dependency_throws_for_unregistered_plugin(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('not registered');
+
+        $this->manager->resolve_dependency(new DependentPlugin(), TestPlugin::class);
+    }
+
+    public function test_resolve_dependency_throws_for_disabled_plugin_during_register_all(): void
+    {
+        $plugin = new TestPlugin();
+        $plugin->set_enabled(false);
+        $dependent = new DependentPlugin();
+        $this->manager->register($plugin);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('disabled');
+
+        $ref = new \ReflectionMethod($this->manager, 'check_dependencies');
+        $ref->invoke($this->manager, $dependent);
     }
 }

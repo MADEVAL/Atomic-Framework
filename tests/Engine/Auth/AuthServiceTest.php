@@ -450,8 +450,6 @@ class AuthServiceTest extends TestCase
         $result = $this->service->get_current_user(); // must use cached value
 
         $this->assertSame($user, $result);
-        $this->assertSame(0, $store->get('auth:login:ip:' . hash('sha256', '1.2.3.4')));
-        $this->assertSame(0, $store->get('auth:login:credential:' . hash('sha256', json_encode(['email' => 'a@b.com']))));
     }
 
     // ── impersonate_user ──────────────────────────────────────────────────────

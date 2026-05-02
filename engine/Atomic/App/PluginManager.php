@@ -135,12 +135,49 @@ class PluginManager
 
     protected function check_dependencies(Plugin $plugin): void
     {
-        $deps = $plugin->get_dependencies();
-        foreach ($deps as $dep) {
-            if (!isset($this->plugins[$dep]) || !$this->plugins[$dep]->is_enabled()) {
-                throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} requires {$dep}");
+        foreach ($plugin->get_dependencies() as $dependency_class) {
+            $dependency = $this->resolve_dependency($plugin, $dependency_class);
+            if (!$dependency->is_enabled()) {
+                throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} requires {$dependency_class}, but it is disabled.");
             }
         }
+    }
+
+    public function resolve_dependency(Plugin $plugin, mixed $dependency_class): Plugin
+    {
+        if (!is_string($dependency_class)) {
+            throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} has invalid dependency; use PluginClass::class.");
+        }
+
+        if (!class_exists($dependency_class)) {
+            throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} requires missing plugin class {$dependency_class}.");
+        }
+
+        if (!is_subclass_of($dependency_class, Plugin::class)) {
+            throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} dependency {$dependency_class} must extend " . Plugin::class . '.');
+        }
+
+        $dependency = $this->get_by_class($dependency_class);
+        if ($dependency === null) {
+            throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} requires {$dependency_class}, but it is not registered.");
+        }
+
+        return $dependency;
+    }
+
+    public function get_by_class(string $class): ?Plugin
+    {
+        if (!is_subclass_of($class, Plugin::class)) {
+            return null;
+        }
+
+        foreach ($this->plugins as $plugin) {
+            if ($plugin instanceof $class) {
+                return $plugin;
+            }
+        }
+
+        return null;
     }
 
     public function get(string $name): ?Plugin

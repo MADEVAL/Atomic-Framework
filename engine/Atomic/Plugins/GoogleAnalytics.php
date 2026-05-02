@@ -8,7 +8,7 @@ use Engine\Atomic\App\Plugin;
 
 class GoogleAnalytics extends Plugin
 {
-    protected array $dependencies = ['Google']; 
+    protected array $dependencies = [Google::class]; 
     
     protected function get_name(): string
     {

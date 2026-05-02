@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\Request;
 use Engine\Atomic\Core\Response;
 use Engine\Atomic\Hook\Hook;
 use Engine\Atomic\Plugins\Monopay\Enums\MonopayHook;
@@ -32,9 +33,9 @@ class WebhookHandler
             $response->send_json_error('Missing signature', 400);
         }
         
-        $raw_body = file_get_contents('php://input');
+        $raw_body = Request::instance()->raw_body();
         
-        if ($raw_body === false || $raw_body === '') {
+        if ($raw_body === '') {
             Log::warning('Monopay: Webhook empty body');
             $response->send_json_error('Empty body', 400);
         }
