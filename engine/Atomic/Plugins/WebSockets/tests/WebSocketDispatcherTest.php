@@ -1,16 +1,31 @@
 <?php
 declare(strict_types=1);
 
-namespace Tests\Engine\WebSockets;
+namespace {
+    $autoload = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+    if (is_file($autoload)) {
+        require_once $autoload;
+    }
+}
+
+namespace Workerman\Protocols\Http {
+    if (!class_exists(Request::class, false)) {
+        class Request
+        {
+        }
+    }
+}
+
+namespace Engine\Atomic\Plugins\WebSockets\Tests {
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
-use Engine\Atomic\WebSockets\Connection;
-use Engine\Atomic\WebSockets\RoutedWebSocketServer;
-use Engine\Atomic\WebSockets\WebSocketConnectMiddleware;
-use Engine\Atomic\WebSockets\WebSocketDispatcher;
-use Engine\Atomic\WebSockets\WebSocketMiddleware;
-use Engine\Atomic\WebSockets\WebSocketRouter;
+use Engine\Atomic\Plugins\WebSockets\Connection;
+use Engine\Atomic\Plugins\WebSockets\RoutedWebSocketServer;
+use Engine\Atomic\Plugins\WebSockets\WebSocketConnectMiddleware;
+use Engine\Atomic\Plugins\WebSockets\WebSocketDispatcher;
+use Engine\Atomic\Plugins\WebSockets\WebSocketMiddleware;
+use Engine\Atomic\Plugins\WebSockets\WebSocketRouter;
 use PHPUnit\Framework\TestCase;
 use Workerman\Protocols\Http\Request;
 
@@ -282,4 +297,5 @@ class WebSocketDispatcherTest extends TestCase
 
         return $ref->newInstanceWithoutConstructor();
     }
+}
 }

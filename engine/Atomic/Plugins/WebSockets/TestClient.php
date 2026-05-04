@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace Engine\Atomic\WebSockets;
+namespace Engine\Atomic\Plugins\WebSockets;
 
 if (!defined('ATOMIC_START')) exit;
 
@@ -17,9 +17,9 @@ use Workerman\Worker;
  * exits after the first terminal response (completed/failed/error) or when
  * the server closes the connection.
  *
- * Usage: php atomic ws/single/test [url] [json_payload]
+ * Usage: php atomic ws/test [url] [json_payload]
  */
-class Test
+class TestClient
 {
     private readonly Output $output;
     private string $url     = 'ws://127.0.0.1:8080';
@@ -114,11 +114,11 @@ class Test
 
         if (($args[0] ?? '') === '--help') {
             $this->output->writeln('Usage:');
-            $this->output->writeln('  php atomic ws/single/test [url] [json_payload]');
+            $this->output->writeln('  php atomic ws/test [url] [json_payload]');
             $this->output->writeln();
             $this->output->writeln('Examples:');
-            $this->output->writeln('  php atomic ws/single/test');
-            $this->output->writeln("  php atomic ws/single/test ws://127.0.0.1:8080 '{\"event\":\"generate\",\"prompt\":\"hello\"}'");
+            $this->output->writeln('  php atomic ws/test');
+            $this->output->writeln("  php atomic ws/test ws://127.0.0.1:8080 '{\"event\":\"generate\",\"prompt\":\"hello\"}'");
             exit(0);
         }
 

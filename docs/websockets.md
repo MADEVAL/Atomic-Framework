@@ -1,6 +1,6 @@
 ## WebSockets ##
 
-Atomic ships a routed WebSocket server in `Engine\Atomic\WebSockets\RoutedWebSocketServer`, a reusable server base class in `Engine\Atomic\WebSockets\Server`, and a thin connection wrapper in `Engine\Atomic\WebSockets\Connection`.
+Atomic ships a routed WebSocket server in `Engine\Atomic\Plugins\WebSockets\RoutedWebSocketServer`, a reusable server base class in `Engine\Atomic\Plugins\WebSockets\Server`, and a thin connection wrapper in `Engine\Atomic\Plugins\WebSockets\Connection`.
 
 ### Current scope
 
@@ -14,25 +14,29 @@ The repository includes:
 
 The repository does **not** include application-specific WebSocket handlers by default.
 
+Enable `Engine\Atomic\Plugins\WebSockets\WebSockets` as a plugin before loading WebSocket routes. The plugin owns the Workerman dependencies; run `composer install` in `engine/Atomic/Plugins/WebSockets` when the root application does not already provide them.
+
 ### Route dispatch
 
-WebSocket routes can be registered through the application facade:
+WebSocket routes are registered through the plugin router in `routes/websocket.php`:
 
 ```php
-$atomic->ws('/jobs/@job_id', App\WebSockets\JobsHandler::class . '::receive', [
+use Engine\Atomic\Plugins\WebSockets\WebSocketRouter;
+
+WebSocketRouter::register('/jobs/@job_id', App\WebSockets\JobsHandler::class . '::receive', [
     'ws-auth',
     'ws-rate-limit:jobs',
 ]);
 ```
 
-Route middleware aliases are registered in `config/middleware.php` through the same alias registry as HTTP middleware. WebSocket middleware classes must implement `Engine\Atomic\WebSockets\WebSocketMiddleware`; they do not need to implement the HTTP `MiddlewareInterface`.
+Route middleware aliases are registered in `config/middleware.php` through the same alias registry as HTTP middleware. WebSocket middleware classes must implement `Engine\Atomic\Plugins\WebSockets\WebSocketMiddleware`; they do not need to implement the HTTP `MiddlewareInterface`.
 
 When a message is dispatched, `WebSocketDispatcher` matches the connection path, resolves the route's message middleware aliases, runs them in order, and then calls the handler. Returning `false` from WebSocket middleware stops dispatch for that message.
 
 If the middleware array includes phase keys, `message` is used for message dispatch and `connect` is ignored by the message dispatcher:
 
 ```php
-$atomic->ws('/jobs/@job_id', App\WebSockets\JobsHandler::class . '::receive', [
+WebSocketRouter::register('/jobs/@job_id', App\WebSockets\JobsHandler::class . '::receive', [
     'connect' => ['ws-origin-check'],
     'message' => ['ws-auth', 'ws-rate-limit:jobs'],
 ]);
@@ -43,12 +47,12 @@ $atomic->ws('/jobs/@job_id', App\WebSockets\JobsHandler::class . '::receive', [
 For route-only WebSocket applications, start the bundled routed server:
 
 ```php
-use Engine\Atomic\WebSockets\RoutedWebSocketServer;
+use Engine\Atomic\Plugins\WebSockets\RoutedWebSocketServer;
 
 (new RoutedWebSocketServer('tcp://0.0.0.0:8080', 2))->run();
 ```
 
-It registers the `websocket` route type, loads app and plugin `routes/websocket.php` files, dispatches each message through `WebSocketDispatcher`, rejects unknown paths cleanly, and leaves connect/disconnect hooks empty. Extend `Server` directly when the application needs custom connection lifecycle, pub/sub, or task mapping behavior.
+The WebSockets plugin registers the `websocket` route type through the normal plugin lifecycle. Load app and plugin `routes/websocket.php` files during application/plugin bootstrap before starting `RoutedWebSocketServer`; the server dispatches each message through `WebSocketDispatcher`, rejects unknown paths cleanly, and leaves connect/disconnect hooks empty. Extend `Server` directly when the application needs custom connection lifecycle, pub/sub, or task mapping behavior.
 
 ### Base server API
 
@@ -144,8 +148,8 @@ declare(strict_types=1);
 
 namespace App\WebSockets;
 
-use Engine\Atomic\WebSockets\Connection;
-use Engine\Atomic\WebSockets\Server;
+use Engine\Atomic\Plugins\WebSockets\Connection;
+use Engine\Atomic\Plugins\WebSockets\Server;
 use Workerman\Protocols\Http\Request;
 
 final class JobsServer extends Server

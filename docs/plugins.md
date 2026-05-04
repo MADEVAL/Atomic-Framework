@@ -127,7 +127,7 @@ if ($plugin !== null) {
 
 ### Plugin routes
 
-After `boot_all()` finishes its boot loop, Atomic fires `ApplicationHook::AFTER_PLUGINS_REGISTERED`, then the manager loads route files from each booted plugin's `routes/` directory. This lets optional modules inspect enabled plugins and register additional route-loader types before plugin route files are resolved.
+After `boot_all()` finishes its boot loop, Atomic fires `ApplicationHook::AFTER_PLUGINS_BOOTED`, then Atomic resolves queued route files for every active route type and loads route files from each booted plugin's `routes/` directory. This lets optional modules inspect enabled plugins and register additional route-loader types before route files are resolved.
 
 The filenames come from `RouteLoader` and depend on the detected request type:
 
@@ -142,7 +142,7 @@ Optional modules may register additional route types:
 $atomic->register_route_type('websocket', 'websocket.php');
 ```
 
-After a type is registered, plugin route loading uses the same convention. For example, the bundled WebSocket server registers `websocket`, then loads `routes/websocket.php` from the app and from booted plugins.
+Registering a route type also queues that type for the current bootstrap. Atomic loads matching framework/app route files and plugin route files once during the route-loading pass after plugins boot. For example, the bundled WebSockets plugin registers `websocket`, then the framework loads `routes/websocket.php` from the app and from booted plugins before the WebSocket server starts.
 
 Only existing files are required. Exceptions while loading a route file are logged and do not abort the rest of plugin route loading.
 

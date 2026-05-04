@@ -239,11 +239,6 @@ class System extends Controller
         $this->cli()->schedule_help();
     }
 
-    public function ws_test(): void
-    {
-        (new \Engine\Atomic\WebSockets\Test())->run();
-    }
-
     public function redis_clear(): void
     {
         $out = new Output();

@@ -76,6 +76,8 @@ Request type is detected from the current path:
 
 Framework route files are resolved from `FRAMEWORK_ROUTES`.
 
+`register_routes()` queues the detected route group. Plugins can add route file types during plugin registration or `ApplicationHook::AFTER_PLUGINS_BOOTED` with `register_route_type()`. `register_plugins()` then loads matching framework/app route files and booted plugin route files once.
+
 ### Bootstrap constants and PHP error logging
 
 `bootstrap/const.php` defines Atomic bootstrap constants such as:

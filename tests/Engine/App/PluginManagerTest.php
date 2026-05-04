@@ -6,8 +6,10 @@ namespace Tests\Engine\App;
 use Engine\Atomic\App\Plugin;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\RouteLoader;
 use Engine\Atomic\Hook\ApplicationHook;
 use Engine\Atomic\Hook\Hook;
+use Engine\Atomic\Plugins\WebSockets\WebSockets;
 use PHPUnit\Framework\TestCase;
 
 class TestPlugin extends Plugin
@@ -247,13 +249,55 @@ class PluginRegisteredHookPlugin extends Plugin
 
     public function boot(): void
     {
-        Hook::instance()->add_action(ApplicationHook::AFTER_PLUGINS_REGISTERED, function (): void {
-            self::$events[] = 'after_plugins_registered';
+        Hook::instance()->add_action(ApplicationHook::AFTER_PLUGINS_BOOTED, function (): void {
+            self::$events[] = 'after_plugins_booted';
         }, 10, 0);
 
         Hook::instance()->add_action(ApplicationHook::AFTER_ROUTES_REGISTERED, function (): void {
             self::$events[] = 'after_routes_registered';
         }, 10, 0);
+    }
+}
+
+class HookQueuedRouteTypePlugin extends Plugin
+{
+    public static string $plugin_path = '';
+
+    protected function get_name(): string
+    {
+        return 'hook-queued-route-type';
+    }
+
+    protected function get_path(): string
+    {
+        return self::$plugin_path !== '' ? self::$plugin_path : parent::get_path();
+    }
+
+    public function boot(): void
+    {
+        Hook::instance()->add_action(ApplicationHook::AFTER_PLUGINS_BOOTED, function (App $app): void {
+            $app->register_route_type('hooked', 'hooked.php');
+        }, 10, 1);
+    }
+}
+
+class CustomRouteTypePlugin extends Plugin
+{
+    public static string $plugin_path = '';
+
+    protected function get_name(): string
+    {
+        return 'custom-route-type';
+    }
+
+    protected function get_path(): string
+    {
+        return self::$plugin_path !== '' ? self::$plugin_path : parent::get_path();
+    }
+
+    public function register(): void
+    {
+        $this->atomic->register_route_type('websocket', 'websocket.php');
     }
 }
 
@@ -272,7 +316,10 @@ class PluginManagerTest extends TestCase
         OrderedRootPlugin::$events = [];
         RouteHookPlugin::$events = [];
         PluginRegisteredHookPlugin::$events = [];
+        CustomRouteTypePlugin::$plugin_path = '';
+        HookQueuedRouteTypePlugin::$plugin_path = '';
         $this->reset_app_lifecycle_state();
+        $this->reset_route_loader_state();
         App::atomic()->clear('EVENTS');
     }
 
@@ -544,7 +591,78 @@ class PluginManagerTest extends TestCase
         rmdir($routes_dir);
     }
 
-    public function test_after_plugins_registered_runs_before_route_hooks(): void
+    public function test_websockets_plugin_registers_route_type(): void
+    {
+        $this->manager->register(new WebSockets());
+
+        $this->manager->register_all();
+
+        $this->assertTrue(RouteLoader::instance()->has_route_type('websocket'));
+    }
+
+    public function test_plugin_registered_route_type_loads_framework_and_plugin_routes(): void
+    {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
+        $framework_routes = $root . DIRECTORY_SEPARATOR . 'framework';
+        $plugin_dir = $root . DIRECTORY_SEPARATOR . 'plugin';
+
+        mkdir($framework_routes, 0777, true);
+        mkdir($plugin_dir . DIRECTORY_SEPARATOR . 'routes', 0777, true);
+
+        file_put_contents(
+            $framework_routes . DIRECTORY_SEPARATOR . 'websocket.php',
+            '<?php $atomic->set("EVENTS.framework_websocket_route", true);'
+        );
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'websocket.php',
+            '<?php $atomic->set("EVENTS.plugin_websocket_route", true);'
+        );
+
+        App::atomic()->set('FRAMEWORK_ROUTES', $framework_routes . DIRECTORY_SEPARATOR);
+        App::atomic()->set('USER_PLUGINS', $root . DIRECTORY_SEPARATOR . 'user_plugins');
+
+        CustomRouteTypePlugin::$plugin_path = $plugin_dir;
+        $this->manager->register(new CustomRouteTypePlugin());
+
+        App::instance()->register_plugins();
+
+        $this->assertTrue(App::atomic()->get('EVENTS.framework_websocket_route'));
+        $this->assertTrue(App::atomic()->get('EVENTS.plugin_websocket_route'));
+        $this->remove_dir($root);
+    }
+
+    public function test_after_plugins_booted_can_queue_route_type_before_route_loading(): void
+    {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
+        $framework_routes = $root . DIRECTORY_SEPARATOR . 'framework';
+        $plugin_dir = $root . DIRECTORY_SEPARATOR . 'plugin';
+
+        mkdir($framework_routes, 0777, true);
+        mkdir($plugin_dir . DIRECTORY_SEPARATOR . 'routes', 0777, true);
+
+        file_put_contents(
+            $framework_routes . DIRECTORY_SEPARATOR . 'hooked.php',
+            '<?php $atomic->set("EVENTS.framework_hooked_route", true);'
+        );
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'hooked.php',
+            '<?php $atomic->set("EVENTS.plugin_hooked_route", true);'
+        );
+
+        App::atomic()->set('FRAMEWORK_ROUTES', $framework_routes . DIRECTORY_SEPARATOR);
+        App::atomic()->set('USER_PLUGINS', $root . DIRECTORY_SEPARATOR . 'user_plugins');
+
+        HookQueuedRouteTypePlugin::$plugin_path = $plugin_dir;
+        $this->manager->register(new HookQueuedRouteTypePlugin());
+
+        App::instance()->register_plugins();
+
+        $this->assertTrue(App::atomic()->get('EVENTS.framework_hooked_route'));
+        $this->assertTrue(App::atomic()->get('EVENTS.plugin_hooked_route'));
+        $this->remove_dir($root);
+    }
+
+    public function test_after_plugins_booted_runs_before_route_hooks(): void
     {
         $routes_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
         mkdir($routes_dir, 0777, true);
@@ -557,7 +675,7 @@ class PluginManagerTest extends TestCase
         App::instance()->register_plugins();
 
         $this->assertSame([
-            'after_plugins_registered',
+            'after_plugins_booted',
             'after_routes_registered',
         ], PluginRegisteredHookPlugin::$events);
         rmdir($routes_dir);
@@ -610,9 +728,23 @@ PHP
     private function reset_app_lifecycle_state(): void
     {
         $ref = new \ReflectionClass(App::instance());
-        foreach (['registered_route_types' => [], 'server_start_hook_fired' => false] as $name => $value) {
+        foreach (['queued_route_types' => [], 'queued_route_files' => [], 'server_start_hook_fired' => false] as $name => $value) {
             $prop = $ref->getProperty($name);
             $prop->setValue(App::instance(), $value);
+        }
+    }
+
+    private function reset_route_loader_state(): void
+    {
+        $loader = RouteLoader::instance();
+        $ref = new \ReflectionClass($loader);
+
+        $route_type_map = $ref->getProperty('route_type_map');
+        $route_type_map->setValue($loader, $ref->getConstant('DEFAULT_ROUTE_TYPE_MAP'));
+
+        foreach (['framework_routes_path', 'app_routes_path'] as $name) {
+            $prop = $ref->getProperty($name);
+            $prop->setValue($loader, '');
         }
     }
 

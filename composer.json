@@ -13,9 +13,7 @@
     "ext-pdo_mysql": "*",
     "ext-curl": "*",
     "globus-studio/fatfree-core": "^3.9.2.1",
-    "globus-studio/cortex-atomic": "^2.0",
-    "workerman/workerman": "^5.1",
-    "workerman/redis": "^2.0"
+    "globus-studio/cortex-atomic": "^2.0"
   },
   "prefer-stable": true,
   "autoload": {

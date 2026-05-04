@@ -6,7 +6,6 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Auth\Session;
 use Engine\Atomic\Core\Log;
-use Engine\Atomic\Core\Methods as AM;
 use Engine\Atomic\Lang\I18n;
 use Engine\Atomic\Core\ExceptionHandlerRegistrar;
 use Engine\Atomic\Core\Prefly;
@@ -17,7 +16,6 @@ use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\ConnectionManager;
-use Engine\Atomic\WebSockets\WebSocketRouter;
 use Engine\Atomic\Hook\ApplicationHook;
 use Engine\Atomic\Hook\Hook;
 
@@ -25,7 +23,8 @@ class App {
     protected static ?self $instance = null;
     protected \Base $atomic;
     protected string $baseControllerClass = 'Engine\Atomic\App\Controller';
-    protected array $registered_route_types = [];
+    protected array $queued_route_types = [];
+    protected array $queued_route_files = [];
     protected bool $server_start_hook_fired = false;
      
     public function __construct(\Base $atomic) {
@@ -157,16 +156,39 @@ class App {
     }
 
     public function register_routes(string ...$route_files): self {
-        return $this->register_routes_for($this->detect_request_type(), ...$route_files);
+        return $this->queue_routes_for($this->detect_request_type(), ...$route_files);
     }
 
     public function register_route_type(string $request_type, array|string $file_names): self
     {
+        $request_type = strtolower(trim($request_type));
         RouteLoader::instance()->register_route_type($request_type, $file_names);
+        $this->queued_route_types[$request_type] = true;
         return $this;
     }
 
     public function register_routes_for(string $request_type, string ...$route_files): self {
+        return $this->queue_routes_for($request_type, ...$route_files);
+    }
+
+    protected function queue_routes_for(string $request_type, string ...$route_files): self
+    {
+        $request_type = strtolower(trim($request_type));
+        $this->queued_route_types[$request_type] = true;
+
+        if ($route_files !== []) {
+            $this->queued_route_files[$request_type] = array_values(array_unique(array_merge(
+                $this->queued_route_files[$request_type] ?? [],
+                $route_files
+            )));
+        }
+
+        return $this;
+    }
+
+    protected function load_routes_for(string $request_type, string ...$route_files): self
+    {
+        $request_type = strtolower(trim($request_type));
         $route_loader = RouteLoader::instance();
         $framework_routes = (string)$this->atomic->get('FRAMEWORK_ROUTES', '');
         if ($framework_routes === '') {
@@ -185,8 +207,6 @@ class App {
                 require $resolved_route_file;
             }
         }
-
-        $this->registered_route_types[$request_type] = true;
         return $this;
     }
 
@@ -281,11 +301,6 @@ class App {
         }
 
         $this->atomic->route($pattern, $handler, $ttl, $kbps);
-    }
-
-    public function ws(string $pattern, string $handler, array $middleware = []): void
-    {
-        WebSocketRouter::register($pattern, $handler, $middleware);
     }
 
     protected function controller_has_custom_route_hook(string $class): bool
@@ -426,14 +441,15 @@ class App {
         $manager->load_user_plugins();
         $manager->register_all();
         $manager->boot_all();
-        Hook::instance()->do_action(ApplicationHook::AFTER_PLUGINS_REGISTERED, $this, $manager);
+        Hook::instance()->do_action(ApplicationHook::AFTER_PLUGINS_BOOTED, $this, $manager);
 
-        $route_types = array_keys($this->registered_route_types);
+        $route_types = array_keys($this->queued_route_types);
         if ($route_types === []) {
             $route_types = [$this->detect_request_type()];
         }
 
         foreach ($route_types as $request_type) {
+            $this->load_routes_for($request_type, ...($this->queued_route_files[$request_type] ?? []));
             $manager->load_plugin_routes_for($request_type);
             Hook::instance()->do_action(ApplicationHook::AFTER_ROUTES_REGISTERED, $this, $request_type);
         }

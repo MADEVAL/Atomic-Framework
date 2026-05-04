@@ -1,0 +1,16 @@
+{
+  "name": "globus-studio/atomic-websockets",
+  "description": "Workerman WebSocket plugin for Atomic Framework",
+  "type": "atomic-plugin",
+  "license": "GPL-3.0-or-later",
+  "require": {
+    "php": ">=8.1",
+    "workerman/workerman": "^5.1",
+    "workerman/redis": "^2.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Engine\\Atomic\\Plugins\\WebSockets\\": ""
+    }
+  }
+}

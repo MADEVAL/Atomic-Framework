@@ -15,6 +15,7 @@ class PluginManager
     protected array $plugins = [];
     protected array $registered = [];
     protected array $booted = [];
+    protected array $loaded_route_types = [];
 
     private function __construct()
     {
@@ -88,6 +89,14 @@ class PluginManager
 
     public function load_plugin_routes_for(string $request_type): void
     {
+        $request_type = strtolower(trim($request_type));
+        if (isset($this->loaded_route_types[$request_type])) {
+            return;
+        }
+        if ($this->booted === []) {
+            return;
+        }
+
         $route_loader = RouteLoader::instance();
         $file_names = $route_loader->get_filenames_for($request_type);
 
@@ -108,6 +117,8 @@ class PluginManager
                 }
             }
         }
+
+        $this->loaded_route_types[$request_type] = true;
     }
 
     public function load_user_plugins(): void

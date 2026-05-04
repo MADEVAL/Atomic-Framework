@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace Engine\Atomic\WebSockets;
+namespace Engine\Atomic\Plugins\WebSockets;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;

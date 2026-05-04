@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace Engine\Atomic\WebSockets;
+namespace Engine\Atomic\Plugins\WebSockets;
 
 if (!defined('ATOMIC_START')) exit;
 

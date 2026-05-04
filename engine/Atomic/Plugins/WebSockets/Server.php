@@ -1,13 +1,11 @@
 <?php
 declare(strict_types=1);
-namespace Engine\Atomic\WebSockets;
+namespace Engine\Atomic\Plugins\WebSockets;
 
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Filesystem;
-use Engine\Atomic\WebSockets\Connection;
-use Engine\Atomic\App\PluginManager;
 use Workerman\Connection\TcpConnection;
 use Workerman\Protocols\Http\Request;
 use Workerman\Redis\Client as RedisClient;
@@ -107,11 +105,6 @@ abstract class Server
         $server_tag = strtolower(str_replace('\\', '.', static::class));
         Worker::$pidFile = $logs_dir . '/workerman.' . $server_tag . '.pid';
         Worker::$logFile = $logs_dir . '/workerman.' . $server_tag . '.log';
-
-        App::instance()
-            ->register_route_type('websocket', 'websocket.php')
-            ->register_routes_for('websocket');
-        PluginManager::instance()->load_plugin_routes_for('websocket');
 
         $this->setup();
 

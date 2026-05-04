@@ -141,7 +141,7 @@ php atomic init/key
 │   ├── Theme/              # Theme management and asset pipeline
 │   ├── Tools/              # Nonce, Transient
 │   ├── Validator/          # Validation traits
-│   └── WebSockets/         # Workerman WebSocket server
+│   └── Plugins/WebSockets/ # Workerman WebSocket plugin
 ├── public/                 # Web root (themes, plugins, uploads)
 ├── resources/views/        # View templates
 ├── routes/                 # Route definitions (web, API, CLI, schedule)
@@ -208,7 +208,7 @@ $application = App::instance($atomic)
     ->register_locales()           // Set up i18n
     ->register_unload_handler()
     ->register_middleware()        // Load middleware aliases
-    ->register_routes()            // Load route files by request type
+    ->register_routes()            // Queue route files by request type
     ->register_core_plugins()      // Register framework plugin providers
     ->register_plugins()           // Activate registered plugins
     ->init_session()               // Start session (lazy: only if cookie exists)
