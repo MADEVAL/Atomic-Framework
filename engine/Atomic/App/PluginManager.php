@@ -78,28 +78,33 @@ class PluginManager
             }
         }
 
-        $this->load_plugin_routes();
     }
 
     protected function load_plugin_routes(): void
     {
         $atomic = App::instance();
-        $routeLoader = RouteLoader::instance();
-        $fileNames = $routeLoader->get_filenames_for($atomic->detect_request_type());
+        $this->load_plugin_routes_for($atomic->detect_request_type());
+    }
+
+    public function load_plugin_routes_for(string $request_type): void
+    {
+        $route_loader = RouteLoader::instance();
+        $file_names = $route_loader->get_filenames_for($request_type);
 
         foreach ($this->booted as $name => $_) {
             $plugin = $this->plugins[$name];
-            $routesDir = $plugin->get_plugin_path() . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR;
+            $routes_dir = $plugin->get_plugin_path() . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR;
+            $atomic = App::instance();
 
-            foreach ($fileNames as $fileName) {
-                $file = $routesDir . $fileName;
+            foreach ($file_names as $file_name) {
+                $file = $routes_dir . $file_name;
 
                 if (!is_file($file)) continue;
 
                 try {
                     require $file;
                 } catch (\Throwable $e) {
-                    Log::error("Plugin {$name}: failed to load routes/{$fileName}: " . $e->getMessage());
+                    Log::error("Plugin {$name}: failed to load routes/{$file_name}: " . $e->getMessage());
                 }
             }
         }
@@ -107,32 +112,57 @@ class PluginManager
 
     public function load_user_plugins(): void
     {
-        $pluginsPath = rtrim((string)$this->get_atomic()->get('USER_PLUGINS'), '/\\') . DIRECTORY_SEPARATOR;
-        $resolvedPluginsPath = realpath($pluginsPath);
+        $plugins_path = rtrim((string)$this->get_atomic()->get('USER_PLUGINS'), '/\\') . DIRECTORY_SEPARATOR;
+        $resolved_plugins_path = realpath($plugins_path);
         
-        if ($resolvedPluginsPath === false || !is_dir($resolvedPluginsPath)) {
-            Log::debug("User plugins directory not found: {$pluginsPath}");
+        if ($resolved_plugins_path === false || !is_dir($resolved_plugins_path)) {
+            Log::debug("User plugins directory not found: {$plugins_path}");
             return;
         }
 
-        $dirs = array_filter(glob($resolvedPluginsPath . DIRECTORY_SEPARATOR . '*'), 'is_dir');
+        $dirs = array_filter(glob($resolved_plugins_path . DIRECTORY_SEPARATOR . '*'), 'is_dir');
         
         foreach ($dirs as $dir) {
-            $pluginFile = $dir . DIRECTORY_SEPARATOR . 'plugin.php';
-            $resolvedPluginFile = realpath($pluginFile);
+            $plugin_file = $dir . DIRECTORY_SEPARATOR . 'plugin.php';
+            $resolved_plugin_file = realpath($plugin_file);
             if (
-                $resolvedPluginFile !== false
-                && is_file($resolvedPluginFile)
-                && is_readable($resolvedPluginFile)
-                && str_starts_with($resolvedPluginFile, $resolvedPluginsPath . DIRECTORY_SEPARATOR)
+                $resolved_plugin_file !== false
+                && is_file($resolved_plugin_file)
+                && is_readable($resolved_plugin_file)
+                && str_starts_with($resolved_plugin_file, $resolved_plugins_path . DIRECTORY_SEPARATOR)
             ) {
                 try {
-                    require_once $resolvedPluginFile;
+                    $this->load_plugin_autoload($dir, basename($dir));
+                    require_once $resolved_plugin_file;
                     //Log::debug("User plugin loaded from: {$dir}");
                 } catch (\Throwable $e) {
                     Log::error("Failed to load user plugin from {$dir}: " . $e->getMessage());
                 }
             }
+        }
+    }
+
+    protected function load_plugin_autoload(string $plugin_dir, string $plugin_name): void
+    {
+        $autoload_file = $plugin_dir . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+        $composer_file = $plugin_dir . DIRECTORY_SEPARATOR . 'composer.json';
+
+        $resolved_autoload_file = realpath($autoload_file);
+        if (
+            $resolved_autoload_file !== false
+            && is_file($resolved_autoload_file)
+            && is_readable($resolved_autoload_file)
+            && str_starts_with($resolved_autoload_file, $plugin_dir . DIRECTORY_SEPARATOR)
+        ) {
+            require_once $resolved_autoload_file;
+            return;
+        }
+
+        if (is_file($composer_file)) {
+            Log::warning(
+                "Plugin {$plugin_name} has composer.json but vendor/autoload.php is missing. "
+                . 'Run composer install in the plugin directory or install dependencies in the root application.'
+            );
         }
     }
 

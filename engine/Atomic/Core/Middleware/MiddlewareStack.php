@@ -58,6 +58,20 @@ class MiddlewareStack
      */
     public static function resolve(string $name_with_params): ?MiddlewareInterface
     {
+        $instance = self::resolve_any($name_with_params);
+        if (!($instance instanceof MiddlewareInterface)) {
+            return null;
+        }
+
+        return $instance;
+    }
+
+    /**
+     * Resolve a middleware alias without enforcing the HTTP middleware interface.
+     * Used by middleware variants with a different runtime contract, such as WebSockets.
+     */
+    public static function resolve_any(string $name_with_params): ?object
+    {
         [$name, $param] = array_pad(explode(':', $name_with_params, 2), 2, null);
 
         $class = self::$aliases[$name] ?? null;
@@ -65,13 +79,7 @@ class MiddlewareStack
             return null;
         }
 
-        $instance = $param !== null ? new $class($param) : new $class();
-
-        if (!($instance instanceof MiddlewareInterface)) {
-            return null;
-        }
-
-        return $instance;
+        return $param !== null ? new $class($param) : new $class();
     }
 
     /**

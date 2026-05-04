@@ -6,6 +6,8 @@ namespace Tests\Engine\App;
 use Engine\Atomic\App\Plugin;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Hook\ApplicationHook;
+use Engine\Atomic\Hook\Hook;
 use PHPUnit\Framework\TestCase;
 
 class TestPlugin extends Plugin
@@ -217,6 +219,44 @@ class CyclicBPlugin extends Plugin
     }
 }
 
+class RouteHookPlugin extends Plugin
+{
+    public static array $events = [];
+
+    protected function get_name(): string
+    {
+        return 'route-hook';
+    }
+
+    public function boot(): void
+    {
+        Hook::instance()->add_action(ApplicationHook::AFTER_ROUTES_REGISTERED, function (App $app, string $request_type): void {
+            self::$events[] = $request_type;
+        }, 10, 2);
+    }
+}
+
+class PluginRegisteredHookPlugin extends Plugin
+{
+    public static array $events = [];
+
+    protected function get_name(): string
+    {
+        return 'plugin-registered-hook';
+    }
+
+    public function boot(): void
+    {
+        Hook::instance()->add_action(ApplicationHook::AFTER_PLUGINS_REGISTERED, function (): void {
+            self::$events[] = 'after_plugins_registered';
+        }, 10, 0);
+
+        Hook::instance()->add_action(ApplicationHook::AFTER_ROUTES_REGISTERED, function (): void {
+            self::$events[] = 'after_routes_registered';
+        }, 10, 0);
+    }
+}
+
 class PluginManagerTest extends TestCase
 {
     private PluginManager $manager;
@@ -230,6 +270,10 @@ class PluginManagerTest extends TestCase
 
         $this->manager = PluginManager::instance();
         OrderedRootPlugin::$events = [];
+        RouteHookPlugin::$events = [];
+        PluginRegisteredHookPlugin::$events = [];
+        $this->reset_app_lifecycle_state();
+        App::atomic()->clear('EVENTS');
     }
 
     public function test_singleton(): void
@@ -482,5 +526,104 @@ class PluginManagerTest extends TestCase
         $this->manager->boot_all();
 
         $this->assertSame([], OrderedRootPlugin::$events);
+    }
+
+    public function test_plugin_listener_receives_after_routes_registered(): void
+    {
+        $routes_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
+        mkdir($routes_dir, 0777, true);
+
+        App::atomic()->set('FRAMEWORK_ROUTES', $routes_dir . DIRECTORY_SEPARATOR);
+        App::atomic()->set('USER_PLUGINS', $routes_dir . DIRECTORY_SEPARATOR . 'plugins');
+
+        App::instance()->register_routes_for('web');
+        $this->manager->register(new RouteHookPlugin());
+        App::instance()->register_plugins();
+
+        $this->assertSame(['web'], RouteHookPlugin::$events);
+        rmdir($routes_dir);
+    }
+
+    public function test_after_plugins_registered_runs_before_route_hooks(): void
+    {
+        $routes_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
+        mkdir($routes_dir, 0777, true);
+
+        App::atomic()->set('FRAMEWORK_ROUTES', $routes_dir . DIRECTORY_SEPARATOR);
+        App::atomic()->set('USER_PLUGINS', $routes_dir . DIRECTORY_SEPARATOR . 'plugins');
+
+        App::instance()->register_routes_for('web');
+        $this->manager->register(new PluginRegisteredHookPlugin());
+        App::instance()->register_plugins();
+
+        $this->assertSame([
+            'after_plugins_registered',
+            'after_routes_registered',
+        ], PluginRegisteredHookPlugin::$events);
+        rmdir($routes_dir);
+    }
+
+    public function test_load_user_plugins_requires_local_autoload_before_plugin_file(): void
+    {
+        $plugins_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_user_plugins_' . uniqid();
+        $plugin_dir = $plugins_dir . DIRECTORY_SEPARATOR . 'AutoloadedPlugin';
+        $marker_class = 'AtomicPluginAutoloadMarker' . str_replace('.', '', uniqid('', true));
+        mkdir($plugin_dir . DIRECTORY_SEPARATOR . 'vendor', 0777, true);
+
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php',
+            "<?php\nclass {$marker_class} {}\n"
+        );
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . 'plugin.php',
+            <<<PHP
+<?php
+if (!defined('ATOMIC_START')) exit;
+if (!class_exists('{$marker_class}')) {
+    throw new RuntimeException('plugin autoload was not loaded first');
+}
+\Engine\Atomic\App\PluginManager::instance()->register(new \Tests\Engine\App\TestPlugin());
+PHP
+        );
+
+        App::atomic()->set('USER_PLUGINS', $plugins_dir);
+
+        $this->manager->load_user_plugins();
+
+        $this->assertTrue($this->manager->has('test-plugin'));
+        $this->remove_dir($plugins_dir);
+    }
+
+    public function test_before_server_start_runs_once(): void
+    {
+        $calls = 0;
+        Hook::instance()->add_action(ApplicationHook::BEFORE_SERVER_START, function () use (&$calls): void {
+            $calls++;
+        }, 10, 0);
+
+        App::instance()->before_server_start();
+        App::instance()->before_server_start();
+
+        $this->assertSame(1, $calls);
+    }
+
+    private function reset_app_lifecycle_state(): void
+    {
+        $ref = new \ReflectionClass(App::instance());
+        foreach (['registered_route_types' => [], 'server_start_hook_fired' => false] as $name => $value) {
+            $prop = $ref->getProperty($name);
+            $prop->setValue(App::instance(), $value);
+        }
+    }
+
+    private function remove_dir(string $dir): void
+    {
+        if (!is_dir($dir)) return;
+        foreach (scandir($dir) as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $path = $dir . DIRECTORY_SEPARATOR . $item;
+            is_dir($path) ? $this->remove_dir($path) : unlink($path);
+        }
+        rmdir($dir);
     }
 }

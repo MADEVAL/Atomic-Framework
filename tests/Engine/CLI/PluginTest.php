@@ -30,11 +30,17 @@ class PluginTest extends TestCase
 
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'plugin.php');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'SamplePlugin.php');
+        $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'composer.json');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'api.php');
         $this->assertStringContainsString(
             'PluginManager::instance()->register(new \\App\\Plugins\\SamplePlugin\\SamplePlugin());',
             file_get_contents($base . DIRECTORY_SEPARATOR . 'plugin.php')
         );
+        $composer = json_decode(file_get_contents($base . DIRECTORY_SEPARATOR . 'composer.json'), true);
+        $this->assertSame('app/sample-plugin', $composer['name']);
+        $this->assertSame([
+            'App\\Plugins\\SamplePlugin\\' => './',
+        ], $composer['autoload']['psr-4']);
     }
 
     public function test_plugin_make_is_idempotent(): void
@@ -47,6 +53,7 @@ class PluginTest extends TestCase
 
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'plugin.php');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'SamplePlugin.php');
+        $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'composer.json');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'api.php');
     }
 

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Engine\Core;
 
+use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\RouteLoader;
 use PHPUnit\Framework\TestCase;
 
@@ -95,6 +96,51 @@ class RouteLoaderTest extends TestCase
 
         $files = $this->loader->get_files_for('telemetry');
         $this->assertCount(0, $files);
+    }
+
+    public function test_get_files_for_websocket(): void
+    {
+        file_put_contents($this->tmpDir . '/app/websocket.php', '<?php // websocket');
+
+        $this->loader->register_route_type('websocket', 'websocket.php');
+        $this->loader->configure_paths(
+            $this->tmpDir . '/framework/',
+            $this->tmpDir . '/app/'
+        );
+
+        $files = $this->loader->get_files_for('websocket');
+        $this->assertCount(1, $files);
+        $this->assertStringContainsString('websocket.php', $files[0]);
+    }
+
+    public function test_websocket_is_not_a_default_route_type(): void
+    {
+        $loader = new RouteLoader();
+
+        $this->assertFalse($loader->has_route_type('websocket'));
+    }
+
+    public function test_register_custom_route_type(): void
+    {
+        file_put_contents($this->tmpDir . '/app/feed.php', '<?php // feed');
+
+        $this->loader->register_route_type('feed', 'feed.php');
+        $this->loader->configure_paths(
+            $this->tmpDir . '/framework/',
+            $this->tmpDir . '/app/'
+        );
+
+        $this->assertTrue($this->loader->has_route_type('feed'));
+        $this->assertSame(['feed.php'], $this->loader->get_filenames_for('feed'));
+        $this->assertCount(1, $this->loader->get_files_for('feed'));
+    }
+
+    public function test_app_registers_custom_route_type(): void
+    {
+        App::instance()->register_route_type('events', 'events.php');
+
+        $this->assertTrue($this->loader->has_route_type('events'));
+        $this->assertSame(['events.php'], $this->loader->get_filenames_for('events'));
     }
 
     public function test_invalid_request_type(): void

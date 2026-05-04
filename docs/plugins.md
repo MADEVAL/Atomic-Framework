@@ -16,6 +16,14 @@ Core plugin bootstrap happens in two stages:
 
 User plugins are loaded from the configured `USER_PLUGINS` directory, which defaults to `plugins/` at the project root. The manager scans each direct subdirectory for `plugin.php` and only loads files that resolve inside the real `USER_PLUGINS` path.
 
+### Composer dependencies
+
+User plugins may ship their own Composer dependencies. If `<plugin>/vendor/autoload.php` exists, the plugin manager loads it before `<plugin>/plugin.php`. If `<plugin>/composer.json` exists but `vendor/autoload.php` is missing, startup logs a warning. Atomic does not run `composer install` for plugins at runtime.
+
+In the current plugin system, plugin-local Composer autoloaders are still registered in the PHP process globally. This means dependency class names are not isolated per plugin. If two plugins, or a plugin and the application, load incompatible versions of the same package namespace, PHP may use whichever class is loaded first and the versions can conflict.
+
+For production applications, prefer installing shared dependencies in the root application Composer setup. Use plugin-local Composer dependencies for simple or self-contained plugins where package conflicts are unlikely. Plugins that need hard dependency isolation should ship scoped/prefixed dependencies as part of their own build process.
+
 ### Base plugin API
 
 All plugins extend the abstract base class:
@@ -119,14 +127,22 @@ if ($plugin !== null) {
 
 ### Plugin routes
 
-After `boot_all()` finishes its boot loop, the manager loads route files from each booted plugin's `routes/` directory.
+After `boot_all()` finishes its boot loop, Atomic fires `ApplicationHook::AFTER_PLUGINS_REGISTERED`, then the manager loads route files from each booted plugin's `routes/` directory. This lets optional modules inspect enabled plugins and register additional route-loader types before plugin route files are resolved.
 
-The filenames come from `RouteLoader::ROUTE_TYPE_MAP` and depend on the detected request type:
+The filenames come from `RouteLoader` and depend on the detected request type:
 
 - `web`: `web.php`, `web.error.php`
 - `api`: `api.php`
 - `cli`: `cli.php`
 - `telemetry`: `telemetry.php`
+
+Optional modules may register additional route types:
+
+```php
+$atomic->register_route_type('websocket', 'websocket.php');
+```
+
+After a type is registered, plugin route loading uses the same convention. For example, the bundled WebSocket server registers `websocket`, then loads `routes/websocket.php` from the app and from booted plugins.
 
 Only existing files are required. Exceptions while loading a route file are logged and do not abort the rest of plugin route loading.
 
@@ -155,12 +171,16 @@ Behavior of `publish_from_plugin(...)`:
 
 ```text
 MyPlugin/
+  composer.json
   plugin.php
   MyPlugin.php
+  vendor/
+    autoload.php
   routes/
     web.php
     api.php
     cli.php
+    websocket.php  # if a WebSocket/module route type is registered
   Migrations/
     create_myplugin_tables.php
 ```

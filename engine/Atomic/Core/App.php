@@ -17,11 +17,16 @@ use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\ConnectionManager;
+use Engine\Atomic\WebSockets\WebSocketRouter;
+use Engine\Atomic\Hook\ApplicationHook;
+use Engine\Atomic\Hook\Hook;
 
 class App {
     protected static ?self $instance = null;
     protected \Base $atomic;
     protected string $baseControllerClass = 'Engine\Atomic\App\Controller';
+    protected array $registered_route_types = [];
+    protected bool $server_start_hook_fired = false;
      
     public function __construct(\Base $atomic) {
         $this->atomic = $atomic;
@@ -152,26 +157,36 @@ class App {
     }
 
     public function register_routes(string ...$route_files): self {
-        $request_type = $this->detect_request_type();
-        
-        $routeLoader = RouteLoader::instance();
-        $frameworkRoutes = (string)$this->atomic->get('FRAMEWORK_ROUTES', '');
-        if ($frameworkRoutes === '') {
+        return $this->register_routes_for($this->detect_request_type(), ...$route_files);
+    }
+
+    public function register_route_type(string $request_type, array|string $file_names): self
+    {
+        RouteLoader::instance()->register_route_type($request_type, $file_names);
+        return $this;
+    }
+
+    public function register_routes_for(string $request_type, string ...$route_files): self {
+        $route_loader = RouteLoader::instance();
+        $framework_routes = (string)$this->atomic->get('FRAMEWORK_ROUTES', '');
+        if ($framework_routes === '') {
             throw new \RuntimeException('Framework routes directory is not configured.');
         }
-        $routeLoader->configure_paths(
-            $frameworkRoutes,
+        $route_loader->configure_paths(
+            $framework_routes,
             ATOMIC_APP_ROUTES
         );
-        $filesToLoad = $routeLoader->get_files_for($request_type);
+        $files_to_load = array_merge($route_loader->get_files_for($request_type), $route_files);
 
-        foreach ($filesToLoad as $routeFile) {
-            $resolvedRouteFile = realpath($routeFile);
-            if ($resolvedRouteFile !== false && is_file($resolvedRouteFile) && is_readable($resolvedRouteFile)) {
+        foreach ($files_to_load as $route_file) {
+            $resolved_route_file = realpath($route_file);
+            if ($resolved_route_file !== false && is_file($resolved_route_file) && is_readable($resolved_route_file)) {
                 $atomic = $this;
-                require $resolvedRouteFile;
+                require $resolved_route_file;
             }
         }
+
+        $this->registered_route_types[$request_type] = true;
         return $this;
     }
 
@@ -183,9 +198,9 @@ class App {
 
         $path = ltrim($path, '/');
         $segments = explode('/', $path);
-        $firstSegment = strtolower($segments[0] ?? '');
+        $first_segment = strtolower($segments[0] ?? '');
 
-        switch ($firstSegment) {
+        switch ($first_segment) {
             case 'api': return 'api';
             case 'telemetry': return 'telemetry';
             default: return 'web';
@@ -268,6 +283,11 @@ class App {
         $this->atomic->route($pattern, $handler, $ttl, $kbps);
     }
 
+    public function ws(string $pattern, string $handler, array $middleware = []): void
+    {
+        WebSocketRouter::register($pattern, $handler, $middleware);
+    }
+
     protected function controller_has_custom_route_hook(string $class): bool
     {
         try {
@@ -299,6 +319,7 @@ class App {
             }
             $this->apply_cors();
         }
+        $this->before_server_start();
         $this->atomic->run();
     }
 
@@ -405,6 +426,29 @@ class App {
         $manager->load_user_plugins();
         $manager->register_all();
         $manager->boot_all();
+        Hook::instance()->do_action(ApplicationHook::AFTER_PLUGINS_REGISTERED, $this, $manager);
+
+        $route_types = array_keys($this->registered_route_types);
+        if ($route_types === []) {
+            $route_types = [$this->detect_request_type()];
+        }
+
+        foreach ($route_types as $request_type) {
+            $manager->load_plugin_routes_for($request_type);
+            Hook::instance()->do_action(ApplicationHook::AFTER_ROUTES_REGISTERED, $this, $request_type);
+        }
+
+        return $this;
+    }
+
+    public function before_server_start(): self
+    {
+        if ($this->server_start_hook_fired) {
+            return $this;
+        }
+
+        $this->server_start_hook_fired = true;
+        Hook::instance()->do_action(ApplicationHook::BEFORE_SERVER_START, $this);
         return $this;
     }
 

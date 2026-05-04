@@ -7,7 +7,9 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\WebSockets\Connection;
+use Engine\Atomic\App\PluginManager;
 use Workerman\Connection\TcpConnection;
+use Workerman\Protocols\Http\Request;
 use Workerman\Redis\Client as RedisClient;
 use Workerman\Worker;
 
@@ -80,7 +82,7 @@ abstract class Server
 
     abstract protected function setup(): void;
     protected function on_worker_start(): void {}
-    abstract protected function on_connect(Connection $conn): void;
+    abstract protected function on_websocket_connect(Connection $conn, Request $request): void;
     abstract protected function on_message(Connection $conn, string $data, int $op): void;
     abstract protected function on_disconnect(Connection $conn): void;
 
@@ -106,6 +108,11 @@ abstract class Server
         Worker::$pidFile = $logs_dir . '/workerman.' . $server_tag . '.pid';
         Worker::$logFile = $logs_dir . '/workerman.' . $server_tag . '.log';
 
+        App::instance()
+            ->register_route_type('websocket', 'websocket.php')
+            ->register_routes_for('websocket');
+        PluginManager::instance()->load_plugin_routes_for('websocket');
+
         $this->setup();
 
         $self = $this;
@@ -121,7 +128,17 @@ abstract class Server
         $worker->onConnect = function(TcpConnection $tcp) use ($self): void {
             $conn = new Connection($tcp);
             $self->connections[$conn->socket_int()] = $conn;
-            $self->on_connect($conn);
+        };
+
+        $worker->onWebSocketConnect = function(TcpConnection $tcp, Request $request) use ($self): void {
+            $socket_int = (int)$tcp->id;
+            if (!isset($self->connections[$socket_int])) {
+                $self->connections[$socket_int] = new Connection($tcp);
+            }
+
+            $conn = $self->connections[$socket_int];
+            $conn->set_path($request->path());
+            $self->on_websocket_connect($conn, $request);
         };
 
         $worker->onMessage = function(TcpConnection $tcp, string $data) use ($self): void {
@@ -183,4 +200,3 @@ abstract class Server
         });
     }
 }
-

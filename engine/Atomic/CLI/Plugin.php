@@ -48,6 +48,10 @@ trait Plugin
             $this->plugin_class_stub($class_name)
         );
         $created += $this->write_plugin_file_if_missing(
+            $target_dir . DIRECTORY_SEPARATOR . 'composer.json',
+            $this->plugin_composer_stub($class_name)
+        );
+        $created += $this->write_plugin_file_if_missing(
             $routes_dir . DIRECTORY_SEPARATOR . 'api.php',
             $this->plugin_api_routes_stub($class_name)
         );
@@ -130,6 +134,25 @@ final class {$class_name} extends Plugin
 }
 
 PHP;
+    }
+
+    private function plugin_composer_stub(string $class_name): string
+    {
+        $package = strtolower((string)preg_replace('/(?<!^)[A-Z]/', '-$0', $class_name));
+
+        return <<<JSON
+{
+    "name": "app/{$package}",
+    "type": "atomic-plugin",
+    "autoload": {
+        "psr-4": {
+            "App\\\\Plugins\\\\{$class_name}\\\\": "./"
+        }
+    },
+    "require": {}
+}
+
+JSON;
     }
 
     private function plugin_api_routes_stub(string $class_name): string

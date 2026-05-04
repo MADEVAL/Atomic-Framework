@@ -1,23 +1,61 @@
 ## WebSockets ##
 
-Atomic ships a reusable WebSocket server base class in `Engine\Atomic\WebSockets\Server` and a thin connection wrapper in `Engine\Atomic\WebSockets\Connection`.
+Atomic ships a routed WebSocket server in `Engine\Atomic\WebSockets\RoutedWebSocketServer`, a reusable server base class in `Engine\Atomic\WebSockets\Server`, and a thin connection wrapper in `Engine\Atomic\WebSockets\Connection`.
 
 ### Current scope
 
 The repository includes:
 
-- an abstract server base class
+- a routed WebSocket server for route-only applications
+- an abstract server base class for custom lifecycle/pubsub behavior
 - a connection wrapper
+- route registration and message dispatch helpers
 - a single-shot test client utility class
 
-The repository does **not** include a concrete application WebSocket server by default.
+The repository does **not** include application-specific WebSocket handlers by default.
+
+### Route dispatch
+
+WebSocket routes can be registered through the application facade:
+
+```php
+$atomic->ws('/jobs/@job_id', App\WebSockets\JobsHandler::class . '::receive', [
+    'ws-auth',
+    'ws-rate-limit:jobs',
+]);
+```
+
+Route middleware aliases are registered in `config/middleware.php` through the same alias registry as HTTP middleware. WebSocket middleware classes must implement `Engine\Atomic\WebSockets\WebSocketMiddleware`; they do not need to implement the HTTP `MiddlewareInterface`.
+
+When a message is dispatched, `WebSocketDispatcher` matches the connection path, resolves the route's message middleware aliases, runs them in order, and then calls the handler. Returning `false` from WebSocket middleware stops dispatch for that message.
+
+If the middleware array includes phase keys, `message` is used for message dispatch and `connect` is ignored by the message dispatcher:
+
+```php
+$atomic->ws('/jobs/@job_id', App\WebSockets\JobsHandler::class . '::receive', [
+    'connect' => ['ws-origin-check'],
+    'message' => ['ws-auth', 'ws-rate-limit:jobs'],
+]);
+```
+
+### Routed server
+
+For route-only WebSocket applications, start the bundled routed server:
+
+```php
+use Engine\Atomic\WebSockets\RoutedWebSocketServer;
+
+(new RoutedWebSocketServer('tcp://0.0.0.0:8080', 2))->run();
+```
+
+It registers the `websocket` route type, loads app and plugin `routes/websocket.php` files, dispatches each message through `WebSocketDispatcher`, rejects unknown paths cleanly, and leaves connect/disconnect hooks empty. Extend `Server` directly when the application needs custom connection lifecycle, pub/sub, or task mapping behavior.
 
 ### Base server API
 
 Required methods in subclasses:
 
 - `setup(): void`
-- `on_connect(Connection $conn): void`
+- `on_websocket_connect(Connection $conn, Request $request): void`
 - `on_message(Connection $conn, string $data, int $op): void`
 - `on_disconnect(Connection $conn): void`
 
@@ -52,6 +90,7 @@ Example class tag:
 
 - `id(): string`
 - `socket_int(): int`
+- `path(): string`
 - `send(string $data): bool`
 - `close(): void`
 
@@ -107,6 +146,7 @@ namespace App\WebSockets;
 
 use Engine\Atomic\WebSockets\Connection;
 use Engine\Atomic\WebSockets\Server;
+use Workerman\Protocols\Http\Request;
 
 final class JobsServer extends Server
 {
@@ -115,7 +155,7 @@ final class JobsServer extends Server
         $this->subscribe_to_channel('queue:results');
     }
 
-    protected function on_connect(Connection $conn): void
+    protected function on_websocket_connect(Connection $conn, Request $request): void
     {
         $conn->send(json_encode(['type' => 'welcome', 'id' => $conn->id()]));
     }
