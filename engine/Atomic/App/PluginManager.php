@@ -87,18 +87,19 @@ class PluginManager
         $this->load_plugin_routes_for($atomic->detect_request_type());
     }
 
-    public function load_plugin_routes_for(string $request_type): void
+    public function load_plugin_routes_for(string $request_type): array
     {
         $request_type = strtolower(trim($request_type));
         if (isset($this->loaded_route_types[$request_type])) {
-            return;
+            return [];
         }
         if ($this->booted === []) {
-            return;
+            return [];
         }
 
         $route_loader = RouteLoader::instance();
         $file_names = $route_loader->get_filenames_for($request_type);
+        $loaded_files = [];
 
         foreach ($this->booted as $name => $_) {
             $plugin = $this->plugins[$name];
@@ -112,6 +113,8 @@ class PluginManager
 
                 try {
                     require $file;
+                    $resolved_file = realpath($file);
+                    $loaded_files[] = $resolved_file !== false ? $resolved_file : $file;
                 } catch (\Throwable $e) {
                     Log::error("Plugin {$name}: failed to load routes/{$file_name}: " . $e->getMessage());
                 }
@@ -119,6 +122,7 @@ class PluginManager
         }
 
         $this->loaded_route_types[$request_type] = true;
+        return $loaded_files;
     }
 
     public function load_user_plugins(): void

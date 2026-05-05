@@ -27,12 +27,13 @@ $app = App::instance($atomic)
     ->register_config()
     ->register_middleware()
     ->register_core_plugins(WebSockets::class)
-    ->register_plugins();
+    ->register_plugins()
+    ->register_routes();
 
 (new RoutedWebSocketServer($app->get('WS.listen'), 2))->run();
 ```
 
-`WebSockets::register()` adds the `websocket` route type. During `register_plugins()`, Atomic loads app and plugin `routes/websocket.php` files before the routed server starts.
+`WebSockets::register()` adds the `websocket` route type. During `register_routes()`, Atomic loads app and plugin `routes/websocket.php` files before the routed server starts.
 
 ### Route dispatch
 

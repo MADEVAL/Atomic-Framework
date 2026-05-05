@@ -232,9 +232,14 @@ class RouteHookPlugin extends Plugin
 
     public function boot(): void
     {
-        Hook::instance()->add_action(ApplicationHook::AFTER_ROUTES_REGISTERED, function (App $app, string $request_type): void {
-            self::$events[] = $request_type;
-        }, 10, 2);
+        Hook::instance()->add_action(
+            ApplicationHook::ROUTES_REGISTERED,
+            function (App $app, string $request_type, array $files, string $source): void {
+                self::$events[] = $request_type . ':' . $source;
+            },
+            10,
+            4
+        );
     }
 }
 
@@ -249,12 +254,12 @@ class PluginRegisteredHookPlugin extends Plugin
 
     public function boot(): void
     {
-        Hook::instance()->add_action(ApplicationHook::AFTER_PLUGINS_BOOTED, function (): void {
-            self::$events[] = 'after_plugins_booted';
+        Hook::instance()->add_action(ApplicationHook::PLUGINS_LOADED, function (): void {
+            self::$events[] = 'plugins_loaded';
         }, 10, 0);
 
-        Hook::instance()->add_action(ApplicationHook::AFTER_ROUTES_REGISTERED, function (): void {
-            self::$events[] = 'after_routes_registered';
+        Hook::instance()->add_action(ApplicationHook::ROUTES_REGISTERED, function (): void {
+            self::$events[] = 'routes_registered';
         }, 10, 0);
     }
 }
@@ -275,7 +280,7 @@ class HookQueuedRouteTypePlugin extends Plugin
 
     public function boot(): void
     {
-        Hook::instance()->add_action(ApplicationHook::AFTER_PLUGINS_BOOTED, function (App $app): void {
+        Hook::instance()->add_action(ApplicationHook::PLUGINS_LOADED, function (App $app): void {
             $app->register_route_type('hooked', 'hooked.php');
         }, 10, 1);
     }
@@ -301,6 +306,21 @@ class CustomRouteTypePlugin extends Plugin
     }
 }
 
+class LifecycleRoutePlugin extends Plugin
+{
+    public static string $plugin_path = '';
+
+    protected function get_name(): string
+    {
+        return 'lifecycle-route';
+    }
+
+    protected function get_path(): string
+    {
+        return self::$plugin_path !== '' ? self::$plugin_path : parent::get_path();
+    }
+}
+
 class PluginManagerTest extends TestCase
 {
     private PluginManager $manager;
@@ -318,6 +338,7 @@ class PluginManagerTest extends TestCase
         PluginRegisteredHookPlugin::$events = [];
         CustomRouteTypePlugin::$plugin_path = '';
         HookQueuedRouteTypePlugin::$plugin_path = '';
+        LifecycleRoutePlugin::$plugin_path = '';
         $this->reset_app_lifecycle_state();
         $this->reset_route_loader_state();
         App::atomic()->clear('EVENTS');
@@ -575,7 +596,7 @@ class PluginManagerTest extends TestCase
         $this->assertSame([], OrderedRootPlugin::$events);
     }
 
-    public function test_plugin_listener_receives_after_routes_registered(): void
+    public function test_plugin_listener_receives_routes_registered(): void
     {
         $routes_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
         mkdir($routes_dir, 0777, true);
@@ -583,12 +604,55 @@ class PluginManagerTest extends TestCase
         App::atomic()->set('FRAMEWORK_ROUTES', $routes_dir . DIRECTORY_SEPARATOR);
         App::atomic()->set('USER_PLUGINS', $routes_dir . DIRECTORY_SEPARATOR . 'plugins');
 
-        App::instance()->register_routes_for('web');
         $this->manager->register(new RouteHookPlugin());
         App::instance()->register_plugins();
+        App::instance()->register_routes_for('web');
 
-        $this->assertSame(['web'], RouteHookPlugin::$events);
+        $this->assertSame(['web:app', 'web:plugin'], RouteHookPlugin::$events);
         rmdir($routes_dir);
+    }
+
+    public function test_routes_registered_lifecycle_hook_receives_source_and_files(): void
+    {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
+        $framework_routes = $root . DIRECTORY_SEPARATOR . 'framework';
+        $plugin_dir = $root . DIRECTORY_SEPARATOR . 'plugin';
+
+        mkdir($framework_routes, 0777, true);
+        mkdir($plugin_dir . DIRECTORY_SEPARATOR . 'routes', 0777, true);
+
+        $framework_route = $framework_routes . DIRECTORY_SEPARATOR . 'web.php';
+        $plugin_route = $plugin_dir . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'web.php';
+
+        file_put_contents($framework_route, '<?php $atomic->set("EVENTS.framework_route", true);');
+        file_put_contents($plugin_route, '<?php $atomic->set("EVENTS.plugin_route", true);');
+
+        App::atomic()->set('FRAMEWORK_ROUTES', $framework_routes . DIRECTORY_SEPARATOR);
+        App::atomic()->set('USER_PLUGINS', $root . DIRECTORY_SEPARATOR . 'user_plugins');
+
+        LifecycleRoutePlugin::$plugin_path = $plugin_dir;
+        $this->manager->register(new LifecycleRoutePlugin());
+
+        $events = [];
+        Hook::instance()->add_action(
+            ApplicationHook::ROUTES_REGISTERED,
+            function (App $app, string $request_type, array $files, string $source) use (&$events): void {
+                $events[] = [$request_type, $source, $files];
+            },
+            10,
+            4
+        );
+
+        App::instance()->register_plugins();
+        App::instance()->register_routes_for('web');
+
+        $this->assertSame('web', $events[0][0]);
+        $this->assertSame('app', $events[0][1]);
+        $this->assertSame([realpath($framework_route)], $events[0][2]);
+        $this->assertSame('web', $events[1][0]);
+        $this->assertSame('plugin', $events[1][1]);
+        $this->assertSame([realpath($plugin_route)], $events[1][2]);
+        $this->remove_dir($root);
     }
 
     public function test_websockets_plugin_registers_route_type(): void
@@ -625,13 +689,14 @@ class PluginManagerTest extends TestCase
         $this->manager->register(new CustomRouteTypePlugin());
 
         App::instance()->register_plugins();
+        App::instance()->register_routes();
 
         $this->assertTrue(App::atomic()->get('EVENTS.framework_websocket_route'));
         $this->assertTrue(App::atomic()->get('EVENTS.plugin_websocket_route'));
         $this->remove_dir($root);
     }
 
-    public function test_after_plugins_booted_can_queue_route_type_before_route_loading(): void
+    public function test_plugins_loaded_can_queue_route_type_before_route_loading(): void
     {
         $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
         $framework_routes = $root . DIRECTORY_SEPARATOR . 'framework';
@@ -656,13 +721,14 @@ class PluginManagerTest extends TestCase
         $this->manager->register(new HookQueuedRouteTypePlugin());
 
         App::instance()->register_plugins();
+        App::instance()->register_routes();
 
         $this->assertTrue(App::atomic()->get('EVENTS.framework_hooked_route'));
         $this->assertTrue(App::atomic()->get('EVENTS.plugin_hooked_route'));
         $this->remove_dir($root);
     }
 
-    public function test_after_plugins_booted_runs_before_route_hooks(): void
+    public function test_plugins_loaded_runs_before_route_hooks(): void
     {
         $routes_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
         mkdir($routes_dir, 0777, true);
@@ -670,14 +736,42 @@ class PluginManagerTest extends TestCase
         App::atomic()->set('FRAMEWORK_ROUTES', $routes_dir . DIRECTORY_SEPARATOR);
         App::atomic()->set('USER_PLUGINS', $routes_dir . DIRECTORY_SEPARATOR . 'plugins');
 
-        App::instance()->register_routes_for('web');
         $this->manager->register(new PluginRegisteredHookPlugin());
         App::instance()->register_plugins();
+        App::instance()->register_routes_for('web');
 
         $this->assertSame([
-            'after_plugins_booted',
-            'after_routes_registered',
+            'plugins_loaded',
+            'routes_registered',
+            'routes_registered',
         ], PluginRegisteredHookPlugin::$events);
+        rmdir($routes_dir);
+    }
+
+    public function test_plugins_loaded_lifecycle_hook_runs_before_route_hooks(): void
+    {
+        $routes_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
+        mkdir($routes_dir, 0777, true);
+
+        App::atomic()->set('FRAMEWORK_ROUTES', $routes_dir . DIRECTORY_SEPARATOR);
+        App::atomic()->set('USER_PLUGINS', $routes_dir . DIRECTORY_SEPARATOR . 'plugins');
+
+        $events = [];
+        Hook::instance()->add_action(ApplicationHook::PLUGINS_LOADED, function (App $app, PluginManager $manager) use (&$events): void {
+            $events[] = 'plugins_loaded';
+        }, 10, 2);
+        Hook::instance()->add_action(ApplicationHook::ROUTES_REGISTERED, function () use (&$events): void {
+            $events[] = 'routes_registered';
+        }, 10, 0);
+
+        App::instance()->register_plugins();
+        App::instance()->register_routes_for('web');
+
+        $this->assertSame([
+            'plugins_loaded',
+            'routes_registered',
+            'routes_registered',
+        ], $events);
         rmdir($routes_dir);
     }
 
@@ -715,9 +809,10 @@ PHP
     public function test_before_server_start_runs_once(): void
     {
         $calls = 0;
-        Hook::instance()->add_action(ApplicationHook::BEFORE_SERVER_START, function () use (&$calls): void {
+        Hook::instance()->add_action(ApplicationHook::BEFORE_SERVER_START, function (App $app) use (&$calls): void {
             $calls++;
-        }, 10, 0);
+            $this->assertSame(App::instance(), $app);
+        }, 10, 1);
 
         App::instance()->before_server_start();
         App::instance()->before_server_start();
@@ -725,10 +820,36 @@ PHP
         $this->assertSame(1, $calls);
     }
 
+    public function test_bootstrap_lifecycle_methods_fire_expected_payloads(): void
+    {
+        $events = [];
+
+        Hook::instance()->add_action(ApplicationHook::CONFIG_LOADED, function (App $app, string $loader) use (&$events): void {
+            $events[] = ['config_loaded', $app, $loader];
+        }, 10, 2);
+        Hook::instance()->add_action(ApplicationHook::CORE_READY, function (App $app) use (&$events): void {
+            $events[] = ['core_ready', $app];
+        }, 10, 1);
+        Hook::instance()->add_action(ApplicationHook::APP_BOOTSTRAPPED, function (App $app) use (&$events): void {
+            $events[] = ['app_bootstrapped', $app];
+        }, 10, 1);
+
+        App::instance()
+            ->config_loaded('php')
+            ->core_ready()
+            ->app_bootstrapped();
+
+        $this->assertSame(['config_loaded', 'core_ready', 'app_bootstrapped'], array_column($events, 0));
+        $this->assertSame('php', $events[0][2]);
+        foreach ($events as $event) {
+            $this->assertSame(App::instance(), $event[1]);
+        }
+    }
+
     private function reset_app_lifecycle_state(): void
     {
         $ref = new \ReflectionClass(App::instance());
-        foreach (['queued_route_types' => [], 'queued_route_files' => [], 'server_start_hook_fired' => false] as $name => $value) {
+        foreach (['active_route_types' => [], 'extra_route_files' => [], 'loaded_app_route_types' => [], 'server_start_hook_fired' => false] as $name => $value) {
             $prop = $ref->getProperty($name);
             $prop->setValue(App::instance(), $value);
         }

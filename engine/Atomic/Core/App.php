@@ -22,9 +22,10 @@ use Engine\Atomic\Hook\Hook;
 class App {
     protected static ?self $instance = null;
     protected \Base $atomic;
-    protected string $baseControllerClass = 'Engine\Atomic\App\Controller';
-    protected array $queued_route_types = [];
-    protected array $queued_route_files = [];
+    protected string $base_controller_class = 'Engine\Atomic\App\Controller';
+    protected array $active_route_types = [];
+    protected array $extra_route_files = [];
+    protected array $loaded_app_route_types = [];
     protected bool $server_start_hook_fired = false;
      
     public function __construct(\Base $atomic) {
@@ -47,7 +48,7 @@ class App {
 
     public function prefly(): self
     {
-        $isDebug = (bool)filter_var($this->atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN);
+        $is_debug = (bool)filter_var($this->atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN);
         $prefly = Prefly::instance();
         if (!$prefly->all_checks_passed()) {
             $checks = $prefly->check_environment();
@@ -63,6 +64,7 @@ class App {
                 }
             }
 
+            Hook::instance()->do_action(ApplicationHook::PREFLY_FAILED, $this, $failed, $checks);
             $msg = 'Prefly checks did not pass: ' . implode(', ', $failed);
 
             if (php_sapi_name() === 'cli') {
@@ -78,7 +80,7 @@ class App {
                 echo '.container{max-width:600px;margin:2rem auto;background:#fff;border-radius:8px;padding:2rem;box-shadow:0 4px 6px rgba(0,0,0,0.05);border-top:4px solid #ef4444;}';
                 echo 'h1{color:#ef4444;margin-top:0;}</style></head><body>';
                 echo '<div class="container"><h1>System Error</h1>';
-                if ($isDebug) {
+                if ($is_debug) {
                     echo '<p>The application cannot start because the server environment does not meet the minimum requirements:</p>';
                     echo '<ul><li>' . implode('</li><li>', array_map('htmlspecialchars', $failed)) . '</li></ul>';
                 } else {
@@ -90,30 +92,29 @@ class App {
         }
 
         if (php_sapi_name() !== 'cli') {
-            $storageDir = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'storage';
-            $logsDir    = $storageDir . DIRECTORY_SEPARATOR . 'logs';
-            $notWritable = [];
-
-            if (!is_dir($storageDir) || !is_writable($storageDir)) {
-                $notWritable[] = 'storage/';
+            $logs_dir = rtrim((string)$this->atomic->get('LOGS'), '/\\');
+            if ($logs_dir === '') {
+                $logs_dir = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
             }
-            if (!is_dir($logsDir) || !is_writable($logsDir)) {
-                $notWritable[] = 'storage/logs/';
+            $not_writable = [];
+
+            if (!is_dir($logs_dir) || !is_writable($logs_dir)) {
+                $not_writable[] = $logs_dir . DIRECTORY_SEPARATOR;
             }
 
-            if ($notWritable !== []) {
+            if ($not_writable !== []) {
                 http_response_code(503);
                 echo '<!DOCTYPE html><html><head><title>Service Unavailable | Atomic</title>';
                 echo '<style>body{font-family:system-ui,-apple-system,sans-serif;background:#fdfdfd;color:#333;margin:0;padding:2rem;}';
                 echo '.container{max-width:640px;margin:2rem auto;background:#fff;border-radius:8px;padding:2rem;box-shadow:0 4px 6px rgba(0,0,0,0.05);border-top:4px solid #f59e0b;}';
                 echo 'h1{color:#f59e0b;margin-top:0;}code{background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:0.9em;}</style></head><body>';
                 echo '<div class="container"><h1>Service Unavailable</h1>';
-                if ($isDebug) {
+                if ($is_debug) {
                     echo '<p>The following directories must be writable by the web server user:</p>';
-                    echo '<ul><li>' . implode('</li><li>', array_map('htmlspecialchars', $notWritable)) . '</li></ul>';
+                    echo '<ul><li>' . implode('</li><li>', array_map('htmlspecialchars', $not_writable)) . '</li></ul>';
                     echo '<p>Fix with:</p>';
-                    echo '<pre><code>sudo chown -R www-data:www-data storage' . "\n";
-                    echo 'sudo chmod -R ug+rwX storage</code></pre>';
+                    echo '<pre><code>sudo chown -R www-data:www-data ' . htmlspecialchars($logs_dir, ENT_QUOTES, 'UTF-8') . "\n";
+                    echo 'sudo chmod -R ug+rwX ' . htmlspecialchars($logs_dir, ENT_QUOTES, 'UTF-8') . '</code></pre>';
                     echo '<p>See <strong>DEPLOYMENT_GUIDE.md</strong> section 4 for details.</p>';
                 } else {
                     echo '<p>The application is temporarily unavailable due to a server configuration error. Please contact the administrator.</p>';
@@ -156,29 +157,35 @@ class App {
     }
 
     public function register_routes(string ...$route_files): self {
-        return $this->queue_routes_for($this->detect_request_type(), ...$route_files);
+        $this->activate_route_type($this->detect_request_type(), ...$route_files);
+        $this->load_app_routes();
+        $this->load_plugin_routes();
+        return $this;
     }
 
     public function register_route_type(string $request_type, array|string $file_names): self
     {
         $request_type = strtolower(trim($request_type));
         RouteLoader::instance()->register_route_type($request_type, $file_names);
-        $this->queued_route_types[$request_type] = true;
+        $this->active_route_types[$request_type] = true;
         return $this;
     }
 
     public function register_routes_for(string $request_type, string ...$route_files): self {
-        return $this->queue_routes_for($request_type, ...$route_files);
+        $this->activate_route_type($request_type, ...$route_files);
+        $this->load_app_routes($request_type);
+        $this->load_plugin_routes($request_type);
+        return $this;
     }
 
-    protected function queue_routes_for(string $request_type, string ...$route_files): self
+    protected function activate_route_type(string $request_type, string ...$route_files): self
     {
         $request_type = strtolower(trim($request_type));
-        $this->queued_route_types[$request_type] = true;
+        $this->active_route_types[$request_type] = true;
 
         if ($route_files !== []) {
-            $this->queued_route_files[$request_type] = array_values(array_unique(array_merge(
-                $this->queued_route_files[$request_type] ?? [],
+            $this->extra_route_files[$request_type] = array_values(array_unique(array_merge(
+                $this->extra_route_files[$request_type] ?? [],
                 $route_files
             )));
         }
@@ -186,7 +193,24 @@ class App {
         return $this;
     }
 
-    protected function load_routes_for(string $request_type, string ...$route_files): self
+    protected function load_app_routes(?string $only_request_type = null): void
+    {
+        $route_types = $only_request_type === null
+            ? array_keys($this->active_route_types)
+            : [strtolower(trim($only_request_type))];
+
+        foreach ($route_types as $request_type) {
+            if (isset($this->loaded_app_route_types[$request_type])) {
+                continue;
+            }
+
+            $app_files = $this->load_routes_for($request_type, ...($this->extra_route_files[$request_type] ?? []));
+            $this->loaded_app_route_types[$request_type] = true;
+            Hook::instance()->do_action(ApplicationHook::ROUTES_REGISTERED, $this, $request_type, $app_files, 'app');
+        }
+    }
+
+    protected function load_routes_for(string $request_type, string ...$route_files): array
     {
         $request_type = strtolower(trim($request_type));
         $route_loader = RouteLoader::instance();
@@ -199,15 +223,31 @@ class App {
             ATOMIC_APP_ROUTES
         );
         $files_to_load = array_merge($route_loader->get_files_for($request_type), $route_files);
+        $loaded_files = [];
 
         foreach ($files_to_load as $route_file) {
             $resolved_route_file = realpath($route_file);
             if ($resolved_route_file !== false && is_file($resolved_route_file) && is_readable($resolved_route_file)) {
                 $atomic = $this;
                 require $resolved_route_file;
+                $loaded_files[] = $resolved_route_file;
             }
         }
-        return $this;
+        return $loaded_files;
+    }
+
+    protected function load_plugin_routes(?string $only_request_type = null): void
+    {
+        $route_types = $only_request_type === null
+            ? array_keys($this->active_route_types)
+            : [strtolower(trim($only_request_type))];
+
+        $manager = PluginManager::instance();
+
+        foreach ($route_types as $request_type) {
+            $plugin_files = $manager->load_plugin_routes_for($request_type);
+            Hook::instance()->do_action(ApplicationHook::ROUTES_REGISTERED, $this, $request_type, $plugin_files, 'plugin');
+        }
     }
 
     public function detect_request_type(): string
@@ -292,9 +332,9 @@ class App {
 
         if (is_string($handler) && preg_match('/^([^>:]+)\s*(?:->|::)\s*\w+$/', $handler, $m)) {
             $class = ltrim($m[1], '\\');
-            if (class_exists($class) && is_subclass_of($class, $this->baseControllerClass)) {
-                $hasCustomHook = $this->controller_has_custom_route_hook($class);
-                if ($hasCustomHook) {
+            if (class_exists($class) && is_subclass_of($class, $this->base_controller_class)) {
+                $has_custom_hook = $this->controller_has_custom_route_hook($class);
+                if ($has_custom_hook) {
                     $ttl = 0;
                 }
             }
@@ -307,17 +347,17 @@ class App {
     {
         try {
             $r = new \ReflectionClass($class);
-            $customBefore = false;
-            $customAfter = false;
+            $custom_before = false;
+            $custom_after = false;
             if ($r->hasMethod('beforeroute')) {
                 $m = $r->getMethod('beforeroute');
-                $customBefore = $m->getDeclaringClass()->getName() !== $this->baseControllerClass;
+                $custom_before = $m->getDeclaringClass()->getName() !== $this->base_controller_class;
             } 
             if ($r->hasMethod('afterroute')) {
                 $m = $r->getMethod('afterroute');
-                $customAfter = $m->getDeclaringClass()->getName() !== $this->baseControllerClass;
+                $custom_after = $m->getDeclaringClass()->getName() !== $this->base_controller_class;
             }
-            return $customBefore || $customAfter;
+            return $custom_before || $custom_after;
         } catch (\Throwable $e) {
             return false;
         }
@@ -372,7 +412,8 @@ class App {
     }
 
     public function __call(string $name, array $arguments): mixed
-    {        if (method_exists($this->atomic, $name)) {
+    {
+        if (method_exists($this->atomic, $name)) {
             return $this->atomic->$name(...$arguments);
         }
         throw new \Exception("Method {$name} not found");
@@ -393,10 +434,10 @@ class App {
 
     public function register_middleware(): self
     {
-        $configFile = ATOMIC_CONFIG . 'middleware.php';
-        $resolvedConfigFile = realpath($configFile);
-        if ($resolvedConfigFile !== false && is_file($resolvedConfigFile) && is_readable($resolvedConfigFile)) {
-            $aliases = require $resolvedConfigFile;
+        $config_file = ATOMIC_CONFIG . 'middleware.php';
+        $resolved_config_file = realpath($config_file);
+        if ($resolved_config_file !== false && is_file($resolved_config_file) && is_readable($resolved_config_file)) {
+            $aliases = require $resolved_config_file;
             if (is_array($aliases)) {
                 foreach ($aliases as $name => $class) {
                     MiddlewareStack::register_alias($name, $class);
@@ -409,26 +450,26 @@ class App {
     public function register_core_plugins(...$plugin_classes): self
     {
         if (empty($plugin_classes)) {
-            $providersConfig = ATOMIC_CONFIG . 'providers.php';
-            $resolvedProvidersConfig = realpath($providersConfig);
-            if ($resolvedProvidersConfig !== false && is_file($resolvedProvidersConfig) && is_readable($resolvedProvidersConfig)) {
-                $providers = require $resolvedProvidersConfig;
+            $providers_config = ATOMIC_CONFIG . 'providers.php';
+            $resolved_providers_config = realpath($providers_config);
+            if ($resolved_providers_config !== false && is_file($resolved_providers_config) && is_readable($resolved_providers_config)) {
+                $providers = require $resolved_providers_config;
                 $plugin_classes = $providers['plugins'] ?? [];
             }
         }
 
         $manager = PluginManager::instance();
         
-        foreach ($plugin_classes as $pluginClass) {
-            if (!class_exists($pluginClass)) {
-                Log::warning("Plugin class not found: {$pluginClass}");
+        foreach ($plugin_classes as $plugin_class) {
+            if (!class_exists($plugin_class)) {
+                Log::warning("Plugin class not found: {$plugin_class}");
                 continue;
             }
             
             try {
-                $manager->register(new $pluginClass($this));
+                $manager->register(new $plugin_class($this));
             } catch (\Throwable $e) {
-                Log::error("Failed to register plugin {$pluginClass}: " . $e->getMessage());
+                Log::error("Failed to register plugin {$plugin_class}: " . $e->getMessage());
             }
         }
         
@@ -441,19 +482,7 @@ class App {
         $manager->load_user_plugins();
         $manager->register_all();
         $manager->boot_all();
-        Hook::instance()->do_action(ApplicationHook::AFTER_PLUGINS_BOOTED, $this, $manager);
-
-        $route_types = array_keys($this->queued_route_types);
-        if ($route_types === []) {
-            $route_types = [$this->detect_request_type()];
-        }
-
-        foreach ($route_types as $request_type) {
-            $this->load_routes_for($request_type, ...($this->queued_route_files[$request_type] ?? []));
-            $manager->load_plugin_routes_for($request_type);
-            Hook::instance()->do_action(ApplicationHook::AFTER_ROUTES_REGISTERED, $this, $request_type);
-        }
-
+        Hook::instance()->do_action(ApplicationHook::PLUGINS_LOADED, $this, $manager);
         return $this;
     }
 
@@ -468,13 +497,31 @@ class App {
         return $this;
     }
 
+    public function config_loaded(string $loader): self
+    {
+        Hook::instance()->do_action(ApplicationHook::CONFIG_LOADED, $this, $loader);
+        return $this;
+    }
+
+    public function core_ready(): self
+    {
+        Hook::instance()->do_action(ApplicationHook::CORE_READY, $this);
+        return $this;
+    }
+
+    public function app_bootstrapped(): self
+    {
+        Hook::instance()->do_action(ApplicationHook::APP_BOOTSTRAPPED, $this);
+        return $this;
+    }
+
     public function register_user_provider(?string $provider_class = null): self
     {
         if ($provider_class === null) {
-            $providersConfig = ATOMIC_CONFIG . 'providers.php';
-            $resolvedProvidersConfig = realpath($providersConfig);
-            if ($resolvedProvidersConfig !== false && is_file($resolvedProvidersConfig) && is_readable($resolvedProvidersConfig)) {
-                $providers = require $resolvedProvidersConfig;
+            $providers_config = ATOMIC_CONFIG . 'providers.php';
+            $resolved_providers_config = realpath($providers_config);
+            if ($resolved_providers_config !== false && is_file($resolved_providers_config) && is_readable($resolved_providers_config)) {
+                $providers = require $resolved_providers_config;
                 $provider_class = $providers['user_provider'] ?? null;
             }
         }

@@ -64,9 +64,16 @@ Current implementation note:
 
 Framework lifecycle hook names are defined in `Engine\Atomic\Hook\ApplicationHook`.
 
-- `ApplicationHook::AFTER_PLUGINS_BOOTED`: fires after all registered plugins finish booting and before queued route files are loaded. Use this to inspect enabled plugins or register additional route types.
-- `ApplicationHook::AFTER_ROUTES_REGISTERED`: fires after each queued route type is loaded. The callback receives the `App` instance and the request type string.
 - `ApplicationHook::BEFORE_SERVER_START`: fires once before `App::run()` starts the main server loop.
+
+Bootstrap lifecycle hooks:
+
+- `ApplicationHook::CONFIG_LOADED`: configuration is loaded; receives `App` and loader name.
+- `ApplicationHook::PREFLY_FAILED`: environment validation failed before output and exit; receives `App`, failed messages, and raw checks.
+- `ApplicationHook::CORE_READY`: core services are ready after middleware registration; receives `App`.
+- `ApplicationHook::ROUTES_REGISTERED`: route files for one request type are loaded; receives `App`, request type, loaded files, and source (`app` or `plugin`).
+- `ApplicationHook::PLUGINS_LOADED`: plugins are registered and booted before plugin routes load; receives `App` and `PluginManager`.
+- `ApplicationHook::APP_BOOTSTRAPPED`: bootstrap is complete and about to return the app; receives `App`.
 
 Example:
 
@@ -76,11 +83,11 @@ use Engine\Atomic\Hook\ApplicationHook;
 use Engine\Atomic\Hook\Hook;
 
 Hook::instance()->add_action(
-    ApplicationHook::AFTER_ROUTES_REGISTERED,
-    function (App $app, string $requestType): void {
-        $app->set("PLUGIN.MyPlugin.routes.{$requestType}", true);
+    ApplicationHook::ROUTES_REGISTERED,
+    function (App $app, string $request_type, array $files, string $source): void {
+        $app->set("PLUGIN.MyPlugin.routes.{$request_type}.{$source}", $files);
     },
     10,
-    2
+    4
 );
 ```

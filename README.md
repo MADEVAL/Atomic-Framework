@@ -201,27 +201,27 @@ return [
 The bootstrap chain in `bootstrap/app.php` initializes the application via a fluent interface:
 
 ```php
-$application = App::instance($atomic)
-    ->prefly()                     // Verify PHP version, extensions, directory permissions
-    ->register_logger()            // Initialize structured logging
-    ->register_exception_handler()
-    ->register_locales()           // Set up i18n
-    ->register_unload_handler()
-    ->register_middleware()        // Load middleware aliases
-    ->register_routes()            // Queue route files by request type
-    ->register_core_plugins()      // Register framework plugin providers
-    ->register_plugins()           // Activate registered plugins
-    ->init_session()               // Start session (lazy: only if cookie exists)
-    ->open_connections()           // Opens redis, memcached and db connections
-    ->register_locale_hrefs()      // Normalize prefixed locale path and PARAMS.lang
-    ->register_user_provider();    // Wire authentication backend
-```
+$application = App::instance($atomic);
 
-In generated applications, the bootstrap then initializes app-level event and hook registries:
-
-```php
 \App\Event\Application::instance()->init();
 \App\Hook\Application::instance()->init();
+
+$application
+    ->config_loaded($loader)
+    ->register_logger()            // Initialize structured logging
+    ->register_exception_handler()
+    ->prefly()                     // Verify PHP version, extensions, directory permissions
+    ->register_locales()           // Set up i18n
+    ->register_locale_hrefs()      // Normalize prefixed locale path before route detection
+    ->register_unload_handler()
+    ->register_middleware()        // Load middleware aliases
+    ->register_core_plugins()      // Register framework plugin providers
+    ->register_plugins()           // Activate registered plugins
+    ->register_routes()            // Load app and plugin route files by request type
+    ->init_session()               // Start session (lazy: only if cookie exists)
+    ->open_connections()           // Opens redis, memcached and db connections
+    ->register_user_provider()     // Wire authentication backend
+    ->app_bootstrapped();
 ```
 
 ### Routing

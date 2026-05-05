@@ -14,32 +14,37 @@ $f3 = \Base::instance();
 switch (ATOMIC_LOADER) {
     case 'php':
         (new PhpConfigLoader($f3))->load();
+        $loader = 'php';
         break;
     case 'env':
     default:
         ConfigLoader::init($f3, ATOMIC_ENV);
+        $loader = 'env';
         break;
 }
 
 $app = App::instance($f3);
 
-$app->prefly()
-    ->register_logger()
-    ->register_exception_handler()
-    ->register_locales()
-    ->register_unload_handler()
-    ->register_middleware()
-    ->register_routes()
-    ->register_core_plugins()
-    ->register_plugins()
-    ->init_session()
-    ->open_connections()
-    ->register_locale_hrefs()
-    ->register_user_provider()
-;
-
 \App\Event\Application::instance()->init();
 \App\Hook\Application::instance()->init();
+
+$app->config_loaded($loader)
+    ->register_logger()
+    ->register_exception_handler()
+    ->prefly()
+    ->register_locales()
+    ->register_locale_hrefs()
+    ->register_unload_handler()
+    ->register_middleware()
+    ->core_ready()
+    ->register_core_plugins()
+    ->register_plugins()
+    ->register_routes()
+    ->init_session()
+    ->open_connections()
+    ->register_user_provider()
+    ->app_bootstrapped()
+;
 ```
 
 ### What `App` manages
@@ -76,7 +81,9 @@ Request type is detected from the current path:
 
 Framework route files are resolved from `FRAMEWORK_ROUTES`.
 
-`register_routes()` queues the detected route group. Plugins can add route file types during plugin registration or `ApplicationHook::AFTER_PLUGINS_BOOTED` with `register_route_type()`. `register_plugins()` then loads matching framework/app route files and booted plugin route files once.
+`register_plugins()` loads, registers, and boots plugins, then fires `ApplicationHook::PLUGINS_LOADED`. `register_routes()` runs after plugins are ready, loads the detected framework/app route group, fires `ApplicationHook::ROUTES_REGISTERED` with source `app`, then loads booted plugin route files and fires `ApplicationHook::ROUTES_REGISTERED` with source `plugin`. Plugins can add route file types during plugin registration or `ApplicationHook::PLUGINS_LOADED` with `register_route_type()`.
+
+Plugin registration and boot run before `open_connections()`. Plugin code that needs an early database, Redis, or Memcached connection can opt in with `ConnectionManager::instance()->get_db()`, `get_redis()`, or `get_memcached()`, but should handle connection failures explicitly.
 
 ### Bootstrap constants and PHP error logging
 
