@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Tests\Engine\CLI;
 
+use Engine\Atomic\App\PluginManager;
+use Engine\Atomic\Core\App;
 use Engine\Atomic\CLI\Console\Input;
 use Engine\Atomic\CLI\Console\Output;
 use PHPUnit\Framework\TestCase;
@@ -65,6 +67,22 @@ class PluginTest extends TestCase
         $this->assertFileDoesNotExist($this->tmp_dir . DIRECTORY_SEPARATOR . 'Plugin123Tools' . DIRECTORY_SEPARATOR . 'Plugin123Tools.php');
     }
 
+    public function test_plugin_make_creates_loadable_plugin(): void
+    {
+        $class_name = 'LoadablePlugin';
+        $cli = $this->make_cli([$class_name]);
+        $cli->plugin_make();
+
+        $this->reset_plugin_manager();
+        App::atomic()->set('USER_PLUGINS', $this->tmp_dir);
+
+        $manager = PluginManager::instance();
+        $manager->load_user_plugins();
+
+        $this->assertTrue($manager->has($class_name));
+        $this->assertSame($class_name, $manager->get($class_name)->get_plugin_name());
+    }
+
     private function make_cli(array $args): object
     {
         $stdout = fopen('php://memory', 'r+');
@@ -119,5 +137,11 @@ class PluginTest extends TestCase
         }
 
         rmdir($path);
+    }
+
+    private function reset_plugin_manager(): void
+    {
+        $ref = new \ReflectionClass(PluginManager::class);
+        $ref->getProperty('instance')->setValue(null, null);
     }
 }

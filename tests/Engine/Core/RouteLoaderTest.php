@@ -135,6 +135,22 @@ class RouteLoaderTest extends TestCase
         $this->assertCount(1, $this->loader->get_files_for('feed'));
     }
 
+    public function test_register_route_type_rejects_empty_type(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Route type cannot be empty.');
+
+        $this->loader->register_route_type(' ', 'feed.php');
+    }
+
+    public function test_register_route_type_rejects_empty_filenames(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage("Route type 'feed' must define at least one file.");
+
+        $this->loader->register_route_type('feed', ['', '  ']);
+    }
+
     public function test_app_registers_custom_route_type(): void
     {
         App::instance()->register_route_type('events', 'events.php');

@@ -16,6 +16,24 @@ The repository does **not** include application-specific WebSocket handlers by d
 
 Enable `Engine\Atomic\Plugins\WebSockets\WebSockets` as a plugin before loading WebSocket routes. The plugin owns the Workerman dependencies; run `composer install` in `engine/Atomic/Plugins/WebSockets` when the root application does not already provide them.
 
+Minimal bootstrap for a routed WebSocket worker:
+
+```php
+use Engine\Atomic\Core\App;
+use Engine\Atomic\Plugins\WebSockets\RoutedWebSocketServer;
+use Engine\Atomic\Plugins\WebSockets\WebSockets;
+
+$app = App::instance($atomic)
+    ->register_config()
+    ->register_middleware()
+    ->register_core_plugins(WebSockets::class)
+    ->register_plugins();
+
+(new RoutedWebSocketServer($app->get('WS.listen'), 2))->run();
+```
+
+`WebSockets::register()` adds the `websocket` route type. During `register_plugins()`, Atomic loads app and plugin `routes/websocket.php` files before the routed server starts.
+
 ### Route dispatch
 
 WebSocket routes are registered through the plugin router in `routes/websocket.php`:
@@ -53,6 +71,19 @@ use Engine\Atomic\Plugins\WebSockets\RoutedWebSocketServer;
 ```
 
 The WebSockets plugin registers the `websocket` route type through the normal plugin lifecycle. Load app and plugin `routes/websocket.php` files during application/plugin bootstrap before starting `RoutedWebSocketServer`; the server dispatches each message through `WebSocketDispatcher`, rejects unknown paths cleanly, and leaves connect/disconnect hooks empty. Extend `Server` directly when the application needs custom connection lifecycle, pub/sub, or task mapping behavior.
+
+### Testing
+
+Default unit tests should not require a WebSocket server, Redis server, or any other external process to already be running. Keep dispatcher, router, route-loader, and scaffold coverage process-free.
+
+Use a smoke test to verify plugin dependencies can autoload after running Composer in the plugin directory:
+
+```bash
+cd engine/Atomic/Plugins/WebSockets
+composer install
+```
+
+Longer end-to-end tests that start a real WebSocket worker should live in an integration suite, own the worker lifecycle, choose a free local port, clean up after themselves, and be gated behind an environment flag such as `RUN_WS_INTEGRATION=1`.
 
 ### Base server API
 
@@ -120,7 +151,7 @@ If `subscribe_to_channel(...)` was called in `setup()`, `run()` will start a Red
 
 Behavior of `start_pubsub(...)`:
 
-1. Connects to Redis using `REDIS.host` and `REDIS.port`.
+1. Connects to Redis using `REDIS.host`, `REDIS.port`, optional `REDIS.password`, and optional `REDIS.db`.
 2. Subscribes to the configured channel.
 3. Decodes each payload as JSON.
 4. Reads `task_id`.
@@ -186,6 +217,6 @@ final class JobsServer extends Server
 
 ### Operational notes
 
-- `REDIS` defaults to `127.0.0.1:6379` when not configured.
+- `REDIS` is read from application configuration; the framework config loaders default it to `127.0.0.1:6379`.
 - `LOGS` is mandatory for both the server and the bundled test client.
 - Daemon mode rewrites Workerman argv to `start -d`.

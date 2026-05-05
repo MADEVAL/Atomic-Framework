@@ -65,6 +65,16 @@ class WebSocketHandlerStub
     }
 }
 
+class WebSocketInstanceHandlerStub
+{
+    public static array $calls = [];
+
+    public function receive(Connection $conn, string $message, array $params): void
+    {
+        self::$calls[] = [$message, $params];
+    }
+}
+
 class WebSocketConnectMiddlewarePassStub implements WebSocketConnectMiddleware
 {
     public static array $calls = [];
@@ -129,6 +139,7 @@ class WebSocketDispatcherTest extends TestCase
         WebSocketConnectMiddlewarePassStub::$calls = [];
         WebSocketConnectMiddlewareBlockStub::$calls = [];
         WebSocketHandlerStub::$calls = [];
+        WebSocketInstanceHandlerStub::$calls = [];
     }
 
     public function test_dispatch_resolves_route_middleware_aliases(): void
@@ -273,6 +284,41 @@ class WebSocketDispatcherTest extends TestCase
         $server->test_message($this->connection_for_path('/jobs/456'), '{"type":"ping"}');
 
         $this->assertSame([[ '{"type":"ping"}', ['job_id' => '456'], null]], WebSocketHandlerStub::$calls);
+    }
+
+    public function test_dispatch_calls_instance_handler(): void
+    {
+        WebSocketRouter::register(
+            '/jobs/@job_id',
+            WebSocketInstanceHandlerStub::class . '->receive'
+        );
+
+        (new WebSocketDispatcher())->dispatch($this->connection_for_path('/jobs/789'), '{"type":"ping"}');
+
+        $this->assertSame([[ '{"type":"ping"}', ['job_id' => '789']]], WebSocketInstanceHandlerStub::$calls);
+    }
+
+    public function test_dispatch_rejects_invalid_handler_string(): void
+    {
+        WebSocketRouter::register('/jobs', 'invalid-handler');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid WebSocket handler: invalid-handler');
+
+        (new WebSocketDispatcher())->dispatch($this->connection_for_path('/jobs'), '{}');
+    }
+
+    public function test_plugin_workerman_dependencies_are_available_when_plugin_vendor_is_installed(): void
+    {
+        $autoload = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+        if (!is_file($autoload)) {
+            $this->markTestSkipped('WebSockets plugin vendor/autoload.php is missing; run composer install in engine/Atomic/Plugins/WebSockets for dependency smoke coverage.');
+        }
+
+        require_once $autoload;
+
+        $this->assertTrue(class_exists(\Workerman\Worker::class));
+        $this->assertTrue(class_exists(\Workerman\Redis\Client::class));
     }
 
     public function test_register_rejects_http_method_prefix(): void

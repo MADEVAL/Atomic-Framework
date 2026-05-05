@@ -140,9 +140,9 @@ php atomic init/key
 │   ├── Telemetry/          # Event tracking
 │   ├── Theme/              # Theme management and asset pipeline
 │   ├── Tools/              # Nonce, Transient
-│   ├── Validator/          # Validation traits
-│   └── Plugins/WebSockets/ # Workerman WebSocket plugin
-├── public/                 # Web root (themes, plugins, uploads)
+│   └── Validator/          # Validation traits
+├── plugins/                # User plugins
+├── public/                 # Web root (themes and uploads)
 ├── resources/views/        # View templates
 ├── routes/                 # Route definitions (web, API, CLI, schedule)
 ├── storage/                # Logs, cache, sessions, compiled views

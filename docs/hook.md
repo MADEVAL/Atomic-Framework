@@ -59,3 +59,28 @@ Current implementation note:
 
 - `remove_action()` and `remove_filter()` clear listeners by tag through the underlying event bus
 - the optional callback and priority arguments are accepted for API compatibility, but are not used to remove individual callbacks
+
+### Application lifecycle hooks
+
+Framework lifecycle hook names are defined in `Engine\Atomic\Hook\ApplicationHook`.
+
+- `ApplicationHook::AFTER_PLUGINS_BOOTED`: fires after all registered plugins finish booting and before queued route files are loaded. Use this to inspect enabled plugins or register additional route types.
+- `ApplicationHook::AFTER_ROUTES_REGISTERED`: fires after each queued route type is loaded. The callback receives the `App` instance and the request type string.
+- `ApplicationHook::BEFORE_SERVER_START`: fires once before `App::run()` starts the main server loop.
+
+Example:
+
+```php
+use Engine\Atomic\Core\App;
+use Engine\Atomic\Hook\ApplicationHook;
+use Engine\Atomic\Hook\Hook;
+
+Hook::instance()->add_action(
+    ApplicationHook::AFTER_ROUTES_REGISTERED,
+    function (App $app, string $requestType): void {
+        $app->set("PLUGIN.MyPlugin.routes.{$requestType}", true);
+    },
+    10,
+    2
+);
+```
