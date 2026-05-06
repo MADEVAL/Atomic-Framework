@@ -8,6 +8,12 @@ use PHPUnit\Framework\TestCase;
 
 class GuardTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        \Base::instance()->clear('SESSION');
+        \Engine\Atomic\Auth\Auth::instance()->logout();
+    }
+
     public function test_is_guest_when_no_user(): void
     {
         $this->assertTrue(Guard::is_guest());

@@ -131,7 +131,7 @@ class WebSocketDispatcherTest extends TestCase
     {
         $ref = new \ReflectionClass(MiddlewareStack::class);
         $ref->getProperty('aliases')->setValue(null, []);
-        $ref->getProperty('routeMap')->setValue(null, []);
+        $ref->getProperty('route_map')->setValue(null, []);
 
         App::instance()->set('WS_ROUTES', []);
         WebSocketMiddlewarePassStub::$calls = [];

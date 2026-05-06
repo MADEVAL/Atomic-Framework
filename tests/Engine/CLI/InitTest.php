@@ -9,13 +9,13 @@ use Engine\Atomic\Core\ID;
 
 class InitTest extends TestCase
 {
-    private string $tmpDir;
+    private string $tmp_dir;
     private object $cli;
 
     protected function setUp(): void
     {
-        $this->tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_init_test_' . uniqid();
-        mkdir($this->tmpDir, 0755, true);
+        $this->tmp_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_init_test_' . uniqid();
+        mkdir($this->tmp_dir, 0755, true);
 
         // Memory streams: non-TTY stdin → is_interactive() = false (no prompts issued)
         $stdout = fopen('php://memory', 'r+');
@@ -55,7 +55,7 @@ class InitTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->rimraf($this->tmpDir);
+        $this->rimraf($this->tmp_dir);
     }
 
     // ── Fixtures ──────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ class InitTest extends TestCase
         foreach ($values as $k => $v) {
             $content .= "{$k}={$v}\n";
         }
-        file_put_contents($this->tmpDir . DIRECTORY_SEPARATOR . '.env', $content);
+        file_put_contents($this->tmp_dir . DIRECTORY_SEPARATOR . '.env', $content);
     }
 
     private function makeEnvExample(array $values = []): void
@@ -75,7 +75,7 @@ class InitTest extends TestCase
         foreach ($values as $k => $v) {
             $content .= "{$k}={$v}\n";
         }
-        file_put_contents($this->tmpDir . DIRECTORY_SEPARATOR . '.env.example', $content);
+        file_put_contents($this->tmp_dir . DIRECTORY_SEPARATOR . '.env.example', $content);
     }
 
     /**
@@ -84,7 +84,7 @@ class InitTest extends TestCase
      */
     private function makePhpConfig(array $data): void
     {
-        $dir = $this->tmpDir . DIRECTORY_SEPARATOR . 'config';
+        $dir = $this->tmp_dir . DIRECTORY_SEPARATOR . 'config';
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
@@ -109,7 +109,7 @@ class InitTest extends TestCase
 
     public function test_create_dirs_makes_full_structure(): void
     {
-        $this->cli->exposeCreateDirs($this->tmpDir);
+        $this->cli->exposeCreateDirs($this->tmp_dir);
 
         foreach ([
             'app/Event', 'app/Hook', 'app/Http/Controllers', 'app/Http/Middleware',
@@ -120,7 +120,7 @@ class InitTest extends TestCase
             'storage/framework/fonts', 'storage/logs',
         ] as $dir) {
             $this->assertDirectoryExists(
-                $this->tmpDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir),
+                $this->tmp_dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir),
                 "Expected directory: {$dir}"
             );
         }
@@ -128,16 +128,16 @@ class InitTest extends TestCase
 
     public function test_create_dirs_returns_count_of_new_dirs(): void
     {
-        $count = $this->cli->exposeCreateDirs($this->tmpDir);
+        $count = $this->cli->exposeCreateDirs($this->tmp_dir);
 
         $this->assertGreaterThan(0, $count);
     }
 
     public function test_create_dirs_idempotent(): void
     {
-        $this->cli->exposeCreateDirs($this->tmpDir);
+        $this->cli->exposeCreateDirs($this->tmp_dir);
 
-        $count = $this->cli->exposeCreateDirs($this->tmpDir);
+        $count = $this->cli->exposeCreateDirs($this->tmp_dir);
 
         $this->assertSame(0, $count, 'Second run must report zero new directories');
     }
@@ -146,15 +146,15 @@ class InitTest extends TestCase
 
     public function test_create_stubs_makes_all_files(): void
     {
-        $this->cli->exposeCreateDirs($this->tmpDir);
-        $this->cli->exposeCreateStubs($this->tmpDir);
+        $this->cli->exposeCreateDirs($this->tmp_dir);
+        $this->cli->exposeCreateStubs($this->tmp_dir);
 
         foreach ([
             'routes/web.php', 'routes/api.php', 'routes/cli.php',
             'app/Event/Application.php', 'app/Hook/Application.php',
         ] as $stub) {
             $this->assertFileExists(
-                $this->tmpDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $stub),
+                $this->tmp_dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $stub),
                 "Expected stub: {$stub}"
             );
         }
@@ -162,24 +162,24 @@ class InitTest extends TestCase
 
     public function test_create_stubs_returns_correct_count(): void
     {
-        $this->cli->exposeCreateDirs($this->tmpDir);
+        $this->cli->exposeCreateDirs($this->tmp_dir);
 
-        $count = $this->cli->exposeCreateStubs($this->tmpDir);
+        $count = $this->cli->exposeCreateStubs($this->tmp_dir);
 
         $this->assertSame(5, $count);
     }
 
     public function test_create_stubs_does_not_overwrite_existing(): void
     {
-        $this->cli->exposeCreateDirs($this->tmpDir);
-        file_put_contents($this->tmpDir . '/routes/web.php', '<?php // custom');
+        $this->cli->exposeCreateDirs($this->tmp_dir);
+        file_put_contents($this->tmp_dir . '/routes/web.php', '<?php // custom');
 
-        $count = $this->cli->exposeCreateStubs($this->tmpDir);
+        $count = $this->cli->exposeCreateStubs($this->tmp_dir);
 
         $this->assertSame(4, $count, 'Existing stub must be skipped');
         $this->assertStringContainsString(
             '// custom',
-            file_get_contents($this->tmpDir . '/routes/web.php')
+            file_get_contents($this->tmp_dir . '/routes/web.php')
         );
     }
 
@@ -187,7 +187,7 @@ class InitTest extends TestCase
 
     public function test_write_stub_creates_file_and_parent_dirs(): void
     {
-        $path   = $this->tmpDir . '/deep/nested/file.php';
+        $path   = $this->tmp_dir . '/deep/nested/file.php';
         $result = $this->cli->exposeWriteStub($path, "<?php\n// hello\n");
 
         $this->assertSame(1, $result);
@@ -197,7 +197,7 @@ class InitTest extends TestCase
 
     public function test_write_stub_returns_zero_and_preserves_existing(): void
     {
-        $path = $this->tmpDir . '/existing.php';
+        $path = $this->tmp_dir . '/existing.php';
         file_put_contents($path, 'original');
 
         $result = $this->cli->exposeWriteStub($path, 'overwritten');
@@ -309,7 +309,7 @@ class InitTest extends TestCase
 
     public function test_read_env_keys_returns_empty_strings_when_no_file(): void
     {
-        $result = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $result = $this->cli->exposeReadEnvKeys($this->tmp_dir);
 
         $this->assertSame('', $result['APP_UUID']);
         $this->assertSame('', $result['APP_KEY']);
@@ -321,7 +321,7 @@ class InitTest extends TestCase
         $keys = $this->validKeys();
         $this->makeEnv($keys);
 
-        $result = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $result = $this->cli->exposeReadEnvKeys($this->tmp_dir);
 
         $this->assertSame($keys['APP_UUID'],           $result['APP_UUID']);
         $this->assertSame($keys['APP_KEY'],            $result['APP_KEY']);
@@ -333,9 +333,9 @@ class InitTest extends TestCase
         $this->makeEnv(['APP_UUID' => 'old-uuid', 'APP_KEY' => 'old-key', 'APP_ENCRYPTION_KEY' => 'old-enc']);
         $new = $this->validKeys();
 
-        $this->cli->exposeWriteEnvKeys($this->tmpDir, $new);
+        $this->cli->exposeWriteEnvKeys($this->tmp_dir, $new);
 
-        $result = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $result = $this->cli->exposeReadEnvKeys($this->tmp_dir);
         $this->assertSame($new['APP_UUID'],           $result['APP_UUID']);
         $this->assertSame($new['APP_KEY'],            $result['APP_KEY']);
         $this->assertSame($new['APP_ENCRYPTION_KEY'], $result['APP_ENCRYPTION_KEY']);
@@ -346,18 +346,18 @@ class InitTest extends TestCase
         $this->makeEnv(['APP_NAME' => 'MyApp']); // no key fields
 
         $new = $this->validKeys();
-        $this->cli->exposeWriteEnvKeys($this->tmpDir, $new);
+        $this->cli->exposeWriteEnvKeys($this->tmp_dir, $new);
 
-        $content = file_get_contents($this->tmpDir . '/.env');
+        $content = file_get_contents($this->tmp_dir . '/.env');
         $this->assertStringContainsString('APP_NAME=MyApp', $content, 'Existing field preserved');
         $this->assertStringContainsString('APP_UUID=' . $new['APP_UUID'], $content);
     }
 
     public function test_write_env_keys_noop_when_no_env_or_example(): void
     {
-        $this->cli->exposeWriteEnvKeys($this->tmpDir, $this->validKeys());
+        $this->cli->exposeWriteEnvKeys($this->tmp_dir, $this->validKeys());
 
-        $this->assertFileDoesNotExist($this->tmpDir . '/.env');
+        $this->assertFileDoesNotExist($this->tmp_dir . '/.env');
     }
 
     public function test_write_env_keys_copies_example_when_env_missing(): void
@@ -368,9 +368,9 @@ class InitTest extends TestCase
         ]);
         $new = $this->validKeys();
 
-        $this->cli->exposeWriteEnvKeys($this->tmpDir, $new);
+        $this->cli->exposeWriteEnvKeys($this->tmp_dir, $new);
 
-        $env_path = $this->tmpDir . '/.env';
+        $env_path = $this->tmp_dir . '/.env';
         $this->assertFileExists($env_path);
         $content = file_get_contents($env_path);
         $this->assertStringContainsString('DB_HOST=127.0.0.1', $content, '.env.example content preserved');
@@ -381,7 +381,7 @@ class InitTest extends TestCase
 
     public function test_read_php_keys_returns_empty_strings_when_no_file(): void
     {
-        $result = $this->cli->exposeReadPhpKeys($this->tmpDir);
+        $result = $this->cli->exposeReadPhpKeys($this->tmp_dir);
 
         $this->assertSame('', $result['APP_UUID']);
         $this->assertSame('', $result['APP_KEY']);
@@ -397,7 +397,7 @@ class InitTest extends TestCase
             'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
         ]);
 
-        $result = $this->cli->exposeReadPhpKeys($this->tmpDir);
+        $result = $this->cli->exposeReadPhpKeys($this->tmp_dir);
 
         $this->assertSame($keys['APP_UUID'],           $result['APP_UUID']);
         $this->assertSame($keys['APP_KEY'],            $result['APP_KEY']);
@@ -414,9 +414,9 @@ class InitTest extends TestCase
         ]);
         $new = $this->validKeys();
 
-        $this->cli->exposeWritePhpKeys($this->tmpDir, $new);
+        $this->cli->exposeWritePhpKeys($this->tmp_dir, $new);
 
-        $content = file_get_contents($this->tmpDir . '/config/app.php');
+        $content = file_get_contents($this->tmp_dir . '/config/app.php');
         $this->assertStringContainsString("'uuid' => '{$new['APP_UUID']}'",           $content);
         $this->assertStringContainsString("'key' => '{$new['APP_KEY']}'",             $content);
         $this->assertStringContainsString("'encryption_key' => '{$new['APP_ENCRYPTION_KEY']}'", $content);
@@ -425,20 +425,20 @@ class InitTest extends TestCase
     public function test_write_php_keys_does_nothing_when_file_absent(): void
     {
         // No config/app.php - must not throw; just emits a warning via output
-        $this->cli->exposeWritePhpKeys($this->tmpDir, $this->validKeys());
+        $this->cli->exposeWritePhpKeys($this->tmp_dir, $this->validKeys());
 
-        $this->assertFileDoesNotExist($this->tmpDir . '/config/app.php');
+        $this->assertFileDoesNotExist($this->tmp_dir . '/config/app.php');
     }
 
     public function test_write_php_keys_preserves_file_when_keys_not_in_config(): void
     {
-        $dir = $this->tmpDir . DIRECTORY_SEPARATOR . 'config';
+        $dir = $this->tmp_dir . DIRECTORY_SEPARATOR . 'config';
         mkdir($dir, 0755, true);
         // Config file with no matching key entries
         $content = "<?php\ndeclare(strict_types=1);\n\nreturn [\n    'name' => 'MyApp',\n];\n";
         file_put_contents($dir . DIRECTORY_SEPARATOR . 'app.php', $content);
 
-        $this->cli->exposeWritePhpKeys($this->tmpDir, $this->validKeys());
+        $this->cli->exposeWritePhpKeys($this->tmp_dir, $this->validKeys());
 
         // File content unchanged - regex found no keys to replace
         $this->assertSame($content, file_get_contents($dir . DIRECTORY_SEPARATOR . 'app.php'));
@@ -451,10 +451,10 @@ class InitTest extends TestCase
         $this->makeEnvExample(['APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '']);
         $this->makePhpConfig(['uuid' => '', 'key' => '', 'encryption_key' => '']);
 
-        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+        $result = $this->cli->exposeSyncKeys($this->tmp_dir);
 
         $this->assertTrue($result);
-        $env_keys = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $env_keys = $this->cli->exposeReadEnvKeys($this->tmp_dir);
         $this->assertTrue(ID::is_valid_uuid_v4($env_keys['APP_UUID']), 'Generated UUID must be valid');
         $this->assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $env_keys['APP_KEY']);
     }
@@ -465,10 +465,10 @@ class InitTest extends TestCase
         $this->makeEnv($keys);
         $this->makePhpConfig(['uuid' => '', 'key' => '', 'encryption_key' => '']);
 
-        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+        $result = $this->cli->exposeSyncKeys($this->tmp_dir);
 
         $this->assertTrue($result);
-        $php_keys = $this->cli->exposeReadPhpKeys($this->tmpDir);
+        $php_keys = $this->cli->exposeReadPhpKeys($this->tmp_dir);
         $this->assertSame($keys['APP_UUID'], $php_keys['APP_UUID']);
         $this->assertSame($keys['APP_KEY'],  $php_keys['APP_KEY']);
     }
@@ -483,10 +483,10 @@ class InitTest extends TestCase
             'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
         ]);
 
-        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+        $result = $this->cli->exposeSyncKeys($this->tmp_dir);
 
         $this->assertTrue($result);
-        $env_keys = $this->cli->exposeReadEnvKeys($this->tmpDir);
+        $env_keys = $this->cli->exposeReadEnvKeys($this->tmp_dir);
         $this->assertSame($keys['APP_UUID'], $env_keys['APP_UUID']);
         $this->assertSame($keys['APP_KEY'],  $env_keys['APP_KEY']);
     }
@@ -501,11 +501,11 @@ class InitTest extends TestCase
             'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
         ]);
 
-        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+        $result = $this->cli->exposeSyncKeys($this->tmp_dir);
 
         $this->assertTrue($result);
         // Keys unchanged
-        $this->assertSame($keys['APP_UUID'], $this->cli->exposeReadEnvKeys($this->tmpDir)['APP_UUID']);
+        $this->assertSame($keys['APP_UUID'], $this->cli->exposeReadEnvKeys($this->tmp_dir)['APP_UUID']);
     }
 
     public function test_sync_returns_false_on_mismatch_in_non_interactive_mode(): void
@@ -521,7 +521,7 @@ class InitTest extends TestCase
             'encryption_key' => $b['APP_ENCRYPTION_KEY'],
         ]);
 
-        $result = $this->cli->exposeSyncKeys($this->tmpDir);
+        $result = $this->cli->exposeSyncKeys($this->tmp_dir);
 
         $this->assertFalse($result);
     }

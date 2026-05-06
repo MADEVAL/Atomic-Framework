@@ -7,12 +7,12 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Methods;
 use Engine\Atomic\Core\Traits\Singleton;
-use Engine\Atomic\Hook\Hook;
 
 class System {
     use Singleton;
 
     protected App $atomic;
+    private bool $initialized = false;
 
     private function __construct()
     {
@@ -21,6 +21,9 @@ class System {
 
     public function init(): void
     {
+        if ($this->initialized) return;
+        $this->initialized = true;
+
         add_filter('powered_by', function($text){
             return $text . ' | Powered by Atomic';
         });
@@ -35,6 +38,7 @@ class System {
             $classes[] = $device;
             return $classes;
         });
+
     }
 
 }

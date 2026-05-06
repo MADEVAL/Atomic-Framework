@@ -33,7 +33,7 @@ class ConfigParityTest extends TestCase
         // ── Flat scalars ──────────────────────────────────────────────────────
         'APP_UUID', 'CACHE', 'CACHE_PREFIX', 'DOMAIN', 'LANGUAGE',
         'ENCODING', 'TZ', 'APP_NAME', 'APP_KEY', 'APP_ENCRYPTION_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL',
-        'TELEMETRY_ADMIN_ONLY', 'QUEUE_DRIVER', 'QUEUE_NAME',
+        'TELEMETRY_ACCESS_MODE', 'QUEUE_DRIVER', 'QUEUE_NAME',
         'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
         'UI', 'ENQ_UI_FIX', 'TEMP', 'LOGS', 'LOCALES', 'FONTS', 'FONTS_TEMP',
         'MIGRATIONS', 'MIGRATIONS_BUNDLED', 'MIGRATIONS_CORE',
@@ -42,7 +42,7 @@ class ConfigParityTest extends TestCase
         'THEME', 'PORTS', 'WS',
         'DB_CONFIG', 'REDIS', 'MEMCACHED', 'MUTEX', 'MAIL',
         'MAILER', 'SESSION_CONFIG', 'JAR', 'CORS', 'RATE_LIMITER', 'QUEUE',
-        'i18n', 'OAUTH', 'MONOPAY',
+        'ACCESS', 'i18n', 'OAUTH', 'MONOPAY',
     ];
 
     // ── Setup ─────────────────────────────────────────────────────────────────

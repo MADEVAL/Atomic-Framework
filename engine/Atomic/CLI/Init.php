@@ -5,6 +5,8 @@ namespace Engine\Atomic\CLI;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\ID;
+use Engine\Atomic\Core\Hash;
+use Engine\Atomic\Auth\ConfigUserStore;
 use Engine\Atomic\Core\Migrations as CoreMigrations;
 use Engine\Atomic\CLI\Init\InitInstaller;
 use Engine\Atomic\CLI\Init\InitScaffold;
@@ -28,15 +30,15 @@ trait Init
         $root = ATOMIC_DIR;
 
         $this->output->writeln("  " . Style::yellow('[1/6]', true) . " Synchronizing application keys...");
-        $keySyncResult = $this->synchronize_application_keys($root);
-        if ($keySyncResult === false) {
+        $key_sync_result = $this->synchronize_application_keys($root);
+        if ($key_sync_result === false) {
             return;
         }
         $this->output->writeln();
 
         $this->output->writeln("  " . Style::yellow('[2/6]', true) . " Configuration setup...");
-        $configSource = $this->choose_config_source();
-        $this->initialize_config_source($root, $configSource);
+        $config_source = $this->choose_config_source();
+        $this->initialize_config_source($root, $config_source);
         $this->output->writeln();
 
         $this->output->writeln("  " . Style::yellow('[3/6]', true) . " Creating directories and files...");
@@ -138,20 +140,20 @@ trait Init
         $this->output->writeln('  Generating new keys...');
 
         // Generate new keys
-        $newKeys = [
+        $new_keys = [
             'APP_UUID' => ID::uuid_v4(),
             'APP_KEY' => bin2hex(random_bytes(16)),
             'APP_ENCRYPTION_KEY' => $this->generate_encryption_key(),
         ];
 
         // Write to BOTH .env and PHP config
-        $this->write_keys_to_env($root, $newKeys);
-        $this->write_keys_to_php_config($root, $newKeys);
+        $this->write_keys_to_env($root, $new_keys);
+        $this->write_keys_to_php_config($root, $new_keys);
 
         $this->output->writeln();
         $this->output->writeln('  ' . Style::success_label() . ' New keys generated:');
-        foreach (array_keys($newKeys) as $keyName) {
-            $this->output->writeln("    - {$keyName}");
+        foreach (array_keys($new_keys) as $key_name) {
+            $this->output->writeln("    - {$key_name}");
         }
         $this->output->writeln();
         $this->output->writeln('  Written to:');
@@ -160,26 +162,59 @@ trait Init
         $this->output->writeln();
     }
 
+    private function detect_config_mode(): string
+    {
+        if (defined('ATOMIC_LOADER') && strtolower((string)ATOMIC_LOADER) === 'php') {
+            return 'php';
+        }
+
+        return 'env';
+    }
+
+    private function generate_access_user_key(string $guard, string $username, array $roles): string
+    {
+        $guard = $this->normalize_access_name($guard);
+        $username = $this->normalize_access_name($username);
+        $raw_key = bin2hex(random_bytes(32));
+
+        (new ConfigUserStore(ATOMIC_DIR))->upsert_user(
+            $guard,
+            $username,
+            ID::uuid_v4(),
+            Hash::password($raw_key),
+            $roles
+        );
+
+        return $raw_key;
+    }
+
+    private function normalize_access_name(string $name): string
+    {
+        $name = strtolower(trim($name));
+        $name = preg_replace('/[^a-z0-9_]+/', '_', $name) ?: 'telemetry';
+        return trim($name, '_') ?: 'telemetry';
+    }
+
     private function generate_and_set_application_keys(bool $force_new = false): array
     {
         if ($force_new) {
-            $appUuid = ID::uuid_v4();
-            $appKey = bin2hex(random_bytes(16));
-            $encryptionKey = $this->generate_encryption_key();
+            $app_uuid = ID::uuid_v4();
+            $app_key = bin2hex(random_bytes(16));
+            $encryption_key = $this->generate_encryption_key();
         } else {
-            $appUuid = $this->read_config_value('APP_UUID', ID::uuid_v4());
-            $appKey = $this->read_config_value('APP_KEY', bin2hex(random_bytes(16)));
-            $encryptionKey = $this->read_config_value('APP_ENCRYPTION_KEY', $this->generate_encryption_key());
+            $app_uuid = $this->read_config_value('APP_UUID', ID::uuid_v4());
+            $app_key = $this->read_config_value('APP_KEY', bin2hex(random_bytes(16)));
+            $encryption_key = $this->read_config_value('APP_ENCRYPTION_KEY', $this->generate_encryption_key());
         }
 
-        $this->set_config_value('APP_UUID', $appUuid);
-        $this->set_config_value('APP_KEY', $appKey);
-        $this->set_config_value('APP_ENCRYPTION_KEY', $encryptionKey);
+        $this->set_config_value('APP_UUID', $app_uuid);
+        $this->set_config_value('APP_KEY', $app_key);
+        $this->set_config_value('APP_ENCRYPTION_KEY', $encryption_key);
 
         return [
-            'APP_UUID' => $appUuid,
-            'APP_KEY' => $appKey,
-            'APP_ENCRYPTION_KEY' => $encryptionKey,
+            'APP_UUID' => $app_uuid,
+            'APP_KEY' => $app_key,
+            'APP_ENCRYPTION_KEY' => $encryption_key,
         ];
     }
 
@@ -201,11 +236,11 @@ trait Init
         $php_keys = $this->read_keys_from_php_config($root);
         
         // Check if keys exist and are valid (not empty, not default)
-        $envValid = $this->are_keys_valid($env_keys);
-        $phpValid = $this->are_keys_valid($php_keys);
+        $env_valid = $this->are_keys_valid($env_keys);
+        $php_valid = $this->are_keys_valid($php_keys);
         
         // Case 1: Both have valid keys - check if they match
-        if ($envValid && $phpValid) {
+        if ($env_valid && $php_valid) {
             $mismatch = $this->find_key_mismatches($env_keys, $php_keys);
             if (!empty($mismatch)) {
                 return $this->handle_key_mismatch($mismatch, $env_keys, $php_keys);
@@ -215,14 +250,14 @@ trait Init
         }
         
         // Case 2: One has valid keys, the other doesn't - sync from valid to invalid
-        if ($envValid && !$phpValid) {
+        if ($env_valid && !$php_valid) {
             $this->output->writeln("        Syncing keys from .env to PHP config...");
             $this->write_keys_to_php_config($root, $env_keys);
             $this->output->writeln("        " . Style::success_label() . " Keys written to both .env and config/app.php");
             return true;
         }
         
-        if ($phpValid && !$envValid) {
+        if ($php_valid && !$env_valid) {
             $this->output->writeln("        Syncing keys from PHP config to .env...");
             $this->write_keys_to_env($root, $php_keys);
             $this->output->writeln("        " . Style::success_label() . " Keys written to both .env and config/app.php");
@@ -231,18 +266,18 @@ trait Init
         
         // Case 3: Neither has valid keys - generate new ones for both
         $this->output->writeln("        Generating new application keys...");
-        $newKeys = [
+        $new_keys = [
             'APP_UUID' => ID::uuid_v4(),
             'APP_KEY' => bin2hex(random_bytes(16)),
             'APP_ENCRYPTION_KEY' => $this->generate_encryption_key(),
         ];
         
-        $this->write_keys_to_env($root, $newKeys);
-        $this->write_keys_to_php_config($root, $newKeys);
+        $this->write_keys_to_env($root, $new_keys);
+        $this->write_keys_to_php_config($root, $new_keys);
         
         $this->output->writeln("        " . Style::success_label() . " New keys generated and written to both .env and config/app.php:");
-        foreach (array_keys($newKeys) as $keyName) {
-            $this->output->writeln("          - {$keyName}");
+        foreach (array_keys($new_keys) as $key_name) {
+            $this->output->writeln("          - {$key_name}");
         }
         
         return true;
@@ -259,9 +294,9 @@ trait Init
         
         $contents = (string)file_get_contents($env_path);
         
-        foreach (array_keys($keys) as $keyName) {
-            if (preg_match('/^' . preg_quote($keyName, '/') . '=(.*)$/m', $contents, $matches)) {
-                $keys[$keyName] = trim($matches[1]);
+        foreach (array_keys($keys) as $key_name) {
+            if (preg_match('/^' . preg_quote($key_name, '/') . '=(.*)$/m', $contents, $matches)) {
+                $keys[$key_name] = trim($matches[1]);
             }
         }
         
@@ -270,14 +305,14 @@ trait Init
     
     private function read_keys_from_php_config(string $root): array
     {
-        $configPath = $root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'app.php';
+        $config_path = $root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'app.php';
         $keys = ['APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => ''];
         
-        if (!file_exists($configPath)) {
+        if (!file_exists($config_path)) {
             return $keys;
         }
         
-        $config = require $configPath;
+        $config = require $config_path;
         if (!is_array($config)) {
             return $keys;
         }
@@ -306,11 +341,11 @@ trait Init
     private function find_key_mismatches(array $env_keys, array $php_keys): array
     {
         $mismatches = [];
-        foreach (['APP_UUID', 'APP_KEY', 'APP_ENCRYPTION_KEY'] as $keyName) {
-            if ($env_keys[$keyName] !== $php_keys[$keyName]) {
-                $mismatches[$keyName] = [
-                    'env' => $env_keys[$keyName],
-                    'php' => $php_keys[$keyName],
+        foreach (['APP_UUID', 'APP_KEY', 'APP_ENCRYPTION_KEY'] as $key_name) {
+            if ($env_keys[$key_name] !== $php_keys[$key_name]) {
+                $mismatches[$key_name] = [
+                    'env' => $env_keys[$key_name],
+                    'php' => $php_keys[$key_name],
                 ];
             }
         }
@@ -329,8 +364,8 @@ trait Init
         $this->output->writeln('  The following application keys differ between .env and config/app.php:');
         $this->output->writeln();
         
-        foreach ($mismatches as $keyName => $values) {
-            $this->output->writeln("    {$keyName}:");
+        foreach ($mismatches as $key_name => $values) {
+            $this->output->writeln("    {$key_name}:");
             $this->output->writeln("      .env:           " . $this->truncate_key($values['env']));
             $this->output->writeln("      config/app.php: " . $this->truncate_key($values['php']));
             $this->output->writeln();
@@ -399,20 +434,20 @@ trait Init
         $env_path = $root . DIRECTORY_SEPARATOR . '.env';
         
         if (!file_exists($env_path)) {
-            $examplePath = $root . DIRECTORY_SEPARATOR . '.env.example';
-            if (!file_exists($examplePath)) {
+            $example_path = $root . DIRECTORY_SEPARATOR . '.env.example';
+            if (!file_exists($example_path)) {
                 $this->output->err('  ' . Style::error_label() . ' Cannot write keys: no .env file and no .env.example found.');
                 $this->output->err('  Create .env.example first or manually create .env file.');
                 return;
             }
-            @copy($examplePath, $env_path);
+            @copy($example_path, $env_path);
         }
         
         $contents = (string)file_get_contents($env_path);
         
-        foreach ($keys as $keyName => $keyValue) {
-            $pattern = '/^' . preg_quote($keyName, '/') . '=.*$/m';
-            $line = "{$keyName}={$keyValue}";
+        foreach ($keys as $key_name => $key_value) {
+            $pattern = '/^' . preg_quote($key_name, '/') . '=.*$/m';
+            $line = "{$key_name}={$key_value}";
             
             if (preg_match($pattern, $contents) === 1) {
                 $contents = (string)preg_replace($pattern, $line, $contents, 1);
@@ -426,42 +461,42 @@ trait Init
     
     private function write_keys_to_php_config(string $root, array $keys): void
     {
-        $configPath = $root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'app.php';
+        $config_path = $root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'app.php';
         
-        if (!file_exists($configPath)) {
+        if (!file_exists($config_path)) {
             $this->output->writeln('  ' . Style::warning_label() . ' Skipping PHP config: config/app.php does not exist.');
             return;
         }
         
-        $content = (string)file_get_contents($configPath);
+        $content = (string)file_get_contents($config_path);
         
-        $keyMap = [
+        $key_map = [
             'APP_UUID' => 'uuid',
             'APP_KEY' => 'key',
             'APP_ENCRYPTION_KEY' => 'encryption_key',
         ];
         
         $updated = false;
-        foreach ($keys as $keyName => $keyValue) {
-            $configKey = $keyMap[$keyName] ?? null;
-            if ($configKey === null) {
+        foreach ($keys as $key_name => $key_value) {
+            $config_key = $key_map[$key_name] ?? null;
+            if ($config_key === null) {
                 continue;
             }
             
-            $pattern = "/(['\"]){$configKey}\\1\\s*=>\\s*['\"][^'\"]*['\"]/";
+            $pattern = "/(['\"]){$config_key}\\1\\s*=>\\s*['\"][^'\"]*['\"]/";
             
             if (preg_match($pattern, $content)) {
-                $replacement = "'{$configKey}' => '{$keyValue}'";
+                $replacement = "'{$config_key}' => '{$key_value}'";
                 $content = preg_replace($pattern, $replacement, $content, 1);
                 $updated = true;
             } else {
-                $this->output->err('  ' . Style::error_label() . " Cannot update {$keyName}: key '{$configKey}' not found in config/app.php");
-                $this->output->err("  Add '{$configKey}' to the config array manually.");
+                $this->output->err('  ' . Style::error_label() . " Cannot update {$key_name}: key '{$config_key}' not found in config/app.php");
+                $this->output->err("  Add '{$config_key}' to the config array manually.");
             }
         }
         
         if ($updated) {
-            file_put_contents($configPath, $content);
+            file_put_contents($config_path, $content);
         }
     }
 
@@ -488,14 +523,14 @@ trait Init
         $o->writeln('  Runtime directories - permission ' . Style::yellow('0775', true) . ', must be writable by the web server:');
         $o->writeln();
 
-        $runtimeDirs = [
+        $runtime_dirs = [
             'storage/logs',
             'storage/framework/cache/data',
             'storage/framework/cache/fonts',
             'storage/framework/fonts',
             'public/uploads',
         ];
-        foreach ($runtimeDirs as $dir) {
+        foreach ($runtime_dirs as $dir) {
             $o->writeln("    mkdir -p {$dir} && chmod 0775 {$dir}");
         }
 
@@ -704,8 +739,8 @@ trait Init
      */
     public function logs_rotate(): void
     {
-        $logDir = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
-        $logs   = glob($logDir . DIRECTORY_SEPARATOR . 'php_errors-*.log');
+        $log_dir = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logs';
+        $logs   = glob($log_dir . DIRECTORY_SEPARATOR . 'php_errors-*.log');
 
         if (!is_array($logs) || count($logs) <= 10) {
             $this->output->writeln("Nothing to rotate (" . (is_array($logs) ? count($logs) : 0) . " log file(s)).");

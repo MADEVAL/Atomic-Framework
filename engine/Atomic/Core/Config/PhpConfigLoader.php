@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Engine\Atomic\Core\Config;
 
+use Engine\Atomic\Auth\ConfigUserStore;
 use Engine\Atomic\RateLimit\RateLimiter;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
@@ -112,7 +113,7 @@ class PhpConfigLoader {
             'APP_KEY'               => (string)$this->cfg('app', 'key', ''),
             'DEBUG_MODE'            => $this->cfg('app', 'debug', false) ? 'true' : 'false',
             'DEBUG_LEVEL'           => (string)$this->cfg('app', 'debug_level', 'error'),
-            'TELEMETRY_ADMIN_ONLY'  => (bool)$this->cfg_nested('app', 'telemetry.admin_only', false),
+            'TELEMETRY_ACCESS_MODE' => $this->telemetry_access_mode((string)$this->cfg_nested('app', 'telemetry.access_mode', 'none')),
             'THEME.envname'         => (string)$this->cfg('app', 'theme', 'default'),
             'QUEUE_DRIVER'          => (string)$this->cfg('queue', 'driver', 'db'),
             'QUEUE_NAME'            => (string)$this->cfg('queue', 'name', 'default'),
@@ -242,6 +243,10 @@ class PhpConfigLoader {
             'policies' => $resolved_rate_limiter_policies,
         ]);
 
+        $this->atomic->set('ACCESS', [
+            'guards' => (new ConfigUserStore(ATOMIC_DIR))->guards(),
+        ]);
+
         // ── QUEUE ──
         $queue_config = $this->configs['queue'] ?? [];
         $queue = [];
@@ -334,5 +339,11 @@ class PhpConfigLoader {
         }
 
         return $config;
+    }
+
+    private function telemetry_access_mode(string $mode): string
+    {
+        $mode = strtolower(trim($mode));
+        return in_array($mode, ['config', 'auth', 'none'], true) ? $mode : 'none';
     }
 }

@@ -10,6 +10,7 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 
 class CLI {
+    use Access;
     use DB;
     use File;
     use Init;
@@ -36,6 +37,9 @@ class CLI {
         $this->output->writeln('  init/guide         - Print the full manual setup guide (no interaction)');
         $this->output->writeln('  logs/rotate        - Delete php error log files beyond the most recent 10');
         $this->output->writeln('  plugin/make <name> - Create a user plugin scaffold');
+        $this->output->writeln('  access/user/create <guard> <username> [roles] - Create config auth user');
+        $this->output->writeln('  access/user/reset <guard> <username>          - Reset config auth user secret');
+        $this->output->writeln('  access/user/list                              - List config auth users');
         $this->output->writeln('  help               - View this help');
         $this->output->writeln('  migrations/init    - Create/verify the migrations tracking table');
         $this->output->writeln('  migrations/migrate - Run database migrations');
@@ -164,6 +168,8 @@ class CLI {
             '/init',
             '/init/key',
             '/plugin/make',
+            '/access/user/create',
+            '/access/user/reset',
             '/cache/clear',
             '/db/truncate',
             '/db/truncate/queue',

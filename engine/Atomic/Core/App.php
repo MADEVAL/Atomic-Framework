@@ -4,12 +4,14 @@ namespace Engine\Atomic\Core;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
-use Engine\Atomic\Auth\Session;
+use Engine\Atomic\Auth\Services\AuthSessionService;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Lang\I18n;
 use Engine\Atomic\Core\ExceptionHandlerRegistrar;
 use Engine\Atomic\Core\Prefly;
+use Engine\Atomic\Core\Middleware\AccessMiddleware;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
+use Engine\Atomic\Core\Middleware\RoleMiddleware;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\Auth\Auth;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
@@ -18,6 +20,7 @@ use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Hook\ApplicationHook;
 use Engine\Atomic\Hook\Hook;
+use Engine\Atomic\Session\Session;
 
 class App {
     protected static ?self $instance = null;
@@ -27,6 +30,7 @@ class App {
     protected array $extra_route_files = [];
     protected array $loaded_app_route_types = [];
     protected bool $server_start_hook_fired = false;
+    protected bool $auth_session_hooks_registered = false;
      
     public function __construct(\Base $atomic) {
         $this->atomic = $atomic;
@@ -434,6 +438,9 @@ class App {
 
     public function register_middleware(): self
     {
+        MiddlewareStack::register_alias('access', AccessMiddleware::class);
+        MiddlewareStack::register_alias('role', RoleMiddleware::class);
+
         $config_file = ATOMIC_CONFIG . 'middleware.php';
         $resolved_config_file = realpath($config_file);
         if ($resolved_config_file !== false && is_file($resolved_config_file) && is_readable($resolved_config_file)) {
@@ -447,7 +454,7 @@ class App {
         return $this;
     }
 
-    public function register_core_plugins(...$plugin_classes): self
+    public function register_core_plugins(array ...$plugin_classes): self
     {
         if (empty($plugin_classes)) {
             $providers_config = ATOMIC_CONFIG . 'providers.php';
@@ -544,6 +551,28 @@ class App {
         }
 
         Auth::instance()->set_user_provider($provider);
+        $this->register_auth_session_hooks();
         return $this;
+    }
+
+    private function register_auth_session_hooks(): void
+    {
+        if ($this->auth_session_hooks_registered) {
+            return;
+        }
+
+        $this->auth_session_hooks_registered = true;
+        Hook::instance()->add_action('SESSION_STARTED', function (): void {
+            $app = new \Engine\Atomic\Auth\Adapters\AppContextAdapter();
+            $session = new AuthSessionService(
+                $app,
+                new \Engine\Atomic\Auth\Adapters\PhpSessionAdapter(),
+                new \Engine\Atomic\Auth\Adapters\SessionDriverFactoryAdapter($app),
+                new \Engine\Atomic\Auth\Adapters\SystemClockAdapter(),
+                new \Engine\Atomic\Auth\Adapters\IdValidatorAdapter(),
+                new \Engine\Atomic\Auth\Adapters\LogAdapter(),
+            );
+            $session->validate_auth_session();
+        }, 10, 0);
     }
 }

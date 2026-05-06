@@ -7,12 +7,10 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Filesystem;
-use Engine\Atomic\Core\Guard;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\Response;
 use Engine\Atomic\Core\Redactor;
-use Engine\Atomic\Enums\Role;
 use Engine\Atomic\Queue\Enums\Status;
 use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
@@ -34,11 +32,9 @@ class Telemetry extends Controller
 
     public function beforeroute(\Base $atomic): void
     {
-        Redactor::init_from_hive($atomic);
+        parent::beforeroute($atomic);
 
-        if ($atomic->get('TELEMETRY_ADMIN_ONLY') && !Guard::has_role(Role::ADMIN)) {
-            $atomic->reroute('/login');
-        }
+        Redactor::init_from_hive($atomic);
     }
 
     public function queue(\Base $atomic, array $params = [], ?string $alias = null): void

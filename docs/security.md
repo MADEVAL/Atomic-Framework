@@ -40,6 +40,18 @@ if (!Guard::has_role(Role::ADMIN)) {
 }
 ```
 
+### Route protection
+
+Atomic route protection is implemented through middleware:
+
+- `Guard` checks the current authenticated user and roles.
+- `role:<slug>` enforces a role through the current auth user.
+- `access:<guard>` performs config-backed username/key login for tooling routes.
+
+See [`middleware.md`](middleware.md) for middleware setup and
+[`middleware.md#config-backed-access-middleware`](middleware.md#config-backed-access-middleware)
+for config-user access flows.
+
 ### Nonce protection
 
 Nonce tokens are provided by `Engine\Atomic\Tools\Nonce`.
@@ -121,7 +133,7 @@ Relevant behavior:
 - API and AJAX requests return JSON error payloads
 - stack traces are only included when debug is enabled
 - hive dumps are only written when logger debug mode is enabled
-- telemetry endpoints expose logs and dumps only if you route requests there, and access restriction depends on `TELEMETRY_ADMIN_ONLY`
+- telemetry endpoints expose logs and dumps only if you route requests there; by default `TELEMETRY_ACCESS_MODE=none`, and access restriction must be enabled with `config` or `auth`
 
 See `errorhandler.md` for the exact request flow.
 
@@ -132,4 +144,4 @@ See `errorhandler.md` for the exact request flow.
 3. Keep `APP_ENCRYPTION_KEY` valid and secret.
 4. Do normal input validation in addition to any sanitizer usage.
 5. Keep debug disabled in production unless you explicitly need it.
-6. Restrict telemetry with `TELEMETRY_ADMIN_ONLY` if diagnostic endpoints should not be public.
+6. Restrict telemetry with `TELEMETRY_ACCESS_MODE=config` or `TELEMETRY_ACCESS_MODE=auth` if diagnostic endpoints should not be public.

@@ -5,7 +5,6 @@ namespace Engine\Atomic\Auth;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Auth\Adapters\AppContextAdapter;
-use Engine\Atomic\Auth\Adapters\BcryptHasherAdapter;
 use Engine\Atomic\Auth\Adapters\IdValidatorAdapter;
 use Engine\Atomic\Auth\Adapters\LogAdapter;
 use Engine\Atomic\Auth\Adapters\MetaStorageAdapter;
@@ -18,7 +17,7 @@ use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
 use Engine\Atomic\Auth\Interfaces\LoginInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\Auth\Services\AuthService;
-use Engine\Atomic\Auth\Services\SessionService;
+use Engine\Atomic\Auth\Services\AuthSessionService;
 
 class Auth extends \Prefab implements LoginInterface
 {
@@ -28,7 +27,7 @@ class Auth extends \Prefab implements LoginInterface
     {
         if ($this->service === null) {
             $app = new AppContextAdapter();
-            $session_service = new SessionService(
+            $session_service = new AuthSessionService(
                 $app,
                 new PhpSessionAdapter(),
                 new SessionDriverFactoryAdapter($app),
@@ -44,7 +43,6 @@ class Auth extends \Prefab implements LoginInterface
                 new LogAdapter(),
                 new SystemClockAdapter(),
                 new PhpSessionAdapter(),
-                new BcryptHasherAdapter(),
                 new SessionManagerAdapter(),
             );
         }

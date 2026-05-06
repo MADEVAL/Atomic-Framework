@@ -5,7 +5,6 @@ namespace Engine\Atomic\Auth\Services;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Auth\Adapters\AppContextAdapter;
-use Engine\Atomic\Auth\Adapters\BcryptHasherAdapter;
 use Engine\Atomic\Auth\Adapters\LogAdapter;
 use Engine\Atomic\Auth\Adapters\MetaStorageAdapter;
 use Engine\Atomic\Auth\Adapters\PhpSessionAdapter;
@@ -17,6 +16,7 @@ use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
 use Engine\Atomic\Auth\Interfaces\HasRolesInterface;
 use Engine\Atomic\Auth\Interfaces\LoginInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
+use Engine\Atomic\Core\Hash;
 use Engine\Atomic\Enums\Role;
 
 class AuthService implements LoginInterface
@@ -32,13 +32,13 @@ class AuthService implements LoginInterface
         private LogAdapter             $logger,
         private SystemClockAdapter     $clock,
         private PhpSessionAdapter      $php_session,
-        private BcryptHasherAdapter    $hasher,
         private SessionManagerAdapter  $session_manager,
     ) {}
 
     public function set_user_provider(UserProviderInterface $provider): self
     {
         $this->user_provider = $provider;
+        $this->current_user = null;
         return $this;
     }
 
@@ -47,14 +47,14 @@ class AuthService implements LoginInterface
         try {
             $this->current_user = null;
 
-            $this->session->start($auth_id);
-            $this->php_session->regenerate_id(true);
+            $created_at = $this->clock->now();
+            $this->session->start_for_user($auth_id);
 
             $session_data = array_merge($context, [
                 'ip'          => $this->app->get('IP'),
                 'user_agent'  => $this->app->get('AGENT'),
                 'device_type' => $this->app->get_device_type(),
-                'created_at'  => $this->clock->now(),
+                'created_at'  => $created_at,
             ]);
 
             $this->meta->set_meta(
@@ -89,7 +89,7 @@ class AuthService implements LoginInterface
         }
 
         $password_hash = $user->get_password_hash();
-        if (!$password_hash || !$this->hasher->verify($secret, $password_hash)) {
+        if (!$password_hash || !Hash::verify_password($secret, $password_hash)) {
             $this->logger->warning('Auth login failed: invalid secret', [
                 'ip' => $this->app->get('IP'),
                 'credential_keys' => $credential_keys,
@@ -174,7 +174,8 @@ class AuthService implements LoginInterface
 
     public function get_current_user(): ?AuthenticatableInterface
     {
-        if (!$this->session->is_started()) {
+        $uuid = $this->app->get('SESSION.user_uuid');
+        if (!$this->session->is_started() && !$uuid) {
             return null;
         }
 
@@ -187,7 +188,6 @@ class AuthService implements LoginInterface
             throw new \RuntimeException('User provider not configured. Call set_user_provider() first.');
         }
 
-        $uuid = $this->app->get('SESSION.user_uuid');
         if ($uuid) {
             $user = $this->user_provider->find_by_id($uuid);
             if ($user) {

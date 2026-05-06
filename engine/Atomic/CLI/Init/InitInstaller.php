@@ -12,9 +12,9 @@ use Engine\Atomic\Core\Migrations as CoreMigrations;
 
 trait InitInstaller
 {
-    private string $initConfigMode = 'env';
-    private string $initRoot       = '';
-    private string $initEnvPath    = '';
+    private string $init_config_mode = 'env';
+    private string $init_root        = '';
+    private string $init_env_path    = '';
     private function ask(string $label, ?string $default = null): string
     {
         if (!$this->input->is_interactive()) {
@@ -61,9 +61,9 @@ trait InitInstaller
             return $env_path;
         }
 
-        $examplePath = $root . DIRECTORY_SEPARATOR . '.env.example';
-        if (file_exists($examplePath)) {
-            if (@copy($examplePath, $env_path)) {
+        $example_path = $root . DIRECTORY_SEPARATOR . '.env.example';
+        if (file_exists($example_path)) {
+            if (@copy($example_path, $env_path)) {
                 $this->output->writeln("        .env generated from .env.example");
                 return $env_path;
             }
@@ -116,9 +116,9 @@ trait InitInstaller
 
     private function configure_basic_env(string $env_path): void
     {
-        $appName = $this->read_config_value('APP_NAME', 'Atomic');
-        $this->set_config_value('APP_NAME', $appName);
-        $this->set_config_value('MAIL_FROM_NAME', $this->read_config_value('MAIL_FROM_NAME', $appName));
+        $app_name = $this->read_config_value('APP_NAME', 'Atomic');
+        $this->set_config_value('APP_NAME', $app_name);
+        $this->set_config_value('MAIL_FROM_NAME', $this->read_config_value('MAIL_FROM_NAME', $app_name));
     }
 
     private function choose_config_source(): string
@@ -145,14 +145,14 @@ trait InitInstaller
 
     private function initialize_config_source(string $root, string $mode): void
     {
-        $this->initRoot       = $root;
-        $this->initConfigMode = $mode === 'php' ? 'php' : 'env';
-        $this->initEnvPath    = '';
+        $this->init_root       = $root;
+        $this->init_config_mode = $mode === 'php' ? 'php' : 'env';
+        $this->init_env_path    = '';
 
-        $this->persist_config_loader_selection($root, $this->initConfigMode);
+        $this->persist_config_loader_selection($root, $this->init_config_mode);
 
-        if ($this->initConfigMode === 'env') {
-            $this->initEnvPath = $this->ensure_env_file($root);
+        if ($this->init_config_mode === 'env') {
+            $this->init_env_path = $this->ensure_env_file($root);
         }
     }
 
@@ -201,13 +201,13 @@ trait InitInstaller
 
     private function config_mode(): string
     {
-        return $this->initConfigMode;
+        return $this->init_config_mode;
     }
 
     private function read_config_value(string $key, string $default = ''): string
     {
-        if ($this->initConfigMode === 'env') {
-            return $this->read_env_value($this->initEnvPath, $key, $default);
+        if ($this->init_config_mode === 'env') {
+            return $this->read_env_value($this->init_env_path, $key, $default);
         }
 
         return $this->read_php_config_value($key, $default);
@@ -215,8 +215,8 @@ trait InitInstaller
 
     private function set_config_value(string $key, string $value): void
     {
-        if ($this->initConfigMode === 'env') {
-            $this->set_env_value($this->initEnvPath, $key, $value);
+        if ($this->init_config_mode === 'env') {
+            $this->set_env_value($this->init_env_path, $key, $value);
             return;
         }
 
@@ -225,48 +225,13 @@ trait InitInstaller
 
     private function read_php_config_file(string $name): array
     {
-        $path = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
+        $path = $this->init_root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $name . '.php';
         if (!file_exists($path)) {
             return [];
         }
 
         $data = require $path;
         return is_array($data) ? $data : [];
-    }
-
-    private function replace_php_config_value(string $filePath, array $path, string $newValue): bool
-    {
-        $contents = (string)file_get_contents($filePath);
-        $leafKey  = array_pop($path);
-        $escaped  = addcslashes($newValue, "'\\");
-
-        $leafPattern = "/('" . preg_quote($leafKey, '/') . "'\s*=>\s*)('[^']*'|\d+)/";
-        $replacement = "$1'" . $escaped . "'";
-
-        $offset = 0;
-        foreach ($path as $ancestor) {
-            $ancestorRegex = "/'" . preg_quote($ancestor, '/') . "'\s*=>/";
-            if (preg_match($ancestorRegex, $contents, $m, PREG_OFFSET_CAPTURE, $offset)) {
-                $offset = $m[0][1];
-            }
-        }
-
-        if ($offset > 0) {
-            $before = substr($contents, 0, $offset);
-            $after  = substr($contents, $offset);
-            $after  = (string)preg_replace($leafPattern, $replacement, $after, 1, $count);
-
-            if ($count > 0) {
-                return @file_put_contents($filePath, $before . $after) !== false;
-            }
-        }
-
-        $updated = (string)preg_replace($leafPattern, $replacement, $contents, 1, $count);
-        if ($count > 0) {
-            return @file_put_contents($filePath, $updated) !== false;
-        }
-
-        return false;
     }
 
     private function get_array_path_value(array $array, array $path, mixed $default = null): mixed
@@ -310,9 +275,9 @@ trait InitInstaller
         }
 
         [$file, $path] = $map;
-        $configPath = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $file . '.php';
-        if (!file_exists($configPath)) {
-            $this->report_init_issue("Missing config file {$configPath}; cannot read {$key}.");
+        $config_path = $this->init_root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $file . '.php';
+        if (!file_exists($config_path)) {
+            $this->report_init_issue("Missing config file {$config_path}; cannot read {$key}.");
             return $default;
         }
 
@@ -329,15 +294,43 @@ trait InitInstaller
         }
 
         [$file, $path] = $map;
-        $configPath = $this->initRoot . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $file . '.php';
-        if (!file_exists($configPath)) {
-            $this->report_init_issue("Missing config file {$configPath}; skipping {$key}.", true);
+        $config_path = $this->init_root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $file . '.php';
+        if (!file_exists($config_path)) {
+            $this->report_init_issue("Missing config file {$config_path}; skipping {$key}.", true);
             return;
         }
 
-        if (!$this->replace_php_config_value($configPath, $path, $value)) {
-            $this->report_init_issue("Could not update '{$key}' in {$configPath}; key not found or write failed.", true);
+        if (!$this->replace_php_config_scalar($config_path, $path, $value)) {
+            $this->report_init_issue("Could not update '{$key}' in {$config_path}; key not found or write failed.", true);
         }
+    }
+
+    private function replace_php_config_scalar(string $file_path, array $path, string $value): bool
+    {
+        $contents = (string)file_get_contents($file_path);
+        $leaf_key = array_pop($path);
+        if (!is_string($leaf_key) || $leaf_key === '') {
+            return false;
+        }
+
+        $offset = 0;
+        foreach ($path as $ancestor) {
+            if (!is_string($ancestor) || $ancestor === '') {
+                return false;
+            }
+
+            if (preg_match("/'" . preg_quote($ancestor, '/') . "'\s*=>/", $contents, $m, PREG_OFFSET_CAPTURE, $offset)) {
+                $offset = $m[0][1] + strlen($m[0][0]);
+            }
+        }
+
+        $pattern = "/('" . preg_quote($leaf_key, '/') . "'\s*=>\s*)('[^']*'|\d+|true|false)/";
+        $replacement = static fn (array $match): string => $match[1] . "'" . addcslashes($value, "'\\") . "'";
+        $before = $offset > 0 ? substr($contents, 0, $offset) : '';
+        $target = $offset > 0 ? substr($contents, $offset) : $contents;
+        $target = (string)preg_replace_callback($pattern, $replacement, $target, 1, $count);
+
+        return $count > 0 && @file_put_contents($file_path, $before . $target) !== false;
     }
 
     private function choose_main_driver(): string
@@ -432,7 +425,7 @@ trait InitInstaller
     private function boot_database(array $config): SQL
     {
         $atomic   = App::instance();
-        $dbConfig = [
+        $db_config = [
             'driver'                  => $config['driver'],
             'host'                    => $config['host'],
             'port'                    => $config['port'],
@@ -445,7 +438,7 @@ trait InitInstaller
             'prefix'                  => 'atomic_',
         ];
 
-        $atomic->set('DB_CONFIG', $dbConfig);
+        $atomic->set('DB_CONFIG', $db_config);
 
         $db = ConnectionManager::instance()->get_db();
         if (!$db instanceof SQL) {
@@ -561,8 +554,8 @@ trait InitInstaller
         }
 
         // Check if config/app.php exists
-        $appConfigPath = $root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'app.php';
-        if (file_exists($appConfigPath)) {
+        $app_config_path = $root . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'app.php';
+        if (file_exists($app_config_path)) {
             return 'php';
         }
 

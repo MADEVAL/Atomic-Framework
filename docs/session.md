@@ -1,28 +1,53 @@
 ## Session Management ##
 
-Atomic exposes session lifecycle helpers through `Engine\Atomic\Auth\Session` and storage inspection helpers through `Engine\Atomic\Session\SessionManager`.
+Atomic exposes the general session API through `Engine\Atomic\Session\Session`.
+Storage inspection helpers remain available through
+`Engine\Atomic\Session\SessionManager`.
 
-### Auth session facade
+### Core session facade
 
 ```php
-use Engine\Atomic\Auth\Session;
+use Engine\Atomic\Session\Session;
 
 Session::init();
 Session::start();
-Session::start('550e8400-e29b-41d4-a716-446655440000');
-
-if (Session::is_started()) {
-    // active
-}
-
-if (Session::is_expired()) {
-    // expired
-}
-
+Session::is_started();
 Session::destroy();
 ```
 
-The facade delegates to `Engine\Atomic\Auth\Services\SessionService`.
+`Session::init()` sets the configured session cookie name and starts the backend
+only when the current HTTP request already has that session cookie. CLI requests
+do not auto-start sessions.
+
+`Session::start()` takes no auth UUID. It starts the configured session driver
+and fires session hooks:
+
+- `SESSION_BEFORE_START` before the driver starts.
+- `SESSION_STARTED` after the backend is active.
+
+The core session service never reads or validates `SESSION.user_uuid`. Session
+data used by hidden pages, flash messages, CSRF, telemetry, or other framework
+features can exist without enabling auth.
+
+### Auth session behavior
+
+Auth session state is handled by `Engine\Atomic\Auth\Services\AuthSessionService`.
+It builds on the core session backend and owns only auth-specific keys:
+
+- `SESSION.user_uuid`
+- `SESSION.created_at`
+- `SESSION.admin_uuid`
+
+`AuthService::login_by_id()` starts an auth session with
+`AuthSessionService::start_for_user($auth_id)`. Logout and invalid auth sessions
+clear the auth keys without clearing unrelated `SESSION` data.
+
+Auth validation is registered as an optional hook consumer. `Hook\System` does
+not register auth validation globally. `App::register_user_provider()` registers
+the `SESSION_STARTED` auth validation listener only after a configured provider
+class exists and implements `UserProviderInterface`. Registration is guarded so
+calling `register_user_provider()` more than once does not duplicate the
+listener.
 
 ### Working with session data
 
@@ -77,7 +102,8 @@ For SQL-backed sessions, the returned shape is:
 ]
 ```
 
-For Redis-backed sessions, `get_session_data()` returns the decoded JSON payload stored under the configured Redis session prefix.
+For Redis-backed sessions, `get_session_data()` returns the decoded JSON payload
+stored under the configured Redis session prefix.
 
 ### Drivers
 

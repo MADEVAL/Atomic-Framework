@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Engine\Atomic\Core\Config;
 
+use Engine\Atomic\Auth\ConfigUserStore;
 use Engine\Atomic\RateLimit\RateLimiter;
 
 if (!defined( 'ATOMIC_START' ) ) exit; 
@@ -91,7 +92,7 @@ class ConfigLoader {
             'APP_KEY'               => $this->get_env('APP_KEY', ''),
             'DEBUG_MODE'            => $this->get_env('DEBUG_MODE', 'false'),
             'DEBUG_LEVEL'           => $this->get_env('DEBUG_LEVEL', 'error'),
-            'TELEMETRY_ADMIN_ONLY'  => filter_var($this->get_env('TELEMETRY_ADMIN_ONLY', 'false'), FILTER_VALIDATE_BOOLEAN),
+            'TELEMETRY_ACCESS_MODE' => $this->telemetry_access_mode((string)$this->get_env('TELEMETRY_ACCESS_MODE', 'none')),
             'THEME.envname'         => $this->get_env('THEME', 'default'),
             'QUEUE_DRIVER'          => $this->get_env('QUEUE_DRIVER', 'db'),
             'QUEUE_NAME'            => $this->get_env('QUEUE_NAME', 'default'),
@@ -199,6 +200,10 @@ class ConfigLoader {
             'policies' => $this->build_rate_limiter_policies(),
         ]);
 
+        $this->atomic->set('ACCESS', [
+            'guards' => (new ConfigUserStore(ATOMIC_DIR))->guards(),
+        ]);
+
         $this->atomic->set('QUEUE', [
             'db' => [
                 'queues' => $this->build_queue_config('QUEUE_DB_')
@@ -246,6 +251,12 @@ class ConfigLoader {
             'openrouter' => ['api_key' => $this->get_env('AI_OPENROUTER_API_KEY', '')],
             'globus'     => ['api_key' => $this->get_env('AI_GLOBUS_API_KEY', '')],
         ]);
+    }
+
+    private function telemetry_access_mode(string $mode): string
+    {
+        $mode = strtolower(trim($mode));
+        return in_array($mode, ['config', 'auth', 'none'], true) ? $mode : 'none';
     }
 
     protected function build_log_channels(): array {

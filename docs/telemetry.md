@@ -2,7 +2,112 @@
 
 Atomic telemetry is a built-in diagnostics panel that provides live visibility into the application's runtime state, queue jobs, and log output. It is a separate read-only interface served under `/telemetry`, distinct from the main application.
 
-Access can be restricted to admin users only via `TELEMETRY_ADMIN_ONLY`. All data returned by the telemetry endpoints is sanitized through the Redactor before being served - sensitive values, secrets, and filesystem paths are masked.
+All data returned by telemetry endpoints is sanitized through the Redactor before
+being served - sensitive values, secrets, and filesystem paths are masked.
+
+### Access
+
+Telemetry is public by default:
+
+```env
+TELEMETRY_ACCESS_MODE=none
+```
+
+It can be hidden in two ways:
+
+- `config` - use framework config users (`access:telemetry`) and telemetry roles.
+- `auth` - use the application's auth system and telemetry roles.
+
+Config-user middleware behavior:
+[`middleware.md#config-backed-access-middleware`](middleware.md#config-backed-access-middleware).
+
+CLI for creating and maintaining config users:
+[Config user commands](#config-user-commands).
+
+Required role slugs:
+
+- `telemetry.viewer` can read the dashboard, hive, logs, dumps, and queue view.
+- `telemetry.admin` is required for `POST /telemetry` requests.
+
+In `auth` mode, the application must register its normal auth user provider and
+the current user must implement `HasRolesInterface`.
+
+### Config user commands
+
+When `TELEMETRY_ACCESS_MODE=config`, telemetry access can be managed with the
+`access/user/*` command family. HTTP login behavior for `access:telemetry` is
+not repeated here; see
+[`middleware.md#config-backed-access-middleware`](middleware.md#config-backed-access-middleware).
+
+Create a telemetry config user:
+
+```bash
+php atomic access/user/create telemetry viewer telemetry.viewer
+```
+
+Create with an explicit secret and multiple roles:
+
+```bash
+php atomic access/user/create telemetry admin telemetry.viewer,telemetry.admin --secret="replace-me"
+```
+
+Reset a secret:
+
+```bash
+php atomic access/user/reset telemetry admin
+```
+
+List stored users:
+
+```bash
+php atomic access/user/list
+```
+
+Command parameter reference:
+
+- `access/user/create <guard> <username> [roles]` creates or updates a config-backed user record.
+- `<guard>` selects which access guard bucket receives the user (for telemetry use `telemetry`).
+- `<username>` is normalized to lowercase and used both as the login value and storage key.
+- `[roles]` accepts comma-separated role slugs (for telemetry: `telemetry.viewer`, `telemetry.admin`).
+- `--role=<slug>` or `--roles=<slug1,slug2>` can be used instead of or alongside `[roles]`; all role inputs are merged and deduplicated.
+- `--secret=<plain-text-secret>` sets an explicit secret; if omitted, a random 64-hex-character secret is generated.
+- `--force` allows overwrite when the user already exists for that guard.
+- `access/user/reset <guard> <username> [--secret=...]` updates only the stored `secret_hash` for an existing user.
+- `access/user/list` prints all configured guards/users and their roles from the config store.
+
+Framework structures used by these commands (CLI and persistence only):
+
+- `engine/Atomic/CLI/Access.php` parses positionals/options, normalizes names, derives roles, and dispatches create/reset/list behavior.
+- `engine/Atomic/Auth/ConfigUserStore.php` persists data to `storage/framework/access_users.php` under `guards.<guard>.users.<username>`.
+- `engine/Atomic/Core/Hash.php` hashes secrets before storage (`secret_hash`); cleartext secrets are shown once and never persisted.
+- `engine/Atomic/Core/ID.php` generates stable per-user auth IDs (`id`) on create.
+
+At request time, records are loaded into `ACCESS.guards.<guard>.users`, resolved
+by `ConfigUserProvider`, and enforced with `access:<guard>` and `role:<slug>`
+middleware; see
+[`middleware.md#config-backed-access-middleware`](middleware.md#config-backed-access-middleware)
+and
+[`middleware.md#built-in-role-middleware`](middleware.md#built-in-role-middleware).
+
+Config shape written by `access/user/create`:
+
+```php
+<?php
+return [
+    'guards' => [
+        'telemetry' => [
+            'users' => [
+                'viewer' => [
+                    'id' => 'uuid-v4',
+                    'username' => 'viewer',
+                    'secret_hash' => 'hashed-secret',
+                    'roles' => ['telemetry.viewer'],
+                ],
+            ],
+        ],
+    ],
+];
+```
 
 ### What it provides
 
@@ -29,16 +134,17 @@ Log pages are cached based on file modification time. Unchanged pages are served
 | Route | Purpose |
 |---|---|
 | `GET /telemetry` | Queue view |
-| `GET /telemetry/events/@driver/@job_uuid` | Job event timeline |
-| `GET /telemetry/dashboard` | Runtime environment snapshot |
-| `GET /telemetry/hive` | Sanitized hive dump |
-| `GET /telemetry/logs` | Paginated log output (`channel`, optional `date=YYYY-MM-DD`) |
-| `GET /telemetry/log-channels` | List of configured log channels and available dates per channel |
-| `GET /telemetry/log-stat` | Line count and mtime for a channel/date |
-| `GET /telemetry/dumps/@dump_id` | Retrieve a JSON dump by UUID |
+| `POST /telemetry` | Reserved privileged POST endpoint (admin role required) |
+| `GET\|POST /telemetry/events/@driver/@job_uuid` | Job event timeline |
+| `GET\|POST /telemetry/dashboard` | Runtime environment snapshot |
+| `GET\|POST /telemetry/hive` | Sanitized hive dump |
+| `GET\|POST /telemetry/logs` | Paginated log output (`channel`, optional `date=YYYY-MM-DD`) |
+| `GET\|POST /telemetry/log-channels` | List of configured log channels and available dates per channel |
+| `GET\|POST /telemetry/log-stat` | Line count and mtime for a channel/date |
+| `GET\|POST /telemetry/dumps/@dump_id` | Retrieve a JSON dump by UUID |
 
 ### Usage notes
 
-- Set `TELEMETRY_ADMIN_ONLY=true` in production.
+- Telemetry roles are enforced only when `TELEMETRY_ACCESS_MODE` is `config` or `auth`.
 - `LOGS` must be writable for the log viewer to function.
 - Telemetry output is diagnostic - it reflects live runtime state and should not be used as an application data source.

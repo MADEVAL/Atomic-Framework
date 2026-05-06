@@ -18,6 +18,20 @@ class ID
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
+    public static function stable_uuid(string $seed): string
+    {
+        $hex = substr(hash('sha256', $seed), 0, 32);
+        $hex[12] = '4';
+        $variant = hexdec($hex[16]);
+        $hex[16] = dechex(($variant & 0x3) | 0x8);
+
+        return substr($hex, 0, 8) . '-'
+            . substr($hex, 8, 4) . '-'
+            . substr($hex, 12, 4) . '-'
+            . substr($hex, 16, 4) . '-'
+            . substr($hex, 20, 12);
+    }
+
     public static function is_valid_uuid_v4(string $uuid): bool {
         return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $uuid) === 1;
     }

@@ -10,7 +10,7 @@ class MiddlewareStack
     private static array $aliases = [];
 
     /** @var array<string, string[]> url_pattern → middleware names */
-    private static array $routeMap = [];
+    private static array $route_map = [];
 
     /**
      * Register a middleware alias (e.g. 'auth' → Authenticate::class).
@@ -26,8 +26,12 @@ class MiddlewareStack
      */
     public static function for_route(string $route_pattern, array $middleware_names): void
     {
-        $urlPattern = self::extract_url_pattern($route_pattern);
-        self::$routeMap[$urlPattern] = $middleware_names;
+        $url_pattern = self::extract_url_pattern($route_pattern);
+        self::$route_map[$url_pattern] = $middleware_names;
+
+        foreach (self::extract_methods($route_pattern) as $method) {
+            self::$route_map[$method . ' ' . $url_pattern] = $middleware_names;
+        }
     }
 
     /**
@@ -37,7 +41,8 @@ class MiddlewareStack
     public static function run_for_route($atomic): bool
     {
         $pattern = $atomic->get('PATTERN');
-        $middleware_names = self::$routeMap[$pattern] ?? [];
+        $method_pattern = strtoupper((string)$atomic->get('VERB')) . ' ' . $pattern;
+        $middleware_names = self::$route_map[$method_pattern] ?? self::$route_map[$pattern] ?? [];
 
         foreach ($middleware_names as $name_with_params) {
             $middleware = self::resolve($name_with_params);
@@ -89,5 +94,15 @@ class MiddlewareStack
     private static function extract_url_pattern(string $route_pattern): string
     {
         return ltrim(preg_replace('/^[A-Z|]+\s+/', '', trim($route_pattern)));
+    }
+
+    /** @return string[] */
+    private static function extract_methods(string $route_pattern): array
+    {
+        if (!preg_match('/^([A-Z|]+)\s+/', trim($route_pattern), $m)) {
+            return [];
+        }
+
+        return array_values(array_filter(explode('|', $m[1])));
     }
 }

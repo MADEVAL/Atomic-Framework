@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Tests\Engine\Auth;
 
 use Engine\Atomic\Auth\Adapters\AppContextAdapter;
-use Engine\Atomic\Auth\Adapters\BcryptHasherAdapter;
 use Engine\Atomic\Auth\Adapters\IdValidatorAdapter;
 use Engine\Atomic\Auth\Adapters\LogAdapter;
 use Engine\Atomic\Auth\Adapters\MetaStorageAdapter;
@@ -17,7 +16,7 @@ use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
 use Engine\Atomic\Auth\Interfaces\HasRolesInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\Auth\Services\AuthService;
-use Engine\Atomic\Auth\Services\SessionService;
+use Engine\Atomic\Auth\Services\AuthSessionService;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Enums\Role;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
@@ -35,7 +34,7 @@ final class AuthIntegrationTest extends TestCase
     private ?string $db_prefix = null;
     private ?string $redis_prefix = null;
     private ?\Redis $redis = null;
-    private ?SessionService $session_service = null;
+    private ?AuthSessionService $session_service = null;
     private ?AuthService $auth_service = null;
 
     protected function tearDown(): void
@@ -275,7 +274,7 @@ final class AuthIntegrationTest extends TestCase
         }
 
         $app = new AppContextAdapter();
-        $this->session_service = new SessionService(
+        $this->session_service = new AuthSessionService(
             $app,
             new PhpSessionAdapter(),
             new SessionDriverFactoryAdapter($app),
@@ -283,7 +282,6 @@ final class AuthIntegrationTest extends TestCase
             new IdValidatorAdapter(),
             new LogAdapter(),
         );
-        $this->session_service->init();
 
         $this->auth_service = new AuthService(
             $app,
@@ -293,7 +291,6 @@ final class AuthIntegrationTest extends TestCase
             new LogAdapter(),
             new SystemClockAdapter(),
             new PhpSessionAdapter(),
-            new BcryptHasherAdapter(),
             new SessionManagerAdapter(),
         );
     }

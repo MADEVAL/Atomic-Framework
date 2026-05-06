@@ -90,6 +90,17 @@ final class Request
         return str_contains(strtolower($this->content_type()), self::CONTENT_TYPE_JSON);
     }
 
+    public function wants_json(\Base $atomic): bool
+    {
+        $accept = strtolower((string)$atomic->get('HEADERS.Accept'));
+        $requested_with = strtolower((string)$atomic->get('HEADERS.X-Requested-With'));
+        $content_type = strtolower((string)$atomic->get('HEADERS.Content-Type'));
+
+        return str_contains($accept, self::CONTENT_TYPE_JSON)
+            || str_contains($content_type, self::CONTENT_TYPE_JSON)
+            || $requested_with === 'xmlhttprequest';
+    }
+
     public function remote_get(string $url, array $args = []): array
     {
         if (!empty($args['query']) && is_array($args['query'])) {

@@ -47,6 +47,28 @@ class IDTest extends TestCase
         $this->assertContains($firstChar, ['8', '9', 'a', 'b']);
     }
 
+    public function test_stable_uuid_is_deterministic(): void
+    {
+        $this->assertSame(
+            ID::stable_uuid('telemetry:viewer'),
+            ID::stable_uuid('telemetry:viewer')
+        );
+        $this->assertNotSame(
+            ID::stable_uuid('telemetry:viewer'),
+            ID::stable_uuid('telemetry:admin')
+        );
+    }
+
+    public function test_stable_uuid_uses_uuid_v4_shape(): void
+    {
+        $uuid = ID::stable_uuid('telemetry:viewer');
+
+        $this->assertMatchesRegularExpression(
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/',
+            $uuid
+        );
+    }
+
     // ────────────────────────────────────────
     //  UUID v4 validation
     // ────────────────────────────────────────

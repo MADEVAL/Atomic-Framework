@@ -140,6 +140,9 @@ class HelpersTest extends TestCase
 
     public function test_is_authenticated_guest(): void
     {
+        \Base::instance()->clear('SESSION');
+        \Engine\Atomic\Auth\Auth::instance()->logout();
+        
         // Without a logged-in user → should be guest
         $this->assertTrue(is_guest());
         $this->assertFalse(is_authenticated());

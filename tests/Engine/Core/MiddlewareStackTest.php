@@ -51,7 +51,8 @@ class MiddlewareStackTest extends TestCase
         $ref = new \ReflectionClass(MiddlewareStack::class);
         $aliases = $ref->getProperty('aliases');        $aliases->setValue(null, []);
 
-        $routeMap = $ref->getProperty('routeMap');        $routeMap->setValue(null, []);
+        $route_map = $ref->getProperty('route_map');
+        $route_map->setValue(null, []);
     }
 
     public function test_register_alias(): void

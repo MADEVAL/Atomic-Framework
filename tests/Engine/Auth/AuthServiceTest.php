@@ -3,7 +3,6 @@ declare(strict_types=1);
 namespace Tests\Engine\Auth;
 
 use Engine\Atomic\Auth\Adapters\AppContextAdapter;
-use Engine\Atomic\Auth\Adapters\BcryptHasherAdapter;
 use Engine\Atomic\Auth\Adapters\LogAdapter;
 use Engine\Atomic\Auth\Adapters\MetaStorageAdapter;
 use Engine\Atomic\Auth\Adapters\PhpSessionAdapter;
@@ -15,6 +14,7 @@ use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
 use Engine\Atomic\Auth\Interfaces\HasRolesInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\Auth\Services\AuthService;
+use Engine\Atomic\Core\Hash;
 use Engine\Atomic\Enums\Role;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -30,7 +30,6 @@ class AuthServiceTest extends TestCase
     private LogAdapter&MockObject             $logger;
     private SystemClockAdapter&MockObject     $clock;
     private PhpSessionAdapter&MockObject      $php_session;
-    private BcryptHasherAdapter&MockObject    $hasher;
     private SessionManagerAdapter&MockObject  $session_manager;
     private AuthService                        $service;
 
@@ -43,7 +42,6 @@ class AuthServiceTest extends TestCase
         $this->logger          = $this->createMock(LogAdapter::class);
         $this->clock           = $this->createMock(SystemClockAdapter::class);
         $this->php_session     = $this->createMock(PhpSessionAdapter::class);
-        $this->hasher          = $this->createMock(BcryptHasherAdapter::class);
         $this->session_manager = $this->createMock(SessionManagerAdapter::class);
 
         $this->service = $this->make_service();
@@ -59,7 +57,6 @@ class AuthServiceTest extends TestCase
             $this->logger,
             $this->clock,
             $this->php_session,
-            $this->hasher,
             $this->session_manager,
         );
     }
@@ -93,12 +90,11 @@ class AuthServiceTest extends TestCase
     {
         $this->app->method('get')->with('IP')->willReturn('1.2.3.4');
         $user = $this->createMock(AuthenticatableInterface::class);
-        $user->method('get_password_hash')->willReturn('$2y$...');
+        $user->method('get_password_hash')->willReturn(Hash::password('correct'));
 
         $provider = $this->createMock(UserProviderInterface::class);
         $provider->method('find_by_credentials')->willReturn($user);
 
-        $this->hasher->method('verify')->willReturn(false);
         $this->logger->expects($this->once())
             ->method('warning')
             ->with(
@@ -122,13 +118,11 @@ class AuthServiceTest extends TestCase
         $user_uuid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
         $user = $this->createMock(AuthenticatableInterface::class);
-        $user->method('get_password_hash')->willReturn('$2y$...');
+        $user->method('get_password_hash')->willReturn(Hash::password('correct'));
         $user->method('get_auth_id')->willReturn($user_uuid);
 
         $provider = $this->createMock(UserProviderInterface::class);
         $provider->method('find_by_credentials')->willReturn($user);
-
-        $this->hasher->method('verify')->willReturn(true);
 
         $this->app->method('get')->willReturnMap([
             ['IP', '1.2.3.4'],
@@ -139,8 +133,7 @@ class AuthServiceTest extends TestCase
         $this->php_session->method('id')->willReturn('sess_abc123');
         $this->cache->method('get')->willReturn(0);
 
-        $this->session->expects($this->once())->method('start')->with($user_uuid);
-        $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
+        $this->session->expects($this->once())->method('start_for_user')->with($user_uuid);
         $this->meta->expects($this->once())->method('set_meta')
             ->with($user_uuid, 'auth_session_sess_abc123', $this->callback('is_string'));
 
@@ -299,8 +292,7 @@ class AuthServiceTest extends TestCase
         $this->clock->method('now')->willReturn(1_700_000_000);
         $this->php_session->method('id')->willReturn('sess_xyz');
 
-        $this->session->expects($this->once())->method('start')->with($auth_id);
-        $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
+        $this->session->expects($this->once())->method('start_for_user')->with($auth_id);
         $this->meta->expects($this->once())->method('set_meta')
             ->with($auth_id, 'auth_session_sess_xyz', $this->callback('is_string'));
 
@@ -318,8 +310,7 @@ class AuthServiceTest extends TestCase
         $this->app->method('get_device_type')->willReturn('mobile');
         $this->clock->method('now')->willReturn(1_700_000_001);
         $this->php_session->method('id')->willReturn('sess_ctx');
-        $this->session->method('start');
-        $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
+        $this->session->method('start_for_user');
 
         $this->meta->expects($this->once())->method('set_meta')
             ->with(

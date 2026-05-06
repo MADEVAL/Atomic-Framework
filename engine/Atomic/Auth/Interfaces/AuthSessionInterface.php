@@ -6,7 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 interface AuthSessionInterface
 {
-    public function start(string $uuid = ''): void;
+    public function start_for_user(string $uuid): void;
     public function is_started(): bool;
     public function destroy(): void;
 }

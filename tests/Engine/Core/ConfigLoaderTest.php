@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Engine\Core;
 
+use Engine\Atomic\Auth\ConfigUserStore;
 use Engine\Atomic\Core\Config\ConfigLoader;
 use PHPUnit\Framework\TestCase;
 
@@ -10,27 +11,27 @@ class ConfigLoaderTest extends TestCase
 {
     private ConfigLoader $loader;
     private \Base $f3;
-    private string $envFile;
+    private string $env_file;
 
     protected function setUp(): void
     {
         $this->f3 = \Base::instance();
         $this->loader = new ConfigLoader($this->f3);
-        $this->envFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_' . uniqid() . '.env';
+        $this->env_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_' . uniqid() . '.env';
     }
 
     protected function tearDown(): void
     {
-        if (file_exists($this->envFile)) {
-            @unlink($this->envFile);
+        if (file_exists($this->env_file)) {
+            @unlink($this->env_file);
         }
     }
 
     public function test_parse_env_basic(): void
     {
-        file_put_contents($this->envFile, "APP_NAME=TestApp\nAPP_KEY=secret123\nDOMAIN=https://test.com/\n");
+        file_put_contents($this->env_file, "APP_NAME=TestApp\nAPP_KEY=secret123\nDOMAIN=https://test.com/\n");
         $ref = new \ReflectionMethod(ConfigLoader::class, 'parse_env');
-        $data = $ref->invoke($this->loader, $this->envFile);
+        $data = $ref->invoke($this->loader, $this->env_file);
         $this->assertSame('TestApp', $data['APP_NAME']);
         $this->assertSame('secret123', $data['APP_KEY']);
         $this->assertSame('https://test.com/', $data['DOMAIN']);
@@ -38,26 +39,26 @@ class ConfigLoaderTest extends TestCase
 
     public function test_parse_env_skips_comments(): void
     {
-        file_put_contents($this->envFile, "# This is a comment\nKEY=value\n# Another comment\n");
+        file_put_contents($this->env_file, "# This is a comment\nKEY=value\n# Another comment\n");
         $ref = new \ReflectionMethod(ConfigLoader::class, 'parse_env');
-        $data = $ref->invoke($this->loader, $this->envFile);
+        $data = $ref->invoke($this->loader, $this->env_file);
         $this->assertCount(1, $data);
         $this->assertSame('value', $data['KEY']);
     }
 
     public function test_parse_env_skips_empty_lines(): void
     {
-        file_put_contents($this->envFile, "\n\nKEY=val\n\n\n");
+        file_put_contents($this->env_file, "\n\nKEY=val\n\n\n");
         $ref = new \ReflectionMethod(ConfigLoader::class, 'parse_env');
-        $data = $ref->invoke($this->loader, $this->envFile);
+        $data = $ref->invoke($this->loader, $this->env_file);
         $this->assertCount(1, $data);
     }
 
     public function test_parse_env_strips_inline_comments(): void
     {
-        file_put_contents($this->envFile, "KEY=value #inline comment\n");
+        file_put_contents($this->env_file, "KEY=value #inline comment\n");
         $ref = new \ReflectionMethod(ConfigLoader::class, 'parse_env');
-        $data = $ref->invoke($this->loader, $this->envFile);
+        $data = $ref->invoke($this->loader, $this->env_file);
         $this->assertSame('value', $data['KEY']);
     }
 
@@ -70,12 +71,12 @@ class ConfigLoaderTest extends TestCase
 
     public function test_get_env_default(): void
     {
-        file_put_contents($this->envFile, "EXISTS=yes\n");
+        file_put_contents($this->env_file, "EXISTS=yes\n");
         $ref_parse = new \ReflectionMethod(ConfigLoader::class, 'parse_env');
-        $env = $ref_parse->invoke($this->loader, $this->envFile);
+        $env = $ref_parse->invoke($this->loader, $this->env_file);
 
-        $refProp = new \ReflectionProperty(ConfigLoader::class, 'env');
-        $refProp->setValue($this->loader, $env);
+        $ref_prop = new \ReflectionProperty(ConfigLoader::class, 'env');
+        $ref_prop->setValue($this->loader, $env);
 
         $ref = new \ReflectionMethod(ConfigLoader::class, 'get_env');
         $this->assertSame('yes', $ref->invoke($this->loader, 'EXISTS'));
@@ -85,7 +86,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_load_sets_hive_values(): void
     {
-        file_put_contents($this->envFile, implode("\n", [
+        file_put_contents($this->env_file, implode("\n", [
             'APP_NAME=LoadTest',
             'APP_KEY=my-key',
             'APP_UUID=test-uuid',
@@ -104,22 +105,52 @@ class ConfigLoaderTest extends TestCase
             'DEBUG_LEVEL=debug',
         ]));
 
-        $this->loader->load($this->envFile);
+        $this->loader->load($this->env_file);
 
         $this->assertSame('LoadTest', $this->f3->get('APP_NAME'));
         $this->assertSame('my-key', $this->f3->get('APP_KEY'));
         $this->assertSame('test-uuid', $this->f3->get('APP_UUID'));
 
-        $dbConfig = $this->f3->get('DB_CONFIG');
-        $this->assertSame('mysql', $dbConfig['driver']);
-        $this->assertSame('testdb', $dbConfig['db']);
-        $this->assertSame('root', $dbConfig['username']);
-        $this->assertSame('custom_', $dbConfig['prefix']);
+        $db_config = $this->f3->get('DB_CONFIG');
+        $this->assertSame('mysql', $db_config['driver']);
+        $this->assertSame('testdb', $db_config['db']);
+        $this->assertSame('root', $db_config['username']);
+        $this->assertSame('custom_', $db_config['prefix']);
+    }
+
+    public function test_loader_reads_access_guards_from_storage(): void
+    {
+        $store = new ConfigUserStore(ATOMIC_DIR);
+        $path = $store->path();
+        $backup = is_file($path) ? (string)file_get_contents($path) : null;
+
+        try {
+            $store->upsert_user(
+                'telemetry',
+                'viewer',
+                '11111111-1111-4111-8111-111111111111',
+                password_hash('secret', PASSWORD_DEFAULT),
+                ['telemetry.viewer', 'telemetry.admin'],
+            );
+
+            $this->loader->load($this->env_file);
+
+            $user = $this->f3->get('ACCESS.guards.telemetry.users.viewer');
+            $this->assertSame('11111111-1111-4111-8111-111111111111', $user['id']);
+            $this->assertSame('viewer', $user['username']);
+            $this->assertSame(['telemetry.viewer', 'telemetry.admin'], $user['roles']);
+        } finally {
+            if ($backup === null) {
+                @unlink($path);
+            } else {
+                @file_put_contents($path, $backup);
+            }
+        }
     }
 
     public function test_load_sets_redis_config(): void
     {
-        file_put_contents($this->envFile, implode("\n", [
+        file_put_contents($this->env_file, implode("\n", [
             'REDIS_HOST=10.0.0.1',
             'REDIS_PORT=6380',
             'REDIS_PASSWORD=secret',
@@ -129,7 +160,7 @@ class ConfigLoaderTest extends TestCase
             'CACHE_DRIVER=folder',
         ]));
 
-        $this->loader->load($this->envFile);
+        $this->loader->load($this->env_file);
 
         $redis = $this->f3->get('REDIS');
         $this->assertSame('10.0.0.1', $redis['host']);
@@ -141,7 +172,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_load_sets_mail_config(): void
     {
-        file_put_contents($this->envFile, implode("\n", [
+        file_put_contents($this->env_file, implode("\n", [
             'MAIL_DRIVER=smtp',
             'MAIL_HOST=mail.test.com',
             'MAIL_PORT=465',
@@ -149,7 +180,7 @@ class ConfigLoaderTest extends TestCase
             'CACHE_DRIVER=folder',
         ]));
 
-        $this->loader->load($this->envFile);
+        $this->loader->load($this->env_file);
 
         $mail = $this->f3->get('MAIL');
         $this->assertSame('smtp', $mail['driver']);
@@ -163,14 +194,14 @@ class ConfigLoaderTest extends TestCase
 
     public function test_load_sets_session_config(): void
     {
-        file_put_contents($this->envFile, implode("\n", [
+        file_put_contents($this->env_file, implode("\n", [
             'SESSION_DRIVER=redis',
             'SESSION_LIFETIME=7200',
             'SESSION_COOKIE=my_session',
             'CACHE_DRIVER=folder',
         ]));
 
-        $this->loader->load($this->envFile);
+        $this->loader->load($this->env_file);
 
         $session = $this->f3->get('SESSION_CONFIG');
         $this->assertSame('redis', $session['driver']);
@@ -179,14 +210,14 @@ class ConfigLoaderTest extends TestCase
 
     public function test_load_sets_cors(): void
     {
-        file_put_contents($this->envFile, implode("\n", [
+        file_put_contents($this->env_file, implode("\n", [
             'CORS_ORIGIN=https://allowed.com',
             'CORS_CREDENTIALS=true',
             'CORS_TTL=3600',
             'CACHE_DRIVER=folder',
         ]));
 
-        $this->loader->load($this->envFile);
+        $this->loader->load($this->env_file);
 
         $cors = $this->f3->get('CORS');
         $this->assertSame('https://allowed.com', $cors['origin']);
@@ -196,14 +227,14 @@ class ConfigLoaderTest extends TestCase
 
     public function test_load_sets_i18n(): void
     {
-        file_put_contents($this->envFile, implode("\n", [
+        file_put_contents($this->env_file, implode("\n", [
             'I18N_LANGUAGES=en,fr,de',
             'I18N_DEFAULT=fr',
             'I18N_URL_MODE=prefix',
             'CACHE_DRIVER=folder',
         ]));
 
-        $this->loader->load($this->envFile);
+        $this->loader->load($this->env_file);
 
         $i18n = $this->f3->get('i18n');
         $this->assertSame(['en', 'fr', 'de'], $i18n['languages']);
@@ -212,7 +243,7 @@ class ConfigLoaderTest extends TestCase
 
     public function test_build_queue_config(): void
     {
-        file_put_contents($this->envFile, implode("\n", [
+        file_put_contents($this->env_file, implode("\n", [
             'QUEUE_DB_DEFAULT_DELAY=5',
             'QUEUE_DB_DEFAULT_MAX_ATTEMPTS=3',
             'QUEUE_DB_EMAIL_DELAY=10',
@@ -220,15 +251,15 @@ class ConfigLoaderTest extends TestCase
             'CACHE_DRIVER=folder',
         ]));
 
-        $this->loader->load($this->envFile);
+        $this->loader->load($this->env_file);
 
         $queue = $this->f3->get('QUEUE');
         $this->assertArrayHasKey('db', $queue);
-        $dbQueues = $queue['db']['queues'];
-        $this->assertArrayHasKey('default', $dbQueues);
-        $this->assertSame(5, $dbQueues['default']['delay']);
-        $this->assertArrayHasKey('email', $dbQueues);
-        $this->assertSame(10, $dbQueues['email']['delay']);
-        $this->assertSame(5, $dbQueues['email']['max_attempts']);
+        $db_queues = $queue['db']['queues'];
+        $this->assertArrayHasKey('default', $db_queues);
+        $this->assertSame(5, $db_queues['default']['delay']);
+        $this->assertArrayHasKey('email', $db_queues);
+        $this->assertSame(10, $db_queues['email']['delay']);
+        $this->assertSame(5, $db_queues['email']['max_attempts']);
     }
 }

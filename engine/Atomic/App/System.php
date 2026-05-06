@@ -46,6 +46,21 @@ class System extends Controller
         $this->cli()->plugin_make();
     }
 
+    public function access_user_create(): void
+    {
+        $this->cli()->access_user_create();
+    }
+
+    public function access_user_reset_secret(): void
+    {
+        $this->cli()->access_user_reset_secret();
+    }
+
+    public function access_user_list(): void
+    {
+        $this->cli()->access_user_list();
+    }
+
     public function help(): void
     {
         $this->cli()->help();
