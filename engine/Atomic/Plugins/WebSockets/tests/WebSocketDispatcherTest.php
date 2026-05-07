@@ -298,6 +298,37 @@ class WebSocketDispatcherTest extends TestCase
         $this->assertSame([[ '{"type":"ping"}', ['job_id' => '789']]], WebSocketInstanceHandlerStub::$calls);
     }
 
+    public function test_connection_exposes_handshake_metadata(): void
+    {
+        $conn = $this->connection_for_path('/');
+        $conn->capture_request_info(new class {
+            public function method(): string { return 'GET'; }
+            public function uri(): string { return '/jobs/123?token=abc'; }
+            public function path(): string { return '/jobs/123'; }
+            public function header(?string $name = null, mixed $default = null): mixed
+            {
+                $headers = [
+                    'X-Forwarded-For' => '203.0.113.10, 10.0.0.1',
+                    'X-Real-IP' => '198.51.100.20',
+                ];
+
+                return $name === null ? $headers : ($headers[$name] ?? $default);
+            }
+            public function get(?string $name = null, mixed $default = null): mixed
+            {
+                $query = ['token' => 'abc'];
+
+                return $name === null ? $query : ($query[$name] ?? $default);
+            }
+        });
+
+        $this->assertSame('/jobs/123', $conn->path());
+        $this->assertSame('/jobs/123?token=abc', $conn->uri());
+        $this->assertSame('203.0.113.10', $conn->ip());
+        $this->assertSame('198.51.100.20', $conn->header('x-real-ip'));
+        $this->assertSame('abc', $conn->query('token'));
+    }
+
     public function test_dispatch_rejects_invalid_handler_string(): void
     {
         WebSocketRouter::register('/jobs', 'invalid-handler');

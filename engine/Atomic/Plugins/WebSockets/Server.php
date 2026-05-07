@@ -130,7 +130,8 @@ abstract class Server
             }
 
             $conn = $self->connections[$socket_int];
-            $conn->set_path($request->path());
+            $conn->capture_tcp_info();
+            $conn->capture_request_info($request);
             $self->on_websocket_connect($conn, $request);
         };
 
