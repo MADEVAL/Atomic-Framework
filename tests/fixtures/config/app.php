@@ -24,6 +24,10 @@ return [
     'language'       => 'en',
     'debug'          => false,
     'debug_level'    => 'error',
+    'telemetry' => [
+        'access_mode'          => 'none',
+        'access_allowed_roles' => ['admin'],
+    ],
     'paths' => [
         'ui'                  => 'public/themes/',
         'temp'                => 'storage/framework/cache/data/',

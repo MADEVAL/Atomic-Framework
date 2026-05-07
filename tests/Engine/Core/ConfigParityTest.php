@@ -33,7 +33,8 @@ class ConfigParityTest extends TestCase
         // ── Flat scalars ──────────────────────────────────────────────────────
         'APP_UUID', 'CACHE', 'CACHE_PREFIX', 'DOMAIN', 'LANGUAGE',
         'ENCODING', 'TZ', 'APP_NAME', 'APP_KEY', 'APP_ENCRYPTION_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL',
-        'TELEMETRY_ACCESS_MODE', 'QUEUE_DRIVER', 'QUEUE_NAME',
+        'TELEMETRY_ACCESS_MODE', 'TELEMETRY_ACCESS_ALLOWED_ROLES',
+        'QUEUE_DRIVER', 'QUEUE_NAME',
         'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
         'UI', 'ENQ_UI_FIX', 'TEMP', 'LOGS', 'LOCALES', 'FONTS', 'FONTS_TEMP',
         'MIGRATIONS', 'MIGRATIONS_BUNDLED', 'MIGRATIONS_CORE',

@@ -15,8 +15,8 @@ TELEMETRY_ACCESS_MODE=none
 
 It can be hidden in two ways:
 
-- `config` - use framework config users (`access:telemetry`) and telemetry roles.
-- `auth` - use the application's auth system and telemetry roles.
+- `config` - use framework config users (`access:telemetry`) and a role whitelist.
+- `auth` - use the application's auth system and a role whitelist.
 
 Config-user middleware behavior:
 [`middleware.md#config-backed-access-middleware`](middleware.md#config-backed-access-middleware).
@@ -24,10 +24,30 @@ Config-user middleware behavior:
 CLI for creating and maintaining config users:
 [Config user commands](#config-user-commands).
 
-Required role slugs:
+Allowed roles are configured with one list. The default allowed role is `admin`.
+Every protected telemetry route uses the same list.
 
-- `telemetry.viewer` can read the dashboard, hive, logs, dumps, and queue view.
-- `telemetry.admin` is required for `POST /telemetry` requests.
+Env loader:
+
+```env
+TELEMETRY_ACCESS_MODE=auth
+TELEMETRY_ACCESS_ALLOWED_ROLES=admin
+```
+
+Multiple env roles are comma-separated:
+
+```env
+TELEMETRY_ACCESS_ALLOWED_ROLES=admin,support,viewer
+```
+
+PHP config loader:
+
+```php
+'telemetry' => [
+    'access_mode' => 'auth',
+    'access_allowed_roles' => ['admin'],
+],
+```
 
 In `auth` mode, the application must register its normal auth user provider and
 the current user must implement `HasRolesInterface`.
@@ -42,13 +62,13 @@ not repeated here; see
 Create a telemetry config user:
 
 ```bash
-php atomic access/user/create telemetry viewer telemetry.viewer
+php atomic access/user/create telemetry admin admin
 ```
 
 Create with an explicit secret and multiple roles:
 
 ```bash
-php atomic access/user/create telemetry admin telemetry.viewer,telemetry.admin --secret="replace-me"
+php atomic access/user/create telemetry ops admin,support --secret="replace-me"
 ```
 
 Reset a secret:
@@ -68,7 +88,7 @@ Command parameter reference:
 - `access/user/create <guard> <username> [roles]` creates or updates a config-backed user record.
 - `<guard>` selects which access guard bucket receives the user (for telemetry use `telemetry`).
 - `<username>` is normalized to lowercase and used both as the login value and storage key.
-- `[roles]` accepts comma-separated role slugs (for telemetry: `telemetry.viewer`, `telemetry.admin`).
+- `[roles]` accepts comma-separated role slugs. For telemetry, at least one role must match `TELEMETRY_ACCESS_ALLOWED_ROLES` or `telemetry.access_allowed_roles`.
 - `--role=<slug>` or `--roles=<slug1,slug2>` can be used instead of or alongside `[roles]`; all role inputs are merged and deduplicated.
 - `--secret=<plain-text-secret>` sets an explicit secret; if omitted, a random 64-hex-character secret is generated.
 - `--force` allows overwrite when the user already exists for that guard.
@@ -101,7 +121,7 @@ return [
                     'id' => 'uuid-v4',
                     'username' => 'viewer',
                     'secret_hash' => 'hashed-secret',
-                    'roles' => ['telemetry.viewer'],
+                    'roles' => ['admin'],
                 ],
             ],
         ],
@@ -134,7 +154,7 @@ Log pages are cached based on file modification time. Unchanged pages are served
 | Route | Purpose |
 |---|---|
 | `GET /telemetry` | Queue view |
-| `POST /telemetry` | Reserved privileged POST endpoint (admin role required) |
+| `POST /telemetry` | Reserved POST endpoint |
 | `GET\|POST /telemetry/events/@driver/@job_uuid` | Job event timeline |
 | `GET\|POST /telemetry/dashboard` | Runtime environment snapshot |
 | `GET\|POST /telemetry/hive` | Sanitized hive dump |
@@ -145,6 +165,7 @@ Log pages are cached based on file modification time. Unchanged pages are served
 
 ### Usage notes
 
-- Telemetry roles are enforced only when `TELEMETRY_ACCESS_MODE` is `config` or `auth`.
+- Telemetry access roles are enforced only when `TELEMETRY_ACCESS_MODE` is `config` or `auth`.
+- `TELEMETRY_ACCESS_ALLOWED_ROLES` and `telemetry.access_allowed_roles` are whitelists; any matching user role grants access.
 - `LOGS` must be writable for the log viewer to function.
 - Telemetry output is diagnostic - it reflects live runtime state and should not be used as an application data source.

@@ -114,6 +114,7 @@ class PhpConfigLoader {
             'DEBUG_MODE'            => $this->cfg('app', 'debug', false) ? 'true' : 'false',
             'DEBUG_LEVEL'           => (string)$this->cfg('app', 'debug_level', 'error'),
             'TELEMETRY_ACCESS_MODE' => $this->telemetry_access_mode((string)$this->cfg_nested('app', 'telemetry.access_mode', 'none')),
+            'TELEMETRY_ACCESS_ALLOWED_ROLES' => $this->role_list($this->cfg_nested('app', 'telemetry.access_allowed_roles', ['admin'])),
             'THEME.envname'         => (string)$this->cfg('app', 'theme', 'default'),
             'QUEUE_DRIVER'          => (string)$this->cfg('queue', 'driver', 'db'),
             'QUEUE_NAME'            => (string)$this->cfg('queue', 'name', 'default'),
@@ -345,5 +346,18 @@ class PhpConfigLoader {
     {
         $mode = strtolower(trim($mode));
         return in_array($mode, ['config', 'auth', 'none'], true) ? $mode : 'none';
+    }
+
+    /** @return list<string> */
+    private function role_list(mixed $roles): array
+    {
+        if (!is_array($roles)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (mixed $role): string => trim((string)$role), $roles),
+            static fn (string $role): bool => $role !== ''
+        ));
     }
 }

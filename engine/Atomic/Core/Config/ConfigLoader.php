@@ -93,6 +93,7 @@ class ConfigLoader {
             'DEBUG_MODE'            => $this->get_env('DEBUG_MODE', 'false'),
             'DEBUG_LEVEL'           => $this->get_env('DEBUG_LEVEL', 'error'),
             'TELEMETRY_ACCESS_MODE' => $this->telemetry_access_mode((string)$this->get_env('TELEMETRY_ACCESS_MODE', 'none')),
+            'TELEMETRY_ACCESS_ALLOWED_ROLES' => $this->csv_list((string)$this->get_env('TELEMETRY_ACCESS_ALLOWED_ROLES', 'admin')),
             'THEME.envname'         => $this->get_env('THEME', 'default'),
             'QUEUE_DRIVER'          => $this->get_env('QUEUE_DRIVER', 'db'),
             'QUEUE_NAME'            => $this->get_env('QUEUE_NAME', 'default'),
@@ -257,6 +258,15 @@ class ConfigLoader {
     {
         $mode = strtolower(trim($mode));
         return in_array($mode, ['config', 'auth', 'none'], true) ? $mode : 'none';
+    }
+
+    /** @return list<string> */
+    private function csv_list(string $value): array
+    {
+        return array_values(array_filter(
+            array_map('trim', explode(',', $value)),
+            static fn (string $item): bool => $item !== ''
+        ));
     }
 
     protected function build_log_channels(): array {

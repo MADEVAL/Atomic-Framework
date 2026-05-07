@@ -118,6 +118,20 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame('custom_', $db_config['prefix']);
     }
 
+    public function test_load_sets_telemetry_access_roles_from_env(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'TELEMETRY_ACCESS_MODE=auth',
+            'TELEMETRY_ACCESS_ALLOWED_ROLES=admin, support, viewer',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame('auth', $this->f3->get('TELEMETRY_ACCESS_MODE'));
+        $this->assertSame(['admin', 'support', 'viewer'], $this->f3->get('TELEMETRY_ACCESS_ALLOWED_ROLES'));
+    }
+
     public function test_loader_reads_access_guards_from_storage(): void
     {
         $store = new ConfigUserStore(ATOMIC_DIR);

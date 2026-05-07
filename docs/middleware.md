@@ -103,12 +103,13 @@ CLI commands (`access/user/create`, `access/user/reset`, `access/user/list`), st
 record shape, hashing, and name normalization:
 [`telemetry.md#config-user-commands`](telemetry.md#config-user-commands).
 
-Telemetry guard and roles:
+Telemetry guard and access role whitelist:
 [`telemetry.md#access`](telemetry.md#access).
 
 ### Built-in role middleware
 
-`role:<slug>` checks `Guard::has_role($slug)`.
+`role:<slug>` checks `Guard::has_role($slug)`. `role:<slug1>,<slug2>` checks
+whether the current user has any listed role.
 
 - For JSON/API-style requests it returns `403 Forbidden` JSON.
 - For HTML requests it returns plain `Forbidden` text with HTTP 403.

@@ -14,8 +14,12 @@ final class RoleMiddleware implements MiddlewareInterface
 
     public function handle(\Base $atomic): bool
     {
-        $role = trim((string)$this->role);
-        if ($role !== '' && Guard::has_role($role)) {
+        $roles = array_values(array_filter(
+            array_map('trim', explode(',', (string)$this->role)),
+            static fn (string $role): bool => $role !== ''
+        ));
+
+        if ($roles !== [] && Guard::has_any_role($roles)) {
             return true;
         }
 

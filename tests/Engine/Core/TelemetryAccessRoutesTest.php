@@ -25,11 +25,10 @@ final class TelemetryAccessRoutesTest extends TestCase
         $ref = new \ReflectionClass(MiddlewareStack::class);
         $route_map = $ref->getProperty('route_map')->getValue();
 
-        $viewer = ['access:telemetry', 'role:telemetry.viewer'];
-        $admin = ['access:telemetry', 'role:telemetry.admin'];
+        $access = ['access:telemetry', 'role:admin'];
 
-        $this->assertSame($viewer, $route_map['GET /telemetry'] ?? null);
-        $this->assertSame($admin, $route_map['POST /telemetry'] ?? null);
+        $this->assertSame($access, $route_map['GET /telemetry'] ?? null);
+        $this->assertSame($access, $route_map['POST /telemetry'] ?? null);
 
         foreach ([
             '/telemetry/logs',
@@ -40,7 +39,7 @@ final class TelemetryAccessRoutesTest extends TestCase
             '/telemetry/hive',
             '/telemetry/dumps/@dump_id',
         ] as $route) {
-            $this->assertSame($viewer, $route_map[$route] ?? null, "Route {$route} is not access protected.");
+            $this->assertSame($access, $route_map[$route] ?? null, "Route {$route} is not access protected.");
         }
     }
 
@@ -53,9 +52,24 @@ final class TelemetryAccessRoutesTest extends TestCase
         $ref = new \ReflectionClass(MiddlewareStack::class);
         $route_map = $ref->getProperty('route_map')->getValue();
 
-        $this->assertSame(['role:telemetry.viewer'], $route_map['GET /telemetry'] ?? null);
-        $this->assertSame(['role:telemetry.admin'], $route_map['POST /telemetry'] ?? null);
-        $this->assertSame(['role:telemetry.viewer'], $route_map['/telemetry/dashboard'] ?? null);
+        $this->assertSame(['role:admin'], $route_map['GET /telemetry'] ?? null);
+        $this->assertSame(['role:admin'], $route_map['POST /telemetry'] ?? null);
+        $this->assertSame(['role:admin'], $route_map['/telemetry/dashboard'] ?? null);
+    }
+
+    public function test_telemetry_routes_use_configured_roles(): void
+    {
+        $atomic = \Engine\Atomic\Core\App::instance();
+        $atomic->set('TELEMETRY_ACCESS_MODE', 'auth');
+        $atomic->set('TELEMETRY_ACCESS_ALLOWED_ROLES', ['admin', 'support']);
+        require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
+
+        $ref = new \ReflectionClass(MiddlewareStack::class);
+        $route_map = $ref->getProperty('route_map')->getValue();
+
+        $this->assertSame(['role:admin,support'], $route_map['GET /telemetry'] ?? null);
+        $this->assertSame(['role:admin,support'], $route_map['POST /telemetry'] ?? null);
+        $this->assertSame(['role:admin,support'], $route_map['/telemetry/dashboard'] ?? null);
     }
 
     public function test_telemetry_routes_can_be_public(): void

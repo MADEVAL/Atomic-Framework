@@ -144,4 +144,4 @@ See `errorhandler.md` for the exact request flow.
 3. Keep `APP_ENCRYPTION_KEY` valid and secret.
 4. Do normal input validation in addition to any sanitizer usage.
 5. Keep debug disabled in production unless you explicitly need it.
-6. Restrict telemetry with `TELEMETRY_ACCESS_MODE=config` or `TELEMETRY_ACCESS_MODE=auth` if diagnostic endpoints should not be public.
+6. Restrict telemetry with `TELEMETRY_ACCESS_MODE=config` or `TELEMETRY_ACCESS_MODE=auth` if diagnostic endpoints should not be public, and set `TELEMETRY_ACCESS_ALLOWED_ROLES` to the roles that may view telemetry.
