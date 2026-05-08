@@ -30,14 +30,10 @@ class PluginTest extends TestCase
 
         $base = $this->tmp_dir . DIRECTORY_SEPARATOR . 'SamplePlugin';
 
-        $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'plugin.php');
+        $this->assertFileDoesNotExist($base . DIRECTORY_SEPARATOR . 'plugin.php');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'SamplePlugin.php');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'composer.json');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'api.php');
-        $this->assertStringContainsString(
-            'PluginManager::instance()->register(new \\App\\Plugins\\SamplePlugin\\SamplePlugin());',
-            file_get_contents($base . DIRECTORY_SEPARATOR . 'plugin.php')
-        );
         $composer = json_decode(file_get_contents($base . DIRECTORY_SEPARATOR . 'composer.json'), true);
         $this->assertSame('app/sample-plugin', $composer['name']);
         $this->assertSame([
@@ -53,7 +49,7 @@ class PluginTest extends TestCase
 
         $base = $this->tmp_dir . DIRECTORY_SEPARATOR . 'SamplePlugin';
 
-        $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'plugin.php');
+        $this->assertFileDoesNotExist($base . DIRECTORY_SEPARATOR . 'plugin.php');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'SamplePlugin.php');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'composer.json');
         $this->assertFileExists($base . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'api.php');
@@ -77,7 +73,7 @@ class PluginTest extends TestCase
         App::atomic()->set('USER_PLUGINS', $this->tmp_dir);
 
         $manager = PluginManager::instance();
-        $manager->load_user_plugins();
+        $manager->load_plugins(["App\\Plugins\\{$class_name}\\{$class_name}"]);
 
         $this->assertTrue($manager->has($class_name));
         $this->assertSame($class_name, $manager->get($class_name)->get_plugin_name());

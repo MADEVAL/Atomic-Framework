@@ -456,37 +456,14 @@ class App {
 
     public function register_core_plugins(array ...$plugin_classes): self
     {
-        if (empty($plugin_classes)) {
-            $providers_config = ATOMIC_CONFIG . 'providers.php';
-            $resolved_providers_config = realpath($providers_config);
-            if ($resolved_providers_config !== false && is_file($resolved_providers_config) && is_readable($resolved_providers_config)) {
-                $providers = require $resolved_providers_config;
-                $plugin_classes = $providers['plugins'] ?? [];
-            }
-        }
-
-        $manager = PluginManager::instance();
-        
-        foreach ($plugin_classes as $plugin_class) {
-            if (!class_exists($plugin_class)) {
-                Log::warning("Plugin class not found: {$plugin_class}");
-                continue;
-            }
-            
-            try {
-                $manager->register(new $plugin_class($this));
-            } catch (\Throwable $e) {
-                Log::error("Failed to register plugin {$plugin_class}: " . $e->getMessage());
-            }
-        }
-        
+        PluginManager::instance()->load_plugins(empty($plugin_classes) ? null : $plugin_classes);
         return $this;
     }
 
     public function register_plugins(): self
     {
         $manager = PluginManager::instance();
-        $manager->load_user_plugins();
+        $manager->load_plugins();
         $manager->register_all();
         $manager->boot_all();
         Hook::instance()->do_action(ApplicationHook::PLUGINS_LOADED, $this, $manager);

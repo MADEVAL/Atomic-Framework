@@ -4,16 +4,13 @@ namespace Engine\Atomic\Hook;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
+use Engine\Atomic\Core\Traits\Singleton;
 use Engine\Atomic\Event\Event;
 
 class Hook {
-    protected static ?self $instance = null;
-    protected Event $event;
+    use Singleton;
 
-    public static function instance(): self {
-        if (self::$instance === null) self::$instance = new self();
-        return self::$instance;
-    }
+    protected Event $event;
     protected function __construct() { $this->event = Event::instance(); }
 
     public function do_action(string|\UnitEnum $tag, mixed ...$args): void {

@@ -6,20 +6,17 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\Traits\Singleton;
 
 class Nonce
 {
-    protected static ?self $instance = null;
+    use Singleton;
+
     protected ?App $atomic = null;
 
     public function __construct()
     {
         $this->atomic = App::instance();
-    }
-
-    public static function instance(): self
-    {
-        return self::$instance ??= new self();
     }
 
     public function create_nonce(string $action = '', int $ttl = 3600): string

@@ -7,12 +7,13 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\Traits\Singleton;
 use Engine\Atomic\Enums\I18nDomain;
 use Engine\Atomic\Theme\Theme;
 
 final class I18n
 {
-    private static ?self $instance = null;
+    use Singleton;
 
     private App $app;
     private array $supported;
@@ -51,11 +52,6 @@ final class I18n
                 return 2;
             },
         ];
-    }
-
-    public static function instance(): self
-    {
-        return self::$instance ??= new self();
     }
 
     public function set(string $lang): void

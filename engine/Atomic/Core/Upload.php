@@ -8,15 +8,17 @@ use Engine\Atomic\App\Models\Meta;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\Filesystem as FS;
 use Engine\Atomic\Core\ID;
+use Engine\Atomic\Core\Traits\Singleton;
 use Engine\Atomic\Theme\Theme as AT;
 
 class Upload
 {
+    use Singleton;
+
     protected ?App $atomic = null;
     protected string $uploadPath;
     protected string $uploadSystem;
     protected string $uploadUser;
-    private static ?self $instance = null;
 
     private const META_ACCESS_TOKEN_PREFIX = 'file_access_token:';
     private const META_USER_TOKEN_PREFIX = 'upload_user_token:';
@@ -28,11 +30,6 @@ class Upload
         $this->uploadPath = $this->atomic->get('UPLOADS');
         $this->uploadSystem = $this->uploadPath . 'system' . DIRECTORY_SEPARATOR;
         $this->uploadUser = $this->uploadPath . 'user' . DIRECTORY_SEPARATOR;
-    }
-
-    public static function instance(): self
-    {
-        return self::$instance ??= new self();
     }
 
     public function get_upload_path(): string

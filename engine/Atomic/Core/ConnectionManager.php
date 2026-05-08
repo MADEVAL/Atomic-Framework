@@ -6,15 +6,16 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\Traits\Singleton;
 use DB\SQL;
 
 class ConnectionManager
 {
+    use Singleton;
+
     private const DEFAULT_DB_HEALTHCHECK_INTERVAL = 5.0;
     private const DEFAULT_REDIS_HEALTHCHECK_INTERVAL = 5.0;
     private const DEFAULT_MEMCACHED_HEALTHCHECK_INTERVAL = 5.0;
-
-    private static ?self $instance = null;
 
     // TODO: multi-connection - arrays already keyed by name; to add a new connection
     // add config resolution in get_*_config() and call get_db('replica') etc.
@@ -26,14 +27,6 @@ class ConnectionManager
     private array $memcached_last_used_at = [];
 
     private function __construct() {}
-
-    public static function instance(): self
-    {
-        if (self::$instance === null) {
-            self::$instance = new self();
-        }
-        return self::$instance;
-    }
 
     public function __destruct()
     {

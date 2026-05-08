@@ -5,11 +5,13 @@ namespace Engine\Atomic\Mail;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Traits\Singleton;
 
 class Mailer
 {
+    use Singleton;
+
     protected App $atomic;
-    private static ?self $instance = null;
 
     protected ?\SMTP $smtp = null;
     protected array $recipients = [];
@@ -25,11 +27,6 @@ class Mailer
         $this->atomic = App::instance();
         $this->charset = $charset;
         $this->init_smtp();
-    }
-
-    public static function instance(): self
-    {
-        return self::$instance ??= new self();
     }
 
     private function init_smtp(): void

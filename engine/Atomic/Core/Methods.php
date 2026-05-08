@@ -6,22 +6,18 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\CLI\CLI as AtomicCLI;
+use Engine\Atomic\Core\Traits\Singleton;
 use Engine\Atomic\Lang\I18n;
 
 class Methods {
+    use Singleton;
 
     protected App $atomic;
-    private static ?self $instance = null;
 
     private function __construct()
     {
         $this->atomic = App::instance();
     }
-
-    public static function instance(): self
-    {
-        return self::$instance ??= new self();
-    }   
 
     public static function reset(): void
     {

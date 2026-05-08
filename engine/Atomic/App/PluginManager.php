@@ -7,12 +7,14 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\RouteLoader;
+use Engine\Atomic\Core\Traits\Singleton;
 use Engine\Atomic\Exceptions\PluginDependencyException;
 
 class PluginManager
 {
+    use Singleton;
+
     protected ?App $atomic = null;
-    private static ?self $instance = null;
     protected array $plugins = [];
     protected array $registered = [];
     protected array $booted = [];
@@ -20,11 +22,6 @@ class PluginManager
 
     private function __construct()
     {
-    }
-
-    public static function instance(): self
-    {
-        return self::$instance ??= new self();
     }
 
     protected function get_atomic(): App
@@ -135,36 +132,113 @@ class PluginManager
         return $loaded_files;
     }
 
-    public function load_user_plugins(): void
+    public function load_plugins(?array $plugin_classes = null): void
     {
+        $plugin_classes ??= $this->provider_plugin_classes();
         $plugins_path = rtrim((string)$this->get_atomic()->get('USER_PLUGINS'), '/\\') . DIRECTORY_SEPARATOR;
         $resolved_plugins_path = realpath($plugins_path);
-        
+
         if ($resolved_plugins_path === false || !is_dir($resolved_plugins_path)) {
             Log::debug("User plugins directory not found: {$plugins_path}");
+            $resolved_plugins_path = null;
+        }
+
+        foreach ($plugin_classes as $plugin_class) {
+            if (!is_string($plugin_class) || $plugin_class === '') {
+                continue;
+            }
+
+            if ($this->get_by_class($plugin_class) !== null) {
+                continue;
+            }
+
+            if ($resolved_plugins_path !== null) {
+                $this->load_user_plugin_autoload($plugin_class, $resolved_plugins_path);
+            }
+
+            if (!class_exists($plugin_class)) {
+                Log::warning("Plugin class not found: {$plugin_class}");
+                continue;
+            }
+
+            if (!is_subclass_of($plugin_class, Plugin::class)) {
+                Log::warning("Plugin {$plugin_class} must extend " . Plugin::class . '.');
+                continue;
+            }
+
+            try {
+                $plugin = new $plugin_class($this->get_atomic());
+            } catch (\Throwable $e) {
+                Log::error("Failed to create plugin {$plugin_class}: " . $e->getMessage());
+                continue;
+            }
+
+            try {
+                $this->register($plugin);
+            } catch (\Throwable $e) {
+                Log::error("Failed to register plugin {$plugin_class}: " . $e->getMessage());
+            }
+        }
+    }
+
+    public function load_user_plugins(?array $plugin_classes = null): void
+    {
+        $this->load_plugins($plugin_classes);
+    }
+
+    public function load_core_plugins(?array $plugin_classes = null): void
+    {
+        $this->load_plugins($plugin_classes);
+    }
+
+    protected function provider_plugin_classes(): array
+    {
+        $providers_config = ATOMIC_CONFIG . 'providers.php';
+        $resolved_providers_config = realpath($providers_config);
+        if ($resolved_providers_config === false || !is_file($resolved_providers_config) || !is_readable($resolved_providers_config)) {
+            Log::debug("Providers config not found: {$providers_config}");
+            return [];
+        }
+
+        $providers = require $resolved_providers_config;
+        return is_array($providers) ? (array)($providers['plugins'] ?? []) : [];
+    }
+
+    protected function load_user_plugin_autoload(string $plugin_class, string $resolved_plugins_path): void
+    {
+        $plugin_dir = $resolved_plugins_path . DIRECTORY_SEPARATOR . $this->plugin_directory_name($plugin_class);
+        $resolved_plugin_dir = realpath($plugin_dir);
+
+        if (
+            $resolved_plugin_dir === false
+            || !is_dir($resolved_plugin_dir)
+            || !str_starts_with($resolved_plugin_dir, $resolved_plugins_path . DIRECTORY_SEPARATOR)
+        ) {
             return;
         }
 
-        $dirs = array_filter(glob($resolved_plugins_path . DIRECTORY_SEPARATOR . '*'), 'is_dir');
-        
-        foreach ($dirs as $dir) {
-            $plugin_file = $dir . DIRECTORY_SEPARATOR . 'plugin.php';
-            $resolved_plugin_file = realpath($plugin_file);
-            if (
-                $resolved_plugin_file !== false
-                && is_file($resolved_plugin_file)
-                && is_readable($resolved_plugin_file)
-                && str_starts_with($resolved_plugin_file, $resolved_plugins_path . DIRECTORY_SEPARATOR)
-            ) {
-                try {
-                    $this->load_plugin_autoload($dir, basename($dir));
-                    require_once $resolved_plugin_file;
-                    //Log::debug("User plugin loaded from: {$dir}");
-                } catch (\Throwable $e) {
-                    Log::error("Failed to load user plugin from {$dir}: " . $e->getMessage());
-                }
-            }
+        $this->load_plugin_autoload($resolved_plugin_dir, basename($resolved_plugin_dir));
+
+        if (class_exists($plugin_class)) {
+            return;
         }
+
+        $plugin_file = $resolved_plugin_dir . DIRECTORY_SEPARATOR . $this->plugin_directory_name($plugin_class) . '.php';
+        $resolved_plugin_file = realpath($plugin_file);
+        if (
+            $resolved_plugin_file !== false
+            && is_file($resolved_plugin_file)
+            && is_readable($resolved_plugin_file)
+            && str_starts_with($resolved_plugin_file, $resolved_plugin_dir . DIRECTORY_SEPARATOR)
+        ) {
+            require_once $resolved_plugin_file;
+        }
+    }
+
+    protected function plugin_directory_name(string $plugin_class): string
+    {
+        $class_parts = explode('\\', ltrim($plugin_class, '\\'));
+        return end($class_parts) ?: $plugin_class;
     }
 
     protected function load_plugin_autoload(string $plugin_dir, string $plugin_name): void

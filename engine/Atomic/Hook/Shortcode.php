@@ -4,15 +4,13 @@ namespace Engine\Atomic\Hook;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Core\Traits\Singleton;
+
 final class Shortcode
 {
-    private static ?self $instance = null;
-    private array $handlers = []; 
+    use Singleton;
 
-    public static function instance(): self 
-    {
-        return self::$instance ??= new self();
-    }
+    private array $handlers = []; 
 
     public function add_shortcode(string $tag, callable $callback): void 
     {

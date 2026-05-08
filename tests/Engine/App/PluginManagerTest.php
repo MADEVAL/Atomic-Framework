@@ -833,34 +833,67 @@ class PluginManagerTest extends TestCase
         rmdir($routes_dir);
     }
 
-    public function test_load_user_plugins_requires_local_autoload_before_plugin_file(): void
+    public function test_load_plugins_registers_provider_plugin_with_local_autoload(): void
     {
         $plugins_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_user_plugins_' . uniqid();
-        $plugin_dir = $plugins_dir . DIRECTORY_SEPARATOR . 'AutoloadedPlugin';
+        $class_name = 'AutoloadedPlugin' . str_replace('.', '', uniqid('', true));
+        $plugin_name = strtolower($class_name);
+        $plugin_dir = $plugins_dir . DIRECTORY_SEPARATOR . $class_name;
+        $plugin_class = "App\\Plugins\\{$class_name}\\{$class_name}";
         $marker_class = 'AtomicPluginAutoloadMarker' . str_replace('.', '', uniqid('', true));
         mkdir($plugin_dir . DIRECTORY_SEPARATOR . 'vendor', 0777, true);
 
         file_put_contents(
             $plugin_dir . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php',
-            "<?php\nclass {$marker_class} {}\n"
+            "<?php\nclass {$marker_class} {}\nrequire_once dirname(__DIR__) . DIRECTORY_SEPARATOR . '{$class_name}.php';\n"
         );
         file_put_contents(
-            $plugin_dir . DIRECTORY_SEPARATOR . 'plugin.php',
+            $plugin_dir . DIRECTORY_SEPARATOR . $class_name . '.php',
             <<<PHP
 <?php
+declare(strict_types=1);
+namespace App\\Plugins\\{$class_name};
+
 if (!defined('ATOMIC_START')) exit;
 if (!class_exists('{$marker_class}')) {
-    throw new RuntimeException('plugin autoload was not loaded first');
+    throw new \\RuntimeException('plugin autoload was not loaded first');
 }
-\Engine\Atomic\App\PluginManager::instance()->register(new \Tests\Engine\App\TestPlugin());
+
+final class {$class_name} extends \\Engine\\Atomic\\App\\Plugin
+{
+    protected function get_name(): string
+    {
+        return '{$plugin_name}';
+    }
+}
 PHP
         );
 
         App::atomic()->set('USER_PLUGINS', $plugins_dir);
 
-        $this->manager->load_user_plugins();
+        $this->manager->load_plugins([$plugin_class]);
 
-        $this->assertTrue($this->manager->has('test-plugin'));
+        $this->assertTrue($this->manager->has($plugin_name));
+        $this->assertInstanceOf($plugin_class, $this->manager->get($plugin_name));
+        $this->remove_dir($plugins_dir);
+    }
+
+    public function test_load_plugins_ignores_unregistered_plugin_file(): void
+    {
+        $plugins_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_user_plugins_' . uniqid();
+        $plugin_dir = $plugins_dir . DIRECTORY_SEPARATOR . 'UnregisteredPlugin';
+        mkdir($plugin_dir, 0777, true);
+
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . 'plugin.php',
+            "<?php\n\\Engine\\Atomic\\App\\PluginManager::instance()->register(new \\Tests\\Engine\\App\\TestPlugin());\n"
+        );
+
+        App::atomic()->set('USER_PLUGINS', $plugins_dir);
+
+        $this->manager->load_plugins([]);
+
+        $this->assertFalse($this->manager->has('test-plugin'));
         $this->remove_dir($plugins_dir);
     }
 

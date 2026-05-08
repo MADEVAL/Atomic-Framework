@@ -42,10 +42,6 @@ trait Plugin
 
         $created = 0;
         $created += $this->write_plugin_file_if_missing(
-            $target_dir . DIRECTORY_SEPARATOR . 'plugin.php',
-            $this->plugin_entrypoint_stub($class_name)
-        );
-        $created += $this->write_plugin_file_if_missing(
             $target_dir . DIRECTORY_SEPARATOR . $class_name . '.php',
             $this->plugin_class_stub($class_name)
         );
@@ -60,6 +56,7 @@ trait Plugin
 
         $this->output->writeln("Plugin {$class_name} ready at {$target_dir}");
         $this->output->writeln("Created {$created} file" . ($created === 1 ? '' : 's') . '.');
+        $this->output->writeln("Register App\\Plugins\\{$class_name}\\{$class_name}::class in config/providers.php.");
     }
 
     public function plugin_deps_install(): void
@@ -234,23 +231,6 @@ trait Plugin
 
         file_put_contents($path, $content);
         return 1;
-    }
-
-    private function plugin_entrypoint_stub(string $class_name): string
-    {
-        return <<<PHP
-<?php
-declare(strict_types=1);
-
-use Engine\\Atomic\\App\\PluginManager;
-
-if (!defined('ATOMIC_START')) exit;
-
-require_once __DIR__ . '/{$class_name}.php';
-
-PluginManager::instance()->register(new \\App\\Plugins\\{$class_name}\\{$class_name}());
-
-PHP;
     }
 
     private function plugin_class_stub(string $class_name): string
