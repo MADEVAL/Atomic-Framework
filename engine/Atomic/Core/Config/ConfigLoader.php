@@ -252,6 +252,8 @@ class ConfigLoader {
             'openrouter' => ['api_key' => $this->get_env('AI_OPENROUTER_API_KEY', '')],
             'globus'     => ['api_key' => $this->get_env('AI_GLOBUS_API_KEY', '')],
         ]);
+
+        $this->atomic->set('CONFIG', $this->build_custom_config());
     }
 
     private function telemetry_access_mode(string $mode): string
@@ -333,5 +335,43 @@ class ConfigLoader {
         }
 
         return $policies;
+    }
+
+    private function build_custom_config(): array
+    {
+        $config = [];
+        foreach ($this->env as $key => $value) {
+            if (!preg_match('/^CONFIG_([A-Z0-9]+)_(.+)$/', $key, $m)) {
+                continue;
+            }
+
+            $namespace = strtolower($m[1]);
+            $config_key = strtolower($m[2]);
+            $config[$namespace][$config_key] = $this->parse_custom_env_value((string)$value);
+        }
+
+        return $config;
+    }
+
+    private function parse_custom_env_value(string $value): mixed
+    {
+        $normalized = strtolower($value);
+        if ($normalized === 'true') {
+            return true;
+        }
+        if ($normalized === 'false') {
+            return false;
+        }
+        if (preg_match('/^-?\d+$/', $value)) {
+            return (int)$value;
+        }
+        if (preg_match('/^-?(?:\d+\.\d*|\d*\.\d+)$/', $value)) {
+            return (float)$value;
+        }
+        if (str_contains($value, ',')) {
+            return array_map('trim', explode(',', $value));
+        }
+
+        return $value;
     }
 }

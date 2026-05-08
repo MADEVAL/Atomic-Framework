@@ -43,7 +43,7 @@ class ConfigParityTest extends TestCase
         'THEME', 'PORTS', 'WS',
         'DB_CONFIG', 'REDIS', 'MEMCACHED', 'MUTEX', 'MAIL',
         'MAILER', 'SESSION_CONFIG', 'JAR', 'CORS', 'RATE_LIMITER', 'QUEUE',
-        'ACCESS', 'i18n', 'OAUTH', 'MONOPAY',
+        'ACCESS', 'i18n', 'OAUTH', 'MONOPAY', 'CONFIG',
     ];
 
     // ── Setup ─────────────────────────────────────────────────────────────────

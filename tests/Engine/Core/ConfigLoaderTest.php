@@ -5,6 +5,7 @@ namespace Tests\Engine\Core;
 
 use Engine\Atomic\Auth\ConfigUserStore;
 use Engine\Atomic\Core\Config\ConfigLoader;
+use Engine\Atomic\Core\Config\PhpConfigLoader;
 use PHPUnit\Framework\TestCase;
 
 class ConfigLoaderTest extends TestCase
@@ -275,5 +276,70 @@ class ConfigLoaderTest extends TestCase
         $this->assertArrayHasKey('email', $db_queues);
         $this->assertSame(10, $db_queues['email']['delay']);
         $this->assertSame(5, $db_queues['email']['max_attempts']);
+    }
+
+    public function test_env_custom_config_maps_config_prefixed_scalars_only(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'CONFIG_FEATURES_MONTHLY_QUOTA=1000',
+            'CONFIG_FEATURES_ENDPOINTS_ENABLED=true',
+            'CONFIG_FEATURES_SAMPLE_RATIO=0.7',
+            'CONFIG_FEATURES_PROVIDERS=primary, secondary,backup',
+            'CONFIG_BILLING_MODE=live',
+            'DB_CONFIG_SHOULD_NOT_LOAD=unsafe',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame([
+            'features' => [
+                'monthly_quota' => 1000,
+                'endpoints_enabled' => true,
+                'sample_ratio' => 0.7,
+                'providers' => ['primary', 'secondary', 'backup'],
+            ],
+            'billing' => [
+                'mode' => 'live',
+            ],
+        ], $this->f3->get('CONFIG'));
+
+        $this->assertNull($this->f3->get('DB_CONFIG_SHOULD_NOT_LOAD'));
+    }
+
+    public function test_php_custom_configs_load_under_config_namespace_only(): void
+    {
+        $config_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_config_' . uniqid() . DIRECTORY_SEPARATOR;
+        mkdir($config_dir);
+        file_put_contents($config_dir . 'feature_flags.php', "<?php\nreturn ['enabled' => true, 'quota' => 1000, 'providers' => ['primary']];\n");
+        file_put_contents($config_dir . 'billing.php', "<?php\nreturn ['mode' => 'test'];\n");
+        file_put_contents($config_dir . 'database.php', "<?php\nreturn ['default' => 'sqlite', 'connections' => ['sqlite' => ['driver' => 'sqlite']]];\n");
+        file_put_contents($config_dir . 'index.php', "<?php\nreturn ['ignored' => true];\n");
+        file_put_contents($config_dir . 'bad.php', "<?php\nreturn 'not-an-array';\n");
+
+        try {
+            $loader = new class($this->f3) extends PhpConfigLoader {
+                public function set_config_path(string $path): void
+                {
+                    $this->config_path = $path;
+                }
+            };
+            $loader->set_config_path($config_dir);
+            $configs = $loader->load();
+
+            $this->assertSame([
+                'billing' => ['mode' => 'test'],
+                'feature_flags' => ['enabled' => true, 'quota' => 1000, 'providers' => ['primary']],
+            ], $this->f3->get('CONFIG'));
+            $this->assertSame($this->f3->get('CONFIG'), $configs['_custom']);
+            $this->assertArrayNotHasKey('bad', $this->f3->get('CONFIG'));
+            $this->assertArrayNotHasKey('index', $this->f3->get('CONFIG'));
+            $this->assertArrayNotHasKey('database', $this->f3->get('CONFIG'));
+        } finally {
+            foreach (glob($config_dir . '*.php') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($config_dir);
+        }
     }
 }

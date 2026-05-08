@@ -46,14 +46,12 @@ class PhpConfigLoader {
     }
 
     public function load(): array {
-        $config_files = [
-            'app', 'auth', 'cache', 'database', 'filesystems',
-            'i18n', 'logging', 'mail', 'middleware', 'queue',
-            'session', 'tools', 'providers', 'rate_limiter'
-        ];
+        $config_files = $this->framework_config_files();
         foreach ($config_files as $config) {
             $this->configs[$config] = $this->load_config($config);
         }
+        $custom_config = $this->load_custom_configs();
+        $this->configs['_custom'] = $custom_config;
 
         $default_conn = (string)$this->cfg('database', 'default', 'mysql');
         $conn = $this->cfg_nested('database', "connections.{$default_conn}", []);
@@ -325,6 +323,8 @@ class PhpConfigLoader {
             'globus'     => ['api_key' => (string)($ai['globus']['api_key'] ?? '')],
         ]);
 
+        $this->atomic->set('CONFIG', $custom_config);
+
         return $this->configs;
     }
 
@@ -359,5 +359,53 @@ class PhpConfigLoader {
             array_map(static fn (mixed $role): string => trim((string)$role), $roles),
             static fn (string $role): bool => $role !== ''
         ));
+    }
+
+    /** @return list<string> */
+    private function framework_config_files(): array
+    {
+        return [
+            'app', 'auth', 'cache', 'database', 'filesystems',
+            'i18n', 'logging', 'mail', 'middleware', 'queue',
+            'session', 'tools', 'providers', 'rate_limiter'
+        ];
+    }
+
+    private function load_custom_configs(): array
+    {
+        $custom_configs = [];
+        $framework_files = array_flip($this->framework_config_files());
+        $paths = glob(rtrim($this->config_path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.php') ?: [];
+
+        foreach ($paths as $path) {
+            $name = $this->config_name_from_file($path);
+            if ($name === 'index' || isset($framework_files[$name])) {
+                continue;
+            }
+
+            $resolved_path = realpath($path);
+            if ($resolved_path === false || !is_file($resolved_path) || !is_readable($resolved_path)) {
+                continue;
+            }
+
+            $config = require $resolved_path;
+            if (!is_array($config)) {
+                error_log("Atomic custom config '{$name}' must return an array; skipping {$resolved_path}");
+                continue;
+            }
+
+            $custom_configs[$name] = $config;
+        }
+
+        return $custom_configs;
+    }
+
+    private function config_name_from_file(string $path): string
+    {
+        $name = pathinfo($path, PATHINFO_FILENAME);
+        $name = preg_replace('/(?<!^)[A-Z]/', '_$0', $name) ?? $name;
+        $name = strtolower((string)$name);
+        $name = preg_replace('/[^a-z0-9]+/', '_', $name) ?? $name;
+        return trim($name, '_');
     }
 }
