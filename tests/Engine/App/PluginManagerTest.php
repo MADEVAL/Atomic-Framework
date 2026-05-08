@@ -7,6 +7,7 @@ use Engine\Atomic\App\Plugin;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\RouteLoader;
+use Engine\Atomic\Exceptions\PluginDependencyException;
 use Engine\Atomic\Hook\ApplicationHook;
 use Engine\Atomic\Hook\Hook;
 use Engine\Atomic\Plugins\WebSockets\WebSockets;
@@ -62,6 +63,39 @@ class MissingDependencyPlugin extends Plugin
     protected function get_name(): string
     {
         return 'missing-dependency-plugin';
+    }
+}
+
+class MissingRuntimeDependencyPlugin extends Plugin
+{
+    protected function get_name(): string
+    {
+        return 'missing-runtime-dependency';
+    }
+
+    public function required_dependencies(): array
+    {
+        return [
+            [
+                'package' => 'vendor/missing-package',
+                'classes' => [
+                    'Tests\\Engine\\App\\ClassThatDoesNotExist',
+                ],
+            ],
+        ];
+    }
+}
+
+class InvalidRuntimeDependencyPlugin extends Plugin
+{
+    protected function get_name(): string
+    {
+        return 'invalid-runtime-dependency';
+    }
+
+    public function required_dependencies(): array
+    {
+        return ['vendor/package'];
     }
 }
 
@@ -483,6 +517,30 @@ class PluginManagerTest extends TestCase
     {
         $dep = new DependentPlugin();
         $this->assertSame([TestPlugin::class], $dep->get_dependencies());
+    }
+
+    public function test_runtime_dependency_check_throws_clear_plugin_exception(): void
+    {
+        $this->expectException(PluginDependencyException::class);
+        $this->expectExceptionMessage('Plugin missing-runtime-dependency is missing package vendor/missing-package. Run: php atomic plugin/deps install missing-runtime-dependency');
+
+        (new MissingRuntimeDependencyPlugin())->assert_runtime_requirements();
+    }
+
+    public function test_plugin_without_runtime_dependencies_passes_check(): void
+    {
+        $plugin = new TestPlugin();
+        $plugin->assert_runtime_requirements();
+
+        $this->assertSame('test-plugin', $plugin->get_plugin_name());
+    }
+
+    public function test_runtime_dependency_requires_symbol_check(): void
+    {
+        $this->expectException(PluginDependencyException::class);
+        $this->expectExceptionMessage('must declare at least one class or function check');
+
+        (new InvalidRuntimeDependencyPlugin())->assert_runtime_requirements();
     }
 
     public function test_resolve_dependency_returns_registered_plugin_by_class(): void

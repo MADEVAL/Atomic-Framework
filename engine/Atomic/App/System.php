@@ -46,6 +46,11 @@ class System extends Controller
         $this->cli()->plugin_make();
     }
 
+    public function plugin_deps_install(): void
+    {
+        $this->cli()->plugin_deps_install();
+    }
+
     public function access_user_create(): void
     {
         $this->cli()->access_user_create();

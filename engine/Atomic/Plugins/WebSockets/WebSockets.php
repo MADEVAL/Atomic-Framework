@@ -15,13 +15,27 @@ class WebSockets extends Plugin
         return 'WebSockets';
     }
 
+    public function required_dependencies(): array
+    {
+        return [
+            [
+                'package' => 'workerman/workerman',
+                'classes' => [
+                    \Workerman\Worker::class,
+                    \Workerman\Connection\TcpConnection::class,
+                ],
+            ],
+            [
+                'package' => 'workerman/redis',
+                'classes' => [
+                    \Workerman\Redis\Client::class,
+                ],
+            ],
+        ];
+    }
+
     public function register(): void
     {
-        $autoload = __DIR__ . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
-        if (is_file($autoload)) {
-            require_once $autoload;
-        }
-
         $this->atomic->register_route_type('websocket', 'websocket.php');
     }
 }

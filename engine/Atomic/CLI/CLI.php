@@ -37,6 +37,7 @@ class CLI {
         $this->output->writeln('  init/guide         - Print the full manual setup guide (no interaction)');
         $this->output->writeln('  logs/rotate        - Delete php error log files beyond the most recent 10');
         $this->output->writeln('  plugin/make <name> - Create a user plugin scaffold');
+        $this->output->writeln('  plugin/deps install [plugin] - Install enabled plugin Composer dependencies');
         $this->output->writeln('  access/user/create <guard> <username> [roles] - Create config auth user');
         $this->output->writeln('  access/user/reset <guard> <username>          - Reset config auth user secret');
         $this->output->writeln('  access/user/list                              - List config auth users');
@@ -168,6 +169,7 @@ class CLI {
             '/init',
             '/init/key',
             '/plugin/make',
+            '/plugin/deps',
             '/access/user/create',
             '/access/user/reset',
             '/cache/clear',

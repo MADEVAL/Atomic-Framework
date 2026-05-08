@@ -7,6 +7,7 @@ $atomic->route('GET /init/key [cli]',   'Engine\Atomic\App\System->app_init_key'
 $atomic->route('GET /init/guide [cli]', 'Engine\Atomic\App\System->app_init_guide');
 $atomic->route('GET /logs/rotate [cli]', 'Engine\Atomic\App\System->logs_rotate');
 $atomic->route('GET /plugin/make [cli]', 'Engine\Atomic\App\System->plugin_make');
+$atomic->route('GET /plugin/deps [cli]', 'Engine\Atomic\App\System->plugin_deps_install');
 $atomic->route('GET /access/user/create [cli]', 'Engine\Atomic\App\System->access_user_create');
 $atomic->route('GET /access/user/reset [cli]', 'Engine\Atomic\App\System->access_user_reset_secret');
 $atomic->route('GET /access/user/list [cli]', 'Engine\Atomic\App\System->access_user_list');

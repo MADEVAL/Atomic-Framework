@@ -5,6 +5,7 @@ namespace Engine\Atomic\App;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Exceptions\PluginDependencyException;
 
 abstract class Plugin
 {
@@ -56,6 +57,73 @@ abstract class Plugin
     public function get_dependencies(): array
     {
         return $this->dependencies;
+    }
+
+    public function required_dependencies(): array
+    {
+        return [];
+    }
+
+    public function assert_runtime_requirements(): void
+    {
+        foreach ($this->required_dependencies() as $requirement) {
+            $normalized = $this->normalize_runtime_requirement($requirement);
+
+            $missing = [];
+            foreach ($normalized['classes'] as $class) {
+                if (!class_exists($class) && !interface_exists($class) && !trait_exists($class)) {
+                    $missing[] = $class;
+                }
+            }
+            foreach ($normalized['functions'] as $function) {
+                if (!function_exists($function)) {
+                    $missing[] = $function . '()';
+                }
+            }
+
+            if ($missing === []) {
+                continue;
+            }
+
+            $package = $normalized['package'];
+            throw new PluginDependencyException(
+                "Plugin {$this->name} is missing package {$package}. "
+                . "Run: php atomic plugin/deps install {$this->name}"
+            );
+        }
+    }
+
+    private function normalize_runtime_requirement(mixed $requirement): ?array
+    {
+        if (is_string($requirement)) {
+            throw new PluginDependencyException(
+                "Plugin {$this->name} runtime dependency {$requirement} must declare at least one class or function check."
+            );
+        }
+
+        if (!is_array($requirement)) {
+            throw new PluginDependencyException("Plugin {$this->name} has invalid runtime dependency declaration.");
+        }
+
+        $package = (string)($requirement['package'] ?? $requirement['name'] ?? '');
+        if ($package === '') {
+            throw new PluginDependencyException("Plugin {$this->name} runtime dependency is missing package name.");
+        }
+
+        $classes = array_values(array_filter((array)($requirement['classes'] ?? $requirement['class'] ?? []), 'is_string'));
+        $functions = array_values(array_filter((array)($requirement['functions'] ?? $requirement['function'] ?? []), 'is_string'));
+
+        if ($classes === [] && $functions === []) {
+            throw new PluginDependencyException(
+                "Plugin {$this->name} runtime dependency {$package} must declare at least one class or function check."
+            );
+        }
+
+        return [
+            'package' => $package,
+            'classes' => $classes,
+            'functions' => $functions,
+        ];
     }
 
     public function get_plugin_name(): string

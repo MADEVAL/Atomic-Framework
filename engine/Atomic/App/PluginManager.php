@@ -7,6 +7,7 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\RouteLoader;
+use Engine\Atomic\Exceptions\PluginDependencyException;
 
 class PluginManager
 {
@@ -40,6 +41,7 @@ class PluginManager
             return;
         }
 
+        $this->load_plugin_autoload($plugin->get_plugin_path(), $name);
         $this->plugins[$name] = $plugin;
     }
 
@@ -56,10 +58,14 @@ class PluginManager
             try {
                 $this->check_dependencies($plugin);
                 $this->check_dependency_state($plugin, $this->registered, 'registered successfully');
+                $plugin->assert_runtime_requirements();
                 $plugin->register();
                 $this->registered[$name] = true;
             } catch (\Throwable $e) {
                 Log::error("Plugin {$name} registration failed: " . $e->getMessage());
+                if ($e instanceof PluginDependencyException) {
+                    throw $e;
+                }
             }
         }
     }
@@ -72,10 +78,14 @@ class PluginManager
 
             try {
                 $this->check_dependency_state($plugin, $this->booted, 'booted successfully');
+                $plugin->assert_runtime_requirements();
                 $plugin->boot();
                 $this->booted[$name] = true;
             } catch (\Throwable $e) {
                 Log::error("Plugin {$name} boot failed: " . $e->getMessage());
+                if ($e instanceof PluginDependencyException) {
+                    throw $e;
+                }
             }
         }
 
