@@ -29,26 +29,26 @@ trait Init
 
         $root = ATOMIC_DIR;
 
-        $this->output->writeln("  " . Style::yellow('[1/6]', true) . " Synchronizing application keys...");
+        $this->output->writeln("  " . Style::yellow('[1/5]', true) . " Synchronizing application keys...");
         $key_sync_result = $this->synchronize_application_keys($root);
         if ($key_sync_result === false) {
             return;
         }
         $this->output->writeln();
 
-        $this->output->writeln("  " . Style::yellow('[2/6]', true) . " Configuration setup...");
+        $this->output->writeln("  " . Style::yellow('[2/5]', true) . " Configuration setup...");
         $config_source = $this->choose_config_source();
         $this->initialize_config_source($root, $config_source);
         $this->output->writeln();
 
-        $this->output->writeln("  " . Style::yellow('[3/6]', true) . " Creating directories and files...");
+        $this->output->writeln("  " . Style::yellow('[3/5]', true) . " Creating directories and files...");
         $created = $this->create_skeleton_directories($root);
         $stubs = $this->create_app_stubs($root);
         $this->output->writeln("        {$created} new director" . ($created === 1 ? 'y' : 'ies') . " created");
         $this->output->writeln("        {$stubs} stub file" . ($stubs === 1 ? '' : 's') . " created");
         $this->output->writeln();
 
-        $this->output->writeln("  " . Style::yellow('[4/6]', true) . " Preparing settings...");
+        $this->output->writeln("  " . Style::yellow('[4/5]', true) . " Preparing settings...");
         $this->configure_basic_env('');
 
         if ($this->config_mode() === 'env') {
@@ -58,7 +58,7 @@ trait Init
         }
         $this->output->writeln();
 
-        $this->output->writeln("  " . Style::yellow('[5/6]', true) . " Database and backend setup...");
+        $this->output->writeln("  " . Style::yellow('[5/5]', true) . " Database and backend setup...");
         $db_config   = $this->configure_database('');
         $db_migrated = false;
         if ($db_config !== null) {

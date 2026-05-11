@@ -367,6 +367,12 @@ trait InitInstaller
             return null;
         }
 
+        $this->output->writeln();
+        if (!$this->confirm('Configure database now?', true)) {
+            $this->output->writeln();
+            return null;
+        }
+
         while (true) {
             $config = [
                 'driver'   => 'mysql',
