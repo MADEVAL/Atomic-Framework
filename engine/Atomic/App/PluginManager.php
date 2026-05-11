@@ -19,6 +19,7 @@ class PluginManager
     protected array $registered = [];
     protected array $booted = [];
     protected array $loaded_route_types = [];
+    protected array $registered_autoloaders = [];
 
     private function __construct()
     {
@@ -152,8 +153,9 @@ class PluginManager
                 continue;
             }
 
-            if ($resolved_plugins_path !== null) {
-                $this->load_user_plugin_autoload($plugin_class, $resolved_plugins_path);
+            $resolved_plugin_dir = $this->resolve_provider_plugin_directory($plugin_class, $resolved_plugins_path);
+            if ($resolved_plugin_dir !== false) {
+                $this->load_provider_plugin_autoload($plugin_class, $resolved_plugin_dir);
             }
 
             if (!class_exists($plugin_class)) {
@@ -206,8 +208,7 @@ class PluginManager
 
     protected function load_user_plugin_autoload(string $plugin_class, string $resolved_plugins_path): void
     {
-        $plugin_dir = $resolved_plugins_path . DIRECTORY_SEPARATOR . $this->plugin_directory_name($plugin_class);
-        $resolved_plugin_dir = realpath($plugin_dir);
+        $resolved_plugin_dir = $this->resolve_plugin_directory($plugin_class, $resolved_plugins_path);
 
         if (
             $resolved_plugin_dir === false
@@ -218,6 +219,7 @@ class PluginManager
         }
 
         $this->load_plugin_autoload($resolved_plugin_dir, basename($resolved_plugin_dir));
+        $this->register_plugin_namespace_autoload($plugin_class, $resolved_plugin_dir);
 
         if (class_exists($plugin_class)) {
             return;
@@ -233,6 +235,134 @@ class PluginManager
         ) {
             require_once $resolved_plugin_file;
         }
+    }
+
+    protected function resolve_provider_plugin_directory(string $plugin_class, ?string $resolved_plugins_path): string|false
+    {
+        if ($resolved_plugins_path !== null) {
+            $resolved_user_plugin_dir = $this->resolve_plugin_directory($plugin_class, $resolved_plugins_path);
+            if (
+                $resolved_user_plugin_dir !== false
+                && is_dir($resolved_user_plugin_dir)
+                && str_starts_with($resolved_user_plugin_dir, $resolved_plugins_path . DIRECTORY_SEPARATOR)
+            ) {
+                return $resolved_user_plugin_dir;
+            }
+        }
+
+        if (!class_exists($plugin_class)) {
+            return false;
+        }
+
+        try {
+            $reflection = new \ReflectionClass($plugin_class);
+        } catch (\ReflectionException) {
+            return false;
+        }
+
+        $file_name = $reflection->getFileName();
+        if ($file_name === false) {
+            return false;
+        }
+
+        $resolved_plugin_dir = realpath(dirname($file_name));
+        return $resolved_plugin_dir !== false && is_dir($resolved_plugin_dir) ? $resolved_plugin_dir : false;
+    }
+
+    protected function load_provider_plugin_autoload(string $plugin_class, string $resolved_plugin_dir): void
+    {
+        $this->load_plugin_autoload($resolved_plugin_dir, basename($resolved_plugin_dir));
+        $this->register_plugin_namespace_autoload($plugin_class, $resolved_plugin_dir);
+
+        if (class_exists($plugin_class)) {
+            return;
+        }
+
+        $plugin_file = $resolved_plugin_dir . DIRECTORY_SEPARATOR . $this->plugin_directory_name($plugin_class) . '.php';
+        $resolved_plugin_file = realpath($plugin_file);
+        if (
+            $resolved_plugin_file !== false
+            && is_file($resolved_plugin_file)
+            && is_readable($resolved_plugin_file)
+            && str_starts_with($resolved_plugin_file, $resolved_plugin_dir . DIRECTORY_SEPARATOR)
+        ) {
+            require_once $resolved_plugin_file;
+        }
+    }
+
+    protected function resolve_plugin_directory(string $plugin_class, string $resolved_plugins_path): string|false
+    {
+        foreach ($this->plugin_directory_candidates($plugin_class) as $directory_name) {
+            $resolved_plugin_dir = realpath($resolved_plugins_path . DIRECTORY_SEPARATOR . $directory_name);
+            if ($resolved_plugin_dir !== false) {
+                return $resolved_plugin_dir;
+            }
+        }
+
+        return false;
+    }
+
+    protected function plugin_directory_candidates(string $plugin_class): array
+    {
+        $class_parts = explode('\\', ltrim($plugin_class, '\\'));
+        $candidates = [];
+
+        $class_name = end($class_parts);
+        if (is_string($class_name) && $class_name !== '') {
+            $candidates[] = $class_name;
+        }
+
+        $namespace_plugin_name = count($class_parts) >= 2 ? $class_parts[count($class_parts) - 2] : null;
+        if (is_string($namespace_plugin_name) && $namespace_plugin_name !== '') {
+            $candidates[] = $namespace_plugin_name;
+        }
+
+        return array_values(array_unique($candidates));
+    }
+
+    protected function register_plugin_namespace_autoload(string $plugin_class, string $resolved_plugin_dir): void
+    {
+        $namespace = $this->plugin_namespace_prefix($plugin_class);
+        if ($namespace === '' || isset($this->registered_autoloaders[$namespace])) {
+            return;
+        }
+
+        $this->registered_autoloaders[$namespace] = $resolved_plugin_dir;
+
+        spl_autoload_register(static function (string $class) use ($namespace, $resolved_plugin_dir): void {
+            if (!str_starts_with($class, $namespace)) {
+                return;
+            }
+
+            $relative_class = substr($class, strlen($namespace));
+            if ($relative_class === '' || str_contains($relative_class, '..')) {
+                return;
+            }
+
+            $file = $resolved_plugin_dir . DIRECTORY_SEPARATOR
+                . str_replace('\\', DIRECTORY_SEPARATOR, $relative_class)
+                . '.php';
+
+            $resolved_file = realpath($file);
+            if (
+                $resolved_file !== false
+                && is_file($resolved_file)
+                && is_readable($resolved_file)
+                && str_starts_with($resolved_file, $resolved_plugin_dir . DIRECTORY_SEPARATOR)
+            ) {
+                require_once $resolved_file;
+            }
+        });
+    }
+
+    protected function plugin_namespace_prefix(string $plugin_class): string
+    {
+        $class = ltrim($plugin_class, '\\');
+        $last_separator = strrpos($class, '\\');
+
+        return $last_separator === false
+            ? ''
+            : substr($class, 0, $last_separator + 1);
     }
 
     protected function plugin_directory_name(string $plugin_class): string

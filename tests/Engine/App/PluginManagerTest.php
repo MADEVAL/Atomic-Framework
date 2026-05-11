@@ -878,6 +878,55 @@ PHP
         $this->remove_dir($plugins_dir);
     }
 
+    public function test_load_plugins_loads_known_plugin_composer_before_instantiation(): void
+    {
+        $plugin_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_known_plugin_' . uniqid();
+        $class_name = 'KnownComposerPlugin' . str_replace('.', '', uniqid('', true));
+        $plugin_name = strtolower($class_name);
+        $plugin_class = "Tests\\Engine\\App\\{$class_name}";
+        $marker_class = 'KnownPluginAutoloadMarker' . str_replace('.', '', uniqid('', true));
+        mkdir($plugin_dir . DIRECTORY_SEPARATOR . 'vendor', 0777, true);
+
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php',
+            "<?php\nclass {$marker_class} {}\n"
+        );
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . $class_name . '.php',
+            <<<PHP
+<?php
+declare(strict_types=1);
+namespace Tests\\Engine\\App;
+
+if (!defined('ATOMIC_START')) exit;
+
+final class {$class_name} extends \\Engine\\Atomic\\App\\Plugin
+{
+    public function __construct(?\\Engine\\Atomic\\Core\\App \$atomic = null)
+    {
+        if (!class_exists('{$marker_class}')) {
+            throw new \\RuntimeException('plugin autoload was not loaded before construction');
+        }
+
+        parent::__construct(\$atomic);
+    }
+
+    protected function get_name(): string
+    {
+        return '{$plugin_name}';
+    }
+}
+PHP
+        );
+        require_once $plugin_dir . DIRECTORY_SEPARATOR . $class_name . '.php';
+
+        $this->manager->load_plugins([$plugin_class]);
+
+        $this->assertTrue($this->manager->has($plugin_name));
+        $this->assertInstanceOf($plugin_class, $this->manager->get($plugin_name));
+        $this->remove_dir($plugin_dir);
+    }
+
     public function test_load_plugins_ignores_unregistered_plugin_file(): void
     {
         $plugins_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_user_plugins_' . uniqid();
@@ -894,6 +943,133 @@ PHP
         $this->manager->load_plugins([]);
 
         $this->assertFalse($this->manager->has('test-plugin'));
+        $this->remove_dir($plugins_dir);
+    }
+
+    public function test_provider_plugin_namespace_autoloads_plugin_classes(): void
+    {
+        $plugins_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_user_plugins_' . uniqid();
+        $plugin_dir = $plugins_dir . DIRECTORY_SEPARATOR . 'AutoloadedPlugin';
+        $services_dir = $plugin_dir . DIRECTORY_SEPARATOR . 'Services';
+        mkdir($services_dir, 0777, true);
+
+        $plugin_class = 'App\\Plugins\\AutoloadedPlugin\\AutoloadedPlugin';
+        $service_class = 'App\\Plugins\\AutoloadedPlugin\\Services\\MarkerService';
+
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . 'AutoloadedPlugin.php',
+            <<<'PHP'
+<?php
+declare(strict_types=1);
+namespace App\Plugins\AutoloadedPlugin;
+
+if (!defined('ATOMIC_START')) exit;
+
+final class AutoloadedPlugin extends \Engine\Atomic\App\Plugin
+{
+    protected function get_name(): string
+    {
+        return 'autoloaded-plugin';
+    }
+
+    public function register(): void
+    {
+        \App\Plugins\AutoloadedPlugin\Services\MarkerService::touch();
+    }
+}
+PHP
+        );
+
+        file_put_contents(
+            $services_dir . DIRECTORY_SEPARATOR . 'MarkerService.php',
+            <<<'PHP'
+<?php
+declare(strict_types=1);
+namespace App\Plugins\AutoloadedPlugin\Services;
+
+final class MarkerService
+{
+    public static bool $touched = false;
+
+    public static function touch(): void
+    {
+        self::$touched = true;
+    }
+}
+PHP
+        );
+
+        App::atomic()->set('USER_PLUGINS', $plugins_dir);
+
+        $this->manager->load_plugins([$plugin_class]);
+        $this->manager->register_all();
+
+        $this->assertTrue(class_exists($service_class));
+        $this->assertTrue($service_class::$touched);
+        $this->remove_dir($plugins_dir);
+    }
+
+    public function test_load_plugins_supports_namespace_plugin_directory_names(): void
+    {
+        $plugins_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_user_plugins_' . uniqid();
+        $plugin_dir = $plugins_dir . DIRECTORY_SEPARATOR . 'Example_Plugin';
+        $services_dir = $plugin_dir . DIRECTORY_SEPARATOR . 'Services';
+        mkdir($services_dir, 0777, true);
+
+        $plugin_class = 'App\\Plugins\\Example_Plugin\\ExamplePlugin';
+        $service_class = 'App\\Plugins\\Example_Plugin\\Services\\MarkerService';
+
+        file_put_contents(
+            $plugin_dir . DIRECTORY_SEPARATOR . 'ExamplePlugin.php',
+            <<<'PHP'
+<?php
+declare(strict_types=1);
+namespace App\Plugins\Example_Plugin;
+
+if (!defined('ATOMIC_START')) exit;
+
+final class ExamplePlugin extends \Engine\Atomic\App\Plugin
+{
+    protected function get_name(): string
+    {
+        return 'example-plugin';
+    }
+
+    public function register(): void
+    {
+        \App\Plugins\Example_Plugin\Services\MarkerService::touch();
+    }
+}
+PHP
+        );
+
+        file_put_contents(
+            $services_dir . DIRECTORY_SEPARATOR . 'MarkerService.php',
+            <<<'PHP'
+<?php
+declare(strict_types=1);
+namespace App\Plugins\Example_Plugin\Services;
+
+final class MarkerService
+{
+    public static bool $touched = false;
+
+    public static function touch(): void
+    {
+        self::$touched = true;
+    }
+}
+PHP
+        );
+
+        App::atomic()->set('USER_PLUGINS', $plugins_dir);
+
+        $this->manager->load_plugins([$plugin_class]);
+        $this->manager->register_all();
+
+        $this->assertTrue($this->manager->has('example-plugin'));
+        $this->assertTrue(class_exists($service_class));
+        $this->assertTrue($service_class::$touched);
         $this->remove_dir($plugins_dir);
     }
 

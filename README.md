@@ -35,6 +35,7 @@ Download the application skeleton for a quick start:
   - [Database & Migrations](#database--migrations)
   - [Queue System](#queue-system)
   - [Task Scheduler](#task-scheduler)
+  - [Plugins](#plugins)
   - [Event & Hook System](#event--hook-system)
   - [Caching](#caching)
   - [Internationalization](#internationalization)
@@ -224,6 +225,8 @@ $application
     ->app_bootstrapped();
 ```
 
+Core framework plugins are loaded before user/application plugins. User and core plugins are both resolved from `config/providers.php`; plugin directories are not scanned automatically.
+
 ### Routing
 
 Routes are organized by type and loaded automatically based on request context:
@@ -273,6 +276,76 @@ class Authenticate implements MiddlewareInterface
     }
 }
 ```
+
+### Plugins
+
+Plugins are explicit providers. Atomic only loads plugin classes listed in `config/providers.php`:
+
+```php
+return [
+    'plugins' => [
+        Engine\Atomic\Plugins\WebSockets\WebSockets::class,
+        App\Plugins\ExamplePlugin\ExamplePlugin::class,
+    ],
+];
+```
+
+The framework does not include every file in a plugin directory and does not load unregistered plugin folders. It resolves each provider class, loads the plugin's main class file when needed, then registers, boots, and loads routes only for enabled registered plugins.
+
+User plugins live under `USER_PLUGINS` and should follow the generated layout:
+
+```text
+plugins/
+`-- ExamplePlugin/
+    |-- ExamplePlugin.php
+    |-- composer.json
+    |-- vendor/autoload.php
+    `-- routes/
+        `-- api.php
+```
+
+Create a plugin scaffold with:
+
+```bash
+php atomic plugin/make ExamplePlugin
+```
+
+If a plugin uses Composer dependencies, install them for the plugin before booting the application. Atomic provides a CLI command for all provider-registered plugins, or one named plugin:
+
+```bash
+php atomic plugin/deps install
+php atomic plugin/deps install ExamplePlugin
+```
+
+The CLI route for this command is registered in `engine/Atomic/Core/Routes/cli.php` as `/plugin/deps`.
+
+Each plugin that depends on Composer packages should declare runtime checks with `required_dependencies()`. This gives a clear error when `vendor/autoload.php` or required package symbols are missing:
+
+```php
+use Engine\Atomic\App\Plugin;
+
+final class ExamplePlugin extends Plugin
+{
+    protected function get_name(): string
+    {
+        return 'ExamplePlugin';
+    }
+
+    public function required_dependencies(): array
+    {
+        return [
+            [
+                'package' => 'vendor/package',
+                'classes' => [
+                    Vendor\Package\Client::class,
+                ],
+            ],
+        ];
+    }
+}
+```
+
+Composer autoloading remains the plugin's responsibility: keep plugin dependencies in the plugin's `composer.json`, run the dependency install command, and ensure the plugin has a readable `vendor/autoload.php`. Atomic will load that autoloader during provider loading when it exists.
 
 ### Controllers & Models
 
