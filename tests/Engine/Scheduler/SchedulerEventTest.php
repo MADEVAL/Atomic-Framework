@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Tests\Engine\Scheduler;
 
 use Engine\Atomic\Scheduler\Event;
+use Engine\Atomic\Scheduler\Runner;
+use Engine\Atomic\Scheduler\Scheduler;
 use PHPUnit\Framework\TestCase;
 
 class SchedulerEventTest extends TestCase
@@ -38,6 +40,74 @@ class SchedulerEventTest extends TestCase
             ->when(true)
             ->skip(false);
         $this->assertSame($event, $result);
+    }
+
+    public function test_invalid_cron_expression_is_rejected(): void
+    {
+        $event = new Event(function() {});
+
+        $this->expectException(\InvalidArgumentException::class);
+        $event->cron('foo * * * *');
+    }
+
+    public function test_daily_at_modifier_sets_minute_and_hour(): void
+    {
+        $event = new Event(function() {});
+
+        $event->daily()->at('03:15');
+
+        $this->assertSame('15 3 * * *', $event->get_expression());
+    }
+
+    public function test_monthly_at_modifier_preserves_day_of_month(): void
+    {
+        $event = new Event(function() {});
+
+        $event->monthly()->at('09:30');
+
+        $this->assertSame('30 9 1 * *', $event->get_expression());
+    }
+
+    public function test_monthly_on_at_modifier_preserves_configured_day_of_month(): void
+    {
+        $event = new Event(function() {});
+
+        $event->monthly_on(15)->at('22:05');
+
+        $this->assertSame('5 22 15 * *', $event->get_expression());
+    }
+
+    public function test_weekly_at_modifier_preserves_day_of_week(): void
+    {
+        $event = new Event(function() {});
+
+        $event->weekly()->at('08:45');
+
+        $this->assertSame('45 8 * * 0', $event->get_expression());
+    }
+
+    public function test_at_modifier_rejects_invalid_time_format(): void
+    {
+        $event = new Event(function() {});
+
+        $this->expectException(\InvalidArgumentException::class);
+        $event->daily()->at('3pm');
+    }
+
+    public function test_at_modifier_rejects_out_of_range_hour(): void
+    {
+        $event = new Event(function() {});
+
+        $this->expectException(\InvalidArgumentException::class);
+        $event->daily()->at('24:00');
+    }
+
+    public function test_at_modifier_rejects_out_of_range_minute(): void
+    {
+        $event = new Event(function() {});
+
+        $this->expectException(\InvalidArgumentException::class);
+        $event->daily()->at('12:60');
     }
 
     public function test_event_run_closure(): void
@@ -164,5 +234,62 @@ class SchedulerEventTest extends TestCase
         $this->assertArrayHasKey('expression', $summary);
         $this->assertArrayHasKey('is_due', $summary);
         $this->assertSame('Test event', $summary['description']);
+    }
+
+    public function test_event_can_opt_into_maintenance_mode(): void
+    {
+        $event = new Event(function() {});
+
+        $this->assertFalse($event->runs_in_maintenance_mode());
+        $this->assertSame($event, $event->run_in_maintenance_mode());
+        $this->assertTrue($event->runs_in_maintenance_mode());
+    }
+
+    public function test_scheduler_skips_events_during_maintenance_mode_unless_allowed(): void
+    {
+        $atomic = \Base::instance();
+        $previous = $atomic->get('MAINTENANCE_MODE');
+        $atomic->set('MAINTENANCE_MODE', true);
+
+        try {
+            $skipped = false;
+            $allowed = false;
+            $scheduler = new Scheduler();
+
+            $scheduler->call(function() use (&$skipped) {
+                $skipped = true;
+            })->every_minute();
+
+            $scheduler->call(function() use (&$allowed) {
+                $allowed = true;
+            })->every_minute()->run_in_maintenance_mode();
+
+            $results = $scheduler->run();
+
+            $this->assertFalse($skipped);
+            $this->assertTrue($allowed);
+            $this->assertCount(1, $results);
+            $this->assertTrue($results[0]['success']);
+        } finally {
+            $atomic->set('MAINTENANCE_MODE', $previous);
+        }
+    }
+
+    public function test_runner_force_run_executes_non_due_events(): void
+    {
+        $called = false;
+        $scheduler = new Scheduler();
+        $next_minute = ((int)\date('i') + 1) % 60;
+
+        $scheduler->call(function() use (&$called) {
+            $called = true;
+        })->cron($next_minute . ' * * * *');
+
+        $result = (new Runner($scheduler))->run_due_tasks(true);
+
+        $this->assertTrue($called);
+        $this->assertSame(1, $result['due_count']);
+        $this->assertSame(1, $result['summary']['successful']);
+        $this->assertSame(0, $result['summary']['failed']);
     }
 }

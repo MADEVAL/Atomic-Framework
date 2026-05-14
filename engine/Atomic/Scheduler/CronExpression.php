@@ -16,7 +16,7 @@ class CronExpression
     public static function get_next_run_date(
         string $expression, 
         \DateTimeZone|string|null $timezone = null,
-        int $max_iterations = 1440
+        int $max_iterations = 527040
     ): ?\DateTimeInterface {
         $tz = self::resolve_timezone($timezone);
         $date = new \DateTime('now', $tz);
@@ -24,8 +24,12 @@ class CronExpression
         $date->modify('+1 minute');
         $date->setTime((int)$date->format('H'), (int)$date->format('i'), 0);
 
+        if (!self::is_valid($expression)) {
+            return null;
+        }
+
         for ($i = 0; $i < $max_iterations; $i++) {
-            if (self::matches($expression, $date)) {
+            if (self::matches_valid_expression($expression, $date)) {
                 return $date;
             }
             $date->modify('+1 minute');
@@ -35,6 +39,15 @@ class CronExpression
     }
 
     public static function matches(string $expression, \DateTimeInterface $date): bool
+    {
+        if (!self::is_valid($expression)) {
+            return false;
+        }
+
+        return self::matches_valid_expression($expression, $date);
+    }
+
+    protected static function matches_valid_expression(string $expression, \DateTimeInterface $date): bool
     {
         $segments = \preg_split('/\s+/', \trim($expression));
         

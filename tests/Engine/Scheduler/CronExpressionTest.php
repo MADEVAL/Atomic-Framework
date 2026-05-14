@@ -98,6 +98,17 @@ class CronExpressionTest extends TestCase
         $this->assertFalse(CronExpression::is_valid('* * * * 7'));
     }
 
+    public function test_invalid_tokens_never_match(): void
+    {
+        $date = new \DateTime('2024-06-15 10:00:00');
+
+        $this->assertFalse(CronExpression::matches('foo * * * *', $date));
+        $this->assertFalse(CronExpression::matches('* bar * * *', $date));
+        $this->assertFalse(CronExpression::matches('* * baz * *', $date));
+        $this->assertFalse(CronExpression::matches('* * * qux *', $date));
+        $this->assertFalse(CronExpression::matches('* * * * nope', $date));
+    }
+
     // ── Description ──
 
     public function test_describe_every_minute(): void
@@ -140,6 +151,14 @@ class CronExpressionTest extends TestCase
             $this->assertSame('12', $next->format('G'));
             $this->assertSame('00', $next->format('i'));
         }
+    }
+
+    public function test_get_next_run_date_finds_yearly_schedule(): void
+    {
+        $next = CronExpression::get_next_run_date('0 0 1 1 *');
+
+        $this->assertInstanceOf(\DateTimeInterface::class, $next);
+        $this->assertSame('01-01 00:00', $next->format('m-d H:i'));
     }
 
     public function test_invalid_expression_no_match(): void

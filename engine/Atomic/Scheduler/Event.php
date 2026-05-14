@@ -24,6 +24,7 @@ class Event
     protected array   $success_callbacks = [];
     protected array   $failure_callbacks = [];
     protected bool    $without_overlapping = false;
+    protected bool    $run_in_maintenance_mode = false;
     protected int     $expires_at = 1440;
     protected ?int    $exit_code = null;
     protected string  $output = '';
@@ -80,6 +81,17 @@ class Event
         $this->without_overlapping = true;
         $this->expires_at = $expires_at;
         return $this;
+    }
+
+    public function run_in_maintenance_mode(): self
+    {
+        $this->run_in_maintenance_mode = true;
+        return $this;
+    }
+
+    public function runs_in_maintenance_mode(): bool
+    {
+        return $this->run_in_maintenance_mode;
     }
 
     public function before(callable $callback): self
@@ -289,6 +301,7 @@ class Event
             'next_run' => $this->get_next_run_date()?->format('Y-m-d H:i:s'),
             'is_due' => $this->is_due(),
             'without_overlapping' => $this->without_overlapping,
+            'runs_in_maintenance_mode' => $this->run_in_maintenance_mode,
         ];
         
         if ($this->without_overlapping) {

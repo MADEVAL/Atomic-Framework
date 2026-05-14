@@ -13,8 +13,8 @@ trait ManagesFrequencies
     {
         $parts = \preg_split('/\s+/', \trim($expression), -1, \PREG_SPLIT_NO_EMPTY);
 
-        if ($parts === false || \count($parts) !== 5) {
-            throw new \InvalidArgumentException('Cron expression must contain exactly 5 fields.');
+        if ($parts === false || \count($parts) !== 5 || !CronExpression::is_valid(\implode(' ', $parts))) {
+            throw new \InvalidArgumentException('Invalid cron expression.');
         }
 
         $this->expression = \implode(' ', $parts);
@@ -92,7 +92,7 @@ trait ManagesFrequencies
                     ->splice_into_position(2, '0');
     }
 
-    public function daily_at(string $time): self
+    public function at(string $time): self
     {
         $time = \trim($time);
         if (!\preg_match('/^\d{1,2}:\d{1,2}$/', $time)) {
@@ -108,6 +108,14 @@ trait ManagesFrequencies
 
         return $this->splice_into_position(1, (string)$minute)
                     ->splice_into_position(2, (string)$hour);
+    }
+
+    /**
+     * @deprecated Use daily()->at($time) instead. This method will be removed in a future release.
+     */
+    public function daily_at(string $time): self
+    {
+        return $this->at($time);
     }
 
     public function twice_daily(int $first = 1, int $second = 13): self {
@@ -134,7 +142,7 @@ trait ManagesFrequencies
     }
 
     public function weekly_on(int|array|string $day_of_week, string $time = '0:0'): self {
-        $this->daily_at($time);
+        $this->at($time);
 
         if (\is_array($day_of_week)) {
             foreach ($day_of_week as $d) {
@@ -159,7 +167,7 @@ trait ManagesFrequencies
 
     public function monthly_on(int $day_of_month = 1, string $time = '0:0'): self {
         $this->assert_range('day_of_month', $day_of_month, 1, 31);
-        $this->daily_at($time);
+        $this->at($time);
         return $this->splice_into_position(3, (string)$day_of_month);
     }
 
@@ -167,7 +175,7 @@ trait ManagesFrequencies
         $this->assert_range('day_of_month', $first, 1, 31);
         $this->assert_range('day_of_month', $second, 1, 31);
 
-        $this->daily_at($time);
+        $this->at($time);
         return $this->splice_into_position(3, "{$first},{$second}");
     }
 
@@ -181,7 +189,7 @@ trait ManagesFrequencies
 
     public function quarterly_on(int $day_of_quarter = 1, string $time = '0:0'): self {
         $this->assert_range('day_of_month', $day_of_quarter, 1, 31);
-        $this->daily_at($time);
+        $this->at($time);
         return $this->splice_into_position(3, (string)$day_of_quarter)->splice_into_position(4, '1,4,7,10');
     }
 
@@ -201,7 +209,7 @@ trait ManagesFrequencies
             $this->assert_range('day_of_month', (int)$day_of_month, 1, 31);
         }
 
-        $this->daily_at($time);
+        $this->at($time);
         return $this->splice_into_position(3, (string)$day_of_month)
                     ->splice_into_position(4, (string)$month);
     }

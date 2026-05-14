@@ -211,7 +211,7 @@ trait Scheduler
         $this->output->writeln("  })->daily()->at('03:00')->description('Cleanup logs');");
         $this->output->writeln('  ');
         $this->output->writeln('  $scheduler->call(\'App\\Tasks\\SendReports::run\')');
-        $this->output->writeln("      ->weeklyOn(1, '09:00')");
+        $this->output->writeln("      ->weekly_on(1, '09:00')");
         $this->output->writeln("      ->description('Send weekly reports');");
 
         $this->output->writeln();
@@ -223,8 +223,9 @@ trait Scheduler
         $this->output->writeln('  every_thirty_minutes() Every 30 minutes');
         $this->output->writeln('  hourly()             Every hour at :00');
         $this->output->writeln('  hourly_at(30)         Every hour at :30');
+        $this->output->writeln("  at('13:00')          Set hour and minute on current schedule");
         $this->output->writeln('  daily()              Every day at midnight');
-        $this->output->writeln("  daily_at('13:00')     Every day at 13:00");
+        $this->output->writeln("  daily()->at('13:00') Every day at 13:00");
         $this->output->writeln('  twice_daily(1, 13)    Twice daily at 1:00 and 13:00');
         $this->output->writeln('  weekly()             Every Sunday at midnight');
         $this->output->writeln("  weekly_on(1, '8:00')  Every Monday at 8:00");
@@ -245,11 +246,13 @@ trait Scheduler
         $this->output->writeln('  thursdays()          Only run on Thursdays');
         $this->output->writeln('  fridays()            Only run on Fridays');
         $this->output->writeln('  saturdays()          Only run on Saturdays');
-        $this->output->writeln("  between('09:00', '17:00') Only between times");
+        $this->output->writeln("  when(fn)              Only run when callback returns true");
+        $this->output->writeln("  skip(fn)              Skip when callback returns true");
 
         $this->output->writeln();
         $this->output->writeln('Options:');
         $this->output->writeln('  without_overlapping() Prevent overlapping runs');
+        $this->output->writeln('  run_in_maintenance_mode() Run while maintenance mode is enabled');
         $this->output->writeln("  description('name')  Set task name");
 
         $this->output->writeln();

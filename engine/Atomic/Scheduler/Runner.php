@@ -15,10 +15,10 @@ class Runner
 
     public function run_due_tasks(bool $force_run = false): array
     {
-        $due_events = $this->scheduler->due_events();
+        $events = $force_run ? $this->scheduler->events() : $this->scheduler->due_events();
         
         $response = [
-            'due_count' => \count($due_events),
+            'due_count' => \count($events),
             'results' => [],
             'summary' => [
                 'successful' => 0,
@@ -26,7 +26,7 @@ class Runner
             ],
         ];
 
-        if (empty($due_events)) {
+        if (empty($events)) {
             return $response;
         }
 
