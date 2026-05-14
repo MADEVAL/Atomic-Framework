@@ -49,6 +49,9 @@ class AuthService implements LoginInterface
 
             $created_at = $this->clock->now();
             $this->session->start_for_user($auth_id);
+            if ($this->session->is_started()) {
+                $this->php_session->regenerate_id(true);
+            }
 
             $session_data = array_merge($context, [
                 'ip'          => $this->app->get('IP'),

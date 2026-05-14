@@ -8,10 +8,13 @@ use Engine\Atomic\Core\Log;
 
 trait RedisSessionTrait
 {
+    private const REDIS_REVOKED_KEY_PREFIX = ':revoked:';
+
     private function delete_redis_session(string $session_id): bool
     {
         try {
             $redis = $this->connection_manager->get_redis(true);
+            $redis->setex($this->redis_revoked_key($session_id), $this->session_lifetime, '1');
             $result = $redis->del($this->redis_prefix . $session_id);
             return $result > 0;
         } catch (\Exception $e) {
@@ -47,5 +50,10 @@ trait RedisSessionTrait
             Log::error("Failed to get Redis session data: " . $e->getMessage());
             return null;
         }
+    }
+
+    private function redis_revoked_key(string $session_id): string
+    {
+        return $this->redis_prefix . self::REDIS_REVOKED_KEY_PREFIX . $session_id;
     }
 }

@@ -12,6 +12,7 @@ class SessionManager
     private string $driver;
     private ?ConnectionManager $connection_manager = null;
     private ?string $redis_prefix = null;
+    private int $session_lifetime;
     
     use RedisSessionTrait;
     use SqlSessionTrait;
@@ -20,6 +21,7 @@ class SessionManager
     {
         $atomic = App::instance();
         $this->driver = $driver ?? strtolower($atomic->get('SESSION_CONFIG.driver'));
+        $this->session_lifetime = (int)$atomic->get('SESSION_CONFIG.lifetime');
         
         if ($this->driver === 'redis') {
             $this->connection_manager = ConnectionManager::instance();

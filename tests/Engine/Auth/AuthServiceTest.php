@@ -131,7 +131,6 @@ class AuthServiceTest extends TestCase
         $this->app->method('get_device_type')->willReturn('desktop');
         $this->clock->method('now')->willReturn(1_700_000_000);
         $this->php_session->method('id')->willReturn('sess_abc123');
-        $this->cache->method('get')->willReturn(0);
 
         $this->session->expects($this->once())->method('start_for_user')->with($user_uuid);
         $this->meta->expects($this->once())->method('set_meta')
@@ -141,6 +140,33 @@ class AuthServiceTest extends TestCase
         $result = $this->service->login_with_secret(['email' => 'a@b.com'], 'correct');
 
         $this->assertSame($user, $result);
+    }
+
+    public function test_login_with_secret_regenerates_session_id_on_success(): void
+    {
+        $user_uuid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+        $user = $this->createMock(AuthenticatableInterface::class);
+        $user->method('get_password_hash')->willReturn(Hash::password('correct'));
+        $user->method('get_auth_id')->willReturn($user_uuid);
+
+        $provider = $this->createMock(UserProviderInterface::class);
+        $provider->method('find_by_credentials')->willReturn($user);
+
+        $this->app->method('get')->willReturnMap([
+            ['IP', '1.2.3.4'],
+            ['AGENT', 'TestAgent/1.0'],
+        ]);
+        $this->app->method('get_device_type')->willReturn('desktop');
+        $this->clock->method('now')->willReturn(1_700_000_000);
+        $this->php_session->method('id')->willReturn('sess_rotated');
+
+        $this->session->method('start_for_user');
+        $this->session->method('is_started')->willReturn(true);
+        $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
+
+        $this->service->set_user_provider($provider);
+        $this->service->login_with_secret(['email' => 'a@b.com'], 'correct');
     }
 
     // ── logout ────────────────────────────────────────────────────────────────
@@ -295,6 +321,25 @@ class AuthServiceTest extends TestCase
         $this->session->expects($this->once())->method('start_for_user')->with($auth_id);
         $this->meta->expects($this->once())->method('set_meta')
             ->with($auth_id, 'auth_session_sess_xyz', $this->callback('is_string'));
+
+        $this->service->login_by_id($auth_id);
+    }
+
+    public function test_login_by_id_regenerates_session_id(): void
+    {
+        $auth_id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+        $this->app->method('get')->willReturnMap([
+            ['IP', '1.2.3.4'],
+            ['AGENT', 'TestAgent/1.0'],
+        ]);
+        $this->app->method('get_device_type')->willReturn('desktop');
+        $this->clock->method('now')->willReturn(1_700_000_000);
+        $this->php_session->method('id')->willReturn('sess_xyz');
+
+        $this->session->method('start_for_user');
+        $this->session->method('is_started')->willReturn(true);
+        $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
 
         $this->service->login_by_id($auth_id);
     }

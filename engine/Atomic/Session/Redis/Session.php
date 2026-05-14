@@ -12,6 +12,8 @@ use Engine\Atomic\Core\Log;
 
 class Session implements SessionHandlerInterface
 {
+    private const REVOKED_KEY_PREFIX = ':revoked:';
+
     protected
         //! Session ID
         $sid,
@@ -86,6 +88,10 @@ class Session implements SessionHandlerInterface
         $redis = $this->connection_manager->get_redis(true);
         
         try {
+            if ($redis->exists($this->revoked_key($id))) {
+                return true;
+            }
+
             $session_data = \json_encode([
                 'session_id' => $id,
                 'data' => $data,
@@ -110,6 +116,7 @@ class Session implements SessionHandlerInterface
     {
         $redis = $this->connection_manager->get_redis(true);
         try {
+            $redis->setex($this->revoked_key($id), $this->ttl, '1');
             $redis->del($this->prefix . $id);
             return true;
         } catch (\Exception $e) {
@@ -160,6 +167,11 @@ class Session implements SessionHandlerInterface
 
     function reset(): void {
         $this->data = [];
+    }
+
+    private function revoked_key(string $id): string
+    {
+        return $this->prefix . self::REVOKED_KEY_PREFIX . $id;
     }
 
     /**
