@@ -177,6 +177,8 @@ $contentType = $http->get_header($res, 'Content-Type');
 
 `json()` returns `null` for empty or invalid JSON response bodies. Header names are looked up case-insensitively through the normalized lowercase response header map.
 
+Core response status constants include common API statuses such as `Response::STATUS_CONFLICT` (`409`) and `Response::STATUS_GONE` (`410`).
+
 ### Multipart file upload
 
 For multipart uploads, pass raw content through `content`.

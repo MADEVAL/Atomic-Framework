@@ -35,6 +35,8 @@ class Response {
     public const STATUS_FORBIDDEN = 403;
     public const STATUS_NOT_FOUND = 404;
     public const STATUS_METHOD_NOT_ALLOWED = 405;
+    public const STATUS_CONFLICT = 409;
+    public const STATUS_GONE = 410;
     public const STATUS_UNPROCESSABLE_ENTITY = 422;
     public const STATUS_TOO_MANY_REQUESTS = 429;
 
