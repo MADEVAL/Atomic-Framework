@@ -262,16 +262,18 @@ class System extends Controller
     public function redis_clear(): void
     {
         $out = new Output();
+        $prefix = (string) App::instance()->get('REDIS.prefix');
+        $pattern = $prefix . '*';
         $redis = ConnectionManager::instance()->get_redis();
         $it    = null;
         $total = 0;
         $redis->setOption(\Redis::OPT_SCAN, \Redis::SCAN_RETRY);
-        while (($keys = $redis->scan($it, 'atomic.*', 500)) !== false) {
+        while (($keys = $redis->scan($it, $pattern, 500)) !== false) {
             if (!empty($keys)) {
                 $redis->del($keys);
                 $total += count($keys);
             }
         }
-        $out->writeln("Cleared {$total} keys (pattern: atomic.*)");
+        $out->writeln("Cleared {$total} keys (pattern: {$pattern})");
     }
 }
