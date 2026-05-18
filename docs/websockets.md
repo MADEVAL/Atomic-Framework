@@ -67,11 +67,35 @@ For route-only WebSocket applications, start the bundled routed server:
 
 ```php
 use Engine\Atomic\Plugins\WebSockets\RoutedWebSocketServer;
+use Engine\Atomic\Plugins\WebSockets\Server;
 
-(new RoutedWebSocketServer('tcp://0.0.0.0:8080', 2))->run();
+(new RoutedWebSocketServer(
+    'tcp://0.0.0.0:8080',
+    2,
+    Server::MODE_FOREGROUND
+))->run();
 ```
 
 The WebSockets plugin registers the `websocket` route type through the normal plugin lifecycle. Load app and plugin `routes/websocket.php` files during application/plugin bootstrap before starting `RoutedWebSocketServer`; the server dispatches each message through `WebSocketDispatcher`, rejects unknown paths cleanly, and leaves connect/disconnect hooks empty. Extend `Server` directly when the application needs custom connection lifecycle, pub/sub, or task mapping behavior.
+
+### Server modes
+
+WebSocket servers accept an explicit mode as the third constructor argument. Use the class constants instead of raw strings:
+
+```php
+use Engine\Atomic\Plugins\WebSockets\RoutedWebSocketServer;
+use Engine\Atomic\Plugins\WebSockets\Server;
+
+new RoutedWebSocketServer($listen, 2, Server::MODE_FOREGROUND);
+new RoutedWebSocketServer($listen, 2, Server::MODE_BACKGROUND);
+```
+
+Available modes:
+
+- `Server::MODE_FOREGROUND` (`foreground`) runs Workerman attached to the current process. This is the default and is best for local development, terminal logs, containers, and process managers that expect the command to stay attached. Workerman reports this internally as `DEBUG` mode, but Atomic does not use it to mean verbose logging.
+- `Server::MODE_BACKGROUND` (`background`) runs Workerman detached in the background. Atomic passes Workerman `start -d`, writes the pid file under `LOGS/ws`, and keeps stdout detached.
+
+Only one mode can be active. Passing any other value throws an `InvalidArgumentException` before Workerman starts.
 
 ### Testing
 
@@ -220,4 +244,4 @@ final class JobsServer extends Server
 
 - `REDIS` is read from application configuration; the framework config loaders default it to `127.0.0.1:6379`.
 - `LOGS` is mandatory for both the server and the bundled test client.
-- Daemon mode rewrites Workerman argv to `start -d`.
+- Use `Server::MODE_BACKGROUND` when the worker should detach; use `Server::MODE_FOREGROUND` when it should stay attached.

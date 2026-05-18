@@ -10,9 +10,9 @@ class RoutedWebSocketServer extends Server
 {
     protected WebSocketDispatcher $dispatcher;
 
-    public function __construct(string $listen, int $worker_count = 1, bool $daemonize = false)
+    public function __construct(string $listen, int $worker_count = 1, string $mode = self::MODE_FOREGROUND)
     {
-        parent::__construct($listen, $worker_count, $daemonize);
+        parent::__construct($listen, $worker_count, $mode);
         $this->dispatcher = new WebSocketDispatcher();
     }
 

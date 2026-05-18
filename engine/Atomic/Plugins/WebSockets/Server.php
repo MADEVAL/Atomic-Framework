@@ -13,6 +13,9 @@ use Workerman\Worker;
 
 abstract class Server
 {
+    public const MODE_FOREGROUND = 'foreground';
+    public const MODE_BACKGROUND = 'background';
+
     /** @var array<string,int> task_id -> socket_int */
     protected array $memory_map = [];
     /** @var array<int,array<string,true>> socket_int -> {task_id: true} */
@@ -25,8 +28,14 @@ abstract class Server
     public function __construct(
         private string $listen,
         private int $worker_count = 1,
-        private bool $daemonize = false
-    ) {}
+        private string $mode = self::MODE_FOREGROUND
+    ) {
+        if (!in_array($this->mode, [self::MODE_FOREGROUND, self::MODE_BACKGROUND], true)) {
+            throw new \InvalidArgumentException(
+                'WebSocket server mode must be one of: ' . self::MODE_FOREGROUND . ', ' . self::MODE_BACKGROUND . '.'
+            );
+        }
+    }
 
     protected function subscribe_to_channel(string $channel): void
     {
@@ -158,10 +167,11 @@ abstract class Server
             unset($self->connections[$socket_int]);
         };
 
-        Worker::$daemonize = $this->daemonize;
+        $daemonize = $this->mode === self::MODE_BACKGROUND;
+        Worker::$daemonize = $daemonize;
 
         global $argv;
-        $argv = $this->daemonize
+        $argv = $daemonize
             ? [$argv[0] ?? 'atomic', 'start', '-d']
             : [$argv[0] ?? 'atomic', 'start'];
 

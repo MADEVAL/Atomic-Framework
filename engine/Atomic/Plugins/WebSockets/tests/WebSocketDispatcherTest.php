@@ -22,6 +22,7 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use Engine\Atomic\Plugins\WebSockets\Connection;
 use Engine\Atomic\Plugins\WebSockets\RoutedWebSocketServer;
+use Engine\Atomic\Plugins\WebSockets\Server;
 use Engine\Atomic\Plugins\WebSockets\WebSocketConnectMiddleware;
 use Engine\Atomic\Plugins\WebSockets\WebSocketDispatcher;
 use Engine\Atomic\Plugins\WebSockets\WebSocketMiddleware;
@@ -284,6 +285,23 @@ class WebSocketDispatcherTest extends TestCase
         $server->test_message($this->connection_for_path('/jobs/456'), '{"type":"ping"}');
 
         $this->assertSame([[ '{"type":"ping"}', ['job_id' => '456'], null]], WebSocketHandlerStub::$calls);
+    }
+
+    public function test_routed_server_rejects_invalid_mode(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('WebSocket server mode must be one of: foreground, background.');
+
+        new RoutedWebSocketServer('tcp://127.0.0.1:0', 1, 'daemon');
+    }
+
+    public function test_routed_server_accepts_mode_constants(): void
+    {
+        $server = new RoutedWebSocketServer('tcp://127.0.0.1:0', 1, Server::MODE_BACKGROUND);
+
+        $mode = new \ReflectionProperty(Server::class, 'mode');
+
+        $this->assertSame(Server::MODE_BACKGROUND, $mode->getValue($server));
     }
 
     public function test_dispatch_calls_instance_handler(): void
