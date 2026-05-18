@@ -24,6 +24,18 @@ local available_at = tonumber(ARGV[2])
 local priority     = tonumber(ARGV[3])
 local queue        = ARGV[4]
 
+if uuid == nil or uuid == '' then error('missing required argument: uuid') end
+if available_at == nil then error('missing or invalid required argument: available_at') end
+if priority == nil then error('missing or invalid required argument: priority') end
+if queue == nil or queue == '' then error('missing required argument: queue') end
+if ARGV[5] == nil or tonumber(ARGV[5]) == nil then error('missing or invalid required argument: max_attempts') end
+if ARGV[6] == nil or tonumber(ARGV[6]) == nil then error('missing or invalid required argument: attempts') end
+if ARGV[7] == nil or tonumber(ARGV[7]) == nil then error('missing or invalid required argument: timeout') end
+if ARGV[8] == nil or tonumber(ARGV[8]) == nil then error('missing or invalid required argument: retry_delay') end
+if ARGV[9] == nil or tonumber(ARGV[9]) == nil then error('missing or invalid required argument: created_at') end
+if ARGV[10] == nil or ARGV[10] == '' then error('missing required argument: handler') end
+if ARGV[11] == nil or ARGV[11] == '' then error('missing required argument: payload') end
+
 local seq   = redis.call('INCR', sequence_key)
 local score = (available_at * 1000000) + (priority * 1000) + (seq % 1000)
 

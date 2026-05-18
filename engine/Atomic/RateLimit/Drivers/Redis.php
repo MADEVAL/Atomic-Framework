@@ -74,22 +74,49 @@ final class Redis implements RateLimitStoreInterface
     public function sliding_hit(string $key, int $limit, int $window): bool
     {
         $now = microtime(true);
-        return (bool)$this->redis->eval($this->script('sliding_hit'), [$this->key($key), (string)$now, (string)$window, (string)$limit, uniqid('', true)], 1);
+        return (bool)$this->eval_script('sliding_hit', [$this->key($key), (string)$now, (string)$window, (string)$limit, uniqid('', true)], 1);
     }
 
     public function reserve(string $quota_key, string $reservation_key, int $amount, int $ttl): bool
     {
-        return (bool)$this->redis->eval($this->script('reserve'), [$this->key($quota_key), $this->key($reservation_key), $amount, $ttl], 2);
+        return (bool)$this->eval_script('reserve', [$this->key($quota_key), $this->key($reservation_key), $amount, $ttl], 2);
     }
 
     public function settle(string $quota_key, string $reservation_key, int $actual): int
     {
-        return (int)$this->redis->eval($this->script('settle'), [$this->key($quota_key), $this->key($reservation_key), $actual], 2);
+        return (int)$this->eval_script('settle', [$this->key($quota_key), $this->key($reservation_key), $actual], 2);
     }
 
     public function release(string $quota_key, string $reservation_key): void
     {
-        $this->redis->eval($this->script('release'), [$this->key($quota_key), $this->key($reservation_key)], 2);
+        $this->eval_script('release', [$this->key($quota_key), $this->key($reservation_key)], 2);
+    }
+
+    /**
+     * @param array<int, mixed> $arguments
+     * @return mixed
+     */
+    private function eval_script(string $name, array $arguments, int $key_count): mixed
+    {
+        $this->clear_redis_error();
+        $result = $this->redis->eval($this->script($name), $arguments, $key_count);
+        if ($result !== false) {
+            return $result;
+        }
+
+        $error = $this->redis->getLastError();
+        if (is_string($error) && $error !== '') {
+            throw new \RuntimeException($error);
+        }
+
+        return $result;
+    }
+
+    private function clear_redis_error(): void
+    {
+        if (method_exists($this->redis, 'clearLastError')) {
+            $this->redis->clearLastError();
+        }
     }
 
     private function script(string $name): string

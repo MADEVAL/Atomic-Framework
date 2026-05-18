@@ -11,6 +11,8 @@ enum EventType: int {
     case JOB_FAILED  = 4;
     case JOB_RETRIED = 5;
     case JOB_INCOMPLETE_HANDLED = 6;
+    case JOB_CANCEL_REQUESTED = 7;
+    case JOB_CANCELLED = 8;
 
     public function description(): string {
         return match($this) {
@@ -20,6 +22,8 @@ enum EventType: int {
             self::JOB_FAILED  => 'Job finished with failure',
             self::JOB_RETRIED => 'Job retried',
             self::JOB_INCOMPLETE_HANDLED => 'Incomplete job detected by the monitor and handled',
+            self::JOB_CANCEL_REQUESTED => 'Job cancellation was requested',
+            self::JOB_CANCELLED => 'Job was cancelled',
         };
     }
 }

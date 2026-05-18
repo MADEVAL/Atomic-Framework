@@ -52,7 +52,9 @@ class CLI {
         $this->output->writeln('  queue/db           - Create tables for queues');
         $this->output->writeln('  queue/worker       - Run queue worker');
         $this->output->writeln('  queue/monitor      - Run queue monitor');
+        $this->output->writeln('  queue/test <type> [queue] - Queue test jobs: success, failed, timeout, cancel_requested, all');
         $this->output->writeln('  queue/retry [<job_uuid>|<queue_name>] - Retry failed tasks (optional UUID or queue name)');
+        $this->output->writeln('  queue/cancel       - Request cancellation for a job by UUID');
         $this->output->writeln('  queue/delete       - Delete a job by UUID');
         $this->output->writeln('  queue/telemetry/db - Create table for queue telemetry');
         $this->output->writeln('  schedule/run       - Run all due scheduled tasks');

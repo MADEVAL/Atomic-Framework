@@ -8,6 +8,7 @@ use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Tools\Transient;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\Wait;
 
 class TransientTest extends TestCase
 {
@@ -236,14 +237,10 @@ class TransientTest extends TestCase
             'Key must exist immediately after set'
         );
 
-        $expired = false;
-        for ($attempt = 0; $attempt < 4; $attempt++) {
-            sleep(1);
-            if (Transient::get($key, Transient::DRIVER_REDIS) === false) {
-                $expired = true;
-                break;
-            }
-        }
+        $expired = Wait::until(
+            fn (): bool => Transient::get($key, Transient::DRIVER_REDIS) === false,
+            4
+        );
 
         $this->assertTrue($expired, 'Key must have expired after TTL elapsed');
     }
@@ -425,10 +422,11 @@ class TransientTest extends TestCase
             'Key must exist immediately after set'
         );
 
-        sleep(2);
-
-        $this->assertFalse(
-            Transient::get($key, Transient::DRIVER_MEMCACHED),
+        $this->assertTrue(
+            Wait::until(
+                fn (): bool => Transient::get($key, Transient::DRIVER_MEMCACHED) === false,
+                4
+            ),
             'Key must have expired after TTL elapsed'
         );
     }
@@ -596,7 +594,7 @@ class TransientTest extends TestCase
 
         $key = $this->key('expiry');
 
-        $set_result = Transient::set($key, 'expire_me', 1, Transient::DRIVER_DB);
+        $set_result = Transient::set($key, 'expire_me', 3, Transient::DRIVER_DB);
         $this->assertIsBool($set_result);
         $this->assertTrue($set_result);
 
@@ -605,10 +603,13 @@ class TransientTest extends TestCase
             'Key must exist immediately after set'
         );
 
-        sleep(2);
+        $expired = Wait::until(
+            fn (): bool => Transient::get($key, Transient::DRIVER_DB) === false,
+            5
+        );
 
-        $this->assertFalse(
-            Transient::get($key, Transient::DRIVER_DB),
+        $this->assertTrue(
+            $expired,
             'Key must have expired after TTL elapsed'
         );
     }

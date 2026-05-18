@@ -12,7 +12,7 @@ local prefix = ARGV[2]
 
 local job_data = redis.call('HGETALL', registry_key)
 if #job_data == 0 then
-    return 0
+    error('missing job registry: ' .. registry_key)
 end
 
 local job = {}
@@ -23,19 +23,33 @@ end
 local queue = job.queue
 local state = job.state
 
-if state == 'running' then
+if queue == nil or queue == '' then
+    error('missing required job field: queue')
+end
+if state == nil or state == '' then
+    error('missing required job field: state')
+end
+
+if state == 'running' or state == 'cancel_requested' then
     return 0
 end
 
-redis.call('DEL', registry_key)
+local state_suffixes = {
+    pending = 'pending',
+    failed = 'failed',
+    completed = 'completed',
+    cancelled = 'cancelled',
+    cancel_requested = 'cancel_requested'
+}
 
-if state == 'pending' then
-    redis.call('ZREM', prefix .. queue .. '.idx.pending', uuid)
-elseif state == 'failed' then
-    redis.call('ZREM', prefix .. queue .. '.idx.failed', uuid)
-elseif state == 'completed' then
-    redis.call('ZREM', prefix .. queue .. '.idx.completed', uuid)
+local state_suffix = state_suffixes[state]
+
+if not state_suffix then
+    error('unknown job state: ' .. state)
 end
+
+redis.call('DEL', registry_key)
+redis.call('ZREM', prefix .. queue .. '.idx.' .. state_suffix, uuid)
 
 local telemetry_batches_json = redis.call('HGET', telemetry_jobs_key, uuid)
 if telemetry_batches_json then

@@ -28,10 +28,17 @@ class Monitor
 
     private ProcessManager $process_manager;
     private Manager $queue_manager;
+    private ProcessProbeInterface $process_probe;
 
-    public function __construct(?string $queue = null) {
-        $this->queue_manager = new Manager($queue);
-        $this->process_manager = new ProcessManager(LogChannel::QUEUE_MONITOR);
+    public function __construct(
+        ?string $queue = null,
+        ?Manager $queue_manager = null,
+        ?ProcessManager $process_manager = null,
+        ?ProcessProbeInterface $process_probe = null,
+    ) {
+        $this->queue_manager = $queue_manager ?? new Manager($queue);
+        $this->process_manager = $process_manager ?? new ProcessManager(LogChannel::QUEUE_MONITOR);
+        $this->process_probe = $process_probe ?? new PosixProcessProbe();
 
         if (!$this->process_manager->can_check_processes()) {
             Log::channel(LogChannel::QUEUE_MONITOR)->warning("[QueueMonitor] QueueMonitor cannot read process information. Signals will not be sent.");
@@ -54,24 +61,19 @@ class Monitor
 
     private function check_process_exists(int $pid): array
     {
-        $result = \posix_kill($pid, 0);
-        $error = \posix_get_last_error();
-        
-        if ($result === true) {
-            return ['exists' => true, 'error' => null, 'is_permission_error' => false];
-        }
-        
-        if ($error === self::EPERM) {
+        $status = $this->process_probe->exists($pid);
+        $error = $status['error'] ?? null;
+
+        if (!empty($status['is_permission_error'])) {
             Log::channel(LogChannel::QUEUE_MONITOR)->critical("[QueueMonitor] CRITICAL: Insufficient permissions to signal PID $pid. The monitor lacks privileges to manage this process.");
-            return ['exists' => true, 'error' => $error, 'is_permission_error' => true];
+            return $status;
         }
-        
-        if ($error === self::ESRCH) {
-            return ['exists' => false, 'error' => $error, 'is_permission_error' => false];
+
+        if (empty($status['exists']) && $error !== self::ESRCH) {
+            Log::channel(LogChannel::QUEUE_MONITOR)->warning("[QueueMonitor] Unexpected posix_kill error for PID $pid: error code $error");
         }
-        
-        Log::channel(LogChannel::QUEUE_MONITOR)->warning("[QueueMonitor] Unexpected posix_kill error for PID $pid: error code $error");
-        return ['exists' => false, 'error' => $error, 'is_permission_error' => false];
+
+        return $status;
     }
 
     private function double_check_before_handle(array $job): bool
@@ -83,7 +85,7 @@ class Monitor
             return true;
         }
         
-        \usleep(self::DOUBLE_CHECK_DELAY_US);
+        $this->process_probe->usleep(self::DOUBLE_CHECK_DELAY_US);
         
         if (!$this->queue_manager->exists_in_jobs_table($uuid, $pid)) {
             Log::channel(LogChannel::QUEUE_MONITOR)->debug("[QueueMonitor] Job with UUID {$uuid} no longer exists with PID {$pid} after double-check. Skipping - likely already completed.");
@@ -103,13 +105,13 @@ class Monitor
             while (self::$shutdown === false) {
                 try {
                     $this->check_stuck_jobs();
-                    $this->check_in_progress_jobs();
+                    $this->check_active_jobs();
                 } catch (\Throwable $e) {
                     Log::channel(LogChannel::QUEUE_MONITOR)->error("Error while checking queue: " . $e->getMessage());
                 }
                 for ($i = 0; $i < self::DEFAULT_INTERVAL; $i++) {
                     if(self::$shutdown) break;
-                    \sleep(1);
+                    $this->process_probe->sleep(1);
                 }
                 try {
                     $this->retry_unkillable_processes();
@@ -119,7 +121,7 @@ class Monitor
             }
         } finally {
             Log::channel(LogChannel::QUEUE_MONITOR)->info("[QueueMonitor] Shutting down " . __CLASS__ . ".");
-            $this->queue_manager->close_connection();
+            $this->queue_manager->close_all_connections();
         }
     }
 
@@ -172,10 +174,10 @@ class Monitor
                 }
 
                 Log::channel(LogChannel::QUEUE_MONITOR)->warning("[QueueMonitor] Stuck job with PID {$pid} (Job UUID: {$uuid}, Queue: {$queue}) is running, attempting to terminate");
-                if (!\posix_kill($pid, SIGTERM)) {
+                if (!$this->process_probe->signal($pid, SIGTERM)) {
                     Log::channel(LogChannel::QUEUE_MONITOR)->error("[QueueMonitor] Failed to terminate stuck job with PID {$pid} (Job UUID: {$uuid}, Queue: {$queue})" . " - posix_kill error: " . \posix_get_last_error());
                 }
-                \sleep(1);
+                $this->process_probe->sleep(1);
                 
                 $recheck = $this->check_process_exists($pid);
                 if ($recheck['exists']) {
@@ -234,8 +236,8 @@ class Monitor
             $attempts = $this->kill_attempts[$uuid];
 
             Log::channel(LogChannel::QUEUE_MONITOR)->warning("[QueueMonitor] Attempt #{$attempts} to terminate stuck process with PID $pid");
-            \posix_kill($pid, SIGKILL);
-            \usleep(500000);
+            $this->process_probe->signal($pid, SIGKILL);
+            $this->process_probe->usleep(500000);
 
             $recheck = $this->check_process_exists($pid);
             if (!$recheck['exists']) {
@@ -256,10 +258,10 @@ class Monitor
         }
     }
 
-    public function check_in_progress_jobs(): void 
+    public function check_active_jobs(): void 
     {
-        $in_progress = $this->queue_manager->load_jobs_in_progress('*');
-        foreach ($in_progress as $job) {
+        $active = $this->queue_manager->load_active_jobs('*');
+        foreach ($active as $job) {
             $pid = isset($job['pid']) ? (int) $job['pid'] : 0;
 
             if ($pid === self::PID_PLACEHOLDER) {

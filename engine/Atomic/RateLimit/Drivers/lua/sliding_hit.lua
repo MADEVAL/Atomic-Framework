@@ -1,7 +1,12 @@
 local key = KEYS[1]
 local now = tonumber(ARGV[1])
-local min = now - tonumber(ARGV[2])
+local window = tonumber(ARGV[2])
 local limit = tonumber(ARGV[3])
+if now == nil then error('missing or invalid required argument: now') end
+if window == nil then error('missing or invalid required argument: window') end
+if limit == nil then error('missing or invalid required argument: limit') end
+if ARGV[4] == nil or ARGV[4] == '' then error('missing required argument: member') end
+local min = now - window
 redis.call('ZREMRANGEBYSCORE', key, 0, min)
 if redis.call('ZCARD', key) >= limit then
   return 0

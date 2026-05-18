@@ -84,7 +84,7 @@ class EventTest extends TestCase
         $this->assertSame('passthrough', $result);
     }
 
-    public function test_getRegisteredEvents(): void
+    public function test_get_registered_events(): void
     {
         // Note: get_registered_events() has a known bug - it iterates top-level
         // hive keys but events are stored as nested arrays under EVENTS.

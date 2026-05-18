@@ -8,6 +8,10 @@ local prefix = ARGV[1]
 local now = tonumber(ARGV[2])
 local exclude_json = ARGV[3]
 
+if now == nil then
+    error('missing or invalid required argument: now')
+end
+
 local exclude_set = {}
 if exclude_json and exclude_json ~= '' then
     local exclude = cjson.decode(exclude_json)
@@ -25,25 +29,28 @@ for _, uuid in ipairs(uuids) do
     local registry_key = prefix .. 'registry.' .. uuid
     local job_data = redis.call('HGETALL', registry_key)
     
-    if #job_data > 0 then
-        local job = {}
-        for i = 1, #job_data, 2 do
-            job[job_data[i]] = job_data[i + 1]
+    if #job_data == 0 then
+        error('missing job registry: ' .. registry_key)
+    end
+
+    local job = {}
+    for i = 1, #job_data, 2 do
+        job[job_data[i]] = job_data[i + 1]
+    end
+    
+    local include = true
+    if job.pid and job.pid ~= '' then
+        if exclude_set[job.pid] then
+            include = false
         end
-        
-        local include = true
-        if job.pid and job.pid ~= '' then
-            if exclude_set[job.pid] then
-                include = false
-            end
+    end
+    
+    if include then
+        if job.payload == nil or job.payload == '' then
+            error('missing required job field: payload')
         end
-        
-        if include then
-            if job.payload then
-                job.payload = cjson.decode(job.payload)
-            end
-            table.insert(stuck_jobs, cjson.encode(job))
-        end
+        job.payload = cjson.decode(job.payload)
+        table.insert(stuck_jobs, cjson.encode(job))
     end
 end
 

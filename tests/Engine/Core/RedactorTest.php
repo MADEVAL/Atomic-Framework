@@ -42,7 +42,7 @@ class RedactorTest extends TestCase
         $this->assertSame('/home/user', Redactor::get_home_path());
     }
 
-    public function test_init_from_hive_uses_HOME(): void
+    public function test_init_from_hive_uses_home(): void
     {
         $f3 = \Base::instance();
         $f3->set('HOME', '/from/hive');
@@ -50,7 +50,7 @@ class RedactorTest extends TestCase
         $this->assertSame('/from/hive', Redactor::get_home_path());
     }
 
-    public function test_init_from_hive_falls_back_to_ROOT_parent(): void
+    public function test_init_from_hive_falls_back_to_root_parent(): void
     {
         $f3 = \Base::instance();
         $f3->set('HOME', '');

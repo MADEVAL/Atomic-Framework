@@ -50,7 +50,7 @@ trait DB
     }
 
 
-    public function load_jobs_in_progress(string $queue = '*'): array
+    public function load_active_jobs(string $queue = '*'): array
     {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
@@ -78,7 +78,7 @@ trait DB
 
             return $result;
         } catch (\Exception $e) {
-            Log::channel(LogChannel::QUEUE_MONITOR)->error("DatabaseQueueDriver load_jobs_in_progress error: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_MONITOR)->error("DatabaseQueueDriver load_active_jobs error: " . $e->getMessage());
             return [];
         }
     }

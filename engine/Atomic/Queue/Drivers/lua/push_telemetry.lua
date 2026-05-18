@@ -12,6 +12,11 @@ local batch_uuid = ARGV[2]
 local event_data = ARGV[3]
 local ttl = tonumber(ARGV[4])
 
+if job_uuid == nil or job_uuid == '' then error('missing required argument: job_uuid') end
+if batch_uuid == nil or batch_uuid == '' then error('missing required argument: batch_uuid') end
+if event_data == nil or event_data == '' then error('missing required argument: event_data') end
+if ttl == nil then error('missing or invalid required argument: ttl') end
+
 local batches_json = redis.call('HGET', telemetry_jobs_key, job_uuid)
 local batches = {}
 if batches_json then

@@ -8,7 +8,7 @@ use DB\Cortex;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Log;
-use Engine\Atomic\Queue\Enums\Status;
+use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Telemetry\Queue\EventType;
 
@@ -73,7 +73,7 @@ trait DB
             foreach ($completed_jobs as $job) {
                 $jobs[$job->uuid] = $job->cast();
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
-                $jobs[$job->uuid]['status'] = Status::COMPLETED->value;
+                $jobs[$job->uuid]['state'] = State::COMPLETED->value;
                 $jobs[$job->uuid]['driver'] = Driver::DB->value;
             }
 
@@ -120,7 +120,7 @@ trait DB
                 $job_data['uuid'] = $uuid;
                 $job_data['exception'] = $this->deserialize($job->exception);
                 $job_data['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
-                $job_data['status'] = Status::FAILED->value;
+                $job_data['state'] = State::FAILED->value;
                 $job_data['driver'] = Driver::DB->value;
                 $jobs[$uuid] = $job_data;
             }
@@ -132,7 +132,7 @@ trait DB
         }
     }
 
-    public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+    public function fetch_active_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_mapper) {
             $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
@@ -150,7 +150,7 @@ trait DB
 
             $where_clause = empty($conditions) ? [] : [\implode(' AND ', $conditions), ...$params];
             $offset = ($page - 1) * $per_page;
-            $in_progress_jobs = $this->jobs_mapper->find($where_clause, [
+            $active_jobs = $this->jobs_mapper->find($where_clause, [
                 'order'  => 'created_at DESC',
                 'limit'  => $per_page,
                 'offset' => $offset,
@@ -158,22 +158,81 @@ trait DB
 
             $total = $this->jobs_mapper->count($where_clause);
 
-            if ($in_progress_jobs === false) {
+            if ($active_jobs === false) {
                 return ['items' => [], 'total' => 0];
             }
 
-            foreach ($in_progress_jobs as $job) {
+            foreach ($active_jobs as $job) {
                 $jobs[$job->uuid] = $job->cast();
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
-                $jobs[$job->uuid]['status'] = isset($job->process_start_ticks) && $job->process_start_ticks
-                    ? Status::RUNNING->value
-                    : Status::QUEUED->value;
+                $jobs[$job->uuid]['state'] = isset($job->process_start_ticks) && $job->process_start_ticks
+                    ? State::RUNNING->value
+                    : State::PENDING->value;
                 $jobs[$job->uuid]['driver'] = Driver::DB->value;
             }
 
             return ['items' => $jobs, 'total' => $total];
         } catch (\Exception $e) {
             Log::error("Error fetching in-progress jobs from queue: " . $e->getMessage());
+            return ['items' => [], 'total' => 0];
+        }
+    }
+
+    public function fetch_running_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->fetch_jobs_table_by_conditions(
+            $queue,
+            $page,
+            $per_page,
+            ['process_start_ticks IS NOT NULL AND process_start_ticks <> 0'],
+            State::RUNNING->value
+        );
+    }
+
+    public function fetch_cancel_requested_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return ['items' => [], 'total' => 0];
+    }
+
+    public function fetch_cancelled_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return ['items' => [], 'total' => 0];
+    }
+
+    private function fetch_jobs_table_by_conditions(string $queue, int $page, int $per_page, array $conditions, string $state): array {
+        list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
+        if ($reconnected || !$this->jobs_mapper) {
+            $this->jobs_mapper = new Cortex($sql, App::instance()->get('DB_CONFIG.prefix') . 'jobs');
+        }
+
+        $jobs = [];
+        try {
+            $params = [];
+            if (!empty($queue) && $queue !== '*') {
+                $conditions[] = 'queue = ?';
+                $params[] = $queue;
+            }
+
+            $where_clause = [\implode(' AND ', $conditions), ...$params];
+            $offset = ($page - 1) * $per_page;
+            $rows = $this->jobs_mapper->find($where_clause, [
+                'order'  => 'created_at DESC',
+                'limit'  => $per_page,
+                'offset' => $offset,
+            ]);
+            $total = $this->jobs_mapper->count($where_clause);
+
+            if ($rows === false) {
+                return ['items' => [], 'total' => 0];
+            }
+
+            foreach ($rows as $job) {
+                $jobs[$job->uuid] = $job->cast();
+                $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
+                $jobs[$job->uuid]['state'] = $state;
+                $jobs[$job->uuid]['driver'] = Driver::DB->value;
+            }
+
+            return ['items' => $jobs, 'total' => $total];
+        } catch (\Exception $e) {
+            Log::error("Error fetching {$state} jobs from queue: " . $e->getMessage());
             return ['items' => [], 'total' => 0];
         }
     }
@@ -213,7 +272,7 @@ trait DB
             foreach ($pending_jobs as $job) {
                 $jobs[$job->uuid] = $job->cast();
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
-                $jobs[$job->uuid]['status'] = Status::QUEUED->value;
+                $jobs[$job->uuid]['state'] = State::PENDING->value;
                 $jobs[$job->uuid]['driver'] = Driver::DB->value;
             }
 
@@ -254,15 +313,15 @@ trait DB
             'SELECT * FROM (' .
             "SELECT j.id, j.uuid, j.queue, j.priority, j.payload, j.max_attempts, j.attempts, j.timeout, j.retry_delay, j.created_at, " .
             'j.available_at, j.pid, j.process_start_ticks, NULL AS exception, ' .
-            "CASE WHEN j.process_start_ticks IS NOT NULL AND j.process_start_ticks <> 0 THEN '" . Status::RUNNING->value . "' ELSE '" . Status::QUEUED->value . "' END AS job_status " .
+            "CASE WHEN j.process_start_ticks IS NOT NULL AND j.process_start_ticks <> 0 THEN '" . State::RUNNING->value . "' ELSE '" . State::PENDING->value . "' END AS job_state " .
             "FROM {$qj} AS j WHERE {$whereJobs} " .
             'UNION ALL ' .
             "SELECT f.id, f.uuid, f.queue, f.priority, f.payload, f.max_attempts, f.attempts, f.timeout, f.retry_delay, f.created_at, " .
-            "NULL AS available_at, NULL AS pid, NULL AS process_start_ticks, f.exception, '" . Status::FAILED->value . "' AS job_status " .
+            "NULL AS available_at, NULL AS pid, NULL AS process_start_ticks, f.exception, '" . State::FAILED->value . "' AS job_state " .
             "FROM {$qf} AS f WHERE {$whereFailed} " .
             'UNION ALL ' .
             "SELECT c.id, c.uuid, c.queue, c.priority, c.payload, c.max_attempts, c.attempts, c.timeout, c.retry_delay, c.created_at, " .
-            "NULL AS available_at, NULL AS pid, NULL AS process_start_ticks, NULL AS exception, '" . Status::COMPLETED->value . "' AS job_status " .
+            "NULL AS available_at, NULL AS pid, NULL AS process_start_ticks, NULL AS exception, '" . State::COMPLETED->value . "' AS job_state " .
             "FROM {$qc} AS c WHERE {$whereCompleted}" .
             ') AS combined ORDER BY combined.created_at DESC LIMIT 500';
 
@@ -274,10 +333,10 @@ trait DB
 
             $jobs = [];
             foreach ($rows as $row) {
-                $status = $row['job_status'];
-                unset($row['job_status']);
+                $state = $row['job_state'];
+                unset($row['job_state']);
 
-                if ($status === Status::FAILED->value) {
+                if ($state === State::FAILED->value) {
                     $row['exception'] = $this->deserialize((string)$row['exception']);
                 } else {
                     unset($row['exception']);
@@ -285,7 +344,7 @@ trait DB
 
                 $createdAt = (int)($row['created_at'] ?? 0);
                 $row['created_at_formatted'] = date('Y-m-d H:i:s', $createdAt);
-                $row['status'] = $status;
+                $row['state'] = $state;
                 $row['driver'] = Driver::DB->value;
                 $jobs[$row['uuid']] = $row;
             }
@@ -306,7 +365,7 @@ trait DB
         try {
             $events_data = $this->queue_telemetry_mapper->find(
                 ['uuid_job = ?', $uuid],
-                ['order' => 'created_at DESC, id DESC']
+                ['order' => 'created_at ASC, id ASC']
             );
 
             if ($events_data === false) {

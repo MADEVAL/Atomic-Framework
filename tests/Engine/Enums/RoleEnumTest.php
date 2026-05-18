@@ -40,7 +40,7 @@ class RoleEnumTest extends TestCase
         $this->assertSame(Role::BUYER, Role::from('buyer'));
     }
 
-    public function test_tryFrom_invalid(): void
+    public function test_try_from_invalid(): void
     {
         $this->assertNull(Role::tryFrom('invalid'));
     }

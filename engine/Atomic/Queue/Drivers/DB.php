@@ -16,6 +16,7 @@ use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Managers\ProcessManager;
 use Engine\Atomic\Queue\Monitor\Adapters\DB as DBMonitorAdapter;
+use Engine\Atomic\Telemetry\Queue\EventType;
 use Engine\Atomic\Telemetry\Queue\Adapters\DB as DBTelemetryAdapter;
 
 class DB implements Base, Management, Telemetry
@@ -102,6 +103,10 @@ class DB implements Base, Management, Telemetry
 
     public function pop_batch(string $queue, int $limit): array
     {
+        if ($limit <= 0) {
+            return [];
+        }
+
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_mapper) {
@@ -190,6 +195,11 @@ class DB implements Base, Management, Telemetry
 
     public function mark_failed(array $job, \Throwable $exception): bool
     {
+        $uuid = $job['uuid'] ?? null;
+        if (!\is_string($uuid) || $uuid === '') {
+            return false;
+        }
+
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         $jobs_table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_failed_mapper) {
@@ -210,12 +220,12 @@ class DB implements Base, Management, Telemetry
 
             if (!$this->delete_claimed_job($sql, $jobs_table, $job)) {
                 $sql->rollback();
-                Log::channel(LogChannel::QUEUE_WORKER)->warning("Skipping mark_failed for job {$job['uuid']}: ownership mismatch or job already moved.");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Skipping mark_failed for job {$uuid}: ownership mismatch or job already moved.");
                 return false;
             }
 
             $this->jobs_failed_mapper->reset();
-            $this->jobs_failed_mapper->uuid = $job['uuid'];
+            $this->jobs_failed_mapper->uuid = $uuid;
             $this->jobs_failed_mapper->queue = $job['queue'];
             $this->jobs_failed_mapper->priority = $job['priority'];
             $this->jobs_failed_mapper->payload = $this->serialize($job['payload']);
@@ -238,6 +248,11 @@ class DB implements Base, Management, Telemetry
     }
 
     public function mark_completed(array $job): bool {
+        $uuid = $job['uuid'] ?? null;
+        if (!\is_string($uuid) || $uuid === '') {
+            return false;
+        }
+
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         $jobs_table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_completed_mapper) {
@@ -248,14 +263,14 @@ class DB implements Base, Management, Telemetry
             $sql->begin();
             if (!$this->delete_claimed_job($sql, $jobs_table, $job)) {
                 $sql->rollback();
-                Log::channel(LogChannel::QUEUE_WORKER)->warning("Skipping mark_completed for job {$job['uuid']}: ownership mismatch or job already moved.");
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Skipping mark_completed for job {$uuid}: ownership mismatch or job already moved.");
                 return false;
             }
 
             unset($job['payload']['uuid_batch']);
 
             $this->jobs_completed_mapper->reset();
-            $this->jobs_completed_mapper->uuid = $job['uuid'];
+            $this->jobs_completed_mapper->uuid = $uuid;
             $this->jobs_completed_mapper->queue = $job['queue'];
             $this->jobs_completed_mapper->priority = $job['priority'];
             $this->jobs_completed_mapper->payload = $this->serialize($job['payload']);
@@ -273,6 +288,26 @@ class DB implements Base, Management, Telemetry
             Log::channel(LogChannel::QUEUE_WORKER)->error("Error when trying to mark job as completed: " . $e->getMessage());
             return false;
         }
+    }
+
+    public function find_by_uuid(string $uuid): ?array {
+        throw $this->unsupported_cancel_exception();
+    }
+
+    public function cancel(string $uuid): ?array {
+        throw $this->unsupported_cancel_exception();
+    }
+
+    public function mark_cancel_requested(string $uuid): bool {
+        throw $this->unsupported_cancel_exception();
+    }
+
+    public function is_cancel_requested(string $uuid): bool {
+        throw $this->unsupported_cancel_exception();
+    }
+
+    public function mark_cancelled(array $job, ?string $reason = null): bool {
+        throw $this->unsupported_cancel_exception();
     }
 
     public function delete(string $uuid): bool {
@@ -352,6 +387,11 @@ class DB implements Base, Management, Telemetry
         return $deleted === 1;
     }
 
+    private function unsupported_cancel_exception(): \RuntimeException
+    {
+        return new \RuntimeException('Queue cancellation is not supported for the database queue driver. Use the redis queue driver for cancellation.');
+    }
+
     public function retry(string $queue = '*'): bool {
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         if ($reconnected || !$this->jobs_failed_mapper) {
@@ -384,6 +424,7 @@ class DB implements Base, Management, Telemetry
                         'retry_delay' => $failed_job->retry_delay,
                         'timeout' => $failed_job->timeout,
                         'attempts' => 0,
+                        '_telemetry_event' => EventType::JOB_RETRIED,
                     ],
                     $failed_job->uuid
                 );
@@ -432,6 +473,7 @@ class DB implements Base, Management, Telemetry
                     'retry_delay' => $failed_job->retry_delay,
                     'timeout' => $failed_job->timeout,
                     'attempts' => 0,
+                    '_telemetry_event' => EventType::JOB_RETRIED,
                 ],
                 $failed_job->uuid
             );
@@ -488,8 +530,14 @@ class DB implements Base, Management, Telemetry
                 $deleted = true;
             }
 
-            $telemetry_deleted = $this->queue_telemetry_mapper->erase(['uuid_job = ?', $uuid]);
-            if ($telemetry_deleted) {
+            $telemetry_table = App::instance()->get('DB_CONFIG.prefix') . 'telemetry';
+            $telemetry_count = $sql->exec(
+                'SELECT COUNT(*) AS count FROM `' . $telemetry_table . '` WHERE uuid_job = ?',
+                [$uuid]
+            );
+            $telemetry_rows = (int)($telemetry_count[0]['count'] ?? 0);
+            if ($telemetry_rows > 0) {
+                $this->queue_telemetry_mapper->erase(['uuid_job = ?', $uuid]);
                 $deleted = true;
             }
 

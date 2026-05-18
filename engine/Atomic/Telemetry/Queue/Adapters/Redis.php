@@ -6,7 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
-use Engine\Atomic\Queue\Enums\Status;
+use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Telemetry\Queue\EventType;
 
@@ -24,8 +24,8 @@ trait Redis
 
             unset($entry['uuid_job'], $entry['uuid_batch'], $entry['ttl']);
 
-            return (bool) $redis->evalSha(
-                $this->script_shas['push_telemetry'],
+            return (bool) $this->eval_lua(
+                self::LUA_PUSH_TELEMETRY,
                 [
                     $prefix . 'telemetry.jobs',
                     $prefix . 'telemetry.batch.' . $uuid_batch,
@@ -43,20 +43,31 @@ trait Redis
     }
 
     public function fetch_completed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
-        return $this->fetch_finished_jobs($queue, true, $page, $per_page);
+        return $this->fetch_indexed_jobs_by_state($queue, State::COMPLETED->value, $page, $per_page);
     }
 
     public function fetch_failed_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
-        return $this->fetch_finished_jobs($queue, false, $page, $per_page);
+        return $this->fetch_indexed_jobs_by_state($queue, State::FAILED->value, $page, $per_page);
     }
 
-    private function fetch_finished_jobs(string $queue, bool $completed, int $page = 1, int $per_page = 50): array {
+    public function fetch_cancelled_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->fetch_indexed_jobs_by_state($queue, State::CANCELLED->value, $page, $per_page);
+    }
+
+    public function fetch_cancel_requested_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->fetch_indexed_jobs_by_state($queue, State::CANCEL_REQUESTED->value, $page, $per_page);
+    }
+
+    public function fetch_running_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->fetch_indexed_jobs_by_state($queue, State::RUNNING->value, $page, $per_page);
+    }
+
+    private function fetch_indexed_jobs_by_state(string $queue, string $state, int $page = 1, int $per_page = 50): array {
         $redis = $this->connection_manager->get_redis(true);
         $prefix = App::instance()->get('REDIS.prefix');
 
         $jobs = [];
         $total = 0;
-        $state = $completed ? Status::COMPLETED->value : Status::FAILED->value;
         $offset = ($page - 1) * $per_page;
 
         try {
@@ -65,8 +76,8 @@ trait Redis
                 : [$queue];
 
             foreach ($queue_names as $q) {
-                $res = $redis->evalSha(
-                    $this->script_shas['load_finished'],
+                $res = $this->eval_lua(
+                    self::LUA_LOAD_JOBS_BY_STATE,
                     [
                         $prefix . $q . '.idx.' . $state,
                         $prefix,
@@ -79,17 +90,17 @@ trait Redis
                 if (\is_array($res) && count($res) === 2) {
                     $total += (int)$res[0];
                     if (\is_array($res[1])) {
-                        $this->process_finished_jobs($res[1], $jobs, $completed);
+                        $this->process_indexed_jobs($res[1], $jobs, $state);
                     }
                 }
             }
         } catch (\Exception $e) {
-            Log::error("Error fetching finished jobs from queue: " . $e->getMessage());
+            Log::error("Error fetching indexed jobs from queue: " . $e->getMessage());
         }
         return ['items' => $jobs, 'total' => $total];
     }
 
-    private function process_finished_jobs(array $res, array &$jobs, bool $completed): void {
+    private function process_indexed_jobs(array $res, array &$jobs, string $state): void {
         foreach ($res as $job) {
             $key = $job[0];
             $job_data = $this->deserialize($job[1]);
@@ -104,59 +115,23 @@ trait Redis
                 $jobs[$key]['exception'] = $this->deserialize($job_data['exception']);
             }
             
-            $jobs[$key]['status'] = $completed ? Status::COMPLETED->value : Status::FAILED->value;
+            $jobs[$key]['state'] = $state;
             $created_at = $jobs[$key]['created_at'] ?? time();
             $jobs[$key]['created_at_formatted'] = date('Y-m-d H:i:s', (int)$created_at);
+            $this->add_cancellation_timestamps($jobs[$key]);
             $jobs[$key]['driver'] = Driver::REDIS->value;
         }
     }
 
-    public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
-        $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.prefix');
+    public function fetch_active_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        $pending = $this->fetch_pending_jobs($queue, $page, $per_page);
+        $running = $this->fetch_running_jobs($queue, $page, $per_page);
+        $cancel_requested = $this->fetch_cancel_requested_jobs($queue, $page, $per_page);
 
-        $jobs = [];
-        $total = 0;
-        $offset = ($page - 1) * $per_page;
-
-        try {
-            $queue_names = ($queue === '*')
-                ? ($redis->sMembers($prefix . 'meta.queues') ?: [])
-                : [$queue];
-
-            foreach ($queue_names as $q) {
-                $result = $redis->evalSha(
-                    $this->script_shas['load_in_progress'],
-                    [
-                        $prefix . $q . '.idx.pending',
-                        $prefix . $q . '.idx.running',
-                        $prefix,
-                        (string)$offset,
-                        (string)$per_page,
-                    ],
-                    2
-                );
-
-                if (\is_array($result) && count($result) === 2) {
-                    $total += (int)$result[0];
-                    if (\is_array($result[1])) {
-                        foreach ($result[1] as $row) {
-                            $uuid = $row[0];
-                            $job_data = $this->deserialize($row[1]);
-                            $jobs[$uuid] = $job_data;
-                            $jobs[$uuid]['created_at_formatted'] = date('Y-m-d H:i:s', (int)($job_data['created_at'] ?? \time()));
-                            $jobs[$uuid]['driver'] = Driver::REDIS->value;
-                            if (\is_array($job_data['payload'] ?? null)) {
-                                $jobs[$uuid]['payload'] = $this->serialize($job_data['payload']);
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error("Error fetching in-progress jobs from queue: " . $e->getMessage());
-        }
-        return ['items' => $jobs, 'total' => $total];
+        return [
+            'items' => \array_merge($running['items'], $cancel_requested['items'], $pending['items']),
+            'total' => (int)($running['total'] ?? 0) + (int)($cancel_requested['total'] ?? 0) + (int)($pending['total'] ?? 0),
+        ];
     }
 
     public function fetch_pending_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
@@ -188,7 +163,8 @@ trait Redis
                         continue;
                     }
                     $job = $this->normalize_registry_job_for_telemetry($raw);
-                    $job['status'] = Status::PENDING->value;
+                    if ($job === null) continue;
+                    $job['state'] = State::PENDING->value;
                     $jobs[(string)$uuid] = $job;
                 }
             }
@@ -215,6 +191,9 @@ trait Redis
                 return ['items' => [], 'total' => 0];
             }
             $job = $this->normalize_registry_job_for_telemetry($raw);
+            if ($job === null) {
+                return ['items' => [], 'total' => 0];
+            }
             if (!$this->telemetry_job_matches_queue($queue, $job)) {
                 return ['items' => [], 'total' => 0];
             }
@@ -229,8 +208,13 @@ trait Redis
         return $queue === '*' || ($job['queue'] ?? '') === $queue;
     }
 
-    private function normalize_registry_job_for_telemetry(array $job_data): array {
+    private function normalize_registry_job_for_telemetry(array $job_data): ?array {
         $out = $job_data;
+        $uuid = (string)($out['uuid'] ?? '');
+        if (empty($out['state']) || !\is_string($out['state'])) {
+            Log::error("Malformed Redis queue registry entry for UUID {$uuid}: missing state.");
+            return null;
+        }
 
         $p = $out['payload'] ?? null;
         if (\is_array($p)) {
@@ -242,21 +226,34 @@ trait Redis
             }
         }
 
-        $state = $out['state'] ?? '';
+        $state = $out['state'];
         if (
-            \in_array($state, [Status::COMPLETED->value, Status::FAILED->value], true)
+            \in_array($state, [State::COMPLETED->value, State::FAILED->value], true)
             && !empty($out['exception'] ?? null)
             && \is_string($out['exception'])
         ) {
             $out['exception'] = $this->deserialize($out['exception']);
         }
 
-        $out['status'] = $state !== '' ? $state : Status::PENDING->value;
+        $out['state'] = $state;
 
         $created_at = (int)($out['created_at'] ?? \time());
         $out['created_at_formatted'] = \date('Y-m-d H:i:s', $created_at);
+        $this->add_cancellation_timestamps($out);
         $out['driver'] = Driver::REDIS->value;
         return $out;
+    }
+
+    private function add_cancellation_timestamps(array &$job): void {
+        foreach (['cancel_requested_at', 'cancelled_at'] as $field) {
+            $value = $job[$field] ?? null;
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $job[$field . '_formatted'] = \is_numeric($value)
+                ? \date('Y-m-d H:i:s', (int)$value)
+                : (string)$value;
+        }
     }
 
     public function fetch_events(string $queue, string $uuid): array {
@@ -266,8 +263,8 @@ trait Redis
         $events = [];
 
         try {
-            $batches = $redis->evalSha(
-                $this->script_shas['load_events'],
+            $batches = $this->eval_lua(
+                self::LUA_LOAD_EVENTS,
                 [
                     $prefix . 'telemetry.jobs',
                     $uuid,

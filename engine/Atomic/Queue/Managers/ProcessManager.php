@@ -60,23 +60,28 @@ class ProcessManager
             if ($content === false) {
                 return null;
             }
-            
-            $last_paren_pos = \strrpos($content, ')');
-            if ($last_paren_pos === false) {
-                return null;
-            }
-            
-            $remaining = \ltrim(\substr($content, $last_paren_pos + 1));
-            $parts = \preg_split('/\s+/', $remaining);
-            
-            if ($parts === false || \count($parts) < 20) {
-                return null;
-            }
-            
-            return (int)$parts[19];
+
+            return self::parse_start_ticks_from_stat($content);
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    public static function parse_start_ticks_from_stat(string $content): ?int
+    {
+        $last_paren_pos = \strrpos($content, ')');
+        if ($last_paren_pos === false) {
+            return null;
+        }
+
+        $remaining = \ltrim(\substr($content, $last_paren_pos + 1));
+        $parts = \preg_split('/\s+/', $remaining);
+
+        if ($parts === false || \count($parts) < 20 || !isset($parts[19]) || !\ctype_digit($parts[19])) {
+            return null;
+        }
+
+        return (int)$parts[19];
     }
 
     public function is_our_process(int $pid, array $job): bool
@@ -96,5 +101,24 @@ class ProcessManager
         }
 
         return $current_start_ticks === (int) $stored_start_ticks;
+    }
+
+    public function send_cancellation_signal(array $job): bool
+    {
+        if (empty($job['pid'])) {
+            return false;
+        }
+
+        if (!$this->can_check_processes || !\function_exists('posix_kill')) {
+            return false;
+        }
+
+        $pid = (int)$job['pid'];
+        if (!$this->is_our_process($pid, $job)) {
+            Log::channel($this->log_channel)->warning("Skipping cancellation signal for PID $pid: process ownership could not be verified.");
+            return false;
+        }
+
+        return @\posix_kill($pid, SIGUSR1);
     }
 }

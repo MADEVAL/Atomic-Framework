@@ -11,7 +11,7 @@ use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\Response;
 use Engine\Atomic\Core\Redactor;
-use Engine\Atomic\Queue\Enums\Status;
+use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
 use Engine\Atomic\Theme\Theme;
@@ -41,33 +41,33 @@ class Telemetry extends Controller
     {
         $queue_manager = new TelemetryManager();
         $filters = [];
-        $allowed_filters = ['status', 'uuid'];
+        $allowed_filters = ['state', 'uuid'];
         foreach ($allowed_filters as $filter_key) {
             $value = $atomic->get('GET.' . $filter_key);
             if (!empty($value)) {
                 $filters[$filter_key] = $atomic->clean($value);
             }
         }
-        if (isset($filters['status']) && !in_array($filters['status'], Status::filterable_statuses(), true)) {
-            unset($filters['status']);
+        if (($filters['state'] ?? '') === 'canceled') {
+            $filters['state'] = 'cancelled';
+        }
+        if (isset($filters['state']) && !in_array($filters['state'], State::filterable_states(), true)) {
+            unset($filters['state']);
         }
 
         $page = max(1, (int)($atomic->get('GET.page') ?? 1));
         $per_page = min(200, max(1, (int)($atomic->get('GET.per_page') ?? 50)));
 
-        $result = $queue_manager->fetch_all_jobs('*', $filters, $page, $per_page);
+        $queue_filters = $filters;
+        $result = $queue_manager->fetch_all_jobs('*', $queue_filters, $page, $per_page);
         $filtered_items = [];
         foreach ($result['items'] as $job_uuid => $job) {
             if (!is_array($job)) {
                 continue;
             }
-            if (isset($filters['status'])) {
-                $job_status = (string)($job['status'] ?? '');
-                if ($filters['status'] === Status::PENDING->value) {
-                    if (!in_array($job_status, Status::pending_like(), true)) {
-                        continue;
-                    }
-                } elseif ($job_status !== $filters['status']) {
+            if (isset($filters['state'])) {
+                $job_state = (string)($job['state'] ?? '');
+                if ($job_state !== $filters['state']) {
                     continue;
                 }
             }
@@ -75,14 +75,22 @@ class Telemetry extends Controller
         }
 
         $all_jobs = (array)Redactor::redact($filtered_items);
-        $status_counts = (array)Redactor::redact($result['status_totals'] ?? []);
+        foreach ($all_jobs as &$job) {
+            if (is_array($job)) {
+                $state = (string)($job['state'] ?? '');
+                $job['state'] = $state;
+                $job['state_display'] = State::display($state);
+            }
+        }
+        unset($job);
+        $state_counts = (array)Redactor::redact($result['state_totals'] ?? []);
         $filtered_total = (int)($result['total'] ?? count($filtered_items));
-        if (isset($filters['status']) && $filters['status'] !== '') {
-            $status_key = $filters['status'] === Status::PENDING->value ? Status::PENDING->value : $filters['status'];
-            $filtered_total = (int)($status_counts[$status_key] ?? count($filtered_items));
+        if (isset($filters['state']) && $filters['state'] !== '') {
+            $filtered_total = (int)($state_counts[$filters['state']] ?? count($filtered_items));
         }
         $atomic->set('jobs', $all_jobs);
-        $atomic->set('status_counts', $status_counts);
+        $atomic->set('state_counts', $state_counts);
+        $atomic->set('state_display', State::display_map());
         $atomic->set('title', 'Atomic Telemetry');
         $atomic->set('filters', $filters);
         $atomic->set('pagination', [

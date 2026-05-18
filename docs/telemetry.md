@@ -131,7 +131,7 @@ return [
 
 ### What it provides
 
-**Queue view** - a paginated, filterable list of all queue jobs across drivers (database, Redis). Jobs can be filtered by status (pending, running, completed, failed), UUID, queue name, and time range. The header shows global status totals that remain accurate regardless of which filter is active.
+**Queue view** - a paginated, filterable list of all queue jobs across drivers (database, Redis). Jobs can be filtered by state (pending, running, cancel_requested, cancelled, completed, failed), UUID, queue name, and time range. The header shows global state totals that remain accurate regardless of which filter is active.
 
 **Log viewer** - paginated log output for any configured log channel. Supports channel switching, per-day file selection, pagination, and live stat polling (line count, last modified). Log lines with an attached dump can be expanded inline.
 
@@ -145,7 +145,7 @@ return [
 
 The telemetry panel is a theme (`Telemetry`) that boots alongside the controller. All data is fetched via JSON endpoints and rendered client-side - the queue and log views update without full page reloads. Queue filter changes update the URL and trigger a server-side re-render of the job list, keeping the browser URL shareable and the back button functional.
 
-Queue status totals in the header are always computed against the full dataset, not just the filtered view. Applying a status filter scopes the job list but never affects the global counts.
+Queue state totals in the header are always computed against the full dataset, not just the filtered view. Applying a state filter scopes the job list but never affects the global counts.
 
 Log pages are cached based on file modification time. Unchanged pages are served from cache; a changed file invalidates cached pages for that channel.
 

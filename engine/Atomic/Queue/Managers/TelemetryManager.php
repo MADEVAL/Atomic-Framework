@@ -8,7 +8,7 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Enums\LogChannel;
-use Engine\Atomic\Queue\Enums\Status;
+use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Queue\Drivers\DB;
 use Engine\Atomic\Queue\Drivers\Redis;
@@ -37,7 +37,7 @@ class TelemetryManager {
         $current_event_type = $atomic->get('ATOMIC_QUEUE_CURRENT_EVENT_TYPE') ?? null;
 
         $driver_name = $atomic->get('QUEUE_DRIVER');
-        $ttl = $atomic->get("QUEUE.{$driver_name}.queues.{$current_queue_name}.ttl", 0);
+        $ttl = (int)($atomic->get("QUEUE.{$driver_name}.queues.{$current_queue_name}.ttl", 0) ?? 0);
 
         $entry = (new Entry(
             $current_event_type,
@@ -78,12 +78,24 @@ class TelemetryManager {
         return $this->call_all_drivers('fetch_failed_jobs', [$queue, $page, $per_page]);
     }
 
-    public function fetch_in_progress_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
-        return $this->call_all_drivers('fetch_in_progress_jobs', [$queue, $page, $per_page]);
+    public function fetch_active_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->call_all_drivers('fetch_active_jobs', [$queue, $page, $per_page]);
+    }
+
+    public function fetch_running_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->call_all_drivers('fetch_running_jobs', [$queue, $page, $per_page]);
     }
 
     public function fetch_pending_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         return $this->call_all_drivers('fetch_pending_jobs', [$queue, $page, $per_page]);
+    }
+
+    public function fetch_cancelled_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->call_all_drivers('fetch_cancelled_jobs', [$queue, $page, $per_page]);
+    }
+
+    public function fetch_cancel_requested_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
+        return $this->call_all_drivers('fetch_cancel_requested_jobs', [$queue, $page, $per_page]);
     }
 
     public function fetch_all_jobs(string $queue = '*', array $filters = [], int $page = 1, int $per_page = 50): array {
@@ -95,21 +107,19 @@ class TelemetryManager {
                     'total' => 0,
                     'page' => $page,
                     'per_page' => $per_page,
-                    'status_totals' => Status::totals_template(),
+                    'state_totals' => State::state_totals_template(),
                 ];
             }
             $raw = $this->driver->search_jobs_by_uuid($queue, strtolower($uuid_filter));
             $items = $raw['items'];
-            if (isset($filters['status']) && $filters['status'] !== '') {
+            if (isset($filters['state']) && $filters['state'] !== '') {
                 foreach ($items as $uid => $job) {
                     if (!\is_array($job)) {
                         unset($items[$uid]);
                         continue;
                     }
-                    $job_status = (string)($job['status'] ?? '');
-                    $matches = $filters['status'] === Status::PENDING->value
-                        ? \in_array($job_status, Status::pending_like(), true)
-                        : ($job_status === $filters['status']);
+                    $job_state = (string)($job['state'] ?? '');
+                    $matches = $job_state === $filters['state'];
                     if (!$matches) {
                         unset($items[$uid]);
                     }
@@ -123,61 +133,78 @@ class TelemetryManager {
             foreach ($page_keys as $k) {
                 $paged[$k] = $items[$k];
             }
-            $status_totals = Status::totals_template($total);
+            $state_totals = State::state_totals_template($total);
             foreach ($items as $job) {
                 if (!\is_array($job)) {
                     continue;
                 }
-                $status = Status::aggregate((string)($job['status'] ?? $job['state'] ?? ''));
-                if (isset($status_totals[$status])) {
-                    $status_totals[$status]++;
+                $state = State::aggregate((string)($job['state'] ?? ''));
+                if (isset($state_totals[$state])) {
+                    $state_totals[$state]++;
                 }
             }
-            $status_totals[Status::PENDING->value] = $status_totals[Status::QUEUED->value];
             return [
                 'items' => $paged,
                 'total' => $total,
                 'page' => $page,
                 'per_page' => $per_page,
-                'status_totals' => $status_totals,
+                'state_totals' => $state_totals,
             ];
         }
 
-        $status_filter = isset($filters['status']) ? (string)$filters['status'] : '';
+        $state_filter = isset($filters['state']) ? (string)$filters['state'] : '';
         $pending = $this->fetch_pending_jobs($queue, $page, $per_page);
-        $in_progress = $this->fetch_in_progress_jobs($queue, $page, $per_page);
+        $running = $this->fetch_running_jobs($queue, $page, $per_page);
+        $cancel_requested = $this->fetch_cancel_requested_jobs($queue, $page, $per_page);
         $failed = $this->fetch_failed_jobs($queue, $page, $per_page);
         $completed = $this->fetch_completed_jobs($queue, $page, $per_page);
+        $cancelled = $this->fetch_cancelled_jobs($queue, $page, $per_page);
 
-        if ($status_filter === Status::PENDING->value) {
-            $all_items = $pending['items'];
-            $total = (int)($pending['total'] ?? 0);
-        } elseif ($status_filter === Status::FAILED->value) {
-            $all_items = $failed['items'];
-            $total = (int)($failed['total'] ?? 0);
-        } elseif ($status_filter === Status::COMPLETED->value) {
-            $all_items = $completed['items'];
-            $total = (int)($completed['total'] ?? 0);
+        $jobs_by_state = [
+            State::PENDING->value => $pending,
+            State::RUNNING->value => $running,
+            State::CANCEL_REQUESTED->value => $cancel_requested,
+            State::CANCELLED->value => $cancelled,
+            State::FAILED->value => $failed,
+            State::COMPLETED->value => $completed,
+        ];
+
+        if (isset($jobs_by_state[$state_filter])) {
+            $all_items = $jobs_by_state[$state_filter]['items'];
+            $total = (int)($jobs_by_state[$state_filter]['total'] ?? 0);
         } else {
-            $all_items = array_merge(
-                $in_progress['items'],
-                $failed['items'],
-                $completed['items']
+            $needed = \max(1, $page * $per_page);
+            $jobs_by_state = [
+                State::PENDING->value => $this->fetch_pending_jobs($queue, 1, $needed),
+                State::RUNNING->value => $this->fetch_running_jobs($queue, 1, $needed),
+                State::CANCEL_REQUESTED->value => $this->fetch_cancel_requested_jobs($queue, 1, $needed),
+                State::CANCELLED->value => $this->fetch_cancelled_jobs($queue, 1, $needed),
+                State::FAILED->value => $this->fetch_failed_jobs($queue, 1, $needed),
+                State::COMPLETED->value => $this->fetch_completed_jobs($queue, 1, $needed),
+            ];
+            $total = \array_sum(
+                \array_map(static fn(array $jobs): int => (int)($jobs['total'] ?? 0), $jobs_by_state)
             );
-            $total = (int)($in_progress['total'] ?? 0) + (int)($failed['total'] ?? 0) + (int)($completed['total'] ?? 0);
+            $all_items = \array_merge(...\array_column($jobs_by_state, 'items'));
+            \uasort($all_items, static function (array $a, array $b): int {
+                return (int)($b['created_at'] ?? 0) <=> (int)($a['created_at'] ?? 0);
+            });
+            $offset = ($page - 1) * $per_page;
+            $all_items = \array_slice($all_items, $offset, $per_page, true);
         }
 
         $pending_total = (int)($pending['total'] ?? 0);
-        $in_progress_total = (int)($in_progress['total'] ?? 0);
-        $running_total = max(0, $in_progress_total - $pending_total);
+        $cancel_requested_total = (int)($cancel_requested['total'] ?? 0);
+        $running_total = (int)($running['total'] ?? 0);
 
-        $status_totals = [
-            Status::FAILED->value => (int)($failed['total'] ?? 0),
-            Status::QUEUED->value => $pending_total,
-            Status::PENDING->value => $pending_total,
-            Status::RUNNING->value => $running_total,
-            Status::COMPLETED->value => (int)($completed['total'] ?? 0),
-            'total' => $in_progress_total + (int)($failed['total'] ?? 0) + (int)($completed['total'] ?? 0),
+        $state_totals = [
+            State::FAILED->value => (int)($failed['total'] ?? 0),
+            State::PENDING->value => $pending_total,
+            State::RUNNING->value => $running_total,
+            State::COMPLETED->value => (int)($completed['total'] ?? 0),
+            State::CANCEL_REQUESTED->value => $cancel_requested_total,
+            State::CANCELLED->value => (int)($cancelled['total'] ?? 0),
+            'total' => $total,
         ];
 
         return [
@@ -185,11 +212,16 @@ class TelemetryManager {
             'total' => $total,
             'page' => $page,
             'per_page' => $per_page,
-            'status_totals' => $status_totals,
+            'state_totals' => $state_totals,
         ];
     }
 
     public function fetch_events(string $driver, string $queue, string $uuid): array {
+        if (!isset($this->drivers[$driver])) {
+            return [];
+        }
+
         return $this->drivers[$driver]->fetch_events($queue, $uuid);
     }
+
 }

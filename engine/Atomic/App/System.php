@@ -9,8 +9,6 @@ use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\Core\ConnectionManager;
-use Engine\Atomic\Queue\Managers\Manager;
-use Engine\Atomic\Queue\Tests\Test;
 
 class System extends Controller
 {
@@ -181,17 +179,7 @@ class System extends Controller
 
     public function queue_test(): void
     {
-        $queue_manager = new Manager();
-        $cli = $this->cli();
-        $args = $cli->get_cli_args();
-
-        $queue_manager->push(
-            [Test::class, $args[0]],
-            [
-                'smth' => 'example',
-                'params' => ['id' => 123, 'type' => 'test'],
-            ]
-        );
+        $this->cli()->queue_test();
     }
 
     public function queue_test_monitor(): void
@@ -207,6 +195,11 @@ class System extends Controller
     public function queue_retry(): void
     {
         $this->cli()->queue_retry();
+    }
+
+    public function queue_cancel(): void
+    {
+        $this->cli()->queue_cancel();
     }
 
     public function queue_delete_job(): void

@@ -11,15 +11,15 @@ local pid = ARGV[2]
 local process_start_ticks = ARGV[3]
 
 if not uuid or uuid == '' then
-    return 0
+    error('missing required argument: uuid')
 end
 
 if not pid or pid == '' or pid == '0' then
-    return 0
+    error('missing required argument: pid')
 end
 
 if redis.call('EXISTS', registry_key) == 0 then
-    return 0
+    error('missing job registry: ' .. registry_key)
 end
 
 local time_result = redis.call('TIME')

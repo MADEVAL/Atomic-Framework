@@ -10,6 +10,9 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Migrations;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
+use Tests\Support\StreamCapture;
+use Tests\Support\TempPath;
 
 // ── Test plugins ──────────────────────────────────────────────
 
@@ -57,8 +60,7 @@ class MigrationsTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_migrations_test_' . uniqid() . DIRECTORY_SEPARATOR;
-        mkdir($this->tmp_dir, 0755, true);
+        $this->tmp_dir = TempPath::make_dir('atomic_migrations_test_');
 
         $this->migrations_dir = $this->tmp_dir . 'migrations' . DIRECTORY_SEPARATOR;
         mkdir($this->migrations_dir, 0755, true);
@@ -67,8 +69,8 @@ class MigrationsTest extends TestCase
         $this->original_db_config = App::instance()->get('DB_CONFIG');
         $this->original_db = App::instance()->get('DB');
 
-        $stdout = fopen('php://memory', 'w+b');
-        $stderr = fopen('php://memory', 'w+b');
+        $stdout = StreamCapture::memory('w+b');
+        $stderr = StreamCapture::memory('w+b');
         $this->output = new Output($stdout, $stderr);
         $this->migrations = $this->create_migrations_mock(false);
     }
@@ -87,36 +89,22 @@ class MigrationsTest extends TestCase
         $this->pdo = null;
         $this->db_prefix = null;
 
-        $this->rmdir_recursive($this->tmp_dir);
-    }
-
-    private function rmdir_recursive(string $dir): void
-    {
-        if (!is_dir($dir)) return;
-        foreach (array_diff(scandir($dir), ['.', '..']) as $item) {
-            $path = $dir . $item;
-            is_dir($path) ? $this->rmdir_recursive($path . DIRECTORY_SEPARATOR) : @unlink($path);
-        }
-        @rmdir($dir);
+        TempPath::remove($this->tmp_dir);
     }
 
     private function stdout(): string
     {
-        rewind($this->output->stdout());
-        return stream_get_contents($this->output->stdout());
+        return StreamCapture::read($this->output->stdout(), true);
     }
 
     private function stderr(): string
     {
-        rewind($this->output->stderr());
-        return stream_get_contents($this->output->stderr());
+        return StreamCapture::read($this->output->stderr(), true);
     }
 
     private function resetPluginManager(): PluginManager
     {
-        $ref = new \ReflectionClass(PluginManager::class);
-        $prop = $ref->getProperty('instance');
-        $prop->setValue(null, null);
+        ReflectionHelper::set(PluginManager::class, 'instance', null);
         return PluginManager::instance();
     }
 
@@ -255,12 +243,7 @@ class MigrationsTest extends TestCase
     /** Invoke a private method via reflection (supports by-ref args) */
     private function invoke_method(object $object, string $name, array $args = []): mixed
     {
-        $ref = new \ReflectionMethod($object, $name);
-        $ref_args = [];
-        foreach ($args as $k => &$v) {
-            $ref_args[$k] = &$v;
-        }
-        return $ref->invokeArgs($object, $ref_args);
+        return ReflectionHelper::invoke($object, $name, $args);
     }
 
     /**

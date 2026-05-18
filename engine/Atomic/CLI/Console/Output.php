@@ -42,6 +42,11 @@ class Output
         $this->write_to($this->stderr, $message . PHP_EOL);
     }
 
+    public static function plain(string $output): string
+    {
+        return preg_replace('/\033\[[0-9;]*m/', '', $output) ?? $output;
+    }
+
     private function write_to(mixed $stream, string $message): void
     {
         fwrite($stream, $message);

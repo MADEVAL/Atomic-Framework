@@ -9,6 +9,7 @@ use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Enums\LogChannel;
+use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Interfaces\Base;
 use Engine\Atomic\Queue\Interfaces\Management;
 use Engine\Atomic\Queue\Interfaces\Telemetry;
@@ -21,6 +22,23 @@ class Redis implements Base, Management, Telemetry
 {
     use RedisMonitorAdapter;
     use RedisTelemetryAdapter;
+
+    private const LUA_PUSH = 'push';
+    private const LUA_PUSH_TELEMETRY = 'push_telemetry';
+    private const LUA_LOAD_BATCH = 'load_batch';
+    private const LUA_LOAD_EVENTS = 'load_events';
+    private const LUA_LOAD_JOBS_BY_STATE = 'load_jobs_by_state';
+    private const LUA_LOAD_ACTIVE_MONITOR = 'load_active_monitor';
+    private const LUA_LOAD_STUCK = 'load_stuck';
+    private const LUA_RELEASE = 'release';
+    private const LUA_MARK_FINISHED = 'mark_finished';
+    private const LUA_CANCEL = 'cancel';
+    private const LUA_MARK_CANCEL_REQUESTED = 'mark_cancel_requested';
+    private const LUA_MARK_CANCELLED = 'mark_cancelled';
+    private const LUA_SET_PID = 'set_pid';
+    private const LUA_RETRY_ALL = 'retry_all';
+    private const LUA_RETRY_BY_UUID = 'retry_by_uuid';
+    private const LUA_DELETE_JOB = 'delete_job';
 
     private ProcessManager $process_manager;
     private ConnectionManager $connection_manager;
@@ -91,6 +109,72 @@ class Redis implements Base, Management, Telemetry
         Log::channel(LogChannel::QUEUE_WORKER)->info("Script '$script_name' not found in Redis memory, reloading");
         return $this->load_single_lua_script($script_name);
     }
+
+    private function lua_sha(string $script_name): ?string {
+        if (!isset($this->script_shas[$script_name]) && !$this->reload_lua_script($script_name)) {
+            return null;
+        }
+
+        return $this->script_shas[$script_name] ?? null;
+    }
+
+    private function eval_lua(string $script_name, array $args, int $num_keys): mixed {
+        $redis = $this->connection_manager->get_redis(true);
+        $sha = $this->lua_sha($script_name);
+        if ($sha === null) {
+            return false;
+        }
+
+        try {
+            $result = $this->eval_lua_sha($redis, $sha, $args, $num_keys);
+            if ($result === false && !$this->redis_script_exists($redis, $sha) && $this->load_single_lua_script($script_name)) {
+                return $this->eval_lua_sha($redis, $this->script_shas[$script_name], $args, $num_keys);
+            }
+            return $result;
+        } catch (\Throwable $e) {
+            if (!$this->is_no_script_error($e) || !$this->load_single_lua_script($script_name)) {
+                throw $e;
+            }
+
+            return $this->eval_lua_sha($redis, $this->script_shas[$script_name], $args, $num_keys);
+        }
+    }
+
+    private function eval_lua_sha(\Redis $redis, string $sha, array $args, int $num_keys): mixed {
+        $this->clear_redis_error($redis);
+        $result = $redis->evalSha($sha, $args, $num_keys);
+        if ($result !== false) {
+            return $result;
+        }
+
+        $error = $redis->getLastError();
+        if (is_string($error) && $error !== '') {
+            throw new \RuntimeException($error);
+        }
+
+        return $result;
+    }
+
+    private function clear_redis_error(\Redis $redis): void {
+        if (method_exists($redis, 'clearLastError')) {
+            $redis->clearLastError();
+        }
+    }
+
+    private function redis_script_exists(\Redis $redis, string $sha): bool {
+        try {
+            $exists = $redis->script('EXISTS', $sha);
+            return \is_array($exists) && isset($exists[0]) && (int)$exists[0] === 1;
+        } catch (\Throwable) {
+            return true;
+        }
+    }
+
+    private function is_no_script_error(\Throwable $e): bool {
+        $message = $e->getMessage();
+        return \stripos($message, 'NOSCRIPT') !== false
+            || \stripos($message, 'No matching script') !== false;
+    }
     
     private function load_single_lua_script(string $script_name): bool {
         $redis = $this->connection_manager->get_redis(true);
@@ -140,15 +224,19 @@ class Redis implements Base, Management, Telemetry
         $created_at = time();
         $handler = $payload['handler'];
 
-        $payload_json = $this->serialize([
+        $payload_data = [
             'handler'    => $handler,
             'data'       => $payload['data'] ?? [],
             'uuid_batch' => $options['uuid_batch'],
-        ]);
+        ];
+        if (isset($options['cancel_handler'])) {
+            $payload_data['cancel_handler'] = $options['cancel_handler'];
+        }
+        $payload_json = $this->serialize($payload_data);
 
         try {
-            return (bool)$redis->evalSha(
-                $this->script_shas['push'],
+            return (bool)$this->eval_lua(
+                self::LUA_PUSH,
                 [
                     $prefix . 'registry.' . $options['uuid'],
                     $prefix . $options['queue'] . '.idx.pending',
@@ -180,16 +268,16 @@ class Redis implements Base, Management, Telemetry
         $now = \time();
         $jobs = [];
 
-        if (!isset($this->script_shas['load_batch'])) {
-            Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'load_batch' not loaded");
-            if (!$this->reload_lua_script('load_batch')) {
+        if (!isset($this->script_shas[self::LUA_LOAD_BATCH])) {
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script '" . self::LUA_LOAD_BATCH . "' not loaded");
+            if (!$this->reload_lua_script(self::LUA_LOAD_BATCH)) {
                 return [];
             }
         }
         
         try {
-            $result = $redis->evalSha(
-                $this->script_shas['load_batch'],
+            $result = $this->eval_lua(
+                self::LUA_LOAD_BATCH,
                 [
                     $prefix . $queue . '.idx.pending',
                     $prefix . $queue . '.idx.running',
@@ -215,9 +303,9 @@ class Redis implements Base, Management, Telemetry
         $prefix = $this->get_prefix();
 
         try {
-            if (!isset($this->script_shas['release'])) {
-                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'release' not loaded");
-                if (!$this->reload_lua_script('release')) {
+            if (!isset($this->script_shas[self::LUA_RELEASE])) {
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script '" . self::LUA_RELEASE . "' not loaded");
+                if (!$this->reload_lua_script(self::LUA_RELEASE)) {
                     return false;
                 }
             }
@@ -227,8 +315,8 @@ class Redis implements Base, Management, Telemetry
             $pid = $job['pid'];
             $available_at = time() + $delay;
 
-            $result = $redis->evalSha(
-                $this->script_shas['release'],
+            $result = $this->eval_lua(
+                self::LUA_RELEASE,
                 [
                     $prefix . 'registry.' . $job_uuid,
                     $prefix . $queue . '.idx.running',
@@ -270,11 +358,12 @@ class Redis implements Base, Management, Telemetry
             $driver_name = $atomic->get('QUEUE_DRIVER');
             $ttl = $atomic->get("QUEUE.{$driver_name}.queues.{$queue}.ttl", 0);
 
-            $result = $redis->evalSha(
-                $this->script_shas['mark_finished'],
+            $result = $this->eval_lua(
+                self::LUA_MARK_FINISHED,
                 [
                     $prefix . 'registry.' . $job_uuid,
                     $prefix . $queue . '.idx.running',
+                    $prefix . $queue . '.idx.cancel_requested',
                     $prefix . $queue . '.idx.' . ($failed ? 'failed' : 'completed'),
                     $prefix . 'meta.pid_map',
                     $job_uuid,
@@ -283,7 +372,7 @@ class Redis implements Base, Management, Telemetry
                     $exception_json,
                     (int)$ttl
                 ],
-                4
+                5
             );
 
             return (bool)$result;
@@ -309,6 +398,145 @@ class Redis implements Base, Management, Telemetry
         return $this->mark_finished($job, false);
     }
 
+    public function find_by_uuid(string $uuid): ?array {
+        $redis = $this->connection_manager->get_redis(true);
+        $prefix = $this->get_prefix();
+        $data = $redis->hGetAll($prefix . 'registry.' . $uuid);
+        if (!$data) {
+            return null;
+        }
+        if (empty($data['state']) || !\is_string($data['state'])) {
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Malformed Redis queue registry entry for UUID {$uuid}: missing state.");
+            return null;
+        }
+        if (isset($data['payload']) && \is_string($data['payload'])) {
+            $data['payload'] = $this->deserialize($data['payload']);
+        }
+        return $data;
+    }
+
+    public function cancel(string $uuid): ?array {
+        $prefix = $this->get_prefix();
+        $existing_job = $this->find_by_uuid($uuid);
+        if (!$existing_job) {
+            return null;
+        }
+        $queue = (string)($existing_job['queue'] ?? 'default');
+
+        try {
+            $result = $this->eval_lua(
+                self::LUA_CANCEL,
+                [
+                    $prefix . 'registry.' . $uuid,
+                    $prefix . 'meta.pid_map',
+                    $prefix . $queue . '.idx.pending',
+                    $prefix . $queue . '.idx.running',
+                    $prefix . $queue . '.idx.cancel_requested',
+                    $prefix . $queue . '.idx.cancelled',
+                    $uuid,
+                    $prefix,
+                    \time(),
+                    State::PENDING->value,
+                    State::RUNNING->value,
+                    State::CANCEL_REQUESTED->value,
+                    State::COMPLETED->value,
+                    State::FAILED->value,
+                    State::CANCELLED->value,
+                ],
+                6
+            );
+
+            $action = \is_array($result) ? (string)($result[0] ?? '') : '';
+            if ($action === '') {
+                return null;
+            }
+
+            $job = $this->find_by_uuid($uuid);
+            if (!$job) {
+                return null;
+            }
+
+            return ['action' => $action, 'job' => $job];
+        } catch (\Throwable $e) {
+            Log::channel(LogChannel::QUEUE_WORKER)->error('Redis cancel error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    public function mark_cancel_requested(string $uuid): bool {
+        $prefix = $this->get_prefix();
+        $job = $this->find_by_uuid($uuid);
+        if (!$job) {
+            return false;
+        }
+        $queue = (string)($job['queue'] ?? 'default');
+
+        try {
+            $result = $this->eval_lua(
+                self::LUA_MARK_CANCEL_REQUESTED,
+                [
+                    $prefix . 'registry.' . $uuid,
+                    $prefix . $queue . '.idx.running',
+                    $prefix . $queue . '.idx.cancel_requested',
+                    $uuid,
+                    \time(),
+                    State::RUNNING->value,
+                    State::CANCEL_REQUESTED->value,
+                ],
+                3
+            );
+
+            return \is_array($result) ? (bool)($result[0] ?? false) : (bool)$result;
+        } catch (\Throwable $e) {
+            Log::channel(LogChannel::QUEUE_WORKER)->error('Redis mark_cancel_requested error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function is_cancel_requested(string $uuid): bool {
+        $job = $this->find_by_uuid($uuid);
+        return ($job['state'] ?? null) === State::CANCEL_REQUESTED->value;
+    }
+
+    public function mark_cancelled(array $job, ?string $reason = null): bool {
+        $prefix = $this->get_prefix();
+        $uuid = $job['uuid'];
+        $queue = $job['queue'];
+
+        try {
+            $atomic = App::instance();
+            $driver_name = $atomic->get('QUEUE_DRIVER');
+            $ttl = $atomic->get("QUEUE.{$driver_name}.queues.{$queue}.ttl", 0);
+
+            $result = $this->eval_lua(
+                self::LUA_MARK_CANCELLED,
+                [
+                    $prefix . 'registry.' . $uuid,
+                    $prefix . $queue . '.idx.' . State::PENDING->value,
+                    $prefix . $queue . '.idx.' . State::RUNNING->value,
+                    $prefix . $queue . '.idx.' . State::FAILED->value,
+                    $prefix . $queue . '.idx.' . State::COMPLETED->value,
+                    $prefix . $queue . '.idx.' . State::CANCELLED->value,
+                    $prefix . $queue . '.idx.' . State::CANCEL_REQUESTED->value,
+                    $prefix . 'meta.pid_map',
+                    $uuid,
+                    \time(),
+                    $reason ?? '',
+                    (int)$ttl,
+                    State::COMPLETED->value,
+                    State::FAILED->value,
+                    State::CANCELLED->value,
+                ],
+                8
+            );
+
+            return (bool)$result;
+        } catch (\Throwable $e) {
+            Log::channel(LogChannel::QUEUE_WORKER)->error('Redis mark_cancelled error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     public function set_pid(array $job): bool {
         $redis = $this->connection_manager->get_redis(true);
         $prefix = $this->get_prefix();
@@ -321,9 +549,9 @@ class Redis implements Base, Management, Telemetry
                 return false;
             }
 
-            if (!isset($this->script_shas['set_pid'])) {
-                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'set_pid' not loaded");
-                if (!$this->reload_lua_script('set_pid')) {
+            if (!isset($this->script_shas[self::LUA_SET_PID])) {
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script '" . self::LUA_SET_PID . "' not loaded");
+                if (!$this->reload_lua_script(self::LUA_SET_PID)) {
                     return false;
                 }
             }
@@ -331,8 +559,8 @@ class Redis implements Base, Management, Telemetry
             $pid = \getmypid();
             $process_start_ticks = $this->process_manager->get_process_start_ticks($pid);
 
-            $result = $redis->evalSha(
-                $this->script_shas['set_pid'],
+            $result = $this->eval_lua(
+                self::LUA_SET_PID,
                 [
                     $prefix . 'registry.' . $job_uuid,
                     $prefix . 'meta.pid_map',
@@ -355,17 +583,17 @@ class Redis implements Base, Management, Telemetry
         $prefix = $this->get_prefix();
 
         try {
-            if (!isset($this->script_shas['retry_all'])) {
-                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'retry_all' not loaded");
-                if (!$this->reload_lua_script('retry_all')) {
+            if (!isset($this->script_shas[self::LUA_RETRY_ALL])) {
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script '" . self::LUA_RETRY_ALL . "' not loaded");
+                if (!$this->reload_lua_script(self::LUA_RETRY_ALL)) {
                     return false;
                 }
             }
 
             $now = time();
 
-            $retried_count = $redis->evalSha(
-                $this->script_shas['retry_all'],
+            $retried_count = $this->eval_lua(
+                self::LUA_RETRY_ALL,
                 [
                     $prefix . $queue . '.idx.failed',
                     $prefix . $queue . '.idx.pending',
@@ -389,17 +617,17 @@ class Redis implements Base, Management, Telemetry
         $prefix = $this->get_prefix();
 
         try {
-            if (!isset($this->script_shas['retry_by_uuid'])) {
-                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'retry_by_uuid' not loaded");
-                if (!$this->reload_lua_script('retry_by_uuid')) {
+            if (!isset($this->script_shas[self::LUA_RETRY_BY_UUID])) {
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script '" . self::LUA_RETRY_BY_UUID . "' not loaded");
+                if (!$this->reload_lua_script(self::LUA_RETRY_BY_UUID)) {
                     return false;
                 }
             }
 
             $now = time();
 
-            $result = $redis->evalSha(
-                $this->script_shas['retry_by_uuid'],
+            $result = $this->eval_lua(
+                self::LUA_RETRY_BY_UUID,
                 [
                     $prefix . 'registry.' . $uuid,
                     $uuid,
@@ -427,15 +655,15 @@ class Redis implements Base, Management, Telemetry
         $prefix = $this->get_prefix();
 
         try {
-            if (!isset($this->script_shas['delete_job'])) {
-                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script 'delete_job' not loaded");
-                if (!$this->reload_lua_script('delete_job')) {
+            if (!isset($this->script_shas[self::LUA_DELETE_JOB])) {
+                Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script '" . self::LUA_DELETE_JOB . "' not loaded");
+                if (!$this->reload_lua_script(self::LUA_DELETE_JOB)) {
                     return false;
                 }
             }
 
-            $result = $redis->evalSha(
-                $this->script_shas['delete_job'],
+            $result = $this->eval_lua(
+                self::LUA_DELETE_JOB,
                 [
                     $prefix . 'registry.' . $uuid,
                     $prefix . 'telemetry.jobs',

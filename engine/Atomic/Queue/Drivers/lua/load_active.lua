@@ -7,8 +7,23 @@
 local pending_idx_key = KEYS[1]
 local running_idx_key = KEYS[2]
 local prefix = ARGV[1]
-local offset = tonumber(ARGV[2]) or 0
-local limit = tonumber(ARGV[3]) or 50
+local offset = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+
+if offset == nil then
+    error('missing or invalid required argument: offset')
+end
+if limit == nil then
+    error('missing or invalid required argument: limit')
+end
+
+local function require_job(job, uuid, field)
+    local value = job[field]
+    if value == nil or value == '' then
+        error('missing required job field "' .. field .. '" for job: ' .. uuid)
+    end
+    return value
+end
 
 local running_total = redis.call('ZCARD', running_idx_key)
 local pending_total = redis.call('ZCARD', pending_idx_key)
@@ -24,20 +39,19 @@ if offset < running_total then
         local registry_key = prefix .. 'registry.' .. uuid
         local job_data = redis.call('HGETALL', registry_key)
 
-        if #job_data > 0 then
-            local job = {}
-            for i = 1, #job_data, 2 do
-                job[job_data[i]] = job_data[i + 1]
-            end
-
-            job.status = 'running'
-
-            if job.payload then
-                job.payload = cjson.decode(job.payload)
-            end
-
-            table.insert(results, {uuid, cjson.encode(job)})
+        if #job_data == 0 then
+            error('missing job registry: ' .. registry_key)
         end
+
+        local job = {}
+        for i = 1, #job_data, 2 do
+            job[job_data[i]] = job_data[i + 1]
+        end
+
+        require_job(job, uuid, 'state')
+        job.payload = cjson.decode(require_job(job, uuid, 'payload'))
+
+        table.insert(results, {uuid, cjson.encode(job)})
     end
 end
 
@@ -49,20 +63,19 @@ if remaining > 0 then
         local registry_key = prefix .. 'registry.' .. uuid
         local job_data = redis.call('HGETALL', registry_key)
 
-        if #job_data > 0 then
-            local job = {}
-            for i = 1, #job_data, 2 do
-                job[job_data[i]] = job_data[i + 1]
-            end
-
-            job.status = 'pending'
-
-            if job.payload then
-                job.payload = cjson.decode(job.payload)
-            end
-
-            table.insert(results, {uuid, cjson.encode(job)})
+        if #job_data == 0 then
+            error('missing job registry: ' .. registry_key)
         end
+
+        local job = {}
+        for i = 1, #job_data, 2 do
+            job[job_data[i]] = job_data[i + 1]
+        end
+
+        require_job(job, uuid, 'state')
+        job.payload = cjson.decode(require_job(job, uuid, 'payload'))
+
+        table.insert(results, {uuid, cjson.encode(job)})
     end
 end
 

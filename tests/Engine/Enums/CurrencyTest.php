@@ -64,7 +64,7 @@ class CurrencyTest extends TestCase
         $this->assertSame(Currency::UAH, Currency::from('UAH'));
     }
 
-    public function test_tryFrom_invalid(): void
+    public function test_try_from_invalid(): void
     {
         $this->assertNull(Currency::tryFrom('INVALID'));
     }

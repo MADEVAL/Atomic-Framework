@@ -15,7 +15,7 @@ class ErrorHandlerTest extends TestCase
         $this->handler = ErrorHandler::instance();
     }
 
-    public function test_formatTrace_basic(): void
+    public function test_format_trace_basic(): void
     {
         $trace = "[/some/file.php:42] some stack line";
         $result = $this->handler->format_trace(500, 'Internal Error', $trace);
@@ -24,13 +24,13 @@ class ErrorHandlerTest extends TestCase
         $this->assertStringContainsString('42', $result);
     }
 
-    public function test_formatTrace_with_no_file_lines(): void
+    public function test_format_trace_with_no_file_lines(): void
     {
         $result = $this->handler->format_trace(404, 'Not Found', 'no trace info');
         $this->assertStringContainsString('Not Found', $result);
     }
 
-    public function test_formatTrace_with_real_file(): void
+    public function test_format_trace_with_real_file(): void
     {
         $file = __FILE__;
         $trace = "[{$file}:10]";
@@ -42,7 +42,7 @@ class ErrorHandlerTest extends TestCase
         );
     }
 
-    public function test_formatTrace_returns_fallback_on_exception(): void
+    public function test_format_trace_returns_fallback_on_exception(): void
     {
         $handler = ErrorHandler::instance();
         // Even with weird input, should not throw

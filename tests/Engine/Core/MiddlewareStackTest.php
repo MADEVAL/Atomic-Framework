@@ -6,6 +6,7 @@ namespace Tests\Engine\Core;
 use Engine\Atomic\Core\Middleware\MiddlewareInterface;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
 
 class MiddlewarePassStub implements MiddlewareInterface
 {
@@ -47,12 +48,8 @@ class MiddlewareStackTest extends TestCase
 {
     protected function setUp(): void
     {
-        // Reset static state
-        $ref = new \ReflectionClass(MiddlewareStack::class);
-        $aliases = $ref->getProperty('aliases');        $aliases->setValue(null, []);
-
-        $route_map = $ref->getProperty('route_map');
-        $route_map->setValue(null, []);
+        ReflectionHelper::set(MiddlewareStack::class, 'aliases', []);
+        ReflectionHelper::set(MiddlewareStack::class, 'route_map', []);
     }
 
     public function test_register_alias(): void

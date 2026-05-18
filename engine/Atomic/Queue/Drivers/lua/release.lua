@@ -19,10 +19,27 @@ local pid           = tostring(ARGV[3])
 local available_at  = tonumber(ARGV[4])
 
 if not uuid or uuid == '' then
-    return 0
+    error('missing required argument: uuid')
+end
+
+if queue == nil or queue == '' then
+    error('missing required argument: queue')
+end
+
+if available_at == nil then
+    error('missing or invalid required argument: available_at')
 end
 
 if redis.call('EXISTS', registry_key) == 0 then
+    error('missing job registry: ' .. registry_key)
+end
+
+local stored_pid_value = redis.call('HGET', registry_key, 'pid')
+if stored_pid_value == false or stored_pid_value == nil or stored_pid_value == '' then
+    error('missing required job field: pid')
+end
+local stored_pid = tostring(stored_pid_value)
+if stored_pid ~= pid then
     return 0
 end
 
@@ -31,7 +48,10 @@ if removed == 0 then
     return 0
 end
 
-local priority = tonumber(redis.call('HGET', registry_key, 'priority')) or 0
+local priority = tonumber(redis.call('HGET', registry_key, 'priority'))
+if priority == nil then
+    error('missing or invalid required job field: priority')
+end
 local sequence = redis.call('INCR', sequence_key)
 local score = (available_at * 1000000) + (priority * 1000) + (sequence % 1000)
 

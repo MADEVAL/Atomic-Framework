@@ -48,7 +48,7 @@ class LanguageTest extends TestCase
         $this->assertSame(Language::UK, Language::from('uk'));
     }
 
-    public function test_tryFrom_invalid(): void
+    public function test_try_from_invalid(): void
     {
         $this->assertNull(Language::tryFrom('xx'));
     }

@@ -5,26 +5,23 @@ namespace Tests\Engine\CLI;
 
 use Engine\Atomic\CLI\Style;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\Environment;
 
 class StyleTest extends TestCase
 {
-    protected function tearDown(): void
+    protected function setUp(): void
     {
-        $this->clearEnvironment('NO_COLOR');
-        $this->clearEnvironment('FORCE_COLOR');
-        $this->clearEnvironment('CLICOLOR_FORCE');
-        $this->clearEnvironment('CLICOLOR');
-        $this->clearEnvironment('TERM');
-        $this->clearEnvironment('TERM_PROGRAM');
-        $this->clearEnvironment('COLORTERM');
-        $this->clearEnvironment('ANSICON');
-        $this->clearEnvironment('ConEmuANSI');
-        $this->clearEnvironment('MSYSTEM');
+        Environment::clear_cli_color();
     }
 
-    public function test_warningLabel_uses_color_when_forced(): void
+    protected function tearDown(): void
     {
-        $this->setEnvironment('FORCE_COLOR', '1');
+        Environment::clear_cli_color();
+    }
+
+    public function test_warning_label_uses_color_when_forced(): void
+    {
+        Environment::set('FORCE_COLOR', '1');
 
         $this->assertStringContainsString("\033[33m", Style::warning_label());
         $this->assertStringContainsString('[WARNING]', Style::warning_label());
@@ -32,20 +29,8 @@ class StyleTest extends TestCase
 
     public function test_bold_returns_plain_text_when_color_is_disabled(): void
     {
-        $this->setEnvironment('NO_COLOR', '1');
+        Environment::set('NO_COLOR', '1');
 
         $this->assertSame('hello', Style::bold('hello'));
-    }
-
-    private function setEnvironment(string $name, string $value): void
-    {
-        putenv($name . '=' . $value);
-        $_SERVER[$name] = $value;
-    }
-
-    private function clearEnvironment(string $name): void
-    {
-        putenv($name);
-        unset($_SERVER[$name]);
     }
 }

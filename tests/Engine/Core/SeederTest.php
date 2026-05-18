@@ -3,50 +3,43 @@ declare(strict_types=1);
 
 namespace Tests\Engine\Core;
 
-use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\Seeder;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\StreamCapture;
+use Tests\Support\TempPath;
 
 class SeederTest extends TestCase
 {
-    private string $tmpDir;
+    private string $tmp_dir;
 
     protected function setUp(): void
     {
-        $this->tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_seeder_' . uniqid() . DIRECTORY_SEPARATOR;
-        mkdir($this->tmpDir, 0755, true);
+        $this->tmp_dir = TempPath::make_dir('atomic_seeder_');
     }
 
     protected function tearDown(): void
     {
-        $files = glob($this->tmpDir . '*');
-        if ($files) {
-            foreach ($files as $f) @unlink($f);
-        }
-        @rmdir($this->tmpDir);
+        TempPath::remove($this->tmp_dir);
     }
 
     private function make_output_with_stderr_capture(): array
     {
-        $stream = fopen('php://memory', 'r+');
-        $out = new Output(null, $stream);
-        return [$out, $stream];
+        return StreamCapture::output_with_stderr();
     }
 
     private function read_stream(mixed $stream): string
     {
-        rewind($stream);
-        return stream_get_contents($stream);
+        return StreamCapture::read($stream);
     }
 
     public function test_run_valid_seed(): void
     {
-        $seedFile = $this->tmpDir . 'test_seed.php';
-        file_put_contents($seedFile, '<?php return ["run" => function() { file_put_contents("' . addslashes($this->tmpDir) . 'seed_ran.txt", "done"); }];');
+        $seedFile = $this->tmp_dir . 'test_seed.php';
+        file_put_contents($seedFile, '<?php return ["run" => function() { file_put_contents("' . addslashes($this->tmp_dir) . 'seed_ran.txt", "done"); }];');
 
         Seeder::run($seedFile);
-        $this->assertFileExists($this->tmpDir . 'seed_ran.txt');
-        $this->assertSame('done', file_get_contents($this->tmpDir . 'seed_ran.txt'));
+        $this->assertFileExists($this->tmp_dir . 'seed_ran.txt');
+        $this->assertSame('done', file_get_contents($this->tmp_dir . 'seed_ran.txt'));
     }
 
     public function test_run_nonexistent_file(): void
@@ -58,7 +51,7 @@ class SeederTest extends TestCase
 
     public function test_run_invalid_seed_without_run_key(): void
     {
-        $seedFile = $this->tmpDir . 'bad_seed.php';
+        $seedFile = $this->tmp_dir . 'bad_seed.php';
         file_put_contents($seedFile, '<?php return ["setup" => function() {}];');
 
         [$out, $stream] = $this->make_output_with_stderr_capture();
@@ -68,7 +61,7 @@ class SeederTest extends TestCase
 
     public function test_run_seed_with_exception(): void
     {
-        $seedFile = $this->tmpDir . 'error_seed.php';
+        $seedFile = $this->tmp_dir . 'error_seed.php';
         file_put_contents($seedFile, '<?php return ["run" => function() { throw new \Exception("seed error"); }];');
 
         [$out, $stream] = $this->make_output_with_stderr_capture();

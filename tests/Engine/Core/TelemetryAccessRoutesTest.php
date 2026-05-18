@@ -6,14 +6,14 @@ namespace Tests\Engine\Core;
 use Engine\Atomic\App\Telemetry;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
 
 final class TelemetryAccessRoutesTest extends TestCase
 {
     protected function setUp(): void
     {
-        $ref = new \ReflectionClass(MiddlewareStack::class);
-        $ref->getProperty('aliases')->setValue(null, []);
-        $ref->getProperty('route_map')->setValue(null, []);
+        ReflectionHelper::set(MiddlewareStack::class, 'aliases', []);
+        ReflectionHelper::set(MiddlewareStack::class, 'route_map', []);
     }
 
     public function test_telemetry_routes_register_access_and_role_middleware(): void
@@ -22,8 +22,7 @@ final class TelemetryAccessRoutesTest extends TestCase
         $atomic->set('TELEMETRY_ACCESS_MODE', 'config');
         require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
 
-        $ref = new \ReflectionClass(MiddlewareStack::class);
-        $route_map = $ref->getProperty('route_map')->getValue();
+        $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
         $access = ['access:telemetry', 'role:admin'];
 
@@ -49,8 +48,7 @@ final class TelemetryAccessRoutesTest extends TestCase
         $atomic->set('TELEMETRY_ACCESS_MODE', 'auth');
         require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
 
-        $ref = new \ReflectionClass(MiddlewareStack::class);
-        $route_map = $ref->getProperty('route_map')->getValue();
+        $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
         $this->assertSame(['role:admin'], $route_map['GET /telemetry'] ?? null);
         $this->assertSame(['role:admin'], $route_map['POST /telemetry'] ?? null);
@@ -64,8 +62,7 @@ final class TelemetryAccessRoutesTest extends TestCase
         $atomic->set('TELEMETRY_ACCESS_ALLOWED_ROLES', ['admin', 'support']);
         require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
 
-        $ref = new \ReflectionClass(MiddlewareStack::class);
-        $route_map = $ref->getProperty('route_map')->getValue();
+        $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
         $this->assertSame(['role:admin,support'], $route_map['GET /telemetry'] ?? null);
         $this->assertSame(['role:admin,support'], $route_map['POST /telemetry'] ?? null);
@@ -78,8 +75,7 @@ final class TelemetryAccessRoutesTest extends TestCase
         $atomic->set('TELEMETRY_ACCESS_MODE', 'none');
         require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
 
-        $ref = new \ReflectionClass(MiddlewareStack::class);
-        $route_map = $ref->getProperty('route_map')->getValue();
+        $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
         $this->assertArrayNotHasKey('GET /telemetry', $route_map);
         $this->assertArrayNotHasKey('POST /telemetry', $route_map);
@@ -92,8 +88,7 @@ final class TelemetryAccessRoutesTest extends TestCase
         $atomic->clear('TELEMETRY_ACCESS_MODE');
         require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
 
-        $ref = new \ReflectionClass(MiddlewareStack::class);
-        $route_map = $ref->getProperty('route_map')->getValue();
+        $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
         $this->assertArrayNotHasKey('GET /telemetry', $route_map);
         $this->assertArrayNotHasKey('/telemetry/dashboard', $route_map);

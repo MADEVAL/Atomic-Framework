@@ -7,6 +7,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Enums\LogChannel;
+use Engine\Atomic\Queue\Enums\State;
 
 trait Redis {
     public function load_stuck_jobs(array $exclude, string $queue = '*'): array
@@ -18,9 +19,9 @@ trait Redis {
         $exclude_json = $this->serialize($exclude);
 
         try {
-            if (!isset($this->script_shas['load_stuck'])) {
-                if (!$this->reload_lua_script('load_stuck')) {
-                    Log::channel(LogChannel::QUEUE_MONITOR)->error("Failed to load Lua script: load_stuck");
+            if (!isset($this->script_shas[self::LUA_LOAD_STUCK])) {
+                if (!$this->reload_lua_script(self::LUA_LOAD_STUCK)) {
+                    Log::channel(LogChannel::QUEUE_MONITOR)->error("Failed to load Lua script: " . self::LUA_LOAD_STUCK);
                     return [];
                 }
             }
@@ -30,20 +31,22 @@ trait Redis {
                 : [$queue];
 
             foreach ($queue_names as $q) {
-                $result = $redis->evalSha(
-                    $this->script_shas['load_stuck'],
-                    [
-                        $prefix . $q . '.idx.running',
-                        $prefix,
-                        $now,
-                        $exclude_json
-                    ],
-                    1
-                );
+                foreach ([State::RUNNING->value, State::CANCEL_REQUESTED->value] as $state) {
+                    $result = $this->eval_lua(
+                        self::LUA_LOAD_STUCK,
+                        [
+                            $prefix . $q . '.idx.' . $state,
+                            $prefix,
+                            $now,
+                            $exclude_json
+                        ],
+                        1
+                    );
 
-                if (!empty($result) && is_array($result)) {
-                    foreach ($result as $job_json) {
-                        $stuck_jobs[] = $this->deserialize($job_json);
+                    if (!empty($result) && is_array($result)) {
+                        foreach ($result as $job_json) {
+                            $stuck_jobs[] = $this->deserialize($job_json);
+                        }
                     }
                 }
             }
@@ -55,22 +58,22 @@ trait Redis {
         }
     }
 
-    public function load_jobs_in_progress(string $queue = '*'): array
+    public function load_active_jobs(string $queue = '*'): array
     {
         $redis = $this->connection_manager->get_redis(true);
         $prefix = App::instance()->get('REDIS.prefix');
         $res = [];
 
         try {
-            if (!isset($this->script_shas['load_in_progress_monitor'])) {
-                if (!$this->reload_lua_script('load_in_progress_monitor')) {
-                    Log::channel(LogChannel::QUEUE_MONITOR)->error("Failed to load Lua script: load_in_progress_monitor");
+            if (!isset($this->script_shas[self::LUA_LOAD_ACTIVE_MONITOR])) {
+                if (!$this->reload_lua_script(self::LUA_LOAD_ACTIVE_MONITOR)) {
+                    Log::channel(LogChannel::QUEUE_MONITOR)->error("Failed to load Lua script: " . self::LUA_LOAD_ACTIVE_MONITOR);
                     return [];
                 }
             }
 
-            $result = $redis->evalSha(
-                $this->script_shas['load_in_progress_monitor'],
+            $result = $this->eval_lua(
+                self::LUA_LOAD_ACTIVE_MONITOR,
                 [
                     $prefix . 'meta.pid_map',
                     $prefix
@@ -100,6 +103,11 @@ trait Redis {
 
     public function handle_incomplete_job(array $job): bool {
         try {
+            if (($job['state'] ?? '') === State::CANCEL_REQUESTED->value) {
+                Log::channel(LogChannel::QUEUE_MONITOR)->warning("Cancel-requested job with ID {$job['uuid']} timed out; marking cancelled");
+                return $this->mark_cancelled($job, 'cancel requested job timed out');
+            }
+
             $max_attempts = $job['max_attempts'];
             if($job['attempts'] >= $max_attempts) {
                 Log::channel(LogChannel::QUEUE_MONITOR)->warning("Job with ID {$job['uuid']} exceeded the maximum number of attempts ({$max_attempts})");

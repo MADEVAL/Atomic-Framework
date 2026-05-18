@@ -8,6 +8,7 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Enums\LogChannel;
+use Engine\Atomic\Queue\Exceptions\JobCancelledException;
 use Engine\Atomic\Queue\Managers\Manager;
 
 class Worker
@@ -33,9 +34,16 @@ class Worker
     {
         $atomic = App::instance();
         $this->queue_manager = $queue_manager;
-        $this->worker_count = $atomic->get(
+        $worker_count = $atomic->get(
             'QUEUE.' . $atomic->get('QUEUE_DRIVER') . '.queues.' . $queue_manager->get_queue() . '.worker_cnt'
         );
+        if (!\is_int($worker_count) || $worker_count <= 0) {
+            throw new \UnexpectedValueException(
+                'Queue worker_cnt must be configured as a positive integer for queue: ' . $queue_manager->get_queue()
+            );
+        }
+
+        $this->worker_count = $worker_count;
     }
 
     public function handle_signal(int $signal): void
@@ -54,7 +62,7 @@ class Worker
 
     public function handle_sigchld(int $signal): void
     {
-        while (($pid = \pcntl_waitpid(-1, $status, WNOHANG)) > 0) {
+        while (($pid = $this->wait_pid(-1, $status, WNOHANG)) > 0) {
             $worker_id = $this->worker_pids[$pid] ?? 0;
             unset($this->worker_pids[$pid]);
 
@@ -63,11 +71,11 @@ class Worker
                 continue;
             }
 
-            if (\pcntl_wifsignaled($status)) {
-                $sig = \pcntl_wtermsig($status);
+            if ($this->was_signaled($status)) {
+                $sig = $this->term_signal($status);
                 Log::channel(LogChannel::QUEUE_WORKER)->warning("Worker #$worker_id (PID $pid) killed by signal $sig. Queuing respawn.");
             } else {
-                $exit_code = \pcntl_wexitstatus($status);
+                $exit_code = $this->exit_status($status);
                 Log::channel(LogChannel::QUEUE_WORKER)->warning("Worker #$worker_id (PID $pid) exited with code $exit_code. Queuing respawn.");
             }
 
@@ -99,7 +107,7 @@ class Worker
                     $this->spawn_worker($worker_id);
                 }
             }
-            \usleep(500000);
+            $this->pause_microseconds(500000);
         }
 
         $this->drain_workers();
@@ -107,13 +115,13 @@ class Worker
         Log::channel(LogChannel::QUEUE_WORKER)->info("Worker pool shut down completely.");
     }
 
-    private function spawn_worker(int $worker_id): void
+    protected function spawn_worker(int $worker_id): void
     {
         if ($this->shutdown) {
             return;
         }
 
-        $pid = \pcntl_fork();
+        $pid = $this->fork_process();
 
         if ($pid === -1) {
             Log::channel(LogChannel::QUEUE_WORKER)->error("Failed to fork worker #$worker_id.");
@@ -121,20 +129,20 @@ class Worker
         }
 
         if ($pid === 0) {
-            \posix_setpgid(0, 0);
+            $this->set_process_group(0, 0);
             $this->worker_loop($worker_id);
             exit(0);
         }
 
         $this->worker_pids[$pid] = $worker_id;
-        \posix_setpgid($pid, $pid);
+        $this->set_process_group($pid, $pid);
         Log::channel(LogChannel::QUEUE_WORKER)->info("Spawned worker #$worker_id (PID $pid).");
     }
 
-    private function drain_workers(): void
+    protected function drain_workers(): void
     {
         // Disable SIGCHLD handler to avoid races - we reap manually below
-        \pcntl_signal(SIGCHLD, SIG_DFL);
+        $this->register_signal(SIGCHLD, SIG_DFL);
 
         $timeout = (int) App::instance()->get(
             'QUEUE.' . App::instance()->get('QUEUE_DRIVER') . '.queues.' . $this->queue_manager->get_queue() . '.timeout'
@@ -149,23 +157,23 @@ class Worker
             }
 
             Log::channel(LogChannel::QUEUE_WORKER)->info("Sending SIGTERM to worker #$worker_id (PID $pid).");
-            \posix_kill($pid, SIGTERM);
+            $this->signal_process($pid, SIGTERM);
 
-            $start = \time();
-            while ((\time() - $start) < $timeout) {
-                $result = \pcntl_waitpid($pid, $status, WNOHANG);
+            $start = $this->current_time();
+            while (($this->current_time() - $start) < $timeout) {
+                $result = $this->wait_pid($pid, $status, WNOHANG);
                 if ($result === $pid || $result === -1) {
                     unset($this->worker_pids[$pid]);
                     Log::channel(LogChannel::QUEUE_WORKER)->info("Worker #$worker_id (PID $pid) exited during drain.");
                     break;
                 }
-                \usleep(self::SHUTDOWN_STAGGER_MICROSECONDS);
+                $this->pause_microseconds(self::SHUTDOWN_STAGGER_MICROSECONDS);
             }
 
             if (isset($this->worker_pids[$pid])) {
                 Log::channel(LogChannel::QUEUE_WORKER)->warning("Worker #$worker_id (PID $pid) did not exit within {$timeout}s. Sending SIGKILL.");
-                \posix_kill($pid, SIGKILL);
-                \pcntl_waitpid($pid, $status);
+                $this->signal_process($pid, SIGKILL);
+                $this->wait_pid($pid, $status);
                 unset($this->worker_pids[$pid]);
             }
         }
@@ -199,8 +207,14 @@ class Worker
             $shutdown = true;
         };
 
+        $cancel_job = function () use ($worker_id): void {
+            Log::channel(LogChannel::QUEUE_WORKER)->info("Worker #$worker_id received job cancellation signal. Will attempt to cancel current job.");
+            throw new JobCancelledException('Job cancellation requested');
+        };
+
         \pcntl_signal(SIGTERM, $graceful_shutdown);
         \pcntl_signal(SIGINT,  $graceful_shutdown);
+        \pcntl_signal(SIGUSR1, $cancel_job);
         \pcntl_signal(SIGCHLD, SIG_DFL);
         \pcntl_signal(SIGALRM, SIG_IGN);
 
@@ -279,7 +293,15 @@ class Worker
             $this->queue_manager->mark_completed($job);
             Log::channel(LogChannel::QUEUE_WORKER)->debug("Job {$job['uuid']} processed successfully by worker #$worker_id.");
 
+        } catch (JobCancelledException $e) {
+            $this->queue_manager->mark_cancelled($job, $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->info("Job {$job['uuid']} cancelled by worker #$worker_id.");
         } catch (\Throwable $e) {
+            if ($this->queue_manager->supports_cancel() && $this->queue_manager->is_cancel_requested($job['uuid'])) {
+                $this->queue_manager->mark_cancelled($job, $e->getMessage());
+                Log::channel(LogChannel::QUEUE_WORKER)->info("Job {$job['uuid']} cancelled after cancel request.");
+                return;
+            }
             if ($timed_out) {
                 $this->queue_manager->close_all_connections();
                 $this->queue_manager->open_all_connections();
@@ -310,5 +332,55 @@ class Worker
             $atomic->set('ATOMIC_QUEUE_CURRENT_BATCH_UUID', null);
             $atomic->set('ATOMIC_QUEUE_CURRENT_NAME', null);
         }
+    }
+
+    protected function fork_process(): int
+    {
+        return \pcntl_fork();
+    }
+
+    protected function wait_pid(int $pid, mixed &$status, int $flags = 0): int
+    {
+        return \pcntl_waitpid($pid, $status, $flags);
+    }
+
+    protected function was_signaled(int $status): bool
+    {
+        return \pcntl_wifsignaled($status);
+    }
+
+    protected function term_signal(int $status): int
+    {
+        return \pcntl_wtermsig($status);
+    }
+
+    protected function exit_status(int $status): int
+    {
+        return \pcntl_wexitstatus($status);
+    }
+
+    protected function signal_process(int $pid, int $signal): bool
+    {
+        return \posix_kill($pid, $signal);
+    }
+
+    protected function set_process_group(int $pid, int $pgid): bool
+    {
+        return \posix_setpgid($pid, $pgid);
+    }
+
+    protected function register_signal(int $signal, callable|int $handler): bool
+    {
+        return \pcntl_signal($signal, $handler);
+    }
+
+    protected function pause_microseconds(int $microseconds): void
+    {
+        \usleep($microseconds);
+    }
+
+    protected function current_time(): int
+    {
+        return \time();
     }
 }

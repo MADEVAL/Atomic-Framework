@@ -7,6 +7,9 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\CLI\Console\Input;
 use Engine\Atomic\CLI\Console\Output;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
+use Tests\Support\StreamCapture;
+use Tests\Support\TempPath;
 
 class PluginTest extends TestCase
 {
@@ -14,13 +17,12 @@ class PluginTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_plugin_test_' . uniqid();
-        mkdir($this->tmp_dir, 0755, true);
+        $this->tmp_dir = rtrim(TempPath::make_dir('atomic_plugin_test_'), DIRECTORY_SEPARATOR);
     }
 
     protected function tearDown(): void
     {
-        $this->rimraf($this->tmp_dir);
+        TempPath::remove($this->tmp_dir);
     }
 
     public function test_plugin_make_creates_user_plugin_scaffold(): void
@@ -81,9 +83,9 @@ class PluginTest extends TestCase
 
     private function make_cli(array $args): object
     {
-        $stdout = fopen('php://memory', 'r+');
-        $stderr = fopen('php://memory', 'r+');
-        $stdin  = fopen('php://memory', 'r');
+        $stdout = StreamCapture::memory();
+        $stderr = StreamCapture::memory();
+        $stdin  = StreamCapture::memory('r');
 
         $output = new Output($stdout, $stderr);
         $input  = new Input($output, $stdin);
@@ -117,27 +119,8 @@ class PluginTest extends TestCase
         };
     }
 
-    private function rimraf(string $path): void
-    {
-        if (!is_dir($path)) {
-            return;
-        }
-
-        $items = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST
-        );
-
-        foreach ($items as $item) {
-            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
-        }
-
-        rmdir($path);
-    }
-
     private function reset_plugin_manager(): void
     {
-        $ref = new \ReflectionClass(PluginManager::class);
-        $ref->getProperty('instance')->setValue(null, null);
+        ReflectionHelper::set(PluginManager::class, 'instance', null);
     }
 }

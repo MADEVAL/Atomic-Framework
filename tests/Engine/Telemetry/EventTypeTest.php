@@ -38,6 +38,16 @@ class EventTypeTest extends TestCase
         $this->assertSame(6, EventType::JOB_INCOMPLETE_HANDLED->value);
     }
 
+    public function test_job_cancel_requested(): void
+    {
+        $this->assertSame(7, EventType::JOB_CANCEL_REQUESTED->value);
+    }
+
+    public function test_job_cancelled(): void
+    {
+        $this->assertSame(8, EventType::JOB_CANCELLED->value);
+    }
+
     public function test_all_descriptions_non_empty(): void
     {
         foreach (EventType::cases() as $case) {
@@ -69,10 +79,12 @@ class EventTypeTest extends TestCase
         $this->assertStringContainsString('success', EventType::JOB_SUCCESS->description());
         $this->assertStringContainsString('failure', EventType::JOB_FAILED->description());
         $this->assertStringContainsString('retried', EventType::JOB_RETRIED->description());
+        $this->assertStringContainsString('cancellation', EventType::JOB_CANCEL_REQUESTED->description());
+        $this->assertStringContainsString('cancelled', EventType::JOB_CANCELLED->description());
     }
 
     public function test_cases_count(): void
     {
-        $this->assertCount(6, EventType::cases());
+        $this->assertCount(8, EventType::cases());
     }
 }

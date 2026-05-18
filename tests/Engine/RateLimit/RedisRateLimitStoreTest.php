@@ -114,6 +114,34 @@ final class RedisRateLimitStoreTest extends TestCase
         $this->assertSame(25, $store->get('quota:user:1'));
     }
 
+    public function test_releasing_missing_reservation_does_not_change_quota(): void
+    {
+        $store = $this->store();
+        $store->increment('quota:user:1', 25, 60);
+
+        $store->release('quota:user:1', 'missing');
+
+        $this->assertSame(25, $store->get('quota:user:1'));
+    }
+
+    public function test_invalid_reservation_value_fails_settle_and_release(): void
+    {
+        $store = $this->store();
+        $store->increment('quota:user:1', 25, 60);
+
+        $this->redis()->set($this->prefix . 'rate_limit:reservation:bad-settle', 'invalid');
+        $this->expectRedisError(
+            'invalid reservation key',
+            fn () => $store->settle('quota:user:1', 'reservation:bad-settle', 10)
+        );
+
+        $this->redis()->set($this->prefix . 'rate_limit:reservation:bad-release', 'invalid');
+        $this->expectRedisError(
+            'invalid reservation key',
+            fn () => $store->release('quota:user:1', 'reservation:bad-release')
+        );
+    }
+
     public function test_duplicate_active_reservation_id_is_rejected_without_double_debiting(): void
     {
         $store = $this->store();
@@ -147,5 +175,25 @@ final class RedisRateLimitStoreTest extends TestCase
         self::assertInstanceOf(RedisRateLimitStore::class, $this->store);
 
         return $this->store;
+    }
+
+    private function redis(): \Redis
+    {
+        self::assertInstanceOf(\Redis::class, $this->redis);
+
+        return $this->redis;
+    }
+
+    private function expectRedisError(string $expectedMessage, callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (\Throwable $e) {
+            $message = $e->getMessage() . "\n" . (string)$this->redis()->getLastError();
+            $this->assertStringContainsString($expectedMessage, $message);
+            return;
+        }
+
+        $this->fail("Expected Redis error containing: {$expectedMessage}");
     }
 }

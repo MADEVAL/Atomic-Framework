@@ -34,6 +34,7 @@ $atomic->route('GET /queue/test [cli]', 'Engine\Atomic\App\System->queue_test');
 $atomic->route('GET /queue/test/monitor [cli]', 'Engine\Atomic\App\System->queue_test_monitor');
 $atomic->route('GET /queue/monitor [cli]', 'Engine\Atomic\App\System->queue_monitor');
 $atomic->route('GET /queue/retry [cli]', 'Engine\Atomic\App\System->queue_retry');
+$atomic->route('GET /queue/cancel [cli]', 'Engine\Atomic\App\System->queue_cancel');
 $atomic->route('GET /queue/delete [cli]', 'Engine\Atomic\App\System->queue_delete_job');
 
 $atomic->route('GET /seed/users [cli]', 'Engine\Atomic\App\System->seed_users');

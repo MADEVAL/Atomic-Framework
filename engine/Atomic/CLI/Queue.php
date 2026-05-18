@@ -10,7 +10,7 @@ use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Migrations;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Queue\Managers\Manager;
-use Engine\Atomic\Queue\Tests\Test;
+use Engine\Atomic\Queue\Tests\TestJob;
 use Engine\Atomic\Queue\Monitor\Monitor;
 use Engine\Atomic\Queue\Worker\Worker;
 
@@ -21,7 +21,7 @@ trait Queue {
     private static int $MONITOR_TEST_TIMEOUT = 30;
     private static int $MONITOR_TEST_TTL = 3600;
 
-    private function queue_dependency_hint(): string
+    protected function queue_dependency_hint(): string
     {
         $driver = (string) App::instance()->get('QUEUE_DRIVER');
 
@@ -42,7 +42,7 @@ trait Queue {
         return "Queue system is unavailable: unsupported QUEUE_DRIVER '{$driver}'.";
     }
 
-    private function create_queue_manager_or_null(?string $queue_name = null): ?Manager
+    protected function create_queue_manager_or_null(?string $queue_name = null): ?Manager
     {
         try {
             return new Manager($queue_name);
@@ -56,6 +56,135 @@ trait Queue {
     public function db_queue() {
         $atomic = App::instance();
         (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_CORE') . 'atomic_create_queue_tables');
+    }
+
+    public function queue_test(): void
+    {
+        $args = $this->get_cli_args();
+        $type = strtolower((string)($args[0] ?? ''));
+        $queue_name = $args[1] ?? null;
+
+        if ($type === '') {
+            $this->output->err('Usage: php atomic queue/test <success|failed|timeout|cancel_requested|cancelled|all> [queue_name]');
+            return;
+        }
+
+        $queue_manager = $this->create_queue_manager_or_null($queue_name);
+        if ($queue_manager === null) {
+            return;
+        }
+
+        $types = $type === 'all' ? ['success', 'failed', 'timeout', 'cancelled', 'cancel_requested'] : [$type];
+        $created = 0;
+        $failed = 0;
+
+        foreach ($types as $test_type) {
+            $case = $this->build_queue_test_case($test_type);
+            if ($case === null) {
+                $this->output->err("Unknown queue test type '{$test_type}'. Supported: success, failed, timeout, cancel_requested, cancelled, all");
+                $failed++;
+                continue;
+            }
+            if (!empty($case['requires_cancel']) && !$queue_manager->supports_cancel()) {
+                $this->output->err("Queue test type '{$test_type}' requires the redis queue driver because database queues do not support cancellation");
+                $failed++;
+                continue;
+            }
+
+            $uuid = ID::uuid_v4();
+            try {
+                $queued = $queue_manager->push(
+                    [TestJob::class, $case['method']],
+                    $case['data'],
+                    $case['options'],
+                    $uuid
+                );
+            } catch (\Throwable $th) {
+                $queued = false;
+                $this->output->err("Failed to queue {$test_type} test job: " . $th->getMessage());
+            }
+
+            if (!$queued) {
+                $failed++;
+                $this->output->err("Failed to queue {$test_type} test job");
+                continue;
+            }
+
+            $created++;
+            $this->output->writeln("Queued {$case['label']} test job with UUID '{$uuid}' on queue '{$queue_manager->get_queue()}'");
+
+            if (!empty($case['cancel_hint'])) {
+                $this->output->writeln("This job requests cancellation while running, so the worker should record cancel_requested and cancelled telemetry.");
+            }
+        }
+
+        $this->output->writeln("queue/test completed. Created: {$created}, Failed: {$failed}");
+        if ($created > 0) {
+            $this->output->writeln("Run: php atomic queue/worker {$queue_manager->get_queue()}");
+        }
+    }
+
+    private function build_queue_test_case(string $type): ?array
+    {
+        $normalized = match ($type) {
+            'completed' => 'success',
+            'failure' => 'failed',
+            'cancel', 'canceled' => 'cancelled',
+            'request_canceled', 'request_cancelled' => 'cancel_requested',
+            default => $type,
+        };
+
+        return match ($normalized) {
+            'success' => [
+                'label' => 'success',
+                'method' => 'success',
+                'data' => [
+                    'params' => ['id' => 123, 'type' => 'test', 'expected_state' => 'completed'],
+                    'smth' => 'queue-test-success',
+                ],
+                'options' => [],
+            ],
+            'failed' => [
+                'label' => 'failed',
+                'method' => 'failure',
+                'data' => [
+                    'params' => ['id' => 123, 'type' => 'test', 'expected_state' => 'failed'],
+                    'smth' => 'queue-test-failed',
+                ],
+                'options' => ['max_attempts' => 1, 'retry_delay' => 0],
+            ],
+            'timeout' => [
+                'label' => 'timeout',
+                'method' => 'timeout',
+                'data' => [
+                    'params' => ['id' => 123, 'type' => 'test', 'expected_state' => 'failed'],
+                    'smth' => 'queue-test-timeout',
+                ],
+                'options' => ['timeout' => 1, 'max_attempts' => 1, 'retry_delay' => 0],
+            ],
+            'cancelled' => [
+                'label' => 'cancelled',
+                'method' => 'self_cancel',
+                'data' => [
+                    'params' => ['id' => 123, 'type' => 'test', 'expected_state' => 'cancelled'],
+                    'smth' => 'queue-test-cancelled',
+                ],
+                'options' => ['max_attempts' => 1, 'retry_delay' => 0],
+                'requires_cancel' => true,
+            ],
+            'cancel_requested' => [
+                'label' => 'cancel_requested',
+                'method' => 'self_request_cancel',
+                'data' => [
+                    'params' => ['id' => 123, 'type' => 'test', 'expected_state' => 'cancelled'],
+                    'smth' => 'queue-test-cancel',
+                ],
+                'options' => ['max_attempts' => 1, 'retry_delay' => 0, 'cancel_handler' => 'cancelled'],
+                'requires_cancel' => true,
+                'cancel_hint' => true,
+            ],
+            default => null,
+        };
     }
     
     public function queue_worker() {
@@ -258,7 +387,7 @@ trait Queue {
                 'retry_delay' => 2,
                 'map_pid' => false,
             ],
-            'in_progress_pid_placeholder' => [
+            'active_pid_placeholder' => [
                 'available_at' => $now + 90,
                 'pid' => self::$MONITOR_TEST_PID_PLACEHOLDER,
                 'attempts' => 1,
@@ -266,7 +395,7 @@ trait Queue {
                 'retry_delay' => 2,
                 'map_pid' => true,
             ],
-            'in_progress_inactive' => [
+            'active_inactive' => [
                 'available_at' => $now + 90,
                 'pid' => 999993,
                 'attempts' => 1,
@@ -281,7 +410,7 @@ trait Queue {
     {
         $uuid = ID::uuid_v4();
         $queued = $queue_manager->push(
-            [Test::class, 'success'],
+            [TestJob::class, 'success'],
             [
                 'params' => [
                     'id' => 123,
@@ -350,6 +479,32 @@ trait Queue {
             $this->output->writeln("Retried failed jobs for queue '{$queue_name}'");
         } catch (\Throwable $th) {
             $this->output->err("Could not retry queue '{$queue_name}': " . $th->getMessage());
+        }
+    }
+
+    public function queue_cancel(): void
+    {
+        $args = $this->get_cli_args();
+        if (!isset($args[0]) || empty($args[0])) {
+            $this->output->err('Usage: php atomic queue/cancel <job_uuid>');
+            return;
+        }
+
+        $uuid = $args[0];
+        $queue_manager = $this->create_queue_manager_or_null();
+        if ($queue_manager === null) {
+            return;
+        }
+
+        try {
+            $cancelled = $queue_manager->cancel($uuid);
+            if ($cancelled) {
+                $this->output->writeln("Cancellation requested for job with UUID '{$uuid}'");
+            } else {
+                $this->output->err("Could not cancel job with UUID '{$uuid}' - it may not exist or may already be finished");
+            }
+        } catch (\Throwable $th) {
+            $this->output->err('Error cancelling job: ' . $th->getMessage());
         }
     }
 

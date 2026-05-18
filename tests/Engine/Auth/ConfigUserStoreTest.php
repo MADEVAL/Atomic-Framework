@@ -5,6 +5,7 @@ namespace Tests\Engine\Auth;
 
 use Engine\Atomic\Auth\ConfigUserStore;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\TempPath;
 
 final class ConfigUserStoreTest extends TestCase
 {
@@ -12,13 +13,12 @@ final class ConfigUserStoreTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_config_user_store_' . uniqid();
-        mkdir($this->root, 0755, true);
+        $this->root = rtrim(TempPath::make_dir('atomic_config_user_store_'), DIRECTORY_SEPARATOR);
     }
 
     protected function tearDown(): void
     {
-        $this->rimraf($this->root);
+        TempPath::remove($this->root);
     }
 
     public function test_upsert_user_writes_storage_file_with_var_export_shape(): void
@@ -49,25 +49,4 @@ final class ConfigUserStoreTest extends TestCase
         $this->assertFalse($store->reset_secret('telemetry', 'missing', 'new-hash'));
     }
 
-    private function rimraf(string $path): void
-    {
-        if (!file_exists($path)) {
-            return;
-        }
-
-        if (is_file($path) || is_link($path)) {
-            @unlink($path);
-            return;
-        }
-
-        foreach (scandir($path) ?: [] as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-
-            $this->rimraf($path . DIRECTORY_SEPARATOR . $item);
-        }
-
-        @rmdir($path);
-    }
 }

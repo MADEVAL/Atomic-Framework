@@ -8,9 +8,13 @@ local uuid = ARGV[1]
 local prefix = ARGV[2]
 local current_time = tonumber(ARGV[3])
 
+if current_time == nil then
+    error('missing or invalid required argument: current_time')
+end
+
 local job_data = redis.call('HGETALL', registry_key)
 if #job_data == 0 then
-    return 0
+    error('missing job registry: ' .. registry_key)
 end
 
 local job = {}
@@ -23,12 +27,19 @@ if job.state ~= 'failed' then
 end
 
 local queue = job.queue
+if queue == nil or queue == '' then
+    error('missing required job field: queue')
+end
 local failed_idx_key = prefix .. queue .. '.idx.failed'
 local pending_idx_key = prefix .. queue .. '.idx.pending'
 local sequence_key = prefix .. queue .. '.meta.sequence'
 
 local sequence = redis.call('INCR', sequence_key)
-local score = (current_time * 1000000) + (tonumber(job.priority) * 1000) + (sequence % 1000)
+local priority = tonumber(job.priority)
+if priority == nil then
+    error('missing or invalid required job field: priority')
+end
+local score = (current_time * 1000000) + (priority * 1000) + (sequence % 1000)
 
 redis.call('HMSET', registry_key,
     'state', 'pending',

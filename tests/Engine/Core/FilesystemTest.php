@@ -100,7 +100,7 @@ class FilesystemTest extends TestCase
         $this->assertSame('copied data', file_get_contents($dst));
     }
 
-    public function test_makeDir_and_removeDir(): void
+    public function test_make_dir_and_remove_dir(): void
     {
         $dir = self::$tmpDir . 'subdir' . DIRECTORY_SEPARATOR;
         $this->assertTrue($this->fs->make_dir($dir));
@@ -109,7 +109,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse(is_dir($dir));
     }
 
-    public function test_removeDir_recursive(): void
+    public function test_remove_dir_recursive(): void
     {
         $dir = self::$tmpDir . 'recdir' . DIRECTORY_SEPARATOR;
         mkdir($dir, 0755, true);
@@ -140,7 +140,7 @@ class FilesystemTest extends TestCase
         $this->assertFalse($this->fs->copy_dir(self::$tmpDir . 'nosrc', self::$tmpDir . 'nodst'));
     }
 
-    public function test_listFiles(): void
+    public function test_list_files(): void
     {
         $dir = self::$tmpDir . 'listdir' . DIRECTORY_SEPARATOR;
         mkdir($dir, 0755, true);
@@ -151,26 +151,26 @@ class FilesystemTest extends TestCase
         $this->assertGreaterThanOrEqual(2, count($result));
     }
 
-    public function test_listFiles_empty_folder_returns_false(): void
+    public function test_list_files_empty_folder_returns_false(): void
     {
         $this->assertFalse($this->fs->list_files(''));
     }
 
-    public function test_normalizePath(): void
+    public function test_normalize_path(): void
     {
         $result = $this->fs->normalize_path('/a/b/../c/./d');
         $this->assertStringNotContainsString('..', $result);
         $this->assertStringNotContainsString('./', $result);
     }
 
-    public function test_joinPaths(): void
+    public function test_join_paths(): void
     {
         $result = $this->fs->join_paths('a', 'b', 'c');
         $this->assertStringContainsString('a', $result);
         $this->assertStringContainsString('c', $result);
     }
 
-    public function test_isAbsolutePath(): void
+    public function test_is_absolute_path(): void
     {
         if (PHP_OS_FAMILY === 'Windows') {
             $this->assertTrue($this->fs->is_absolute_path('C:\\Users'));
@@ -681,4 +681,3 @@ class FilesystemTest extends TestCase
         $this->assertSame('L1', $all[14]);
     }
 }
-

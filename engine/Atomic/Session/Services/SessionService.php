@@ -55,7 +55,7 @@ class SessionService
             Hook::instance()->do_action('SESSION_BEFORE_START', $this);
             $driver = strtolower($this->app->get('SESSION_CONFIG.driver') ?? 'db');
             $this->session_factory->start($driver, $onsuspect);
-            if ($this->php_session->status() !== PHP_SESSION_ACTIVE) {
+            if ($this->php_session->status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
                 session_start();
             }
         }

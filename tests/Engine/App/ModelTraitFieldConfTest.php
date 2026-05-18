@@ -12,7 +12,7 @@ use ReflectionClass;
  */
 class ModelTraitFieldConfTest extends TestCase
 {
-    public function test_trait_fieldConf_is_merged_for_leaf_class(): void
+    public function test_trait_field_conf_is_merged_for_leaf_class(): void
     {
         $merged = $this->callCollectInheritedFieldConf(ModelTraitTest_ModelWithTrait::class);
         $this->assertArrayHasKey('from_trait', $merged);
@@ -26,13 +26,13 @@ class ModelTraitFieldConfTest extends TestCase
         $this->assertArrayHasKey('from_child_trait', $merged);
     }
 
-    public function test_class_body_fieldConf_overrides_merged_trait_fieldConf(): void
+    public function test_class_body_field_conf_overrides_merged_trait_field_conf(): void
     {
         $merged = $this->callCollectInheritedFieldConf(ModelTraitTest_ChildWithOverride::class);
         $this->assertTrue($merged['from_trait']['nullable'] ?? false, 'redeclared class $fieldConf should win over trait for the same key');
     }
 
-    public function test_fieldConf_from_inner_trait_merged_when_class_only_uses_wrapper_trait(): void
+    public function test_field_conf_from_inner_trait_merged_when_class_only_uses_wrapper_trait(): void
     {
         $merged = $this->callCollectInheritedFieldConf(ModelTraitTest_NestedWrapperModel::class);
         $this->assertArrayHasKey('from_inner', $merged);

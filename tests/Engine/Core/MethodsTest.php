@@ -29,7 +29,7 @@ class MethodsTest extends TestCase
         $this->assertNotSame($a, $b);
     }
 
-    public function test_get_publicUrl(): void
+    public function test_get_public_url(): void
     {
         $f3 = \Base::instance();
         $f3->set('DOMAIN', 'https://test.example.com/');
@@ -44,36 +44,36 @@ class MethodsTest extends TestCase
         $this->assertNotEmpty($enc);
     }
 
-    public function test_get_userDevice_returns_pc_in_cli(): void
+    public function test_get_user_device_returns_pc_in_cli(): void
     {
         $this->assertSame('pc', $this->m->get_user_device());
     }
 
-    public function test_deviceFromUA_detects_tv(): void
+    public function test_device_from_ua_detects_tv(): void
     {
         $ref = new \ReflectionMethod(Methods::class, 'device_from_ua');
         $this->assertSame('tv', $ref->invoke($this->m, 'Mozilla/5.0 (SMART-TV; Linux) Tizen/5.0', []));
     }
 
-    public function test_deviceFromUA_detects_tablet(): void
+    public function test_device_from_ua_detects_tablet(): void
     {
         $ref = new \ReflectionMethod(Methods::class, 'device_from_ua');
         $this->assertSame('tab', $ref->invoke($this->m, 'Mozilla/5.0 (iPad; CPU OS 14_0) AppleWebKit', []));
     }
 
-    public function test_deviceFromUA_detects_phone(): void
+    public function test_device_from_ua_detects_phone(): void
     {
         $ref = new \ReflectionMethod(Methods::class, 'device_from_ua');
         $this->assertSame('phone', $ref->invoke($this->m, 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0) Mobile', []));
     }
 
-    public function test_deviceFromUA_defaults_to_pc(): void
+    public function test_device_from_ua_defaults_to_pc(): void
     {
         $ref = new \ReflectionMethod(Methods::class, 'device_from_ua');
         $this->assertSame('pc', $ref->invoke($this->m, 'Mozilla/5.0 (Windows NT 10.0) Chrome/91', []));
     }
 
-    public function test_deviceFromUA_empty_ua(): void
+    public function test_device_from_ua_empty_ua(): void
     {
         $ref = new \ReflectionMethod(Methods::class, 'device_from_ua');
         $this->assertSame('pc', $ref->invoke($this->m, '', []));
@@ -95,7 +95,7 @@ class MethodsTest extends TestCase
         $this->assertTrue(Methods::instance()->is_botblocker());
     }
 
-    public function test_matchPath(): void
+    public function test_match_path(): void
     {
         $ref = new \ReflectionMethod(Methods::class, 'match_path');
 
