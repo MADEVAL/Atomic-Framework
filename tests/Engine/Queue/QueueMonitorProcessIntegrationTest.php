@@ -225,6 +225,36 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
         $this->assertFalse($this->monitorShutdown());
     }
 
+    public function test_run_cleanup_closes_connections_and_restores_runtime_state(): void
+    {
+        $this->requireSignalSupport();
+
+        $termHandler = static function (): void {};
+        $intHandler = static function (): void {};
+        \pcntl_signal(SIGTERM, $termHandler);
+        \pcntl_signal(SIGINT, $intHandler);
+        \pcntl_async_signals(false);
+
+        $manager = new MonitorFakeManager();
+        $monitor = new AutoShutdownMonitor(null, $manager, new MonitorFakeProcessManager(), new MonitorFakeProbe());
+        $this->setMonitorShutdown(false);
+
+        try {
+            $monitor->run();
+
+            $this->assertSame(1, $manager->closeCalls);
+            $this->assertFalse($this->monitorShutdown());
+            $this->assertFalse(\pcntl_async_signals());
+            $this->assertSame($termHandler, \pcntl_signal_get_handler(SIGTERM));
+            $this->assertSame($intHandler, \pcntl_signal_get_handler(SIGINT));
+        } finally {
+            \pcntl_signal(SIGTERM, SIG_DFL);
+            \pcntl_signal(SIGINT, SIG_DFL);
+            \pcntl_async_signals(false);
+            $this->setMonitorShutdown(false);
+        }
+    }
+
     public function test_active_inactive_process_is_handled(): void
     {
         $job = MonitorFakeManager::job(['pid' => 42]);
@@ -259,7 +289,9 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
 
     private function requireProcessIntegrationSupport(): void
     {
-        foreach (['pcntl_fork', 'pcntl_signal', 'pcntl_waitpid', 'pcntl_async_signals', 'posix_kill'] as $fn) {
+        $this->requireSignalSupport();
+
+        foreach (['pcntl_fork', 'pcntl_waitpid', 'posix_kill'] as $fn) {
             if (!\function_exists($fn)) {
                 $this->markTestSkipped("Monitor process integration test requires {$fn}().");
             }
@@ -267,6 +299,19 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
 
         if (!\is_dir('/proc') || !\is_readable('/proc')) {
             $this->markTestSkipped('Monitor process integration test requires readable /proc.');
+        }
+    }
+
+    private function requireSignalSupport(): void
+    {
+        foreach (['pcntl_signal', 'pcntl_async_signals'] as $fn) {
+            if (!\function_exists($fn)) {
+                $this->markTestSkipped("Monitor process integration test requires {$fn}().");
+            }
+        }
+
+        if (!\function_exists('pcntl_signal_get_handler')) {
+            $this->markTestSkipped('Monitor process integration test requires pcntl_signal_get_handler().');
         }
     }
 
@@ -363,10 +408,23 @@ final class TestableMonitor extends Monitor
     }
 }
 
+final class AutoShutdownMonitor extends Monitor
+{
+    public function check_stuck_jobs(): void
+    {
+        $this->handle_signal(SIGTERM);
+    }
+
+    public function check_active_jobs(): void
+    {
+    }
+}
+
 final class MonitorFakeManager extends Manager
 {
     public array $handled = [];
     public array $failed = [];
+    public int $closeCalls = 0;
 
     public function __construct(
         private array $stuck = [],
@@ -419,6 +477,7 @@ final class MonitorFakeManager extends Manager
 
     public function close_all_connections(): void
     {
+        $this->closeCalls++;
     }
 }
 

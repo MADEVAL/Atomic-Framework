@@ -25,6 +25,8 @@ class Monitor
 
     private array $unkillable_pids = [];
     private array $kill_attempts = [];
+    private array $previous_signal_handlers = [];
+    private bool $previous_async_signals = false;
 
     private ProcessManager $process_manager;
     private Manager $queue_manager;
@@ -97,6 +99,16 @@ class Monitor
 
     public function run(): void
     {
+        $this->assert_pcntl_available();
+
+        $this->previous_async_signals = \pcntl_async_signals();
+        if (\function_exists('pcntl_signal_get_handler')) {
+            $this->previous_signal_handlers = [
+                SIGTERM => \pcntl_signal_get_handler(SIGTERM),
+                SIGINT => \pcntl_signal_get_handler(SIGINT),
+            ];
+        }
+
         \pcntl_async_signals(true);
         \pcntl_signal(SIGTERM, [$this, 'handle_signal']);
         \pcntl_signal(SIGINT,  [$this, 'handle_signal']);
@@ -122,7 +134,30 @@ class Monitor
         } finally {
             Log::channel(LogChannel::QUEUE_MONITOR)->info("[QueueMonitor] Shutting down " . __CLASS__ . ".");
             $this->queue_manager->close_all_connections();
+            $this->cleanup_runtime_state();
         }
+    }
+
+    private function assert_pcntl_available(): void
+    {
+        foreach (['pcntl_async_signals', 'pcntl_signal'] as $function) {
+            if (!\function_exists($function)) {
+                throw new \RuntimeException("Queue monitor requires the pcntl extension; missing {$function}().");
+            }
+        }
+    }
+
+    private function cleanup_runtime_state(): void
+    {
+        $this->unkillable_pids = [];
+        $this->kill_attempts = [];
+        self::$shutdown = false;
+
+        \pcntl_signal(SIGTERM, $this->previous_signal_handlers[SIGTERM] ?? SIG_DFL);
+        \pcntl_signal(SIGINT, $this->previous_signal_handlers[SIGINT] ?? SIG_DFL);
+        \pcntl_async_signals($this->previous_async_signals);
+
+        $this->previous_signal_handlers = [];
     }
 
     public function check_stuck_jobs(): void 
