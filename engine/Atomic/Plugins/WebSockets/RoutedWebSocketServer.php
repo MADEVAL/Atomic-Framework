@@ -25,9 +25,9 @@ class RoutedWebSocketServer extends Server
         $this->dispatcher->dispatch_connect($conn, $request);
     }
 
-    protected function on_message(Connection $conn, string $data, int $op): void
+    protected function on_message(Connection $conn, string $data): void
     {
-        $this->dispatcher->dispatch($conn, $data, $op);
+        $this->dispatcher->dispatch($conn, $data);
     }
 
     protected function on_disconnect(Connection $conn): void

@@ -34,7 +34,7 @@ class WebSocketDispatcher
         return true;
     }
 
-    public function dispatch(Connection $conn, string $message, int $op = 1): void
+    public function dispatch(Connection $conn, string $message): void
     {
         $route = $this->match($conn->path());
         if ($route === null) {

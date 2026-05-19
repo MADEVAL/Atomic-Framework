@@ -90,7 +90,7 @@ abstract class Server
     abstract protected function setup(): void;
     protected function on_worker_start(): void {}
     abstract protected function on_websocket_connect(Connection $conn, Request $request): void;
-    abstract protected function on_message(Connection $conn, string $data, int $op): void;
+    abstract protected function on_message(Connection $conn, string $data): void;
     abstract protected function on_disconnect(Connection $conn): void;
 
     public function run(): void
@@ -149,7 +149,7 @@ abstract class Server
             if (!isset($self->connections[$socket_int])) {
                 $self->connections[$socket_int] = new Connection($tcp);
             }
-            $self->on_message($self->connections[$socket_int], $data, 1);
+            $self->on_message($self->connections[$socket_int], $data);
         };
 
         $worker->onClose = function(TcpConnection $tcp) use ($self): void {

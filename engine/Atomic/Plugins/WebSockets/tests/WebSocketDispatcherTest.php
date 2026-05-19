@@ -278,7 +278,7 @@ class WebSocketDispatcherTest extends TestCase
         $server = new class('tcp://127.0.0.1:0') extends RoutedWebSocketServer {
             public function test_message(Connection $conn, string $data): void
             {
-                $this->on_message($conn, $data, 1);
+                $this->on_message($conn, $data);
             }
         };
 
