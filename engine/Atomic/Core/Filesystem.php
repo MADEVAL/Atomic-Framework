@@ -148,6 +148,64 @@ class Filesystem
         return $this->atomic->write($file, $data, $append);
     }
 
+    public function append(string $file, mixed $data): int|false
+    {
+        return $this->write($file, $data, true);
+    }
+
+    public function write_atomic(string $file, mixed $data): int|false
+    {
+        $directory = dirname($file);
+        if (!is_dir($directory) || !is_writable($directory)) {
+            return false;
+        }
+
+        $temp_file = $directory . DIRECTORY_SEPARATOR . '.' . basename($file) . '.' . uniqid('', true) . '.tmp';
+        $bytes = $this->write($temp_file, $data, false);
+        if ($bytes === false) {
+            if (file_exists($temp_file)) @unlink($temp_file);
+            return false;
+        }
+
+        if (!@rename($temp_file, $file)) {
+            if (file_exists($temp_file)) @unlink($temp_file);
+            return false;
+        }
+
+        return $bytes;
+    }
+
+    public function write_json(string $file, mixed $data, int $flags = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES): int|false
+    {
+        try {
+            $json = json_encode($data, $flags);
+        } catch (\JsonException) {
+            return false;
+        }
+
+        if ($json === false) {
+            return false;
+        }
+
+        return $this->write_atomic($file, $json);
+    }
+
+    public function read_json(string $file, bool $assoc = true): mixed
+    {
+        $json = $this->read($file);
+        if ($json === false) {
+            return false;
+        }
+
+        try {
+            $data = json_decode($json, $assoc);
+        } catch (\JsonException) {
+            return false;
+        }
+
+        return json_last_error() === JSON_ERROR_NONE ? $data : false;
+    }
+
     public function exists(string $file): bool
     {
         return file_exists($file);
@@ -176,6 +234,19 @@ class Filesystem
 
     public function make_dir(string $path, int $permissions = 0755, bool $recursive = true): bool
     {
+        return mkdir($path, $permissions, $recursive);
+    }
+
+    public function ensure_dir(string $path, int $permissions = 0755, bool $recursive = true): bool
+    {
+        if (is_dir($path)) {
+            return true;
+        }
+
+        if (file_exists($path)) {
+            return false;
+        }
+
         return mkdir($path, $permissions, $recursive);
     }
 
@@ -400,6 +471,36 @@ class Filesystem
             || (bool) preg_match('#^[A-Za-z]:/#', $path);
     }
 
+    public function is_writable_path(string $path): bool
+    {
+        if (file_exists($path)) {
+            return is_writable($path);
+        }
+
+        $directory = dirname($path);
+        return is_dir($directory) && is_writable($directory);
+    }
+
+    public function extension(string $file): string
+    {
+        return pathinfo($file, PATHINFO_EXTENSION);
+    }
+
+    public function filename(string $file): string
+    {
+        return basename($file);
+    }
+
+    public function directory(string $file): string
+    {
+        return dirname($file);
+    }
+
+    public function touch(string $file, ?int $mtime = null): bool
+    {
+        return $mtime === null ? touch($file) : touch($file, $mtime);
+    }
+
     public function normalize_path(string $path): string
     {
         $path = str_replace('\\', '/', $path);
@@ -434,4 +535,3 @@ class Filesystem
         return $this->normalize_path(implode(DIRECTORY_SEPARATOR, $filteredPaths));
     }
 }
-

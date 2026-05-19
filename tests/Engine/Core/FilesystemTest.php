@@ -52,6 +52,81 @@ class FilesystemTest extends TestCase
         $this->assertSame('AB', $this->fs->read($file));
     }
 
+    public function test_append_appends_to_existing_file(): void
+    {
+        $file = self::$tmpDir . 'append_helper_existing.txt';
+        $this->fs->write($file, 'A', false);
+
+        $this->assertSame(1, $this->fs->append($file, 'B'));
+        $this->assertSame('AB', $this->fs->read($file));
+    }
+
+    public function test_append_creates_missing_file(): void
+    {
+        $file = self::$tmpDir . 'append_helper_missing.txt';
+
+        $this->assertSame(1, $this->fs->append($file, 'A'));
+        $this->assertSame('A', $this->fs->read($file));
+    }
+
+    public function test_write_atomic_writes_new_file(): void
+    {
+        $file = self::$tmpDir . 'atomic_new.txt';
+
+        $this->assertSame(5, $this->fs->write_atomic($file, 'Hello'));
+        $this->assertSame('Hello', $this->fs->read($file));
+    }
+
+    public function test_write_atomic_replaces_existing_content(): void
+    {
+        $file = self::$tmpDir . 'atomic_replace.txt';
+        file_put_contents($file, 'old');
+
+        $this->assertSame(11, $this->fs->write_atomic($file, 'replacement'));
+        $this->assertSame('replacement', $this->fs->read($file));
+    }
+
+    public function test_write_atomic_does_not_create_parent_directories(): void
+    {
+        $file = self::$tmpDir . 'missing-parent' . DIRECTORY_SEPARATOR . 'atomic.txt';
+
+        $this->assertFalse($this->fs->write_atomic($file, 'data'));
+        $this->assertFileDoesNotExist($file);
+    }
+
+    public function test_write_json_writes_pretty_json_and_read_json_reads_array(): void
+    {
+        $file = self::$tmpDir . 'data.json';
+        $data = ['name' => 'Atomic', 'features' => ['filesystem', 'json']];
+
+        $this->assertIsInt($this->fs->write_json($file, $data));
+        $this->assertStringContainsString("\n", (string)file_get_contents($file));
+        $this->assertSame($data, $this->fs->read_json($file));
+    }
+
+    public function test_read_json_returns_false_for_invalid_json(): void
+    {
+        $file = self::$tmpDir . 'invalid.json';
+        file_put_contents($file, '{invalid');
+
+        $this->assertFalse($this->fs->read_json($file));
+    }
+
+    public function test_write_json_returns_false_for_unencodable_values(): void
+    {
+        $file = self::$tmpDir . 'bad-json.json';
+        $stream = fopen('php://temp', 'rb');
+
+        try {
+            $this->assertFalse($this->fs->write_json($file, ['stream' => $stream]));
+            $this->assertFileDoesNotExist($file);
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+    }
+
     public function test_exists(): void
     {
         $file = self::$tmpDir . 'exists.txt';
@@ -107,6 +182,30 @@ class FilesystemTest extends TestCase
         $this->assertTrue(is_dir($dir));
         $this->assertTrue($this->fs->remove_dir($dir));
         $this->assertFalse(is_dir($dir));
+    }
+
+    public function test_ensure_dir_returns_true_for_existing_directory(): void
+    {
+        $dir = self::$tmpDir . 'ensure_existing' . DIRECTORY_SEPARATOR;
+        mkdir($dir, 0755, true);
+
+        $this->assertTrue($this->fs->ensure_dir($dir));
+    }
+
+    public function test_ensure_dir_creates_nested_directories(): void
+    {
+        $dir = self::$tmpDir . 'ensure_nested' . DIRECTORY_SEPARATOR . 'inner' . DIRECTORY_SEPARATOR;
+
+        $this->assertTrue($this->fs->ensure_dir($dir));
+        $this->assertDirectoryExists($dir);
+    }
+
+    public function test_ensure_dir_returns_false_when_path_is_file(): void
+    {
+        $file = self::$tmpDir . 'ensure_file.txt';
+        file_put_contents($file, 'x');
+
+        $this->assertFalse($this->fs->ensure_dir($file));
     }
 
     public function test_remove_dir_recursive(): void
@@ -179,6 +278,39 @@ class FilesystemTest extends TestCase
             $this->assertTrue($this->fs->is_absolute_path('/home/user'));
             $this->assertFalse($this->fs->is_absolute_path('relative/path'));
         }
+    }
+
+    public function test_is_writable_path_handles_existing_file_directory_and_missing_file(): void
+    {
+        $dir = self::$tmpDir . 'writable_path' . DIRECTORY_SEPARATOR;
+        mkdir($dir, 0755, true);
+        $file = $dir . 'file.txt';
+        file_put_contents($file, 'x');
+
+        $this->assertTrue($this->fs->is_writable_path($file));
+        $this->assertTrue($this->fs->is_writable_path($dir));
+        $this->assertTrue($this->fs->is_writable_path($dir . 'missing.txt'));
+        $this->assertFalse($this->fs->is_writable_path($dir . 'missing' . DIRECTORY_SEPARATOR . 'file.txt'));
+    }
+
+    public function test_path_information_helpers(): void
+    {
+        $path = self::$tmpDir . 'path-info' . DIRECTORY_SEPARATOR . 'archive.tar.gz';
+
+        $this->assertSame('gz', $this->fs->extension($path));
+        $this->assertSame('archive.tar.gz', $this->fs->filename($path));
+        $this->assertSame(dirname($path), $this->fs->directory($path));
+    }
+
+    public function test_touch_creates_missing_file_and_updates_mtime(): void
+    {
+        $file = self::$tmpDir . 'touch_helper.txt';
+        $mtime = time() - 3600;
+
+        $this->assertTrue($this->fs->touch($file));
+        $this->assertFileExists($file);
+        $this->assertTrue($this->fs->touch($file, $mtime));
+        $this->assertSame($mtime, filemtime($file));
     }
 
     public function test_zip_and_unzip(): void
