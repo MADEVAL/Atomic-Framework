@@ -90,6 +90,35 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->assertNotFalse($this->redis->zScore($this->key('idx.pending'), $first));
     }
 
+    public function test_load_batch_scans_past_limit_to_prefer_higher_priority_jobs(): void
+    {
+        $now = \time();
+        $lowPriorityUuids = [];
+
+        for ($i = 0; $i < 25; $i++) {
+            $uuid = $this->newUuid();
+            $lowPriorityUuids[] = $uuid;
+            $this->pushWithLua($uuid, $now, 9);
+        }
+
+        $highPriorityUuid = $this->newUuid();
+        $this->pushWithLua($highPriorityUuid, $now, 1);
+
+        $loaded = $this->evalLua(
+            'load_batch',
+            [$this->key('idx.pending'), $this->key('idx.running')],
+            [$this->prefix, $now, 1]
+        );
+
+        $this->assertCount(1, $loaded);
+        $job = \json_decode($loaded[0], true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame($highPriorityUuid, $job['uuid']);
+        $this->assertSame('running', $this->redis->hGet($this->registryKey($highPriorityUuid), 'state'));
+        $this->assertFalse($this->redis->zScore($this->key('idx.pending'), $highPriorityUuid));
+        $this->assertNotFalse($this->redis->zScore($this->key('idx.running'), $highPriorityUuid));
+        $this->assertNotFalse($this->redis->zScore($this->key('idx.pending'), $lowPriorityUuids[0]));
+    }
+
     public function test_load_active_fails_when_state_is_missing(): void
     {
         $running = $this->newUuid();

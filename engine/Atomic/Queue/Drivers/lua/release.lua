@@ -53,13 +53,14 @@ if priority == nil then
     error('missing or invalid required job field: priority')
 end
 local sequence = redis.call('INCR', sequence_key)
-local score = (available_at * 1000000) + (priority * 1000) + (sequence % 1000)
+local score = (available_at * 1000000) + (sequence % 1000000)
 
 redis.call('HMSET', registry_key,
     'state', 'pending',
     'pid', '',
     'process_start_ticks', '',
-    'available_at', available_at
+    'available_at', available_at,
+    'pending_sequence', tostring(sequence)
 )
 
 redis.call('HDEL', pid_map_key, pid)

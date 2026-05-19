@@ -53,6 +53,19 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $this->assertSame([], $manager->pop_batch());
     }
 
+    public function test_large_priority_does_not_delay_available_job(): void
+    {
+        $manager = new Manager();
+        $uuid = $this->newUuid();
+
+        $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'large-priority'], ['priority' => 2500], $uuid));
+
+        $jobs = $manager->pop_batch();
+
+        $this->assertCount(1, $jobs);
+        $this->assertSame($uuid, $jobs[0]['uuid']);
+    }
+
     public function test_release_rejects_wrong_pid_and_preserves_running_job(): void
     {
         $manager = new Manager();

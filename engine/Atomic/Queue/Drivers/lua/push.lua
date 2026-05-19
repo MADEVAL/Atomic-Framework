@@ -37,13 +37,14 @@ if ARGV[10] == nil or ARGV[10] == '' then error('missing required argument: hand
 if ARGV[11] == nil or ARGV[11] == '' then error('missing required argument: payload') end
 
 local seq   = redis.call('INCR', sequence_key)
-local score = (available_at * 1000000) + (priority * 1000) + (seq % 1000)
+local score = (available_at * 1000000) + (seq % 1000000)
 
 redis.call('HMSET', registry_key,
     'uuid',                uuid,
     'queue',               queue,
     'state',               'pending',
     'priority',            ARGV[3],
+    'pending_sequence',    tostring(seq),
     'max_attempts',        ARGV[5],
     'attempts',            ARGV[6],
     'timeout',             ARGV[7],

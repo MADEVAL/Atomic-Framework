@@ -36,7 +36,7 @@ for _, uuid in ipairs(failed_uuids) do
     end
     
     local sequence = redis.call('INCR', sequence_key)
-    local score = (current_time * 1000000) + (priority * 1000) + (sequence % 1000)
+    local score = (current_time * 1000000) + (sequence % 1000000)
     
     redis.call('HMSET', registry_key,
         'state', 'pending',
@@ -45,7 +45,8 @@ for _, uuid in ipairs(failed_uuids) do
         'updated_at', tostring(current_time),
         'pid', '',
         'process_start_ticks', '',
-        'exception', ''
+        'exception', '',
+        'pending_sequence', tostring(sequence)
     )
     
     redis.call('PERSIST', registry_key)

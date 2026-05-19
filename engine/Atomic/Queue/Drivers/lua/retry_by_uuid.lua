@@ -39,7 +39,7 @@ local priority = tonumber(job.priority)
 if priority == nil then
     error('missing or invalid required job field: priority')
 end
-local score = (current_time * 1000000) + (priority * 1000) + (sequence % 1000)
+local score = (current_time * 1000000) + (sequence % 1000000)
 
 redis.call('HMSET', registry_key,
     'state', 'pending',
@@ -48,7 +48,8 @@ redis.call('HMSET', registry_key,
     'updated_at', tostring(current_time),
     'pid', '',
     'process_start_ticks', '',
-    'exception', ''
+    'exception', '',
+    'pending_sequence', tostring(sequence)
 )
 
 redis.call('PERSIST', registry_key)
