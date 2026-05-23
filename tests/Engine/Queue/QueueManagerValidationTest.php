@@ -17,14 +17,14 @@ final class QueueManagerValidationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->backupQueueState();
-        $this->configureQueue('db', $this->newQueueName());
+        $this->backup_queue_state();
+        $this->configure_queue('db', $this->new_queue_name());
     }
 
     protected function tearDown(): void
     {
         ConnectionManager::instance()->close();
-        $this->restoreQueueState();
+        $this->restore_queue_state();
         parent::tearDown();
     }
 
@@ -153,8 +153,8 @@ final class QueueManagerValidationTest extends TestCase
 
     public function test_missing_required_queue_option_throws(): void
     {
-        $queue = $this->newQueueName();
-        $this->configureQueue('db', $queue);
+        $queue = $this->new_queue_name();
+        $this->configure_queue('db', $queue);
         $config = App::instance()->get('QUEUE');
         unset($config['db']['queues'][$queue]['ttl']);
         App::instance()->set('QUEUE', $config);
@@ -247,9 +247,9 @@ final class QueueManagerValidationTest extends TestCase
 
         foreach (
             [
-                fn() => $manager->cancel($this->newUuid()),
-                fn() => $manager->mark_cancelled(['uuid' => $this->newUuid(), 'queue' => 'default', 'payload' => []]),
-                fn() => $manager->is_cancel_requested($this->newUuid()),
+                fn() => $manager->cancel($this->new_uuid()),
+                fn() => $manager->mark_cancelled(['uuid' => $this->new_uuid(), 'queue' => 'default', 'payload' => []]),
+                fn() => $manager->is_cancel_requested($this->new_uuid()),
             ] as $call
         ) {
             try {

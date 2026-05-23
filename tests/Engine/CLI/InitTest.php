@@ -60,7 +60,7 @@ class InitTest extends TestCase
 
     // ── Fixtures ──────────────────────────────────────────────────────────────
 
-    private function makeEnv(array $values): void
+    private function make_env(array $values): void
     {
         $content = '';
         foreach ($values as $k => $v) {
@@ -69,7 +69,7 @@ class InitTest extends TestCase
         file_put_contents($this->tmp_dir . DIRECTORY_SEPARATOR . '.env', $content);
     }
 
-    private function makeEnvExample(array $values = []): void
+    private function make_env_example(array $values = []): void
     {
         $content = '';
         foreach ($values as $k => $v) {
@@ -82,7 +82,7 @@ class InitTest extends TestCase
      * Creates config/app.php with keys written in the format
      * write_keys_to_php_config's regex expects: 'key' => 'value'
      */
-    private function makePhpConfig(array $data): void
+    private function make_php_config(array $data): void
     {
         $dir = $this->tmp_dir . DIRECTORY_SEPARATOR . 'config';
         if (!is_dir($dir)) {
@@ -96,7 +96,7 @@ class InitTest extends TestCase
         file_put_contents($dir . DIRECTORY_SEPARATOR . 'app.php', $lines);
     }
 
-    private function validKeys(): array
+    private function valid_keys(): array
     {
         return [
             'APP_UUID'           => ID::uuid_v4(),
@@ -227,12 +227,12 @@ class InitTest extends TestCase
 
     public function test_keys_valid_with_real_values(): void
     {
-        $this->assertTrue($this->cli->exposeAreKeysValid($this->validKeys()));
+        $this->assertTrue($this->cli->exposeAreKeysValid($this->valid_keys()));
     }
 
     public function test_keys_invalid_when_uuid_empty(): void
     {
-        $keys = $this->validKeys();
+        $keys = $this->valid_keys();
         $keys['APP_UUID'] = '';
 
         $this->assertFalse($this->cli->exposeAreKeysValid($keys));
@@ -240,7 +240,7 @@ class InitTest extends TestCase
 
     public function test_keys_invalid_when_app_key_empty(): void
     {
-        $keys = $this->validKeys();
+        $keys = $this->valid_keys();
         $keys['APP_KEY'] = '';
 
         $this->assertFalse($this->cli->exposeAreKeysValid($keys));
@@ -248,7 +248,7 @@ class InitTest extends TestCase
 
     public function test_keys_invalid_when_enc_key_empty(): void
     {
-        $keys = $this->validKeys();
+        $keys = $this->valid_keys();
         $keys['APP_ENCRYPTION_KEY'] = '';
 
         $this->assertFalse($this->cli->exposeAreKeysValid($keys));
@@ -265,7 +265,7 @@ class InitTest extends TestCase
 
     public function test_keys_invalid_with_your_key_here_placeholder(): void
     {
-        $keys = $this->validKeys();
+        $keys = $this->valid_keys();
         $keys['APP_KEY'] = 'your-key-here';
 
         $this->assertFalse($this->cli->exposeAreKeysValid($keys));
@@ -275,7 +275,7 @@ class InitTest extends TestCase
 
     public function test_no_mismatches_when_both_sets_equal(): void
     {
-        $keys   = $this->validKeys();
+        $keys   = $this->valid_keys();
         $result = $this->cli->exposeFindMismatches($keys, $keys);
 
         $this->assertEmpty($result);
@@ -283,8 +283,8 @@ class InitTest extends TestCase
 
     public function test_finds_mismatched_keys(): void
     {
-        $a = $this->validKeys();
-        $b = $this->validKeys(); // independently generated → all differ
+        $a = $this->valid_keys();
+        $b = $this->valid_keys(); // independently generated → all differ
 
         $result = $this->cli->exposeFindMismatches($a, $b);
 
@@ -294,7 +294,7 @@ class InitTest extends TestCase
 
     public function test_finds_only_the_differing_key(): void
     {
-        $a = $this->validKeys();
+        $a = $this->valid_keys();
         $b = $a;
         $b['APP_KEY'] = bin2hex(random_bytes(16));
 
@@ -318,8 +318,8 @@ class InitTest extends TestCase
 
     public function test_read_env_keys_parses_all_three_fields(): void
     {
-        $keys = $this->validKeys();
-        $this->makeEnv($keys);
+        $keys = $this->valid_keys();
+        $this->make_env($keys);
 
         $result = $this->cli->exposeReadEnvKeys($this->tmp_dir);
 
@@ -330,8 +330,8 @@ class InitTest extends TestCase
 
     public function test_write_env_keys_updates_existing_lines(): void
     {
-        $this->makeEnv(['APP_UUID' => 'old-uuid', 'APP_KEY' => 'old-key', 'APP_ENCRYPTION_KEY' => 'old-enc']);
-        $new = $this->validKeys();
+        $this->make_env(['APP_UUID' => 'old-uuid', 'APP_KEY' => 'old-key', 'APP_ENCRYPTION_KEY' => 'old-enc']);
+        $new = $this->valid_keys();
 
         $this->cli->exposeWriteEnvKeys($this->tmp_dir, $new);
 
@@ -343,9 +343,9 @@ class InitTest extends TestCase
 
     public function test_write_env_keys_appends_missing_fields(): void
     {
-        $this->makeEnv(['APP_NAME' => 'MyApp']); // no key fields
+        $this->make_env(['APP_NAME' => 'MyApp']); // no key fields
 
-        $new = $this->validKeys();
+        $new = $this->valid_keys();
         $this->cli->exposeWriteEnvKeys($this->tmp_dir, $new);
 
         $content = file_get_contents($this->tmp_dir . '/.env');
@@ -355,18 +355,18 @@ class InitTest extends TestCase
 
     public function test_write_env_keys_noop_when_no_env_or_example(): void
     {
-        $this->cli->exposeWriteEnvKeys($this->tmp_dir, $this->validKeys());
+        $this->cli->exposeWriteEnvKeys($this->tmp_dir, $this->valid_keys());
 
         $this->assertFileDoesNotExist($this->tmp_dir . '/.env');
     }
 
     public function test_write_env_keys_copies_example_when_env_missing(): void
     {
-        $this->makeEnvExample([
+        $this->make_env_example([
             'APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '',
             'DB_HOST'  => '127.0.0.1',
         ]);
-        $new = $this->validKeys();
+        $new = $this->valid_keys();
 
         $this->cli->exposeWriteEnvKeys($this->tmp_dir, $new);
 
@@ -390,8 +390,8 @@ class InitTest extends TestCase
 
     public function test_read_php_keys_parses_config_array(): void
     {
-        $keys = $this->validKeys();
-        $this->makePhpConfig([
+        $keys = $this->valid_keys();
+        $this->make_php_config([
             'uuid'           => $keys['APP_UUID'],
             'key'            => $keys['APP_KEY'],
             'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
@@ -406,13 +406,13 @@ class InitTest extends TestCase
 
     public function test_write_php_keys_updates_config_file(): void
     {
-        $old = $this->validKeys();
-        $this->makePhpConfig([
+        $old = $this->valid_keys();
+        $this->make_php_config([
             'uuid'           => $old['APP_UUID'],
             'key'            => $old['APP_KEY'],
             'encryption_key' => $old['APP_ENCRYPTION_KEY'],
         ]);
-        $new = $this->validKeys();
+        $new = $this->valid_keys();
 
         $this->cli->exposeWritePhpKeys($this->tmp_dir, $new);
 
@@ -425,7 +425,7 @@ class InitTest extends TestCase
     public function test_write_php_keys_does_nothing_when_file_absent(): void
     {
         // No config/app.php - must not throw; just emits a warning via output
-        $this->cli->exposeWritePhpKeys($this->tmp_dir, $this->validKeys());
+        $this->cli->exposeWritePhpKeys($this->tmp_dir, $this->valid_keys());
 
         $this->assertFileDoesNotExist($this->tmp_dir . '/config/app.php');
     }
@@ -438,7 +438,7 @@ class InitTest extends TestCase
         $content = "<?php\ndeclare(strict_types=1);\n\nreturn [\n    'name' => 'MyApp',\n];\n";
         file_put_contents($dir . DIRECTORY_SEPARATOR . 'app.php', $content);
 
-        $this->cli->exposeWritePhpKeys($this->tmp_dir, $this->validKeys());
+        $this->cli->exposeWritePhpKeys($this->tmp_dir, $this->valid_keys());
 
         // File content unchanged - regex found no keys to replace
         $this->assertSame($content, file_get_contents($dir . DIRECTORY_SEPARATOR . 'app.php'));
@@ -448,8 +448,8 @@ class InitTest extends TestCase
 
     public function test_sync_generates_new_keys_when_both_sources_empty(): void
     {
-        $this->makeEnvExample(['APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '']);
-        $this->makePhpConfig(['uuid' => '', 'key' => '', 'encryption_key' => '']);
+        $this->make_env_example(['APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '']);
+        $this->make_php_config(['uuid' => '', 'key' => '', 'encryption_key' => '']);
 
         $result = $this->cli->exposeSyncKeys($this->tmp_dir);
 
@@ -461,9 +461,9 @@ class InitTest extends TestCase
 
     public function test_sync_copies_env_keys_to_php_when_only_env_valid(): void
     {
-        $keys = $this->validKeys();
-        $this->makeEnv($keys);
-        $this->makePhpConfig(['uuid' => '', 'key' => '', 'encryption_key' => '']);
+        $keys = $this->valid_keys();
+        $this->make_env($keys);
+        $this->make_php_config(['uuid' => '', 'key' => '', 'encryption_key' => '']);
 
         $result = $this->cli->exposeSyncKeys($this->tmp_dir);
 
@@ -475,9 +475,9 @@ class InitTest extends TestCase
 
     public function test_sync_copies_php_keys_to_env_when_only_php_valid(): void
     {
-        $keys = $this->validKeys();
-        $this->makeEnv(['APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '']);
-        $this->makePhpConfig([
+        $keys = $this->valid_keys();
+        $this->make_env(['APP_UUID' => '', 'APP_KEY' => '', 'APP_ENCRYPTION_KEY' => '']);
+        $this->make_php_config([
             'uuid'           => $keys['APP_UUID'],
             'key'            => $keys['APP_KEY'],
             'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
@@ -493,9 +493,9 @@ class InitTest extends TestCase
 
     public function test_sync_noop_when_both_sources_match(): void
     {
-        $keys = $this->validKeys();
-        $this->makeEnv($keys);
-        $this->makePhpConfig([
+        $keys = $this->valid_keys();
+        $this->make_env($keys);
+        $this->make_php_config([
             'uuid'           => $keys['APP_UUID'],
             'key'            => $keys['APP_KEY'],
             'encryption_key' => $keys['APP_ENCRYPTION_KEY'],
@@ -512,10 +512,10 @@ class InitTest extends TestCase
     {
         // Both sources have valid but different keys → mismatch
         // Non-interactive input → handle_key_mismatch returns false
-        $a = $this->validKeys();
-        $b = $this->validKeys();
-        $this->makeEnv($a);
-        $this->makePhpConfig([
+        $a = $this->valid_keys();
+        $b = $this->valid_keys();
+        $this->make_env($a);
+        $this->make_php_config([
             'uuid'           => $b['APP_UUID'],
             'key'            => $b['APP_KEY'],
             'encryption_key' => $b['APP_ENCRYPTION_KEY'],

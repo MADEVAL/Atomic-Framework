@@ -22,6 +22,7 @@ use Engine\Atomic\Enums\Role;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\TestConfig;
 
 #[RunTestsInSeparateProcesses]
 #[PreserveGlobalState(false)]
@@ -190,15 +191,16 @@ final class AuthIntegrationTest extends TestCase
         $this->db_prefix = 'atomic_test_' . \bin2hex(\random_bytes(4)) . '_';
         $this->redis_prefix = 'atomic_auth_test:' . \bin2hex(\random_bytes(4)) . ':';
 
-        $db_host = $this->env_value('DB_HOST', '127.0.0.1');
-        $db_port = $this->env_value('DB_PORT', '3306');
-        $db_name = $this->env_value('DB_DB', 'atomic_test');
-        $db_user = $this->env_value('DB_USERNAME', 'atomic_test_user');
-        $db_password = $this->env_value('DB_PASSWORD', 'atomic_test_pass');
-        $db_charset = $this->env_value('DB_CHARSET', 'utf8mb4');
-        $db_collation = $this->env_value('DB_COLLATION', 'utf8mb4_general_ci');
-        $redis_host = $this->env_value('REDIS_HOST', '127.0.0.1');
-        $redis_port = (int) $this->env_value('REDIS_PORT', '6379');
+        $db_config = TestConfig::db(['prefix' => $this->db_prefix]);
+        $redis_config = TestConfig::redis(['prefix' => $this->redis_prefix]);
+        $db_host = (string)$db_config['host'];
+        $db_port = (string)$db_config['port'];
+        $db_name = (string)$db_config['db'];
+        $db_user = (string)$db_config['username'];
+        $db_password = (string)$db_config['password'];
+        $db_charset = (string)$db_config['charset'];
+        $redis_host = (string)$redis_config['host'];
+        $redis_port = (int)$redis_config['port'];
 
         [$pdo, $effective_db_host, $db_error] = $this->connect_pdo_with_fallback(
             $db_host,
@@ -232,26 +234,10 @@ final class AuthIntegrationTest extends TestCase
         $base->set('AGENT', self::AGENT);
         $base->set('HEADERS', ['User-Agent' => self::AGENT]);
         $base->set('HEADERS.User-Agent', self::AGENT);
-        $base->set('DB_CONFIG', [
-            'driver' => 'mysql',
-            'host' => $db_host,
-            'port' => $db_port,
-            'db' => $db_name,
-            'username' => $db_user,
-            'password' => $db_password,
-            'unix_socket' => '',
-            'charset' => $db_charset,
-            'collation' => $db_collation,
-            'prefix' => $this->db_prefix,
-        ]);
+        $db_config['host'] = $db_host;
+        $base->set('DB_CONFIG', $db_config);
         $base->set('DB', new \DB\SQL($dsn, $db_user, $db_password));
-        $base->set('REDIS', [
-            'host' => $redis_host,
-            'port' => $redis_port,
-            'password' => $this->env_value('REDIS_PASSWORD', ''),
-            'db' => (int) $this->env_value('REDIS_DB', '0'),
-            'prefix' => $this->redis_prefix,
-        ]);
+        $base->set('REDIS', $redis_config);
         $base->set('SESSION_CONFIG', [
             'driver' => $driver,
             'lifetime' => 7200,
@@ -368,46 +354,6 @@ final class AuthIntegrationTest extends TestCase
     private function quote_identifier(string $identifier): string
     {
         return '`' . \str_replace('`', '``', $identifier) . '`';
-    }
-
-    private function env_value(string $key, string $default): string
-    {
-        $value = \getenv($key);
-        if (\is_string($value) && $value !== '') {
-            return $value;
-        }
-
-        static $env = null;
-        if ($env === null) {
-            $env = [];
-            $candidate_paths = [];
-
-            if (\defined('ATOMIC_ENV') && \is_string(ATOMIC_ENV) && ATOMIC_ENV !== '') {
-                $candidate_paths[] = ATOMIC_ENV;
-            }
-
-            $candidate_paths[] = \dirname(__DIR__, 4) . '/.env';
-
-            foreach ($candidate_paths as $env_path) {
-                if (!\is_file($env_path)) {
-                    continue;
-                }
-
-                foreach (\file($env_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-                    $line = \trim($line);
-                    if ($line === '' || $line[0] === '#' || !\str_contains($line, '=')) {
-                        continue;
-                    }
-
-                    [$env_key, $env_value] = \explode('=', $line, 2);
-                    $env[\trim($env_key)] = \trim(\explode('#', $env_value, 2)[0]);
-                }
-
-                break;
-            }
-        }
-
-        return $env[$key] ?? $default;
     }
 
     private function connect_pdo_with_fallback(

@@ -5,6 +5,7 @@ namespace Tests\Engine\Core;
 
 use Engine\Atomic\Core\Config\ConfigLoader;
 use Engine\Atomic\Core\Config\PhpConfigLoader;
+use Engine\Atomic\Core\CacheManager;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -31,7 +32,7 @@ class ConfigParityTest extends TestCase
      */
     private static array $all_keys = [
         // ── Flat scalars ──────────────────────────────────────────────────────
-        'APP_UUID', 'CACHE', 'CACHE_PREFIX', 'DOMAIN', 'LANGUAGE',
+        'APP_UUID', 'CACHE', 'CACHE_CONFIG', 'CACHE_PREFIX', 'DOMAIN', 'LANGUAGE',
         'ENCODING', 'TZ', 'APP_NAME', 'APP_KEY', 'APP_ENCRYPTION_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL',
         'TELEMETRY_ACCESS_MODE', 'TELEMETRY_ACCESS_ALLOWED_ROLES',
         'QUEUE_DRIVER', 'QUEUE_NAME',
@@ -213,44 +214,31 @@ class ConfigParityTest extends TestCase
         $this->assertNotEmpty($jar['path']);
     }
 
-    // ── build_cache_string unit tests ─────────────────────────────────────────
+    // ── F3 cache bridge unit tests ────────────────────────────────────────────
 
-    #[DataProvider('cache_string_provider')]
-    public function test_build_cache_string(
-        string $driver,
-        string $folder,
-        string $server,
-        string $port,
-        string $password,
-        string $login,
-        string|false $expected
-    ): void {
+    #[DataProvider('f3_cache_setting_provider')]
+    public function test_build_f3_cache_setting(array $cache_config, string|false $expected): void
+    {
         $loader = new class(\Base::instance()) extends ConfigLoader {
-            public function public_build_cache_string(
-                string $driver, string $folder, string $server,
-                string $port, string $password, string $login
-            ): string|false {
-                return $this->build_cache_string($driver, $folder, $server, $port, $password, $login);
+            public function public_build_f3_cache_setting(array $cache_config): string|false
+            {
+                return $this->build_f3_cache_setting($cache_config);
             }
         };
 
-        $this->assertSame($expected, $loader->public_build_cache_string($driver, $folder, $server, $port, $password, $login));
+        $this->assertSame($expected, $loader->public_build_f3_cache_setting($cache_config));
     }
 
-    public static function cache_string_provider(): array
+    public static function f3_cache_setting_provider(): array
     {
         return [
-            'folder driver'            => ['folder',    '/tmp/cache/', '',          '',     '',       '',       'folder=/tmp/cache/'],
-            'redis no auth'            => ['redis',     '',            '127.0.0.1', '6379', '',       '',       'redis=127.0.0.1:6379'],
-            'redis password only'      => ['redis',     '',            '127.0.0.1', '6379', 'secret', '',       'redis=127.0.0.1:6379?auth=secret'],
-            'redis login and password' => ['redis',     '',            '127.0.0.1', '6379', 'pass',   'user',   'redis=127.0.0.1:6379?auth=user:pass'],
-            'memcache driver'          => ['memcache',  '',            'localhost',  '11211','',       '',       'memcache=localhost:11211'],
-            'memcached driver'         => ['memcached', '',            'localhost',  '11211','',       '',       'memcache=localhost:11211'],
-            'apc driver'               => ['apc',       '',            '',          '',     '',       '',       'apc'],
-            'xcache driver'            => ['xcache',    '',            '',          '',     '',       '',       'xcache'],
-            'wincache driver'          => ['wincache',  '',            '',          '',     '',       '',       'wincache'],
-            'unknown driver'           => ['none',      '',            '',          '',     '',       '',       false],
-            'false string driver'      => ['false',     '',            '',          '',     '',       '',       false],
+            'folder driver' => [['default' => 'folder'], CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL],
+            'redis driver' => [['default' => 'redis'], CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL],
+            'memcached driver' => [['default' => 'memcached'], CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL],
+            'db driver' => [['default' => 'db'], CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL],
+            'legacy memcache driver' => [['default' => 'memcache'], false],
+            'false string driver' => [['default' => 'false'], false],
+            'missing driver' => [[], false],
         ];
     }
 

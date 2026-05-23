@@ -5,6 +5,8 @@ namespace Tests\Engine\RateLimit;
 
 use Engine\Atomic\RateLimit\Drivers\Redis as RedisRateLimitStore;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\TestConfig;
+use Tests\Support\Wait;
 
 final class RedisRateLimitStoreTest extends TestCase
 {
@@ -18,10 +20,11 @@ final class RedisRateLimitStoreTest extends TestCase
             $this->markTestSkipped('Redis extension is not installed.');
         }
 
-        $host = getenv('REDIS_HOST') ?: '127.0.0.1';
-        $port = (int)(getenv('REDIS_PORT') ?: 6379);
-        $password = (string)(getenv('REDIS_PASSWORD') ?: '');
-        $db = (int)(getenv('REDIS_DB') ?: 0);
+        $config = TestConfig::redis();
+        $host = (string)$config['host'];
+        $port = (int)$config['port'];
+        $password = (string)$config['password'];
+        $db = (int)$config['db'];
 
         $redis = new \Redis();
         try {
@@ -84,9 +87,7 @@ final class RedisRateLimitStoreTest extends TestCase
         $this->assertTrue($store->sliding_hit('sliding:test', 2, 1));
         $this->assertFalse($store->sliding_hit('sliding:test', 2, 1));
 
-        usleep(1_100_000);
-
-        $this->assertTrue($store->sliding_hit('sliding:test', 2, 1));
+        $this->assertTrue(Wait::until(fn (): bool => $store->sliding_hit('sliding:test', 2, 1), 3));
     }
 
     public function test_token_reservation_settle_release_and_failed_reserve(): void
@@ -164,9 +165,7 @@ final class RedisRateLimitStoreTest extends TestCase
         $this->assertTrue($store->reserve('quota:user:1', 'reservation:1', 40, 1));
         $this->assertFalse($store->reserve('quota:user:1', 'reservation:1', 10, 1));
 
-        usleep(1_100_000);
-
-        $this->assertTrue($store->reserve('quota:user:1', 'reservation:1', 10, 1));
+        $this->assertTrue(Wait::until(fn (): bool => $store->reserve('quota:user:1', 'reservation:1', 10, 1), 3));
         $this->assertSame(50, $store->get('quota:user:1'));
     }
 

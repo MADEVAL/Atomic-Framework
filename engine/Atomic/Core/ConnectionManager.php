@@ -16,6 +16,10 @@ class ConnectionManager
     private const DEFAULT_DB_HEALTHCHECK_INTERVAL = 5.0;
     private const DEFAULT_REDIS_HEALTHCHECK_INTERVAL = 5.0;
     private const DEFAULT_MEMCACHED_HEALTHCHECK_INTERVAL = 5.0;
+    private const DEFAULT_REDIS_CONNECT_TIMEOUT = 1.0;
+    private const DEFAULT_MEMCACHED_CONNECT_TIMEOUT_MS = 200;
+    private const MEMCACHED_HEALTHCHECK_KEY = '__atomic_memcached_healthcheck__';
+    private const REDIS_HEALTHCHECK_KEY = '__atomic_redis_healthcheck__';
 
     // TODO: multi-connection - arrays already keyed by name; to add a new connection
     // add config resolution in get_*_config() and call get_db('replica') etc.
@@ -68,19 +72,37 @@ class ConnectionManager
     // TODO: multi-connection - resolve config by name; e.g. App::instance()->get("DB_CONFIG_{$name}") ?? []
     private function get_db_config(string $name): array
     {
-        return App::instance()->get('DB_CONFIG') ?? [];
+        return $this->require_config_array(App::instance()->get('DB_CONFIG'), 'DB_CONFIG');
     }
 
     // TODO: multi-connection - resolve config by name; e.g. App::instance()->get("REDIS_{$name}") ?? []
     private function get_redis_config(string $name): array
     {
-        return App::instance()->get('REDIS') ?? [];
+        return $this->require_config_array(App::instance()->get('REDIS'), 'REDIS');
     }
 
     // TODO: multi-connection - resolve config by name; e.g. App::instance()->get("MEMCACHED_{$name}") ?? []
     private function get_memcached_config(string $name): array
     {
-        return App::instance()->get('MEMCACHED') ?? [];
+        return $this->require_config_array(App::instance()->get('MEMCACHED'), 'MEMCACHED');
+    }
+
+    private function require_config_array(mixed $config, string $path): array
+    {
+        if (!is_array($config)) {
+            throw new \RuntimeException("Missing loaded config array '{$path}'");
+        }
+
+        return $config;
+    }
+
+    private function require_config_value(array $config, string $key, string $path): mixed
+    {
+        if (!array_key_exists($key, $config)) {
+            throw new \RuntimeException("Missing loaded config value '{$path}.{$key}'");
+        }
+
+        return $config[$key];
     }
 
     private function open_db(string $name = 'default'): array
@@ -154,11 +176,13 @@ class ConnectionManager
             }
 
             try {
-                $this->redis_connections[$name]->ping();
-                $this->redis_last_used_at[$name] = $this->now();
-                return $this->redis_connections[$name];
+                if ($this->redis_can_read($this->redis_connections[$name])) {
+                    $this->redis_last_used_at[$name] = $this->now();
+                    return $this->redis_connections[$name];
+                }
+                throw new \RuntimeException('Redis healthcheck read failed');
             } catch (\Throwable $e) {
-                Log::warning("Redis ping failed, reconnecting: " . $e->getMessage());
+                Log::warning("Redis healthcheck failed, reconnecting: " . $e->getMessage());
                 try {
                     $this->redis_connections[$name]->close();
                 } catch (\Throwable $_) {}
@@ -167,23 +191,8 @@ class ConnectionManager
             }
         }
 
-        $cfg = $this->get_redis_config($name);
-        $host = (string)$cfg['host'];
-        $port = (int)$cfg['port'];
-
         try {
-            $r = new \Redis();
-            $r->connect($host, $port, 1.0);
-            $password = $this->normalize_optional_string($cfg['password'] ?? null);
-            if ($password !== null) {
-                $r->auth($password);
-            }
-            $db = (int)($cfg['db'] ?? 0);
-            if ($db !== 0) {
-                $r->select($db);
-            }
-
-            $this->redis_connections[$name] = $r;
+            $this->redis_connections[$name] = $this->create_redis($this->get_redis_config($name));
             $this->redis_last_used_at[$name] = $this->now();
             return $this->redis_connections[$name];
         } catch (\Throwable $e) {
@@ -195,18 +204,19 @@ class ConnectionManager
     private function open_memcached(string $name = 'default'): ?\Memcached
     {
         if (isset($this->memcached_connections[$name])) {
-            if (!$this->should_health_check($this->memcached_last_used_at[$name] ?? 0.0, self::DEFAULT_MEMCACHED_HEALTHCHECK_INTERVAL)) {
-                $this->memcached_last_used_at[$name] = $this->now();
-                return $this->memcached_connections[$name];
-            }
-
             try {
                 $version = $this->memcached_connections[$name]->getVersion();
-                if ($version !== false) {
+                if (
+                    is_array($version)
+                    && $version !== []
+                    && !in_array(false, $version, true)
+                    && $this->memcached_connections[$name]->getResultCode() === \Memcached::RES_SUCCESS
+                    && $this->memcached_can_read($this->memcached_connections[$name])
+                ) {
                     $this->memcached_last_used_at[$name] = $this->now();
                     return $this->memcached_connections[$name];
                 }
-                Log::warning("Memcached version check failed, reconnecting");
+                Log::warning("Memcached version check failed, reconnecting: " . $this->memcached_connections[$name]->getResultMessage());
             } catch (\Throwable $e) {
                 Log::warning("Memcached ping failed, reconnecting: " . $e->getMessage());
             }
@@ -218,37 +228,91 @@ class ConnectionManager
             $this->memcached_last_used_at[$name] = 0.0;
         }
 
-        $cfg = $this->get_memcached_config($name);
-        $host = (string)$cfg['host'];
-        $port = (int)$cfg['port'];
-
         try {
-            $m = new \Memcached();
-            $username = $this->normalize_optional_string($cfg['username']);
-            $password = $this->normalize_optional_string($cfg['password']);
-            if ($username !== null && $password !== null) {
-                $m->setOption(\Memcached::OPT_BINARY_PROTOCOL, true);
-                $m->setSaslAuthData($username, $password);
-            }
-            $m->setOptions([
-                \Memcached::OPT_BINARY_PROTOCOL => true,
-                \Memcached::OPT_CONNECT_TIMEOUT => 200,
-                \Memcached::OPT_TCP_NODELAY => true,
-            ]);
-            $m->addServer($host, $port);
-
-            $version = $m->getVersion();
-            if ($version === false) {
-                throw new \RuntimeException('Cannot connect to Memcached server');
-            }
-
-            $this->memcached_connections[$name] = $m;
+            $this->memcached_connections[$name] = $this->create_memcached($this->get_memcached_config($name));
             $this->memcached_last_used_at[$name] = $this->now();
             return $this->memcached_connections[$name];
         } catch (\Throwable $e) {
             Log::error("ConnectionManager: Memcached connect failed: " . $e->getMessage());
             return null;
         }
+    }
+
+    private function memcached_can_read(\Memcached $memcached): bool
+    {
+        $memcached->get(self::MEMCACHED_HEALTHCHECK_KEY);
+        return in_array($memcached->getResultCode(), [\Memcached::RES_SUCCESS, \Memcached::RES_NOTFOUND], true);
+    }
+
+    private function redis_can_read(\Redis $redis): bool
+    {
+        $redis->get(self::REDIS_HEALTHCHECK_KEY);
+        return true;
+    }
+
+    private function create_redis(array $config): \Redis
+    {
+        if (!extension_loaded('redis')) {
+            throw new \RuntimeException('The redis PHP extension is not loaded.');
+        }
+
+        $host = (string)$this->require_config_value($config, 'host', 'REDIS');
+        $port = (int)$this->require_config_value($config, 'port', 'REDIS');
+        $redis = new \Redis();
+        $redis->connect($host, $port, self::DEFAULT_REDIS_CONNECT_TIMEOUT);
+
+        $login = array_key_exists('username', $config)
+            ? $this->normalize_optional_string($config['username'])
+            : null;
+        $password = $this->normalize_optional_string($this->require_config_value($config, 'password', 'REDIS'));
+        if ($login !== null && $password !== null) {
+            $redis->auth([$login, $password]);
+        } elseif ($password !== null) {
+            $redis->auth($password);
+        }
+
+        $db = (int)$this->require_config_value($config, 'db', 'REDIS');
+        if ($db !== 0) {
+            $redis->select($db);
+        }
+
+        return $redis;
+    }
+
+    private function create_memcached(array $config): \Memcached
+    {
+        if (!extension_loaded('memcached')) {
+            throw new \RuntimeException('The memcached PHP extension is not loaded.');
+        }
+
+        $host = (string)$this->require_config_value($config, 'host', 'MEMCACHED');
+        $port = (int)$this->require_config_value($config, 'port', 'MEMCACHED');
+        $memcached = new \Memcached();
+
+        $username = array_key_exists('username', $config)
+            ? $this->normalize_optional_string($config['username'])
+            : null;
+        $password = array_key_exists('password', $config)
+            ? $this->normalize_optional_string($config['password'])
+            : null;
+        if ($username !== null && $password !== null) {
+            $memcached->setOption(\Memcached::OPT_BINARY_PROTOCOL, true);
+            $memcached->setSaslAuthData($username, $password);
+        }
+
+        $memcached->setOptions([
+            \Memcached::OPT_BINARY_PROTOCOL => true,
+            \Memcached::OPT_CONNECT_TIMEOUT => self::DEFAULT_MEMCACHED_CONNECT_TIMEOUT_MS,
+            \Memcached::OPT_TCP_NODELAY => true,
+        ]);
+        $memcached->addServer($host, $port);
+
+        $version = $memcached->getVersion();
+        if ($version === false || $version === []) {
+            throw new \RuntimeException('Cannot connect to Memcached server');
+        }
+
+        return $memcached;
     }
 
     public function get_db(bool $required = true, bool $if_reconnected = false, string $name = 'default'): array|SQL
@@ -265,20 +329,20 @@ class ConnectionManager
 
     public function get_redis(bool $required = true, string $name = 'default'): ?\Redis
     {
-        $r = $this->open_redis($name);
-        if ($r === null && $required) {
+        $redis = $this->open_redis($name);
+        if ($redis === null && $required) {
             throw new \RuntimeException('Redis connection failed');
         }
-        return $r;
+        return $redis;
     }
 
     public function get_memcached(bool $required = true, string $name = 'default'): ?\Memcached
     {
-        $m = $this->open_memcached($name);
-        if ($m === null && $required) {
+        $memcached = $this->open_memcached($name);
+        if ($memcached === null && $required) {
             throw new \RuntimeException('Memcached connection failed');
         }
-        return $m;
+        return $memcached;
     }
 
     public function close_sql(string $name = 'default'): void
@@ -326,8 +390,9 @@ class ConnectionManager
     {
         $atomic = App::instance();
 
-        $db_cfg = $atomic->get('DB_CONFIG') ?? [];
+        $db_cfg = $atomic->get('DB_CONFIG');
         if (
+            is_array($db_cfg) &&
             !empty($db_cfg['host']) &&
             !empty($db_cfg['db']) &&
             !empty($db_cfg['username']) &&

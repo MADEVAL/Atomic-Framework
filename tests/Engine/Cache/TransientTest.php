@@ -5,14 +5,21 @@ namespace Tests\Engine\Cache;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\CacheManager;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\ID;
+use Engine\Atomic\Cache\Drivers\DB as DBCache;
 use Engine\Atomic\Tools\Transient;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
+use Tests\Support\TestConfig;
+use Tests\Support\TempPath;
 use Tests\Support\Wait;
 
 class TransientTest extends TestCase
 {
     private static bool $bootstrapped = false;
+    private string $folder_path = '';
+    private string $driver_error = '';
 
     public static function setUpBeforeClass(): void
     {
@@ -21,63 +28,45 @@ class TransientTest extends TestCase
         }
 
         $base = \Base::instance();
-
-        $redis_host = getenv('REDIS_HOST') ?: '127.0.0.1';
-        $redis_port = getenv('REDIS_PORT') ?: '6379';
-        $redis_prefix = getenv('REDIS_PREFIX') ?: 'test.';
-
-        $base->set('REDIS', [
-            'host'                        => $redis_host,
-            'port'                        => $redis_port,
-            'password'                    => (string) (getenv('REDIS_PASSWORD') ?: ''),
-            'db'                          => (int) (getenv('REDIS_DB') ?: 0),
-            'prefix'                      => $redis_prefix,
-        ]);
-
-        $memcached_host = getenv('MEMCACHED_HOST') ?: '127.0.0.1';
-        $memcached_port = getenv('MEMCACHED_PORT') ?: '11211';
-
-        $base->set('MEMCACHED', [
-            'host' => $memcached_host,
-            'port' => $memcached_port,
-        ]);
-
-        $base->set('APP_UUID', ID::uuid_v4());
-
-        $db_driver = getenv('DB_DRIVER') ?: 'mysql';
-        $db_host = getenv('DB_HOST') ?: '127.0.0.1';
-        $db_port = getenv('DB_PORT') ?: '3306';
-        $db_name = getenv('DB_DB');
-        $db_user = getenv('DB_USERNAME');
-        $db_pass = getenv('DB_PASSWORD');
-        $db_charset = getenv('DB_CHARSET') ?: 'utf8mb4';
-        $db_collation = getenv('DB_COLLATION') ?: 'utf8mb4_general_ci';
-        $db_prefix = getenv('DB_PREFIX') ?: 'atomic_';
-
-        $base->set('DB_CONFIG', [
-            'driver'                 => $db_driver,
-            'host'                   => $db_host,
-            'port'                   => $db_port,
-            'db'                     => $db_name,
-            'username'               => $db_user,
-            'password'               => $db_pass,
-            'unix_socket'            => '',
-            'charset'                => $db_charset,
-            'collation'              => $db_collation,
-            'prefix'                 => $db_prefix,
-        ]);
-
+        TestConfig::apply($base, ['app_uuid' => ID::uuid_v4()]);
         try {
-            $dsn = "{$db_driver}:host={$db_host};dbname={$db_name};charset={$db_charset};port={$db_port}";
-            $sql = new \DB\SQL($dsn, $db_user, $db_pass, [
-                \Pdo\Mysql::ATTR_INIT_COMMAND => "SET NAMES '{$db_charset}' COLLATE '{$db_collation}'",
-            ]);
-            $base->set('DB', $sql);
+            if ($sql = TestConfig::open_configured_db($base)) {
+                $base->set('DB', $sql);
+                TestConfig::ensure_options_table($base);
+            }
         } catch (\Throwable) {
         }
 
-        App::instance($base);
         self::$bootstrapped = true;
+    }
+
+    protected function setUp(): void
+    {
+        $base = \Base::instance();
+        App::instance()->set('APP_UUID', ID::uuid_v4());
+
+        $base->set('DB_CONFIG', TestConfig::db());
+        try {
+            if ($sql = TestConfig::open_configured_db($base)) {
+                $base->set('DB', $sql);
+            }
+        } catch (\Throwable) {
+        }
+
+        $this->folder_path = TempPath::make_dir('atomic_transient_folder_');
+        App::instance()->set('CACHE_CONFIG', TestConfig::cache([
+            'path' => $this->folder_path,
+            'prefix' => 'atomic_test_transient_' . bin2hex(random_bytes(4)),
+        ]));
+        ReflectionHelper::set(CacheManager::instance(), 'hive', []);
+        ReflectionHelper::set(CacheManager::instance(), 'store', null);
+    }
+
+    protected function tearDown(): void
+    {
+        TempPath::remove($this->folder_path);
+        ReflectionHelper::set(CacheManager::instance(), 'hive', []);
+        ReflectionHelper::set(CacheManager::instance(), 'store', null);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -87,30 +76,56 @@ class TransientTest extends TestCase
         return 'phpunit_' . $this->name() . '_' . $label . '_' . uniqid('', true);
     }
 
-    private function pingDriver(?string $driver): bool
+    private function normalized_redis_prefix(): string
     {
+        return rtrim(trim((string)App::instance()->get('REDIS.prefix')), '.');
+    }
+
+    private function redis_connection(): \Redis
+    {
+        if (!extension_loaded('redis')) {
+            $this->markTestSkipped('ext-redis not loaded');
+        }
+
+        try {
+            $redis = ConnectionManager::instance()->get_redis();
+        } catch (\Throwable $e) {
+            $this->markTestSkipped('Redis server unavailable: ' . $e->getMessage());
+        }
+
+        return $redis;
+    }
+
+    private function ping_driver(?string $driver): bool
+    {
+        $this->driver_error = '';
         try {
             $cache_manager = CacheManager::instance();
             $cache = match ($driver) {
                 Transient::DRIVER_REDIS     => $cache_manager->redis(),
                 Transient::DRIVER_MEMCACHED => $cache_manager->memcached(),
+                Transient::DRIVER_FOLDER    => $cache_manager->folder(),
                 Transient::DRIVER_DB        => $cache_manager->db(),
-                default                     => $cache_manager->cascade(),
+                default                     => ReflectionHelper::invoke(Transient::class, 'get_cache_driver', [null]),
             };
             $ping = '_ping_' . uniqid('', true);
             $cache->set($ping, '1', 5);
             $cache_val = $cache->get($ping);
             $cache->clear($ping);
             return ($cache_val === '1');
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            $this->driver_error = $e::class . ': ' . $e->getMessage();
             return false;
         }
     }
 
-    private function skipIfDriverUnavailable(?string $driver): void
+    private function skip_if_driver_unavailable(?string $driver): void
     {
-        if (!$this->pingDriver($driver)) {
+        if (!$this->ping_driver($driver)) {
             $label = $driver ?? 'cascade';
+            if ($driver === Transient::DRIVER_DB) {
+                $this->fail("Driver «{$label}» is not available in this environment. {$this->driver_error}");
+            }
             $this->markTestSkipped("Driver «{$label}» is not available in this environment.");
         }
     }
@@ -129,12 +144,24 @@ class TransientTest extends TestCase
         Transient::set($this->key('ttlneg'), 'value', -5);
     }
 
+    public function test_default_driver_priority_is_wordpress_like(): void
+    {
+        $priority = ReflectionHelper::constant(Transient::class, 'DEFAULT_DRIVER_PRIORITY');
+
+        $this->assertSame([
+            Transient::DRIVER_REDIS,
+            Transient::DRIVER_MEMCACHED,
+            Transient::DRIVER_DB,
+            Transient::DRIVER_FOLDER,
+        ], $priority);
+    }
+
     // ── REDIS ─────────────────────────────────────────────────────────────────
 
     // [1] SET / GET
     public function test_redis_set_and_get_returns_stored_value(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $key   = $this->key('setget');
         $value = 'redis_value_' . uniqid();
@@ -150,10 +177,30 @@ class TransientTest extends TestCase
         $this->assertTrue($delete_result);
     }
 
+    public function test_redis_transient_uses_atomic_prefix_without_f3_seed(): void
+    {
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
+
+        $key = $this->key('prefix');
+        $cache = CacheManager::instance()->redis();
+        $expected = $this->normalized_redis_prefix() . '.' . $cache->get_generation() . '.transient.' . $key;
+
+        $this->assertTrue(Transient::set($key, 'prefixed', 60, Transient::DRIVER_REDIS));
+
+        $redis = $this->redis_connection();
+        try {
+            $this->assertSame(1, $redis->exists($expected));
+            $this->assertSame([$expected], $redis->keys($expected));
+        } finally {
+            $redis->del($expected);
+            ConnectionManager::instance()->close_redis();
+        }
+    }
+
     // [2] GET missing key
     public function test_redis_get_missing_key_returns_false(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $this->assertFalse(Transient::get($this->key('missing'), Transient::DRIVER_REDIS));
     }
@@ -161,7 +208,7 @@ class TransientTest extends TestCase
     // [3] DELETE
     public function test_redis_delete_removes_key(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $key = $this->key('delete');
 
@@ -181,7 +228,7 @@ class TransientTest extends TestCase
     // [4] DELETE safe (idempotent)
     public function test_redis_delete_nonexistent_key_is_safe(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $result = Transient::delete($this->key('noexist'), Transient::DRIVER_REDIS);
         $this->assertIsBool($result);
@@ -191,7 +238,7 @@ class TransientTest extends TestCase
     // [5] DELETE_ALL
     public function test_redis_delete_all_removes_all_transient_keys(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $uid  = uniqid('', true);
         $keys = ["redis_dall_a_{$uid}", "redis_dall_b_{$uid}", "redis_dall_c_{$uid}"];
@@ -224,7 +271,7 @@ class TransientTest extends TestCase
     // [6] EXPIRATION
     public function test_redis_key_expires_after_ttl(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $key = $this->key('expiry');
 
@@ -248,7 +295,7 @@ class TransientTest extends TestCase
     // Extra: value is preserved precisely (no double-serialization)
     public function test_redis_preserves_string_with_special_characters(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $key   = $this->key('special');
         $value = 'quotes:"foo" apostrophe:\'bar\' backslash:\\baz\\ null:\0end';
@@ -267,7 +314,7 @@ class TransientTest extends TestCase
     // Extra: two different keys do not collide
     public function test_redis_multiple_keys_are_independent(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $key_1 = $this->key('k1');
         $key_2 = $this->key('k2');
@@ -295,7 +342,7 @@ class TransientTest extends TestCase
     // Extra: overwriting a key stores new value
     public function test_redis_overwrite_updates_value(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_REDIS);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_REDIS);
 
         $key = $this->key('overwrite');
 
@@ -319,7 +366,7 @@ class TransientTest extends TestCase
     // [1] SET / GET
     public function test_memcached_set_and_get_returns_stored_value(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_MEMCACHED);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_MEMCACHED);
 
         $key   = $this->key('setget');
         $value = 'memcached_value_' . uniqid();
@@ -338,7 +385,7 @@ class TransientTest extends TestCase
     // [2] GET missing key
     public function test_memcached_get_missing_key_returns_false(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_MEMCACHED);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_MEMCACHED);
 
         $this->assertFalse(Transient::get($this->key('missing'), Transient::DRIVER_MEMCACHED));
     }
@@ -346,7 +393,7 @@ class TransientTest extends TestCase
     // [3] DELETE
     public function test_memcached_delete_removes_key(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_MEMCACHED);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_MEMCACHED);
 
         $key = $this->key('delete');
 
@@ -366,7 +413,7 @@ class TransientTest extends TestCase
     // [4] DELETE safe (idempotent)
     public function test_memcached_delete_nonexistent_key_is_safe(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_MEMCACHED);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_MEMCACHED);
 
         $result = Transient::delete($this->key('noexist'), Transient::DRIVER_MEMCACHED);
         $this->assertIsBool($result);
@@ -376,7 +423,7 @@ class TransientTest extends TestCase
     // [5] DELETE_ALL – generation-bump strategy
     public function test_memcached_delete_all_makes_all_keys_invisible(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_MEMCACHED);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_MEMCACHED);
 
         $uid  = uniqid('', true);
         $keys = ["mc_dall_a_{$uid}", "mc_dall_b_{$uid}", "mc_dall_c_{$uid}"];
@@ -409,7 +456,7 @@ class TransientTest extends TestCase
     // [6] EXPIRATION
     public function test_memcached_key_expires_after_ttl(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_MEMCACHED);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_MEMCACHED);
 
         $key = $this->key('expiry');
 
@@ -434,10 +481,9 @@ class TransientTest extends TestCase
     // [7] GENERATION COUNTER – Memcached-specific
     public function test_memcached_delete_all_increments_generation_by_one(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_MEMCACHED);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_MEMCACHED);
 
         $wrapper = CacheManager::instance()->memcached();
-        $wrapper->flush_local_cache();
         $gen_before = $wrapper->get_generation();
 
         $key = $this->key('gen');
@@ -452,7 +498,6 @@ class TransientTest extends TestCase
         $this->assertIsBool($delete_all_result);
         $this->assertTrue($delete_all_result);
 
-        $wrapper->flush_local_cache();
         $gen_after = $wrapper->get_generation();
 
         $this->assertSame(
@@ -470,7 +515,7 @@ class TransientTest extends TestCase
     // Extra: value stored in old generation is hidden; new key in new generation is readable.
     public function test_memcached_new_key_readable_after_generation_bump(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_MEMCACHED);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_MEMCACHED);
 
         $old_key = $this->key('old');
         $new_key = $this->key('new');
@@ -500,7 +545,7 @@ class TransientTest extends TestCase
     // [1] SET / GET
     public function test_db_set_and_get_returns_stored_value(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_DB);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_DB);
 
         $key   = $this->key('setget');
         $value = 'db_value_' . uniqid();
@@ -519,7 +564,7 @@ class TransientTest extends TestCase
     // [2] GET missing key
     public function test_db_get_missing_key_returns_false(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_DB);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_DB);
 
         $this->assertFalse(Transient::get($this->key('missing'), Transient::DRIVER_DB));
     }
@@ -527,7 +572,7 @@ class TransientTest extends TestCase
     // [3] DELETE
     public function test_db_delete_removes_key(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_DB);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_DB);
 
         $key = $this->key('delete');
 
@@ -547,7 +592,7 @@ class TransientTest extends TestCase
     // [4] DELETE safe (idempotent)
     public function test_db_delete_nonexistent_key_is_safe(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_DB);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_DB);
 
         $result = Transient::delete($this->key('noexist'), Transient::DRIVER_DB);
         $this->assertIsBool($result);
@@ -557,7 +602,7 @@ class TransientTest extends TestCase
     // [5] DELETE_ALL
     public function test_db_delete_all_removes_all_transient_rows(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_DB);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_DB);
 
         $uid  = uniqid('', true);
         $keys = ["db_dall_a_{$uid}", "db_dall_b_{$uid}", "db_dall_c_{$uid}"];
@@ -590,7 +635,7 @@ class TransientTest extends TestCase
     // [6] EXPIRATION – Options model respects expired_at column
     public function test_db_key_expires_after_ttl(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_DB);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_DB);
 
         $key = $this->key('expiry');
 
@@ -617,7 +662,7 @@ class TransientTest extends TestCase
     // Extra: overwrite sets new value while preserving TTL refresh
     public function test_db_overwrite_updates_value(): void
     {
-        $this->skipIfDriverUnavailable(Transient::DRIVER_DB);
+        $this->skip_if_driver_unavailable(Transient::DRIVER_DB);
 
         $key = $this->key('overwrite');
 
@@ -636,12 +681,50 @@ class TransientTest extends TestCase
         $this->assertTrue($delete_result);
     }
 
-    // ── CASCADE (null driver) ─────────────────────────────────────────────────
+    // ── FOLDER ───────────────────────────────────────────────────────────────
+
+    public function test_folder_set_and_get_returns_stored_value(): void
+    {
+        $this->skip_if_driver_unavailable(Transient::DRIVER_FOLDER);
+
+        $key = $this->key('folder_setget');
+
+        $this->assertTrue(Transient::set($key, 'folder_value', 60, Transient::DRIVER_FOLDER));
+        $this->assertSame('folder_value', Transient::get($key, Transient::DRIVER_FOLDER));
+        $this->assertTrue(Transient::delete($key, Transient::DRIVER_FOLDER));
+        $this->assertFalse(Transient::get($key, Transient::DRIVER_FOLDER));
+    }
+
+    public function test_folder_get_missing_key_returns_false(): void
+    {
+        $this->skip_if_driver_unavailable(Transient::DRIVER_FOLDER);
+
+        $this->assertFalse(Transient::get($this->key('folder_missing'), Transient::DRIVER_FOLDER));
+    }
+
+    public function test_folder_delete_all_makes_transients_invisible(): void
+    {
+        $this->skip_if_driver_unavailable(Transient::DRIVER_FOLDER);
+
+        $key_1 = $this->key('folder_dall_1');
+        $key_2 = $this->key('folder_dall_2');
+
+        $this->assertTrue(Transient::set($key_1, 'one', 60, Transient::DRIVER_FOLDER));
+        $this->assertTrue(Transient::set($key_2, 'two', 60, Transient::DRIVER_FOLDER));
+        $this->assertSame('one', Transient::get($key_1, Transient::DRIVER_FOLDER));
+        $this->assertSame('two', Transient::get($key_2, Transient::DRIVER_FOLDER));
+
+        $this->assertTrue(Transient::delete_all(Transient::DRIVER_FOLDER));
+        $this->assertFalse(Transient::get($key_1, Transient::DRIVER_FOLDER));
+        $this->assertFalse(Transient::get($key_2, Transient::DRIVER_FOLDER));
+    }
+
+    // ── DEFAULT DRIVER (null driver) ──────────────────────────────────────────
 
     // [1] SET / GET
     public function test_cascade_set_and_get_returns_stored_value(): void
     {
-        $this->skipIfDriverUnavailable(null);
+        $this->skip_if_driver_unavailable(null);
 
         $key   = $this->key('setget');
         $value = 'cascade_value_' . uniqid();
@@ -660,7 +743,7 @@ class TransientTest extends TestCase
     // [2] GET missing key
     public function test_cascade_get_missing_key_returns_false(): void
     {
-        $this->skipIfDriverUnavailable(null);
+        $this->skip_if_driver_unavailable(null);
 
         $this->assertFalse(Transient::get($this->key('missing'), null));
     }
@@ -668,7 +751,7 @@ class TransientTest extends TestCase
     // [3] DELETE
     public function test_cascade_delete_removes_key(): void
     {
-        $this->skipIfDriverUnavailable(null);
+        $this->skip_if_driver_unavailable(null);
 
         $key = $this->key('delete');
 
@@ -688,17 +771,17 @@ class TransientTest extends TestCase
     // [4] DELETE safe (idempotent)
     public function test_cascade_delete_nonexistent_key_is_safe(): void
     {
-        $this->skipIfDriverUnavailable(null);
+        $this->skip_if_driver_unavailable(null);
 
         $result = Transient::delete($this->key('noexist'), null);
         $this->assertIsBool($result);
         $this->assertTrue($result);
     }
 
-    // [5] Cascade resolves to a concrete driver
-    public function test_cascade_uses_consistent_driver_within_request(): void
+    // [5] Default driver resolves to a concrete store
+    public function test_default_driver_is_consistent_within_request(): void
     {
-        $this->skipIfDriverUnavailable(null);
+        $this->skip_if_driver_unavailable(null);
 
         $key_1 = $this->key('consist_a');
         $key_2 = $this->key('consist_b');

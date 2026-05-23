@@ -9,14 +9,21 @@ use Engine\Atomic\Session\Models\Session;
 
 trait SqlSessionTrait
 {
+    private const SQL_REVOKED_KEY_PREFIX = ':revoked:';
+
     private function delete_sql_session(string $session_id): bool
     {
         try {
             $session_mapper = new Session();
             $session_mapper->load(['session_id = ?', $session_id]);
-            if ($session_mapper->dry()) return false;
-            $session_mapper->erase();
-            return true;
+            $existed = !$session_mapper->dry();
+            if ($existed) {
+                $session_mapper->erase();
+            }
+
+            $this->mark_sql_session_revoked($session_id);
+
+            return $existed;
         } catch (\Exception $e) {
             Log::error("Failed to delete SQL session: " . $e->getMessage());
             return false;
@@ -56,5 +63,22 @@ trait SqlSessionTrait
             Log::error("Failed to get SQL session data: " . $e->getMessage());
             return null;
         }
+    }
+
+    private function mark_sql_session_revoked(string $session_id): void
+    {
+        $session_mapper = new Session();
+        $session_mapper->load(['session_id = ?', $this->sql_revoked_key($session_id)]);
+        $session_mapper->set('session_id', $this->sql_revoked_key($session_id));
+        $session_mapper->set('data', '');
+        $session_mapper->set('ip', '');
+        $session_mapper->set('agent', '');
+        $session_mapper->set('stamp', time());
+        $session_mapper->save();
+    }
+
+    private function sql_revoked_key(string $session_id): string
+    {
+        return self::SQL_REVOKED_KEY_PREFIX . $session_id;
     }
 }

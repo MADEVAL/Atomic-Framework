@@ -20,11 +20,11 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
     public function test_direct_pop_batch_honors_limit_without_duplicate_claims(): void
     {
         $manager = new Manager();
-        $driver = $this->managerDriver($manager);
+        $driver = $this->manager_driver($manager);
         $queue = $manager->get_queue();
-        $one = $this->newUuid();
-        $two = $this->newUuid();
-        $three = $this->newUuid();
+        $one = $this->new_uuid();
+        $two = $this->new_uuid();
+        $three = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'one'], [], $one));
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 2], 'smth' => 'two'], [], $two));
@@ -39,9 +39,9 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
     public function test_direct_pop_batch_zero_limit_returns_no_jobs_without_claiming(): void
     {
         $manager = new Manager();
-        $driver = $this->managerDriver($manager);
+        $driver = $this->manager_driver($manager);
         $queue = $manager->get_queue();
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'zero-limit'], [], $uuid));
 
@@ -55,11 +55,11 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
     public function test_priority_order_and_delay_are_respected(): void
     {
         $manager = new Manager();
-        $driver = $this->managerDriver($manager);
+        $driver = $this->manager_driver($manager);
         $queue = $manager->get_queue();
-        $delayed = $this->newUuid();
-        $low = $this->newUuid();
-        $high = $this->newUuid();
+        $delayed = $this->new_uuid();
+        $low = $this->new_uuid();
+        $high = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'delay'], ['delay' => 2], $delayed));
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 2], 'smth' => 'low'], ['priority' => 9], $low));
@@ -74,7 +74,7 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
     public function test_ownership_guards_reject_stale_worker_mutations(): void
     {
         $manager = new Manager();
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'guard'], [], $uuid));
         $job = $manager->pop_batch()[0];
         $job['pid'] = \getmypid();
@@ -93,7 +93,7 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
         $manager = new Manager();
         $telemetry = new TelemetryManager();
 
-        $activeUuid = $this->newUuid();
+        $activeUuid = $this->new_uuid();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'active'], [], $activeUuid));
         $active = $telemetry->fetch_all_jobs($manager->get_queue(), ['uuid' => $activeUuid]);
         $this->assertSame(1, $active['total']);
@@ -103,7 +103,7 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
         $this->assertTrue($manager->set_pid($activeJob));
         $this->assertTrue($manager->mark_completed($activeJob));
 
-        $failedUuid = $this->newUuid();
+        $failedUuid = $this->new_uuid();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'failure'], ['params' => ['id' => 2], 'smth' => 'failed'], [], $failedUuid));
         $failedJob = $manager->pop_batch()[0];
         $this->assertSame($failedUuid, $failedJob['uuid']);
@@ -114,7 +114,7 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
         $this->assertSame(1, $failed['total']);
         $this->assertSame('failed', $failed['items'][$failedUuid]['state']);
 
-        $completedUuid = $this->newUuid();
+        $completedUuid = $this->new_uuid();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 3], 'smth' => 'completed'], [], $completedUuid));
         $completedJob = $manager->pop_batch()[0];
         $completedJob['pid'] = \getmypid();
@@ -129,7 +129,7 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
     {
         $manager = new Manager();
         $queue = $manager->get_queue();
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'monitor'], [], $uuid));
         $job = $manager->pop_batch()[0];
@@ -153,7 +153,7 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
     {
         $manager = new Manager();
         $queue = $manager->get_queue();
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push(
             [QueueTestHandler::class, 'success'],
@@ -186,18 +186,18 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
     {
         $manager = new Manager();
 
-        $this->assertTrue($manager->retry_by_uuid($this->newUuid()) === false);
-        $this->assertFalse($manager->delete_job($this->newUuid()));
+        $this->assertTrue($manager->retry_by_uuid($this->new_uuid()) === false);
+        $this->assertFalse($manager->delete_job($this->new_uuid()));
     }
 
     public function test_missing_uuid_mutations_return_false(): void
     {
         $manager = new Manager();
-        $driver = $this->managerDriver($manager);
+        $driver = $this->manager_driver($manager);
         $job = [
             'queue' => $manager->get_queue(),
             'pid' => \getmypid(),
-            'payload' => ['uuid_batch' => $this->newUuid()],
+            'payload' => ['uuid_batch' => $this->new_uuid()],
         ];
 
         $this->assertFalse($driver->release($job, 0));
@@ -211,8 +211,8 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
         $manager = new Manager();
         $telemetry = new TelemetryManager();
         $queue = $manager->get_queue();
-        $failedUuid = $this->newUuid();
-        $completedUuid = $this->newUuid();
+        $failedUuid = $this->new_uuid();
+        $completedUuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'failure'], ['params' => ['id' => 1], 'smth' => 'retry-all'], [], $failedUuid));
         $failedJob = $manager->pop_batch()[0];

@@ -22,7 +22,7 @@ If a project uses structured PHP config files instead, `PhpConfigLoader` can be 
 
 ### Custom application config
 
-Application-specific config belongs under the `CONFIG` hive key. This keeps custom values separate from framework-owned root keys such as `DB_CONFIG`, `QUEUE`, `RATE_LIMITER`, `MAIL`, and `SESSION_CONFIG`.
+Application-specific config belongs under the `CONFIG` hive key. This keeps custom values separate from framework-owned root keys such as `DB_CONFIG`, `QUEUE`, `RATE_LIMITER`, `MAIL`, `CACHE_CONFIG`, and `SESSION_CONFIG`.
 
 #### PHP config mode
 

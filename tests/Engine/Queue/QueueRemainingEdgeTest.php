@@ -16,13 +16,13 @@ final class QueueRemainingEdgeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->backupQueueState();
-        $this->configureQueue('db', $this->newQueueName());
+        $this->backup_queue_state();
+        $this->configure_queue('db', $this->new_queue_name());
     }
 
     protected function tearDown(): void
     {
-        $this->restoreQueueState();
+        $this->restore_queue_state();
         parent::tearDown();
     }
 
@@ -43,8 +43,8 @@ final class QueueRemainingEdgeTest extends TestCase
     {
         $telemetry = new TelemetryManager();
 
-        $this->assertSame([], $telemetry->fetch_events('redis', '*', $this->newUuid()));
-        $this->assertSame([], $telemetry->fetch_events('missing', '*', $this->newUuid()));
+        $this->assertSame([], $telemetry->fetch_events('redis', '*', $this->new_uuid()));
+        $this->assertSame([], $telemetry->fetch_events('missing', '*', $this->new_uuid()));
     }
 
     public function test_state_display_map_and_all_include_every_case(): void

@@ -7,6 +7,7 @@ use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Worker\Worker;
 use PHPUnit\Framework\Assert;
+use Tests\Support\Wait;
 
 final class WorkerProcessHarness
 {
@@ -65,15 +66,13 @@ final class WorkerProcessHarness
 
     public function waitUntil(callable $condition, float $deadlineSeconds, string $message): mixed
     {
-        $deadline = \microtime(true) + $deadlineSeconds;
         $last = null;
 
-        while (\microtime(true) < $deadline) {
+        if (Wait::until(static function () use ($condition, &$last): bool {
             $last = $condition();
-            if ($last) {
-                return $last;
-            }
-            \usleep(50000);
+            return (bool)$last;
+        }, (int)\ceil($deadlineSeconds), 50_000)) {
+            return $last;
         }
 
         Assert::fail($message);
@@ -144,13 +143,7 @@ final class WorkerProcessHarness
         }
 
         @\posix_kill($pid, $signal);
-        $deadline = \microtime(true) + $deadlineSeconds;
-        while (\microtime(true) < $deadline) {
-            if ($this->reap($pid) || !$this->isAlive($pid)) {
-                return;
-            }
-            \usleep(50000);
-        }
+        Wait::until(fn (): bool => $this->reap($pid) || !$this->isAlive($pid), (int)\ceil($deadlineSeconds), 50_000);
     }
 
     private function isAlive(int $pid): bool

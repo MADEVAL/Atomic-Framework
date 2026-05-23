@@ -24,13 +24,13 @@ final class QueueTelemetryRedisTest extends QueueRedisTestCase
         $telemetry = new TelemetryManager();
         $queue = $manager->get_queue();
 
-        $pendingOne = $this->newUuid();
-        $pendingTwo = $this->newUuid();
-        $runningUuid = $this->newUuid();
-        $failedUuid = $this->newUuid();
-        $completedUuid = $this->newUuid();
-        $cancelRequestedUuid = $this->newUuid();
-        $cancelledUuid = $this->newUuid();
+        $pendingOne = $this->new_uuid();
+        $pendingTwo = $this->new_uuid();
+        $runningUuid = $this->new_uuid();
+        $failedUuid = $this->new_uuid();
+        $completedUuid = $this->new_uuid();
+        $cancelRequestedUuid = $this->new_uuid();
+        $cancelledUuid = $this->new_uuid();
 
         $runningJob = $this->pushPopAndSetPid($manager, $runningUuid, 'running');
         $failedJob = $this->pushPopAndSetPid($manager, $failedUuid, 'failed');
@@ -85,9 +85,9 @@ final class QueueTelemetryRedisTest extends QueueRedisTestCase
         $telemetry = new TelemetryManager();
         $queue = $manager->get_queue();
 
-        $pendingUuid = $this->newUuid();
-        $failedUuid = $this->newUuid();
-        $completedUuid = $this->newUuid();
+        $pendingUuid = $this->new_uuid();
+        $failedUuid = $this->new_uuid();
+        $completedUuid = $this->new_uuid();
 
         $failedJob = $this->pushPopAndSetPid($manager, $failedUuid, 'failed-page');
         $this->assertTrue($manager->mark_failed($failedJob, new \RuntimeException('global pagination failed')));
@@ -109,7 +109,7 @@ final class QueueTelemetryRedisTest extends QueueRedisTestCase
         $manager = new Manager();
         $telemetry = new TelemetryManager();
         $queue = $manager->get_queue();
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 10], 'smth' => 'events'], [], $uuid));
         $job = $manager->pop_batch()[0];

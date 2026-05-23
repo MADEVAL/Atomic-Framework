@@ -53,6 +53,14 @@ class SessionService
 
         if ($this->php_session->status() !== PHP_SESSION_ACTIVE) {
             Hook::instance()->do_action('SESSION_BEFORE_START', $this);
+            /*
+             * Session cookie security comes from F3's JAR settings. Config must
+             * set JAR.secure/JAR.httponly/JAR.samesite before this point; F3
+             * copies JAR into PHP's pending session cookie params while the
+             * session is inactive. Atomic only registers the DB/Redis session
+             * handler here, then starts the session with those already-applied
+             * params.
+             */
             $driver = strtolower($this->app->get('SESSION_CONFIG.driver') ?? 'db');
             $this->session_factory->start($driver, $onsuspect);
             if ($this->php_session->status() !== PHP_SESSION_ACTIVE && !headers_sent()) {

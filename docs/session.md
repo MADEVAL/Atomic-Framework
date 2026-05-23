@@ -114,4 +114,4 @@ Current storage implementations:
 - SQL-backed session storage via `SqlSessionTrait`
 - Redis-backed session storage via `RedisSessionTrait`
 
-When Redis is used, keys are prefixed with `REDIS.ATOMIC_REDIS_SESSION_PREFIX`.
+When Redis is used, keys are prefixed with `REDIS.prefix`.

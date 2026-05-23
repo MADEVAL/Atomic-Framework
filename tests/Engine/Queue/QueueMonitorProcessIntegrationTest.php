@@ -10,6 +10,7 @@ use Engine\Atomic\Queue\Monitor\Monitor;
 use Engine\Atomic\Queue\Monitor\PosixProcessProbe;
 use Engine\Atomic\Queue\Monitor\ProcessProbeInterface;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\Wait;
 
 final class QueueMonitorProcessIntegrationTest extends TestCase
 {
@@ -331,7 +332,7 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
             \file_put_contents($marker, 'ready');
 
             while (true) {
-                \usleep(50000);
+                \usleep(50_000);
             }
         }
 
@@ -340,12 +341,8 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
 
     private function waitForProcStat(int $pid): void
     {
-        $deadline = \microtime(true) + 2.0;
-        while (\microtime(true) < $deadline) {
-            if (\is_readable("/proc/{$pid}/stat")) {
-                return;
-            }
-            \usleep(20000);
+        if (Wait::until(fn (): bool => \is_readable("/proc/{$pid}/stat"), 2, 20_000)) {
+            return;
         }
 
         $this->fail("Timed out waiting for /proc/{$pid}/stat.");
@@ -353,15 +350,7 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
 
     private function waitForFileContents(string $path, string $expected): bool
     {
-        $deadline = \microtime(true) + 2.0;
-        while (\microtime(true) < $deadline) {
-            if ((string)@\file_get_contents($path) === $expected) {
-                return true;
-            }
-            \usleep(20000);
-        }
-
-        return false;
+        return Wait::until(fn (): bool => (string)@\file_get_contents($path) === $expected, 2, 20_000);
     }
 
     private function stopChild(int $pid): void
@@ -371,7 +360,7 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
         }
 
         @\posix_kill($pid, SIGTERM);
-        \usleep(100000);
+        Wait::until(fn (): bool => !@\posix_kill($pid, 0), 1, 20_000);
         if (@\posix_kill($pid, 0)) {
             @\posix_kill($pid, SIGKILL);
         }

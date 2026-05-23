@@ -7,7 +7,7 @@ use Tests\Engine\Queue\Support\QueueRedisTestCase;
 
 final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 {
-    protected function newRedisPrefix(): string
+    protected function new_redis_prefix(): string
     {
         return 'atomic_queue_lua_test_' . \bin2hex(\random_bytes(4)) . ':';
     }
@@ -15,8 +15,8 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
     public function test_load_jobs_by_state_fails_on_stale_registry_references(): void
     {
         $index = $this->key('idx.completed');
-        $stale = $this->newUuid();
-        $kept = $this->newUuid();
+        $stale = $this->new_uuid();
+        $kept = $this->new_uuid();
 
         $this->redis->zAdd($index, 1, $stale);
         $this->redis->zAdd($index, 2, $kept);
@@ -33,8 +33,8 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
     public function test_load_active_monitor_fails_on_stale_pid_map_entries(): void
     {
         $pidMap = $this->prefix . 'meta.pid_map';
-        $stale = $this->newUuid();
-        $kept = $this->newUuid();
+        $stale = $this->new_uuid();
+        $kept = $this->new_uuid();
         $this->redis->hSet($pidMap, '111', $stale);
         $this->redis->hSet($pidMap, '222', $kept);
         $this->putRegistry($kept, ['state' => 'running', 'pid' => '222']);
@@ -50,8 +50,8 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_push_load_batch_set_pid_and_release_round_trip(): void
     {
-        $first = $this->newUuid();
-        $second = $this->newUuid();
+        $first = $this->new_uuid();
+        $second = $this->new_uuid();
         $now = \time();
 
         $this->pushWithLua($second, $now, 9);
@@ -96,12 +96,12 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $lowPriorityUuids = [];
 
         for ($i = 0; $i < 25; $i++) {
-            $uuid = $this->newUuid();
+            $uuid = $this->new_uuid();
             $lowPriorityUuids[] = $uuid;
             $this->pushWithLua($uuid, $now, 9);
         }
 
-        $highPriorityUuid = $this->newUuid();
+        $highPriorityUuid = $this->new_uuid();
         $this->pushWithLua($highPriorityUuid, $now, 1);
 
         $loaded = $this->evalLua(
@@ -121,8 +121,8 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_load_active_fails_when_state_is_missing(): void
     {
-        $running = $this->newUuid();
-        $pending = $this->newUuid();
+        $running = $this->new_uuid();
+        $pending = $this->new_uuid();
         $this->putRegistry($running, ['state' => '', 'pid' => '111']);
         $this->putRegistry($pending, ['state' => '']);
         $this->redis->zAdd($this->key('idx.running'), 1, $running);
@@ -136,8 +136,8 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_load_stuck_excludes_matching_pids(): void
     {
-        $included = $this->newUuid();
-        $excluded = $this->newUuid();
+        $included = $this->new_uuid();
+        $excluded = $this->new_uuid();
         $this->putRegistry($included, ['state' => 'running', 'pid' => '777']);
         $this->putRegistry($excluded, ['state' => 'running', 'pid' => '888']);
         $this->redis->zAdd($this->key('idx.running'), (\time() - 5) * 1000, $included);
@@ -153,8 +153,8 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_mark_cancel_requested_moves_running_job_and_ignores_pending_job(): void
     {
-        $running = $this->newUuid();
-        $pending = $this->newUuid();
+        $running = $this->new_uuid();
+        $pending = $this->new_uuid();
         $this->putRegistry($running, ['state' => 'running', 'pid' => '999']);
         $this->putRegistry($pending, ['state' => 'pending']);
         $this->redis->zAdd($this->key('idx.running'), 123, $running);
@@ -182,8 +182,8 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_cancel_lua_cancels_pending_and_requests_running(): void
     {
-        $pending = $this->newUuid();
-        $running = $this->newUuid();
+        $pending = $this->new_uuid();
+        $running = $this->new_uuid();
         $this->putRegistry($pending, ['state' => 'pending']);
         $this->putRegistry($running, ['state' => 'running', 'pid' => '1234']);
         $this->redis->zAdd($this->key('idx.pending'), 1, $pending);
@@ -206,7 +206,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_delete_job_removes_indexes_telemetry_batches_and_pid_map(): void
     {
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $pidMap = $this->prefix . 'meta.pid_map';
         $telemetryJobs = $this->prefix . 'telemetry.jobs';
         $completed = $this->key('idx.completed');
@@ -237,7 +237,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $pidMap = $this->prefix . 'meta.pid_map';
 
         foreach (['running', 'cancel_requested'] as $state) {
-            $uuid = $this->newUuid();
+            $uuid = $this->new_uuid();
             $this->putRegistry($uuid, ['state' => $state]);
 
             $result = $this->evalLua('delete_job', [$this->registryKey($uuid), $telemetryJobs, $pidMap], [$uuid, $this->prefix]);
@@ -249,7 +249,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_mark_cancelled_refuses_terminal_jobs(): void
     {
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $completed = $this->key('idx.completed');
         $cancelled = $this->key('idx.cancelled');
         $this->putRegistry($uuid, ['state' => 'completed']);
@@ -278,7 +278,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_mark_finished_expires_registry_and_clears_pid_map(): void
     {
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $running = $this->key('idx.running');
         $completed = $this->key('idx.completed');
         $pidMap = $this->prefix . 'meta.pid_map';
@@ -303,7 +303,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_mark_finished_cleans_stale_finished_index_entries(): void
     {
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $running = $this->key('idx.running');
         $completed = $this->key('idx.completed');
         $pidMap = $this->prefix . 'meta.pid_map';
@@ -333,7 +333,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_load_batch_fails_on_malformed_numeric_job_fields(): void
     {
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $now = \time();
         $this->putRegistry($uuid, ['state' => 'pending', 'attempts' => 'nope']);
         $this->redis->zAdd($this->key('idx.pending'), $now * 1000000, $uuid);
@@ -350,7 +350,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_cancel_fails_when_created_at_is_missing(): void
     {
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $this->putRegistry($uuid, ['state' => 'pending', 'created_at' => '']);
         $this->redis->zAdd($this->key('idx.pending'), 1, $uuid);
 
@@ -359,7 +359,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_release_fails_when_priority_is_missing(): void
     {
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $this->putRegistry($uuid, ['state' => 'running', 'pid' => '555', 'priority' => '']);
         $this->redis->zAdd($this->key('idx.running'), 1, $uuid);
 
@@ -375,9 +375,9 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_retry_by_uuid_and_retry_all_restore_failed_jobs_to_pending(): void
     {
-        $one = $this->newUuid();
-        $two = $this->newUuid();
-        $three = $this->newUuid();
+        $one = $this->new_uuid();
+        $two = $this->new_uuid();
+        $three = $this->new_uuid();
         foreach ([$one, $two, $three] as $uuid) {
             $this->putRegistry($uuid, ['state' => 'failed', 'attempts' => '3', 'exception' => '{"message":"boom"}']);
             $this->redis->zAdd($this->key('idx.failed'), 1, $uuid);
@@ -399,7 +399,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
 
     public function test_push_telemetry_deduplicates_batches_applies_ttl_and_loads_events(): void
     {
-        $uuid = $this->newUuid();
+        $uuid = $this->new_uuid();
         $telemetryJobs = $this->prefix . 'telemetry.jobs';
         $batchKey = $this->prefix . 'telemetry.batch.batch-a';
         $eventOne = \json_encode(['event_type_id' => 1, 'created_at' => \time(), 'message' => 'one'], JSON_THROW_ON_ERROR);
@@ -415,7 +415,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $events = $this->evalLua('load_events', [$telemetryJobs], [$uuid, $this->prefix]);
         $this->assertSame('batch-a', $events[0][0]);
         $this->assertSame([$eventOne, $eventTwo], $events[0][1]);
-        $this->assertSame([], $this->evalLua('load_events', [$telemetryJobs], [$this->newUuid(), $this->prefix]));
+        $this->assertSame([], $this->evalLua('load_events', [$telemetryJobs], [$this->new_uuid(), $this->prefix]));
     }
 
     private function evalLua(string $script, array $keys, array $argv): mixed
@@ -448,7 +448,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $payload = \json_encode([
             'handler' => 'Tests\\Engine\\Queue\\QueueCliFakeManager@retry',
             'data' => [],
-            'uuid_batch' => $this->newUuid(),
+            'uuid_batch' => $this->new_uuid(),
         ], JSON_THROW_ON_ERROR);
 
         $result = $this->evalLua(
@@ -506,7 +506,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
             'payload' => \json_encode([
                 'handler' => 'Tests\\Engine\\Queue\\QueueCliFakeManager@retry',
                 'data' => [],
-                'uuid_batch' => $this->newUuid(),
+                'uuid_batch' => $this->new_uuid(),
             ], JSON_THROW_ON_ERROR),
         ], $overrides);
 

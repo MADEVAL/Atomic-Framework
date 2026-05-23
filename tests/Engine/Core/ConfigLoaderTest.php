@@ -4,9 +4,12 @@ declare(strict_types=1);
 namespace Tests\Engine\Core;
 
 use Engine\Atomic\Auth\ConfigUserStore;
+use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Core\Config\ConfigLoader;
 use Engine\Atomic\Core\Config\PhpConfigLoader;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
+use Tests\Support\TempPath;
 
 class ConfigLoaderTest extends TestCase
 {
@@ -26,6 +29,12 @@ class ConfigLoaderTest extends TestCase
         if (file_exists($this->env_file)) {
             @unlink($this->env_file);
         }
+
+        $this->f3->set('CACHE', false);
+        $this->f3->clear('CACHE_CONFIG');
+        ReflectionHelper::set(CacheManager::instance(), 'hive', []);
+        ReflectionHelper::set(CacheManager::instance(), 'store', null);
+        TempPath::remove(ATOMIC_DIR . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'atomic-cache');
     }
 
     public function test_parse_env_basic(): void
@@ -183,6 +192,73 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame('secret', $redis['password']);
         $this->assertSame(2, $redis['db']);
         $this->assertSame('atomic.redis.', $redis['prefix']);
+    }
+
+    public function test_load_enables_f3_cache_bridge_for_folder_cache(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'CACHE_DRIVER=folder',
+            'CACHE_PATH=tmp/cache/',
+            'CACHE_PREFIX=atomic.cache.',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame(CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL, $this->f3->get('CACHE'));
+        $this->assertSame([
+            'default' => 'folder',
+            'path' => ATOMIC_DIR . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR,
+            'prefix' => 'atomic.cache.',
+        ], $this->f3->get('CACHE_CONFIG'));
+    }
+
+    public function test_load_enables_f3_cache_bridge_for_redis_cache(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'CACHE_DRIVER=redis',
+            'CACHE_PREFIX=atomic.cache.',
+            'REDIS_HOST=10.0.0.1',
+            'REDIS_PORT=6380',
+            'REDIS_PASSWORD=secret',
+            'REDIS_DB=2',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame(CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL, $this->f3->get('CACHE'));
+        $cache_config = $this->f3->get('CACHE_CONFIG');
+        $this->assertIsArray($cache_config);
+        $this->assertSame('redis', $cache_config['default']);
+    }
+
+    public function test_load_enables_f3_cache_bridge_for_memcached_cache(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'CACHE_DRIVER=memcached',
+            'MEMCACHED_HOST=10.0.0.2',
+            'MEMCACHED_PORT=11212',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame(CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL, $this->f3->get('CACHE'));
+        $cache_config = $this->f3->get('CACHE_CONFIG');
+        $this->assertIsArray($cache_config);
+        $this->assertSame('memcached', $cache_config['default']);
+    }
+
+    public function test_load_enables_f3_cache_bridge_for_db_cache(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'CACHE_DRIVER=db',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame(CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL, $this->f3->get('CACHE'));
+        $cache_config = $this->f3->get('CACHE_CONFIG');
+        $this->assertIsArray($cache_config);
+        $this->assertSame('db', $cache_config['default']);
     }
 
     public function test_load_sets_mail_config(): void

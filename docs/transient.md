@@ -1,8 +1,9 @@
-## Transient ##
+## Transient
 
-Atomic transients are temporary cached values backed by the configured cache layer.
+Atomic transients are temporary cached values stored through Atomic cache
+adapters. They are intended for short-lived data and always require a TTL.
 
-Helpers:
+### Helpers
 
 ```php
 set_transient('my_api_results', $data, 3600);
@@ -23,7 +24,12 @@ The `Transient` class supports:
 
 - `redis`
 - `memcached`
-- `database`
+- `db`
+- `folder`
+
+The `db` driver stores payloads in the `options` table and requires a
+configured database connection. The `folder` driver uses
+`CACHE_CONFIG.path` as its root directory.
 
 Explicit driver selection:
 
@@ -33,12 +39,22 @@ $stats = get_transient('stats', 'redis');
 delete_transient('stats', 'redis');
 ```
 
+### Default driver selection
+
+When no driver is passed, `Transient` uses `CacheManager::store()`. That
+respects `CACHE_CONFIG.default` when it is a supported driver; otherwise it
+cascades through Redis, Memcached, then folder. The DB driver is only used
+when explicitly configured or when passed into a transient call.
+
 ### Important behavior
 
-- TTL is required and must be greater than `0`
-- `set_transient()` throws `InvalidArgumentException` for non-positive TTL
-- when no driver is passed, Atomic uses `CacheManager::cascade()`
-- `delete_all_transients()` can clear a single driver or all supported drivers
+- TTL is required and must be greater than `0`.
+- `set_transient()` throws `InvalidArgumentException` for non-positive TTL.
+- `get_transient()` returns `false` for missing or expired keys.
+- `delete_all_transients()` uses adapter `reset()` and returns `true` when
+    any driver reset succeeds.
+- Transients use Atomic cache adapters, not Fat-Free's `\Cache` payload
+    format.
 
 ### Class usage
 

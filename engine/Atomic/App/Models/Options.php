@@ -132,4 +132,10 @@ class Options extends Storage
         return parent::_delete_like($uuid, $key_pattern);
     }
 
+    public static function delete_expired_option_like(string $key_pattern): bool {
+        $atomic = App::instance();
+        $uuid = $atomic->get('APP_UUID');
+        return parent::_delete_expired_like($uuid, $key_pattern);
+    }
+
 }

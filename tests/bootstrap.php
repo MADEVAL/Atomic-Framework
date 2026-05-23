@@ -5,8 +5,8 @@ declare(strict_types=1);
  * PHPUnit Bootstrap for Atomic Framework
  */
 
-$frameworkRoot = realpath(__DIR__ . '/..');
-if ($frameworkRoot === false) {
+$framework_root = realpath(__DIR__ . '/..');
+if ($framework_root === false) {
     throw new RuntimeException('Cannot resolve framework root from tests/bootstrap.php');
 }
 
@@ -15,7 +15,8 @@ defined('ATOMIC_START') || define('ATOMIC_START', microtime(true));
 defined('ATOMIC_VERSION') || define('ATOMIC_VERSION', '0.1.0-test');
 defined('ATOMIC_NAME') || define('ATOMIC_NAME', 'Atomic Framework');
 
-defined('ATOMIC_DIR') || define('ATOMIC_DIR', $frameworkRoot);
+defined('ATOMIC_DIR') || define('ATOMIC_DIR', $framework_root);
+defined('ATOMIC_ROOT') || define('ATOMIC_ROOT', ATOMIC_DIR);
 defined('ATOMIC_ENV') || define('ATOMIC_ENV', ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env');
 defined('ATOMIC_APP_ROUTES') || define('ATOMIC_APP_ROUTES', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR);
 defined('ATOMIC_CONFIG') || define('ATOMIC_CONFIG', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR);
@@ -34,62 +35,32 @@ require_once ATOMIC_SUPPORT . 'helpers.php';
 $atomic = \Base::instance();
 
 // Ensure LOGS / TEMP dirs exist before config (ConfigLoader may reference them)
-$logsDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_logs' . DIRECTORY_SEPARATOR;
-$tempDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_temp' . DIRECTORY_SEPARATOR;
-if (!is_dir($logsDir)) { @mkdir($logsDir, 0777, true); }
-if (!is_dir($tempDir)) { @mkdir($tempDir, 0777, true); }
-$atomic->set('LOGS', $logsDir);
-$atomic->set('TEMP', $tempDir);
-$atomic->set('REDIS', [
-    'host' => getenv('REDIS_HOST') ?: '127.0.0.1',
-    'port' => (int) (getenv('REDIS_PORT') ?: 6379),
-    'password' => (string) (getenv('REDIS_PASSWORD') ?: ''),
-    'db' => (int) (getenv('REDIS_DB') ?: 0),
-    'prefix' => getenv('REDIS_PREFIX') ?: 'atomic_test:',
-]);
-$atomic->set('MEMCACHED', [
-    'host' => getenv('MEMCACHED_HOST') ?: '127.0.0.1',
-    'port' => (int) (getenv('MEMCACHED_PORT') ?: 11211),
-    'prefix' => getenv('MEMCACHED_PREFIX') ?: 'atomic_test:',
-]);
-$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
-$dbPort = getenv('DB_PORT') ?: '3306';
-$dbName = getenv('DB_DB') ?: 'atomic_test';
-$dbUser = getenv('DB_USERNAME') ?: 'atomic_test_user';
-$dbPassword = getenv('DB_PASSWORD') ?: 'atomic_test_pass';
-$dbCharset = getenv('DB_CHARSET') ?: 'utf8mb4';
-$dbCollation = getenv('DB_COLLATION') ?: 'utf8mb4_general_ci';
-$dbPrefix = getenv('DB_PREFIX') ?: 'atomic_';
+$logs_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_logs' . DIRECTORY_SEPARATOR;
+$temp_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_temp' . DIRECTORY_SEPARATOR;
+if (!is_dir($logs_dir)) { @mkdir($logs_dir, 0777, true); }
+if (!is_dir($temp_dir)) { @mkdir($temp_dir, 0777, true); }
+$atomic->set('LOGS', $logs_dir);
+$atomic->set('TEMP', $temp_dir);
 
-$atomic->set('DB_CONFIG', [
-    'driver' => getenv('DB_DRIVER') ?: 'mysql',
-    'host' => $dbHost,
-    'port' => $dbPort,
-    'db' => $dbName,
-    'username' => $dbUser,
-    'password' => $dbPassword,
-    'unix_socket' => '',
-    'charset' => $dbCharset,
-    'collation' => $dbCollation,
-    'prefix' => $dbPrefix,
-]);
-
-Engine\Atomic\Core\App::instance($atomic);
+Tests\Support\TestConfig::apply($atomic, ['app_uuid' => false]);
+$db_config = $atomic->get('DB_CONFIG');
+$db_host = $db_config['host'];
+$db_port = $db_config['port'];
+$db_name = $db_config['db'];
+$db_user = $db_config['username'];
+$db_password = $db_config['password'];
+$db_charset = $db_config['charset'];
+$db_collation = $db_config['collation'];
+$db_prefix = $db_config['prefix'];
 
 if (extension_loaded('pdo_mysql')) {
     try {
-        $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $dbHost, $dbPort, $dbName, $dbCharset);
-        $options = [];
-        if (defined('Pdo\\Mysql::ATTR_INIT_COMMAND')) {
-            $options[Pdo\Mysql::ATTR_INIT_COMMAND] = "SET NAMES '{$dbCharset}' COLLATE '{$dbCollation}'";
-        }
-
-        $db = new \DB\SQL($dsn, $dbUser, $dbPassword, $options);
+        $db = Tests\Support\TestConfig::open_configured_db($atomic);
         $atomic->set('DB', $db);
 
-        $quotedPrefix = str_replace('`', '``', $dbPrefix);
+        $quoted_prefix = str_replace('`', '``', $db_prefix);
         $db->exec("
-            CREATE TABLE IF NOT EXISTS `{$quotedPrefix}meta` (
+            CREATE TABLE IF NOT EXISTS `{$quoted_prefix}meta` (
                 `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 `uuid` VARCHAR(128) NOT NULL,
                 `key` VARCHAR(128) NOT NULL,
@@ -97,10 +68,10 @@ if (extension_loaded('pdo_mysql')) {
                 `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
                 `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET={$dbCharset} COLLATE={$dbCollation}
+            ) ENGINE=InnoDB DEFAULT CHARSET={$db_charset} COLLATE={$db_collation}
         ");
         $db->exec("
-            CREATE TABLE IF NOT EXISTS `{$quotedPrefix}options` (
+            CREATE TABLE IF NOT EXISTS `{$quoted_prefix}options` (
                 `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 `uuid` VARCHAR(128) NOT NULL,
                 `key` VARCHAR(128) NOT NULL,
@@ -109,7 +80,7 @@ if (extension_loaded('pdo_mysql')) {
                 `expired_at` DATETIME NULL,
                 `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET={$dbCharset} COLLATE={$dbCollation}
+            ) ENGINE=InnoDB DEFAULT CHARSET={$db_charset} COLLATE={$db_collation}
         ");
     } catch (Throwable) {
         // DB-backed tests decide whether to skip when MySQL is unavailable.

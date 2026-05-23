@@ -8,6 +8,7 @@ use Engine\Atomic\Queue\Exceptions\JobCancelledException;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Worker\Worker;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\Wait;
 
 final class WorkerTest extends TestCase
 {
@@ -252,7 +253,7 @@ final class WorkerTest extends TestCase
                 exit(0);
             });
             while (true) {
-                \usleep(50000);
+                \usleep(50_000);
             }
         }
 
@@ -339,7 +340,7 @@ final class WorkerTest extends TestCase
         }
 
         @\posix_kill($pid, SIGTERM);
-        \usleep(100000);
+        Wait::until(fn (): bool => !@\posix_kill($pid, 0), 1, 20_000);
         if (@\posix_kill($pid, 0)) {
             @\posix_kill($pid, SIGKILL);
         }

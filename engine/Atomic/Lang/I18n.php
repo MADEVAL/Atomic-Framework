@@ -5,10 +5,11 @@ namespace Engine\Atomic\Lang;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
+use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\Traits\Singleton;
-use Engine\Atomic\Enums\I18nDomain;
 use Engine\Atomic\Theme\Theme;
 
 final class I18n
@@ -27,6 +28,7 @@ final class I18n
 
     private array $domains = [];
     private array $pluralRules = [];
+    private ?CacheStoreInterface $cache = null;
 
     private function __construct()
     {
@@ -204,11 +206,11 @@ final class I18n
             return $this->domains[$k];
         }
 
-        $cache = \Cache::instance();
         $theme = Theme::instance()->get_theme_name(); 
         $hash  = $this->app->hash('i18n|'.$theme.'|'.$domain.'|'.$lang);
 
-        if (($this->ttl > 0) && $cache->exists($hash, $lex)) {
+        $cache = $this->cache();
+        if (($this->ttl > 0) && $cache !== null && $cache->exists($hash, $lex)) {
             return $this->domains[$k] = (array)$lex;
         }
 
@@ -243,8 +245,22 @@ final class I18n
             $dict = array_replace_recursive($dict, $dict[$domain]);
         }
 
-        if ($this->ttl) $cache->set($hash, $dict, $this->ttl);
+        if ($this->ttl && $cache !== null) $cache->set($hash, $dict, $this->ttl);
         return $this->domains[$k] = $dict;
+    }
+
+    private function cache(): ?CacheStoreInterface
+    {
+        if ($this->cache !== null) {
+            return $this->cache;
+        }
+
+        try {
+            return $this->cache = CacheManager::instance()->store();
+        } catch (\Throwable $e) {
+            Log::warning('I18n cache unavailable: ' . $e->getMessage());
+            return null;
+        }
     }
 
     private function candidate_files(string $base, string $domain, string $lang): array

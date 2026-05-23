@@ -1,52 +1,42 @@
 <?php
 declare(strict_types=1);
-namespace Engine\Atomic\Session\Redis;
+namespace Engine\Atomic\Session\Drivers;
 
 if (!defined('ATOMIC_START')) exit;
 
-use ReturnTypeWillChange;
 use SessionAdapter;
 use SessionHandlerInterface;
+use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Log;
 
-class Session implements SessionHandlerInterface
+class Redis implements SessionHandlerInterface
 {
     private const REVOKED_KEY_PREFIX = ':revoked:';
 
-    protected
-        //! Session ID
-        $sid,
-        //! Anti-CSRF token
-        $_csrf,
-        //! User agent
-        $_agent,
-        //! IP
-        $_ip,
-        //! Suspect callback
-        $onsuspect,
-        // ! Redis key prefix
-        $prefix,
-        //! Session TTL (max lifetime)
-        $ttl,
-        //! Connection Manager
-        $connection_manager,
-        //! Cached session data
-        $data = [];
+    private ?string $sid = null;
+    private string $_csrf;
+    private string $_agent;
+    private string $_ip;
+    /** @var callable|null */
+    private mixed $onsuspect;
+    private string $prefix;
+    private int $ttl;
+    private ConnectionManager $connection_manager;
+    private array $data = [];
 
-    function open(string $path, string $name): bool {
+    public function open(string $path, string $name): bool {
         return true;
     }
 
-    function close(): bool
+    public function close(): bool
     {
         $this->data = [];
         $this->sid = null;
         return true;
     }
 
-    #[ReturnTypeWillChange]
-    function read(string $id): string|false
+    public function read(string $id): string|false
     {
         $this->sid = $id;
         $redis = $this->connection_manager->get_redis(true);
@@ -59,7 +49,13 @@ class Session implements SessionHandlerInterface
                 return '';
             }
             
-            $this->data = \json_decode($result, true) ?: [];
+            $decoded = \json_decode($result, true);
+            if (!\is_array($decoded)) {
+                $this->data = [];
+                return '';
+            }
+
+            $this->data = $decoded;
             
             $stored_ip = $this->data['ip'] ?? '';
             $stored_agent = $this->data['agent'] ?? '';
@@ -83,7 +79,7 @@ class Session implements SessionHandlerInterface
         }
     }
 
-    function write(string $id, string $data): bool
+    public function write(string $id, string $data): bool
     {
         $redis = $this->connection_manager->get_redis(true);
         
@@ -112,7 +108,7 @@ class Session implements SessionHandlerInterface
         }
     }
 
-    function destroy($id): bool
+    public function destroy(string $id): bool
     {
         $redis = $this->connection_manager->get_redis(true);
         try {
@@ -125,47 +121,46 @@ class Session implements SessionHandlerInterface
         }
     }
 
-    #[ReturnTypeWillChange]
-    function gc(int $max_lifetime): int {
+    public function gc(int $max_lifetime): int|false {
         return 0;
     }
 
-    function sid(): ?string {
+    public function sid(): ?string {
         return $this->sid;
     }
 
-    function csrf(): string {
+    protected function csrf(): string {
         return $this->_csrf;
     }
 
-    function ip(): string {
+    public function ip(): string {
         return $this->_ip;
     }
 
-    function stamp() {
+    protected function stamp(): int|false {
         if (!$this->sid) {
             \session_start();
         }
-        return empty($this->data) ? false : ($this->data['stamp'] ?? false);
+        return empty($this->data) || !isset($this->data['stamp']) ? false : (int)$this->data['stamp'];
     }
 
-    function agent(): string {
+    public function agent(): string {
         return $this->_agent;
     }
 
-    function dry(): bool {
+    protected function dry(): bool {
         return empty($this->data);
     }
 
-    function get(string $key): mixed {
+    protected function get(string $key): mixed {
         return $this->data[$key] ?? null;
     }
 
-    function set(string $key, $val): void {
+    protected function set(string $key, string $val): void {
         $this->data[$key] = $val;
     }
 
-    function reset(): void {
+    protected function reset(): void {
         $this->data = [];
     }
 
@@ -176,18 +171,16 @@ class Session implements SessionHandlerInterface
 
     /**
      * Instantiate class
-     * @param string $prefix Redis key prefix for sessions
-     * @param int $ttl Session TTL in seconds (0 = use session.gc_maxlifetime)
      * @param callable|null $onsuspect Callback for suspicious sessions
      * @param string|null $key Hive key to store CSRF token
      */
-    function __construct(
-        string $prefix,
-        int $ttl,
+    public function __construct(
         ?callable $onsuspect = null,
         ?string $key = null
     ) {
-        $this->prefix = $prefix;
+        $atomic = App::instance();
+        $ttl = (int)$atomic->get('SESSION_CONFIG.lifetime');
+        $this->prefix = (string)$atomic->get('REDIS.prefix');
         $this->ttl = $ttl ?: (int)\ini_get('session.gc_maxlifetime') ?: 1440;
         $this->onsuspect = $onsuspect;
         $this->connection_manager = ConnectionManager::instance();
@@ -213,7 +206,10 @@ class Session implements SessionHandlerInterface
         );
         if ($key)
             $fw->$key = $this->_csrf;
-        $this->_agent = isset($headers['User-Agent']) ? $headers['User-Agent'] : '';
-        $this->_ip = $fw->IP;
+        $this->_agent = isset($headers['User-Agent']) ? (string)$headers['User-Agent'] : '';
+        if (\strlen($this->_agent) > 512) {
+            $this->_agent = \substr($this->_agent, 0, 512);
+        }
+        $this->_ip = (string)$fw->IP;
     }
 }

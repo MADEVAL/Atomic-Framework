@@ -6,8 +6,4 @@ return [
     'default'  => 'folder',
     'path'     => 'storage/framework/cache/',
     'prefix'   => 'atomic.',
-    'server'   => 'localhost',
-    'port'     => '',
-    'password' => '',
-    'login'    => '',
 ];

@@ -42,6 +42,7 @@ Atomic is organized into modules such as:
 - `atomic_methods.md`
 - `atomic_pdf.md`
 - `atomic_xls.md`
+- `cache.md`
 - `cli.md`
 - `config.md`
 - `database.md`

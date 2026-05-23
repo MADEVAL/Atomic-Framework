@@ -58,7 +58,11 @@ abstract class Storage extends Model
                 $storage->created_at = $now;
             }
             $storage->updated_at = $now;
-            if ($ttl > 0) $storage->expired_at = date('Y-m-d H:i:s', time() + $ttl);
+            if ($ttl > 0) {
+                $storage->expired_at = date('Y-m-d H:i:s', time() + $ttl);
+            } elseif (array_key_exists('expired_at', $storage->get_field_conf())) {
+                $storage->expired_at = null;
+            }
             $storage->value = $value;
             $result = $storage->save();
             return $result !== false;
@@ -154,6 +158,26 @@ abstract class Storage extends Model
             return $storage->erase(['uuid = ? AND key LIKE ?', $uuid, $key_pattern]);
         } catch (\Throwable $e) {
             Log::error('Error in delete_like: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    protected static function _delete_expired_like(string $uuid, string $key_pattern): bool
+    {
+        if (!ID::is_valid_uuid_v4($uuid)) {
+            Log::error('Invalid UUID v4 provided to _delete_expired_like: ' . $uuid);
+            return false;
+        }
+        try {
+            $storage = new static();
+            return $storage->erase([
+                'uuid = ? AND key LIKE ? AND expired_at IS NOT NULL AND expired_at <= ?',
+                $uuid,
+                $key_pattern,
+                date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Error in delete_expired_like: ' . $e->getMessage());
             return false;
         }
     }

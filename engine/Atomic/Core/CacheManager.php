@@ -4,150 +4,119 @@ namespace Engine\Atomic\Core;
 
 if (!defined('ATOMIC_START')) exit;
 
-use Engine\Atomic\Cache\DB;
-use Engine\Atomic\Cache\Memcached;
+use Engine\Atomic\Cache\Drivers\DB;
+use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
+use Engine\Atomic\Cache\Drivers\Folder;
+use Engine\Atomic\Cache\Drivers\Memcached;
+use Engine\Atomic\Cache\Drivers\Redis as RedisCache;
 
 class CacheManager extends \Prefab
 {
-    private const DRIVER_PRIORITY = ['redis', 'memcached', 'db'];
+    public const FAT_FREE_CACHE_BRIDGE_SENTINEL = 'atomic';
+
+    private const DRIVER_REDIS = 'redis';
+    private const DRIVER_MEMCACHED = 'memcached';
+    private const DRIVER_FOLDER = 'folder';
+    private const DRIVER_DB = 'db';
+    private const SUPPORTED_DRIVERS = [
+        self::DRIVER_REDIS,
+        self::DRIVER_MEMCACHED,
+        self::DRIVER_FOLDER,
+        self::DRIVER_DB,
+    ];
+    private const DRIVER_PRIORITY = [
+        self::DRIVER_REDIS,
+        self::DRIVER_MEMCACHED,
+        self::DRIVER_FOLDER,
+    ];
+    
+    public static function supports_driver(string $driver): bool
+    {
+        return in_array(strtolower(trim($driver)), self::SUPPORTED_DRIVERS, true);
+    }
 
     protected array $hive = [];
+    protected ?CacheStoreInterface $store = null;
 
-    public function redis(array $config = []): \Cache 
+    public function redis(): RedisCache
     {
-        $use_shared_instance = empty($config);
-        if ($use_shared_instance && isset($this->hive['redis'])) {
-            return $this->hive['redis'];
+        if (isset($this->hive[self::DRIVER_REDIS])) {
+            return $this->hive[self::DRIVER_REDIS];
         }
 
-        if (!extension_loaded('redis')) {
+        if (!extension_loaded(self::DRIVER_REDIS)) {
             throw new \RuntimeException('The redis PHP extension is not loaded.');
         }
 
         $atomic = App::instance();
-        if (empty($config)) {
-            $redis_config = (array) $atomic->get('REDIS');
-            $config = [
-                'server' => (string) ($redis_config['host'] ?? '127.0.0.1'),
-                'port' => $redis_config['port'] ?? 6379,
-                'password' => (string) ($redis_config['password'] ?? ''),
-            ];
-        }
-        $dsn = "redis={$config['server']}:{$config['port']}";
-        $login = trim((string)($config['login'] ?? ''));
-        $password = trim((string)$config['password']);
-        if (strtolower($login) === 'null') {
-            $login = '';
-        }
-        if (strtolower($password) === 'null') {
-            $password = '';
-        }
-        if ($login !== '' && $password !== '') {
-            $dsn .= "?auth={$login}:{$password}";
-        } elseif ($password !== '') {
-            $dsn .= "?auth={$password}";
-        }
         try {
-            $cache = new \Cache($dsn);
+            $redis = ConnectionManager::instance()->get_redis();
+            $namespace = (string)$atomic->get('REDIS.prefix');
+            $cache = new RedisCache($redis, $namespace);
         } catch (\Throwable $e) {
             throw new \RuntimeException('Redis cache unavailable: ' . $e->getMessage(), 0, $e);
         }
 
-        if ($use_shared_instance) {
-            $this->hive['redis'] = $cache;
-        }
+        $this->hive[self::DRIVER_REDIS] = $cache;
 
         return $cache;
     }
 
 
     public function db(): DB {
-        if (isset($this->hive['db'])) {
-            return $this->hive['db'];
+        if (isset($this->hive[self::DRIVER_DB])) {
+            return $this->hive[self::DRIVER_DB];
         }
-        $this->hive['db'] = DB::instance();
-        return $this->hive['db'];
+        $this->hive[self::DRIVER_DB] = new DB();
+        return $this->hive[self::DRIVER_DB];
     }
 
-    public function memcached(array $config = []): Memcached
+    public function folder(): Folder
     {
-        $use_shared_instance = empty($config);
-        if ($use_shared_instance && isset($this->hive['memcached'])) {
-            return $this->hive['memcached'];
+        if (isset($this->hive[self::DRIVER_FOLDER])) {
+            return $this->hive[self::DRIVER_FOLDER];
         }
 
-        if (!extension_loaded('memcached')) {
+        $config = $this->cache_config(App::instance());
+        $path = (string)($config['path'] ?? '');
+        $namespace = (string)($config['prefix'] ?? '');
+
+        $this->hive[self::DRIVER_FOLDER] = new Folder($path, $namespace);
+        return $this->hive[self::DRIVER_FOLDER];
+    }
+
+    public function memcached(): Memcached
+    {
+        if (isset($this->hive[self::DRIVER_MEMCACHED])) {
+            return $this->hive[self::DRIVER_MEMCACHED];
+        }
+
+        if (!extension_loaded(self::DRIVER_MEMCACHED)) {
             throw new \RuntimeException('The memcached PHP extension is not loaded.');
         }
 
         $atomic = App::instance();
 
-        if (empty($config)) {
-            $mem_config = $atomic->get('MEMCACHED');
-            $config = [
-                'host' => $mem_config['host'],
-                'port' => (int) $mem_config['port'],
-            ];
-        }
-
-        $mc = new \Memcached();
-        $mc->addServer($config['host'], $config['port']);
-
-        $version = $mc->getVersion();
-        $reachable = is_array($version) && $version !== [];
-        if ($reachable) {
-            foreach ($version as $server_version) {
-                if ($server_version !== false && $server_version !== '') {
-                    $reachable = true;
-                    break;
-                }
-                $reachable = false;
-            }
-        }
-        if (!$reachable) {
-            throw new \RuntimeException('Memcached cache unavailable.');
+        try {
+            $mc = ConnectionManager::instance()->get_memcached();
+        } catch (\Throwable $e) {
+            throw new \RuntimeException('Memcached cache unavailable: ' . $e->getMessage(), 0, $e);
         }
 
         $namespace = (string)$atomic->get('MEMCACHED.prefix');
         $cache = new Memcached($mc, $namespace);
 
-        if ($use_shared_instance) {
-            $this->hive['memcached'] = $cache;
-        }
+        $this->hive[self::DRIVER_MEMCACHED] = $cache;
 
         return $cache;
     }
 
-    public function cascade(): \Cache|DB
+    public function cascade(): CacheStoreInterface
     {
-        foreach (self::DRIVER_PRIORITY as $driver) {
-            if (isset($this->hive[$driver])) {
-                return $this->hive[$driver];
-            }
-        }
-
-        foreach (self::DRIVER_PRIORITY as $driver) {
+        $drivers = $this->cascade_drivers();
+        foreach ($drivers as $driver) {
             try {
-                $cache = null;
-                $extension_required = null;
-
-                switch ($driver) {
-                    case 'redis':
-                        $extension_required = 'redis';
-                        if (extension_loaded($extension_required)) {
-                            $cache = $this->redis();
-                        }
-                        break;
-                    case 'memcached':
-                        $extension_required = 'memcached';
-                        if (extension_loaded($extension_required)) {
-                            $cache = $this->memcached();
-                        }
-                        break;
-                    case 'db':
-                        $cache = $this->db();
-                        break;
-                }
+                $cache = $this->driver($driver);
 
                 if ($cache !== null) {
                     $testKey = '_atomic_healthcheck';
@@ -162,6 +131,64 @@ class CacheManager extends \Prefab
             }
         }
 
-        return $this->db();
+        return $this->folder();
+    }
+
+    public function resolve(): CacheStoreInterface
+    {
+        return $this->store = $this->cascade();
+    }
+
+    public function store(): CacheStoreInterface
+    {
+        return $this->store ?? $this->resolve();
+    }
+
+    public function configured(): ?CacheStoreInterface
+    {
+        $driver = $this->configured_driver(App::instance());
+
+        return $driver !== null ? $this->driver($driver) : null;
+    }
+
+    protected function driver(string $driver): ?CacheStoreInterface
+    {
+        return match ($driver) {
+            self::DRIVER_REDIS => extension_loaded(self::DRIVER_REDIS) ? $this->redis() : null,
+            self::DRIVER_MEMCACHED => extension_loaded(self::DRIVER_MEMCACHED) ? $this->memcached() : null,
+            self::DRIVER_FOLDER => $this->folder(),
+            self::DRIVER_DB => $this->db(),
+            default => null,
+        };
+    }
+
+    protected function cascade_drivers(): array
+    {
+        $configured = $this->configured_driver(App::instance());
+        $drivers = $configured !== null ? [$configured] : [];
+
+        foreach (self::DRIVER_PRIORITY as $driver) {
+            if (!in_array($driver, $drivers, true)) {
+                $drivers[] = $driver;
+            }
+        }
+
+        return $drivers;
+    }
+
+    private function configured_driver(object $atomic): ?string
+    {
+        $config = $this->cache_config($atomic);
+        $raw_driver = $config['default'] ?? null;
+        $driver = is_scalar($raw_driver) ? strtolower(trim((string)$raw_driver)) : '';
+
+        return in_array($driver, self::SUPPORTED_DRIVERS, true) ? $driver : null;
+    }
+
+    private function cache_config(object $atomic): array
+    {
+        $config = $atomic->get('CACHE_CONFIG');
+
+        return is_array($config) ? $config : [];
     }
 }

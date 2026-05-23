@@ -55,7 +55,7 @@ Download the application skeleton for a quick start:
 | **Migrations** | Timestamp-based migration system with batch tracking, rollback support, and plugin migration auto-discovery |
 | **Queue** | Redis driver (Lua-scripted atomic ops) and Database driver (row-level locks) with retry, TTL, and monitoring |
 | **Scheduler** | Full POSIX cron expression parser, timezone-aware, timeout protection (300 s) |
-| **Cache** | Multi-driver: Redis, Memcached, database, filesystem - with cascade fallback and transient storage |
+| **Cache** | Stable Redis, Memcached, database, and folder (filesystem) drivers with cascade fallback, namespace-wide invalidation, and transient storage |
 | **Middleware** | Parameterized middleware stack with named aliases and route-pattern matching |
 | **Events & Hooks** | Hierarchical event dispatcher with priorities + WordPress-compatible action/filter layer |
 | **Mail** | SMTP mailer with multipart/alternative support, DNS deliverability scoring (SPF/DKIM/DMARC) |
@@ -123,7 +123,7 @@ php atomic init/key
 │   ├── API/                # REST API utilities
 │   ├── App/                # Base controller, model, plugin, storage
 │   ├── Auth/               # Authentication services, adapters, interfaces
-│   ├── Cache/              # Cache drivers (DB, Memcached)
+│   ├── Cache/              # Cache contract and drivers (Redis, Memcached, DB, Folder)
 │   ├── CLI/                # CLI commands and traits
 │   ├── Core/               # App kernel, config, crypto, routing, middleware, migrations
 │   ├── Enums/              # Backed enums (Currency, Language, Role, Rule)
@@ -495,17 +495,28 @@ $title = Hook::instance()->apply_filters('page_title', $rawTitle);
 
 ### Caching
 
-Multi-driver caching with cascade fallback:
+Multi-driver caching with cascade fallback. Redis, Memcached, folder, and database adapters share the same public behavior: exact-key `set`, `get`, `exists`, `clear`, namespace-wide `reset`, and per-instance generation refresh. Prefix deletion is intentionally not part of the shared cache contract because Memcached cannot provide it with the same guarantees.
+
+Atomic also installs a wrapper for Fat-Free Framework's own cache singleton. That keeps F3-native features such as route TTL caching, SQL/schema TTL caching, minify cache, and F3 lexicons working with the selected Atomic backend. The wrapper supports basic F3 cache operations and full reset; suffix-specific reset is not part of Atomic's cache contract. Application code should use `Transient` or `CacheManager` instead of calling `\Cache::instance()` directly. The two layers share the backend choice, not the key format.
 
 ```php
 use Engine\Atomic\Tools\Transient;
+use Engine\Atomic\Core\CacheManager;
 
 // Store a value with TTL
-Transient::instance()->set('stats', $data, ttl: 3600);
-$cached = Transient::instance()->get('stats');
+Transient::set('stats', $data, 3600);
+$cached = Transient::get('stats');
 
-// Cascade: tries Redis → Memcached → Database
+// Cache cascade: honors CACHE_CONFIG and falls back through Redis → Memcached → Folder
 $cache = CacheManager::instance()->cascade();
+$cache->set('stats', $data, 3600);
+$cache->clear('stats');
+
+// Long-running workers can refresh the cached generation after an external reset.
+$cache->flush_local_cache();
+
+// Transients use WordPress-like priority:
+// Redis → Memcached → DB → Folder
 ```
 
 ### Internationalization
@@ -577,6 +588,7 @@ Full documentation is available in the [`docs/`](docs/) directory:
 | Core Bootstrap | [atomic_core.md](docs/atomic_core.md) |
 | Configuration | [config.md](docs/config.md) |
 | Database | [database.md](docs/database.md) |
+| Cache and Storage | [cache.md](docs/cache.md) |
 | Migrations | [migrations.md](docs/migrations.md) |
 | Models | [model.md](docs/model.md) |
 | Middleware | [middleware.md](docs/middleware.md) |

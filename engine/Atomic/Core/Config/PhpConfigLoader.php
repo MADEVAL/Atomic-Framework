@@ -66,14 +66,11 @@ class PhpConfigLoader {
 
         // ── Cache string (mirrors ConfigLoader) ──
         $cache_driver = strtolower((string)$this->cfg('cache', 'default', 'false'));
-        $is_redis     = ($cache_driver === 'redis');
         $cache_prefix = (string)$this->cfg('cache', 'prefix', 'atomic.');
         $db_port        = (string)($conn['port'] ?? '3306');
         $redis_port     = (string)($redis['port'] ?? '6379');
         $memcached_port = (string)($memc['port'] ?? '11211');
-        $cache_port     = (string)$this->cfg('cache', 'port', $is_redis ? $redis_port : $memcached_port);
         $ports = [
-            'cache'     => $cache_port,
             'db'        => $db_port,
             'redis'     => $redis_port,
             'memcached' => $memcached_port,
@@ -83,16 +80,21 @@ class PhpConfigLoader {
 
         $ws_host = (string)($ws['host'] ?? '0.0.0.0');
         $ws_client_host = (string)($ws['client_host'] ?? '127.0.0.1');
-
-        $cache_string = $this->build_cache_string(
-            $cache_driver,
-            $this->fix_path((string)$this->cfg('cache', 'path', 'storage/framework/cache/')),
-            (string)$this->cfg('cache', 'server', $is_redis ? '127.0.0.1' : 'localhost'),
-            $ports['cache'],
-            (string)$this->cfg('cache', 'password', ''),
-            (string)$this->cfg('cache', 'login',    '')
-        );
-
+        $cache_path = $this->fix_path((string)$this->cfg('cache', 'path', 'storage/framework/cache/'));
+        $redis_config = [
+            'host'                        => (string)($redis['host'] ?? '127.0.0.1'),
+            'port'                        => $ports['redis'],
+            'password'                    => (string)($redis['password'] ?? ''),
+            'db'                          => (int)($redis['db'] ?? 0),
+            'prefix'                      => $redis_prefix,
+        ];
+        $memcached_config = [
+            'port'     => $ports['memcached'],
+            'host'     => (string)($memc['host'] ?? '127.0.0.1'),
+            'username' => (string)($memc['username'] ?? ''),
+            'password' => (string)($memc['password'] ?? ''),
+            'prefix'   => $memcached_prefix,
+        ];
         // ── Paths ──
         $paths  = $this->cfg('app', 'paths', []);
         $ui_path = $paths['ui'] ?? 'public/themes/';
@@ -101,7 +103,11 @@ class PhpConfigLoader {
         $settings = [
             'APP_UUID'              => (string)$this->cfg('app', 'uuid', ''),
             'APP_ENCRYPTION_KEY'    => (string)$this->cfg('app', 'encryption_key', ''),
-            'CACHE'                 => $cache_string,
+            'CACHE_CONFIG'          => [
+                'default' => $cache_driver,
+                'path'    => $cache_path,
+                'prefix'  => $cache_prefix,
+            ],
             'CACHE_PREFIX'          => $cache_prefix,
             'DOMAIN'                => (string)$this->cfg('app', 'domain', ''),
             'LANGUAGE'              => (string)$this->cfg('app', 'language', 'en'),
@@ -163,22 +169,10 @@ class PhpConfigLoader {
         ]);
 
         // ── REDIS ──
-        $this->atomic->set('REDIS', [
-            'host'                        => (string)($redis['host'] ?? '127.0.0.1'),
-            'port'                        => $ports['redis'],
-            'password'                    => (string)($redis['password'] ?? ''),
-            'db'                          => (int)($redis['db'] ?? 0),
-            'prefix'                      => $redis_prefix,
-        ]);
+        $this->atomic->set('REDIS', $redis_config);
 
         // ── MEMCACHED ──
-        $this->atomic->set('MEMCACHED', [
-            'port'     => $ports['memcached'],
-            'host'     => (string)($memc['host'] ?? '127.0.0.1'),
-            'username' => (string)($memc['username'] ?? ''),
-            'password' => (string)($memc['password'] ?? ''),
-            'prefix'   => $memcached_prefix,
-        ]);
+        $this->atomic->set('MEMCACHED', $memcached_config);
 
         // ── MUTEX ──
         $mutex = $this->cfg('database', 'mutex', []);

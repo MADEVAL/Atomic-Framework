@@ -15,7 +15,7 @@ final class QueueTelemetryBadPathTest extends QueueDbTestCase
     {
         $telemetry = new TelemetryManager();
 
-        $this->assertSame([], $telemetry->fetch_events('missing', 'queue', $this->newUuid()));
+        $this->assertSame([], $telemetry->fetch_events('missing', 'queue', $this->new_uuid()));
     }
 
     public function test_entry_struct_preserves_null_event_type_message_and_ttl(): void

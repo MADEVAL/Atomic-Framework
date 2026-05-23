@@ -5,6 +5,7 @@ namespace Tests\Engine\Mutex;
 
 use Engine\Atomic\Mutex\FileMutexDriver;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\Wait;
 
 class FileMutexDriverTest extends TestCase
 {
@@ -92,8 +93,7 @@ class FileMutexDriverTest extends TestCase
         $token2 = bin2hex(random_bytes(16));
 
         $this->driver->acquire($name, $token1, 1);
-        sleep(2);
-        $this->assertTrue($this->driver->acquire($name, $token2, 60));
+        $this->assertTrue(Wait::until(fn (): bool => $this->driver->acquire($name, $token2, 60), 4));
 
         $this->driver->release($name, $token2);
     }

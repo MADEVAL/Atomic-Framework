@@ -4,44 +4,21 @@ namespace Engine\Atomic\Core\Config;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Cache\FatFreeCacheBridge;
+use Engine\Atomic\Core\CacheManager;
+
 trait ConfigHiveTrait
 {
-    protected function build_cache_string(
-        string $driver,
-        string $folder_path = '',
-        string $server     = '',
-        string $port       = '',
-        string $password   = '',
-        string $login      = ''
-    ): string|false {
-        switch ($driver) {
-            case 'folder':
-                return "folder={$folder_path}";
-
-            case 'memcache':
-            case 'memcached':
-                return "memcache={$server}:{$port}";
-
-            case 'redis':
-                $cs = "redis={$server}:{$port}";
-                if ($login !== '' && $password !== '') {
-                    $cs .= "?auth={$login}:{$password}";
-                } elseif ($password !== '') {
-                    $cs .= "?auth={$password}";
-                }
-                return $cs;
-
-            case 'apc':      return 'apc';
-            case 'xcache':   return 'xcache';
-            case 'wincache': return 'wincache';
-
-            default:
-                return false;
-        }
+    protected function build_f3_cache_setting(array $cache_config): string|false
+    {
+        $driver = strtolower(trim((string)($cache_config['default'] ?? 'false')));
+        return CacheManager::supports_driver($driver) ? CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL : false;
     }
-    
+
     protected function apply_settings_to_hive(\Base $atomic, array $settings): void
     {
+        $cache_bridge = FatFreeCacheBridge::install();
+
         foreach ($settings as $key => $value) {
             if ($key === 'TZ' && $value) {
                 @date_default_timezone_set($value);
@@ -50,6 +27,13 @@ trait ConfigHiveTrait
                 $atomic->set($key, $value);
             }
         }
+
+        $cache_config = $settings['CACHE_CONFIG'] ?? $atomic->get('CACHE_CONFIG');
+        $f3_cache = $this->build_f3_cache_setting(is_array($cache_config) ? $cache_config : []);
+        $atomic->set('CACHE', $f3_cache);
+        CacheManager::instance()->resolve();
+        $cache_bridge->load($f3_cache);
+
         $this->sync_domain_to_hive($atomic, $settings);
     }
 

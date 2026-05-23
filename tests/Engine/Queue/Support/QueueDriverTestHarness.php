@@ -6,12 +6,13 @@ namespace Tests\Engine\Queue\Support;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Queue\Managers\Manager;
+use Tests\Support\TestConfig;
 
 trait QueueDriverTestHarness
 {
     private array $queue_original_state = [];
 
-    protected function backupQueueState(): void
+    protected function backup_queue_state(): void
     {
         $atomic = App::instance();
         $this->queue_original_state = [
@@ -24,7 +25,7 @@ trait QueueDriverTestHarness
         ];
     }
 
-    protected function restoreQueueState(): void
+    protected function restore_queue_state(): void
     {
         ConnectionManager::instance()->close();
         $atomic = App::instance();
@@ -33,7 +34,7 @@ trait QueueDriverTestHarness
         }
     }
 
-    protected function configureQueue(string $driver, string $queue, array $overrides = []): void
+    protected function configure_queue(string $driver, string $queue, array $overrides = []): void
     {
         $defaults = [
             'delay' => 0,
@@ -53,12 +54,12 @@ trait QueueDriverTestHarness
         ]);
     }
 
-    protected function newQueueName(): string
+    protected function new_queue_name(): string
     {
         return 'queue_test_' . \bin2hex(\random_bytes(4));
     }
 
-    protected function newUuid(): string
+    protected function new_uuid(): string
     {
         return \sprintf(
             '%04x%04x-%04x-4%03x-%04x-%04x%04x%04x',
@@ -73,23 +74,23 @@ trait QueueDriverTestHarness
         );
     }
 
-    protected function managerDriver(Manager $manager): object
+    protected function manager_driver(Manager $manager): object
     {
         $property = new \ReflectionProperty($manager, 'driver');
         return $property->getValue($manager);
     }
 
-    protected function connectRedisOrSkip(): array
+    protected function connect_redis_or_skip(): array
     {
         if (!\class_exists(\Redis::class)) {
             $this->markTestSkipped('ext-redis not loaded - queue Redis driver tests cannot run.');
         }
 
-        $cfg = App::instance()->get('REDIS') ?? [];
-        $host = $this->requiredRedisConfigValue($cfg, 'host');
-        $port = (int)$this->requiredRedisConfigValue($cfg, 'port');
-        $password = $this->redisConfigValue($cfg, 'password');
-        $db = (int)$this->requiredRedisConfigValue($cfg, 'db');
+        $cfg = TestConfig::redis((array)(App::instance()->get('REDIS') ?? []));
+        $host = $this->required_redis_config_value($cfg, 'host');
+        $port = (int)$this->required_redis_config_value($cfg, 'port');
+        $password = $this->redis_config_value($cfg, 'password');
+        $db = (int)$this->required_redis_config_value($cfg, 'db');
         try {
             $redis = new \Redis();
             if ($redis->connect($host, $port, 0.5)) {
@@ -105,27 +106,27 @@ trait QueueDriverTestHarness
         $this->markTestSkipped('Redis server unavailable - queue Redis driver tests cannot run.');
     }
 
-    protected function configureRedisForQueue(\Redis $redis, string $host, string $prefix, string $queue, array $overrides = []): void
+    protected function configure_redis_for_queue(\Redis $redis, string $host, string $prefix, string $queue, array $overrides = []): void
     {
-        $this->configureRedisConnection($redis, $host, $prefix);
-        $this->configureQueue('redis', $queue, $overrides);
+        $this->configure_redis_connection($redis, $host, $prefix);
+        $this->configure_queue('redis', $queue, $overrides);
     }
 
-    protected function configureRedisConnection(\Redis $redis, string $host, string $prefix): void
+    protected function configure_redis_connection(\Redis $redis, string $host, string $prefix): void
     {
-        $cfg = App::instance()->get('REDIS') ?? [];
-        $this->cleanupRedisPrefix($redis, $prefix);
-        App::instance()->set('REDIS', [
+        $cfg = TestConfig::redis((array)(App::instance()->get('REDIS') ?? []));
+        $this->cleanup_redis_prefix($redis, $prefix);
+        App::instance()->set('REDIS', TestConfig::redis(\array_merge($cfg, [
             'host' => $host,
-            'port' => (int)$this->requiredRedisConfigValue($cfg, 'port'),
-            'password' => $this->redisConfigValue($cfg, 'password'),
-            'db' => (int)$this->requiredRedisConfigValue($cfg, 'db'),
+            'port' => (int)$this->required_redis_config_value($cfg, 'port'),
+            'password' => $this->redis_config_value($cfg, 'password'),
+            'db' => (int)$this->required_redis_config_value($cfg, 'db'),
             'prefix' => $prefix,
-        ]);
+        ])));
         ConnectionManager::instance()->close_redis();
     }
 
-    protected function cleanupRedisPrefix(\Redis $redis, string $prefix): void
+    protected function cleanup_redis_prefix(\Redis $redis, string $prefix): void
     {
         $keys = $redis->keys($prefix . '*');
         if (\is_array($keys) && $keys !== []) {
@@ -133,7 +134,7 @@ trait QueueDriverTestHarness
         }
     }
 
-    protected function requiredRedisConfigValue(array $cfg, string $key): string
+    protected function required_redis_config_value(array $cfg, string $key): string
     {
         if (!\array_key_exists($key, $cfg) || $cfg[$key] === null || (string)$cfg[$key] === '') {
             $this->markTestSkipped("REDIS.{$key} is not configured - queue Redis driver tests cannot run.");
@@ -142,7 +143,7 @@ trait QueueDriverTestHarness
         return (string)$cfg[$key];
     }
 
-    protected function redisConfigValue(array $cfg, string $key): string
+    protected function redis_config_value(array $cfg, string $key): string
     {
         if (!\array_key_exists($key, $cfg) || $cfg[$key] === null) {
             $this->markTestSkipped("REDIS.{$key} is not configured - queue Redis driver tests cannot run.");
@@ -151,26 +152,26 @@ trait QueueDriverTestHarness
         return (string)$cfg[$key];
     }
 
-    protected function connectPdoOrSkip(): array
+    protected function connect_pdo_or_skip(): array
     {
         if (!\extension_loaded('pdo_mysql')) {
             $this->markTestSkipped('ext-pdo_mysql not loaded - DB queue driver tests cannot run.');
         }
 
-        $cfg = App::instance()->get('DB_CONFIG') ?? [];
-        $host = $this->requiredDbConfigValue($cfg, 'host');
-        $port = $this->requiredDbConfigValue($cfg, 'port');
-        $db = $this->requiredDbConfigValue($cfg, 'db');
-        $configuredUsername = $this->requiredDbConfigValue($cfg, 'username');
-        $configuredPassword = $this->requiredDbConfigValue($cfg, 'password');
-        $charset = $this->requiredDbConfigValue($cfg, 'charset');
+        $cfg = TestConfig::db((array)(App::instance()->get('DB_CONFIG') ?? []));
+        $host = $this->required_db_config_value($cfg, 'host');
+        $port = $this->required_db_config_value($cfg, 'port');
+        $db = $this->required_db_config_value($cfg, 'db');
+        $configuredUsername = $this->required_db_config_value($cfg, 'username');
+        $configuredPassword = $this->required_db_config_value($cfg, 'password');
+        $charset = $this->required_db_config_value($cfg, 'charset');
         try {
             $dsn = \sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $host, $port, $db, $charset);
-            App::instance()->set('DB_CONFIG', \array_merge($cfg, [
+            App::instance()->set('DB_CONFIG', TestConfig::db(\array_merge($cfg, [
                 'host' => $host,
                 'username' => $configuredUsername,
                 'password' => $configuredPassword,
-            ]));
+            ])));
             return [new \PDO($dsn, $configuredUsername, $configuredPassword), $host, $configuredUsername, $configuredPassword];
         } catch (\Throwable) {
         }
@@ -178,26 +179,26 @@ trait QueueDriverTestHarness
         $this->markTestSkipped('MySQL connection unavailable - DB queue driver tests cannot run.');
     }
 
-    protected function configureDbForQueue(string $host, string $prefix, string $queue, array $overrides = []): void
+    protected function configure_db_for_queue(string $host, string $prefix, string $queue, array $overrides = []): void
     {
-        $cfg = App::instance()->get('DB_CONFIG') ?? [];
-        $db = $this->requiredDbConfigValue($cfg, 'db');
-        $user = $this->requiredDbConfigValue($cfg, 'username');
-        $password = $this->requiredDbConfigValue($cfg, 'password');
-        $port = $this->requiredDbConfigValue($cfg, 'port');
-        $charset = $this->requiredDbConfigValue($cfg, 'charset');
+        $cfg = TestConfig::db((array)(App::instance()->get('DB_CONFIG') ?? []));
+        $db = $this->required_db_config_value($cfg, 'db');
+        $user = $this->required_db_config_value($cfg, 'username');
+        $password = $this->required_db_config_value($cfg, 'password');
+        $port = $this->required_db_config_value($cfg, 'port');
+        $charset = $this->required_db_config_value($cfg, 'charset');
 
-        App::instance()->set('DB_CONFIG', \array_merge($cfg, [
+        App::instance()->set('DB_CONFIG', TestConfig::db(\array_merge($cfg, [
             'host' => $host,
             'prefix' => $prefix,
-        ]));
+        ])));
         ConnectionManager::instance()->close_sql();
         $dsn = \sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $host, $port, $db, $charset);
         App::instance()->set('DB', new \DB\SQL($dsn, $user, $password));
-        $this->configureQueue('db', $queue, $overrides);
+        $this->configure_queue('db', $queue, $overrides);
     }
 
-    protected function requiredDbConfigValue(array $cfg, string $key): string
+    protected function required_db_config_value(array $cfg, string $key): string
     {
         if (!\array_key_exists($key, $cfg) || $cfg[$key] === null || (string)$cfg[$key] === '') {
             $this->markTestSkipped("DB_CONFIG.{$key} is not configured - DB queue driver tests cannot run.");
@@ -206,13 +207,13 @@ trait QueueDriverTestHarness
         return (string)$cfg[$key];
     }
 
-    protected function migrateQueueTablesUp(): void
+    protected function migrate_queue_tables_up(): void
     {
         $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/atomic_create_queue_tables.php';
         $migration['up']();
     }
 
-    protected function migrateQueueTablesDown(): void
+    protected function migrate_queue_tables_down(): void
     {
         $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/atomic_create_queue_tables.php';
         $migration['down']();

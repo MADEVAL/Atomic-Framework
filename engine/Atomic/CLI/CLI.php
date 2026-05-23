@@ -117,7 +117,7 @@ class CLI {
         $keys = [
             'DEBUG', 'BASE', 'LANGUAGE', 'LANG', 'ENCODING', 'TZ',
             'APP_NAME', 'APP_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL', 
-            'CACHE', 'AUTOLOAD', 'UI', 'TEMP', 'LOGS', 'LOCALES', 'FONTS', 'FONTS_TEMP',
+            'CACHE', 'CACHE_CONFIG', 'AUTOLOAD', 'UI', 'TEMP', 'LOGS', 'LOCALES', 'FONTS', 'FONTS_TEMP',
             'QUEUE_DRIVER', 'QUEUE_NAME'
         ];
         $hive = $this->atomic->hive();

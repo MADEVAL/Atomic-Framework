@@ -53,13 +53,11 @@ class ConfigLoader {
     public function load(string $file): void {
         $this->env = $this->parse_env($file);
         $cache_driver  = strtolower($this->get_env('CACHE_DRIVER', 'false'));
-        $is_redis      = ($cache_driver === 'redis');
         $cache_prefix  = (string)$this->get_env('CACHE_PREFIX', 'atomic.');
         $db_prefix = (string)$this->get_env('DB_PREFIX', 'atomic_');
         $redis_prefix = (string)$this->get_env('REDIS_PREFIX', $cache_prefix);
         $memcached_prefix = (string)$this->get_env('MEMCACHED_PREFIX', 'atomic.');
         $ports = [
-            'cache'     => (string)$this->get_env('CACHE_PORT', $is_redis ? '6379' : '11211'),
             'db'        => (string)$this->get_env('DB_PORT', '3306'),
             'redis'     => (string)$this->get_env('REDIS_PORT', '6379'),
             'memcached' => (string)$this->get_env('MEMCACHED_PORT', '11211'),
@@ -69,20 +67,29 @@ class ConfigLoader {
 
         $ws_host = (string)$this->get_env('WS_HOST', '0.0.0.0');
         $ws_client_host = (string)$this->get_env('WS_CLIENT_HOST', '127.0.0.1');
-
-        $cache_string  = $this->build_cache_string(
-            $cache_driver,
-            $this->fix_path($this->get_env('CACHE_PATH', 'storage/framework/cache/')),
-            $this->get_env('CACHE_SERVER', $is_redis ? '127.0.0.1' : 'localhost'),
-            $ports['cache'],
-            $this->get_env('CACHE_PASSWORD', ''),
-            $this->get_env('CACHE_LOGIN', '')
-        );
-
+        $cache_path = $this->fix_path($this->get_env('CACHE_PATH', 'storage/framework/cache/'));
+        $redis_config = [
+            'host'     => $this->get_env('REDIS_HOST', '127.0.0.1'),
+            'port'     => $ports['redis'],
+            'password' => $this->get_env('REDIS_PASSWORD', ''),
+            'db'       => (int)$this->get_env('REDIS_DB', 0),
+            'prefix'   => $redis_prefix,
+        ];
+        $memcached_config = [
+            'port'     => $ports['memcached'],
+            'host'     => $this->get_env('MEMCACHED_HOST', '127.0.0.1'),
+            'username' => $this->get_env('MEMCACHED_USERNAME', ''),
+            'password' => $this->get_env('MEMCACHED_PASSWORD', ''),
+            'prefix'   => $memcached_prefix,
+        ];
         $settings = [
             'APP_UUID'              => $this->get_env('APP_UUID', ''),
             'APP_ENCRYPTION_KEY'    => $this->get_env('APP_ENCRYPTION_KEY', ''),
-            'CACHE'                 => $cache_string,
+            'CACHE_CONFIG'          => [
+                'default' => $cache_driver,
+                'path'    => $cache_path,
+                'prefix'  => $cache_prefix,
+            ],
             'CACHE_PREFIX'          => $cache_prefix,
             'DOMAIN'                => $this->get_env('DOMAIN', ''),
             'LANGUAGE'              => $this->get_env('LANGUAGE') ?? $this->get_env('LANG', 'en'),
@@ -142,21 +149,9 @@ class ConfigLoader {
             'prefix'    => $db_prefix,
         ]);
 
-        $this->atomic->set('REDIS', [
-            'host'                        => $this->get_env('REDIS_HOST', '127.0.0.1'),
-            'port'                        => $ports['redis'],
-            'password'                    => $this->get_env('REDIS_PASSWORD', ''),
-            'db'                          => (int)$this->get_env('REDIS_DB', 0),
-            'prefix'                      => $redis_prefix,
-        ]);
+        $this->atomic->set('REDIS', $redis_config);
 
-        $this->atomic->set('MEMCACHED', [
-            'port'     => $ports['memcached'],
-            'host'     => $this->get_env('MEMCACHED_HOST', '127.0.0.1'),
-            'username' => $this->get_env('MEMCACHED_USERNAME', ''),
-            'password' => $this->get_env('MEMCACHED_PASSWORD', ''),
-            'prefix'   => $memcached_prefix,
-        ]);
+        $this->atomic->set('MEMCACHED', $memcached_config);
 
         $this->atomic->set('MUTEX', [
             'driver' => $this->get_env('MUTEX_DRIVER', ''),
