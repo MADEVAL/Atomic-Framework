@@ -47,7 +47,7 @@ final class RateLimitMiddlewareTest extends TestCase
 
         $this->assertFalse($denied->allowed);
         $this->assertSame(0, $denied->remaining);
-        $this->assertSame(2, $store->get('api:api/items:203.0.113.10'));
+        $this->assertSame(2, $store->get('api.api/items.203.0.113.10'));
     }
 
     public function test_user_key_prefers_nested_session_user_id_then_legacy_session_user_id(): void
@@ -65,11 +65,11 @@ final class RateLimitMiddlewareTest extends TestCase
         ]);
 
         $this->check(new RateLimitMiddleware('user_policy'), new RateLimiter($store), $atomic);
-        $this->assertSame(1, $store->get('user_policy:account:42'));
+        $this->assertSame(1, $store->get('user_policy.account.42'));
 
         $atomic->set('SESSION.user.id', null);
         $this->check(new RateLimitMiddleware('user_policy'), new RateLimiter($store), $atomic);
-        $this->assertSame(1, $store->get('user_policy:account:99'));
+        $this->assertSame(1, $store->get('user_policy.account.99'));
     }
 
     public function test_route_key_and_root_path_are_stable(): void
@@ -86,7 +86,7 @@ final class RateLimitMiddlewareTest extends TestCase
 
         $this->check(new RateLimitMiddleware('route_policy'), new RateLimiter($store), $atomic);
 
-        $this->assertSame(1, $store->get('route_policy:root:root'));
+        $this->assertSame(1, $store->get('route_policy.root.root'));
     }
 
     public function test_default_policy_uses_configured_fixed_ip_limit_and_window(): void
@@ -109,7 +109,7 @@ final class RateLimitMiddlewareTest extends TestCase
         $this->assertSame(59, $result->remaining);
         $this->assertSame(60, $result->retry_after);
         $this->assertSame(60, $store->last_ttl);
-        $this->assertSame(1, $store->get('default:defaulted:198.51.100.5'));
+        $this->assertSame(1, $store->get('default.defaulted.198.51.100.5'));
     }
 
     public function test_window_config_is_used_for_ttl(): void
@@ -159,8 +159,8 @@ final class RateLimitMiddlewareTest extends TestCase
         $this->check(new RateLimitMiddleware('cooldown'), new RateLimiter($store), $atomic);
         $this->check(new RateLimitMiddleware('concurrent'), new RateLimiter($store), $atomic);
 
-        $this->assertSame(['sliding:dispatch:127.0.0.1'], $store->sliding_keys);
-        $this->assertSame(['cooldown:dispatch:127.0.0.1', 'concurrent:dispatch:127.0.0.1'], $store->increment_keys);
+        $this->assertSame(['sliding.dispatch.127.0.0.1'], $store->sliding_keys);
+        $this->assertSame(['cooldown.dispatch.127.0.0.1', 'concurrent.dispatch.127.0.0.1'], $store->increment_keys);
         $this->assertSame(40, $store->last_ttl);
     }
 

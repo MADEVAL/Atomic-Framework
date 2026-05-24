@@ -11,8 +11,8 @@ use Engine\Atomic\RateLimit\RateLimitStoreInterface;
 final class Redis implements RateLimitStoreInterface
 {
     private const CONFIG_PREFIX = 'REDIS.prefix';
-    private const DEFAULT_PREFIX = 'atomic:';
-    private const KEY_PREFIX = 'rate_limit:';
+    private const DEFAULT_PREFIX = 'atomic.';
+    private const KEY_PREFIX = 'rate_limit.';
     private const LUA_DIR = __DIR__ . DIRECTORY_SEPARATOR . 'lua';
 
     private \Redis $redis;

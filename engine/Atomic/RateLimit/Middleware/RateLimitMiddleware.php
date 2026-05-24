@@ -86,7 +86,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
             default => throw new \InvalidArgumentException("Unsupported rate limit key source: {$source}"),
         };
 
-        return $this->policy . ':' . $path . ':' . $id;
+        return $this->policy . '.' . $path . '.' . $id;
     }
 
     private function headers(RateLimitResult $result): void

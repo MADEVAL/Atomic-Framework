@@ -48,7 +48,7 @@ final class RedisRateLimitStoreTest extends TestCase
     protected function tearDown(): void
     {
         if ($this->redis instanceof \Redis && $this->prefix !== '') {
-            $keys = $this->redis->keys($this->prefix . 'rate_limit:*');
+            $keys = $this->redis->keys($this->prefix . 'rate_limit.*');
             if (is_array($keys) && $keys !== []) {
                 $this->redis->del($keys);
             }
@@ -130,13 +130,13 @@ final class RedisRateLimitStoreTest extends TestCase
         $store = $this->store();
         $store->increment('quota:user:1', 25, 60);
 
-        $this->redis()->set($this->prefix . 'rate_limit:reservation:bad-settle', 'invalid');
+        $this->redis()->set($this->prefix . 'rate_limit.reservation:bad-settle', 'invalid');
         $this->expectRedisError(
             'invalid reservation key',
             fn () => $store->settle('quota:user:1', 'reservation:bad-settle', 10)
         );
 
-        $this->redis()->set($this->prefix . 'rate_limit:reservation:bad-release', 'invalid');
+        $this->redis()->set($this->prefix . 'rate_limit.reservation:bad-release', 'invalid');
         $this->expectRedisError(
             'invalid reservation key',
             fn () => $store->release('quota:user:1', 'reservation:bad-release')
