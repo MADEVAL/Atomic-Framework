@@ -111,12 +111,12 @@ final class SessionDbDriverTest extends TestCase
 
         $this->assertTrue($driver->destroy('session-destroy'));
         $this->assertNull($this->db_session_row('session-destroy'));
-        $this->assertIsArray($this->db_session_row(':revoked:session-destroy'));
+        $this->assertIsArray($this->db_session_row('.revoked.session-destroy'));
     }
 
     public function test_write_is_ignored_when_session_is_revoked(): void
     {
-        $this->insert_db_session(':revoked:session-revoked', '', stamp: time());
+        $this->insert_db_session('.revoked.session-revoked', '', stamp: time());
         $driver = new DbSession();
 
         $this->assertSame('', $driver->read('session-revoked'));

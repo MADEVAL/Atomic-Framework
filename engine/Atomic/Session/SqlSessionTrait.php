@@ -9,7 +9,7 @@ use Engine\Atomic\Session\Models\Session;
 
 trait SqlSessionTrait
 {
-    private const SQL_REVOKED_KEY_PREFIX = ':revoked:';
+    private const SQL_REVOKED_KEY_PREFIX = '.revoked.';
 
     private function delete_sql_session(string $session_id): bool
     {

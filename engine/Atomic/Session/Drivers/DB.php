@@ -12,7 +12,7 @@ use SessionHandlerInterface;
 
 class DB implements SessionHandlerInterface
 {
-    private const REVOKED_KEY_PREFIX = ':revoked:';
+    private const REVOKED_KEY_PREFIX = '.revoked.';
 
     private ?string $sid = null;
     private string $_csrf;

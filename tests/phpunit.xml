@@ -14,6 +14,7 @@
         </testsuite>
         <testsuite name="Plugins">
             <directory suffix="Test.php">../engine/Atomic/Plugins</directory>
+            <exclude>../engine/Atomic/Plugins/*/vendor</exclude>
         </testsuite>
     </testsuites>
     <source>

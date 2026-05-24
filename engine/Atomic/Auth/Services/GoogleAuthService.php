@@ -13,6 +13,8 @@ use Engine\Atomic\Auth\Interfaces\OAuthUserResolverInterface;
 
 class GoogleAuthService
 {
+    private const CHALLENGE_STATE_KEY = 'SESSION.auth_challenges.google.state';
+
     private ?OAuthUserResolverInterface $user_resolver = null;
 
     public function __construct(
@@ -32,15 +34,15 @@ class GoogleAuthService
     public function get_login_url(): string
     {
         $state = bin2hex(random_bytes(16));
-        $this->app->set('SESSION.oauth_google_state', $state);
+        $this->app->set(self::CHALLENGE_STATE_KEY, $state);
 
         return $this->google_client->create_auth_url($state);
     }
 
     public function handle_callback(string $code, ?string $state = null): ?string
     {
-        $stored_state = $this->app->get('SESSION.oauth_google_state');
-        $this->app->clear('SESSION.oauth_google_state');
+        $stored_state = $this->app->get(self::CHALLENGE_STATE_KEY);
+        $this->app->clear(self::CHALLENGE_STATE_KEY);
 
         if (
             !is_string($stored_state)

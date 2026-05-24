@@ -57,7 +57,7 @@ class GoogleAuthServiceTest extends TestCase
         $this->app->expects($this->once())
             ->method('set')
             ->with(
-                'SESSION.oauth_google_state',
+                'SESSION.auth_challenges.google.state',
                 $this->callback(function (string $state) use (&$captured_state): bool {
                     $captured_state = $state;
                     return strlen($state) === 32;
@@ -79,8 +79,8 @@ class GoogleAuthServiceTest extends TestCase
 
     public function test_handle_callback_throws_when_resolver_not_configured(): void
     {
-        $this->app->method('get')->with('SESSION.oauth_google_state')->willReturn('known-state');
-        $this->app->expects($this->once())->method('clear')->with('SESSION.oauth_google_state');
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
 
         $this->expectException(\RuntimeException::class);
         $this->service->handle_callback('some-code', 'known-state');
@@ -88,8 +88,8 @@ class GoogleAuthServiceTest extends TestCase
 
     public function test_handle_callback_returns_null_when_state_is_missing(): void
     {
-        $this->app->method('get')->with('SESSION.oauth_google_state')->willReturn('known-state');
-        $this->app->expects($this->once())->method('clear')->with('SESSION.oauth_google_state');
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
         $this->logger->expects($this->once())->method('warning')->with('[GoogleAuth] Invalid OAuth state');
 
         $resolver = $this->createMock(OAuthUserResolverInterface::class);
@@ -100,8 +100,8 @@ class GoogleAuthServiceTest extends TestCase
 
     public function test_handle_callback_returns_null_when_state_mismatches(): void
     {
-        $this->app->method('get')->with('SESSION.oauth_google_state')->willReturn('known-state');
-        $this->app->expects($this->once())->method('clear')->with('SESSION.oauth_google_state');
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
         $this->logger->expects($this->once())->method('warning')->with('[GoogleAuth] Invalid OAuth state');
 
         $resolver = $this->createMock(OAuthUserResolverInterface::class);
@@ -112,8 +112,8 @@ class GoogleAuthServiceTest extends TestCase
 
     public function test_handle_callback_returns_null_when_token_exchange_fails(): void
     {
-        $this->app->method('get')->with('SESSION.oauth_google_state')->willReturn('known-state');
-        $this->app->expects($this->once())->method('clear')->with('SESSION.oauth_google_state');
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
         $this->google_client->method('fetch_user_info_by_code')->willReturn(null);
         $this->logger->expects($this->once())->method('warning');
 
@@ -125,8 +125,8 @@ class GoogleAuthServiceTest extends TestCase
 
     public function test_handle_callback_returns_null_when_resolver_returns_null(): void
     {
-        $this->app->method('get')->with('SESSION.oauth_google_state')->willReturn('known-state');
-        $this->app->expects($this->once())->method('clear')->with('SESSION.oauth_google_state');
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
         $this->google_client->method('fetch_user_info_by_code')->willReturn($this->valid_google_info());
         $this->logger->expects($this->once())->method('error');
 
@@ -139,8 +139,8 @@ class GoogleAuthServiceTest extends TestCase
 
     public function test_handle_callback_returns_null_when_resolver_returns_invalid_uuid(): void
     {
-        $this->app->method('get')->with('SESSION.oauth_google_state')->willReturn('known-state');
-        $this->app->expects($this->once())->method('clear')->with('SESSION.oauth_google_state');
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
         $this->google_client->method('fetch_user_info_by_code')->willReturn($this->valid_google_info());
         $this->id_validator->method('is_valid_uuid_v4')->willReturn(false);
         $this->logger->expects($this->once())->method('error');
@@ -156,8 +156,8 @@ class GoogleAuthServiceTest extends TestCase
     {
         $user_id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
-        $this->app->method('get')->with('SESSION.oauth_google_state')->willReturn('known-state');
-        $this->app->expects($this->once())->method('clear')->with('SESSION.oauth_google_state');
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
         $this->google_client->method('fetch_user_info_by_code')->willReturn($this->valid_google_info());
         $this->id_validator->method('is_valid_uuid_v4')->willReturn(true);
         $this->logger->method('info');
@@ -226,5 +226,12 @@ class GoogleAuthServiceTest extends TestCase
             'family_name' => 'User',
             'picture'     => 'https://example.com/pic.jpg',
         ];
+    }
+
+    private function expect_state_cleared(): void
+    {
+        $this->app->expects($this->once())
+            ->method('clear')
+            ->with('SESSION.auth_challenges.google.state');
     }
 }

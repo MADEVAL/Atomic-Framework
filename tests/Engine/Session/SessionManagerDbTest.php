@@ -62,9 +62,9 @@ final class SessionManagerDbTest extends TestCase
 
         $this->assertTrue($manager->delete_session('manager-db-delete'));
         $this->assertNull($this->db_session_row('manager-db-delete'));
-        $this->assertIsArray($this->db_session_row(':revoked:manager-db-delete'));
+        $this->assertIsArray($this->db_session_row('.revoked.manager-db-delete'));
         $this->assertFalse($manager->delete_session('manager-db-missing'));
-        $this->assertIsArray($this->db_session_row(':revoked:manager-db-missing'));
+        $this->assertIsArray($this->db_session_row('.revoked.manager-db-missing'));
     }
 
     public function test_delete_sessions_counts_successfully_deleted_rows(): void

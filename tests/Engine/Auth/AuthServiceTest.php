@@ -371,6 +371,26 @@ class AuthServiceTest extends TestCase
         $this->service->login_by_id($auth_id, ['auth_provider' => 'google']);
     }
 
+    public function test_login_by_id_clears_transient_auth_session_state(): void
+    {
+        $auth_id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+        $this->app->method('get')->willReturnMap([
+            ['IP', '10.0.0.1'],
+            ['AGENT', 'Bot/2.0'],
+        ]);
+        $this->app->method('get_device_type')->willReturn('desktop');
+        $this->clock->method('now')->willReturn(1_700_000_002);
+        $this->php_session->method('id')->willReturn('sess_cleanup');
+        $this->session->method('start_for_user');
+
+        $this->app->expects($this->once())
+            ->method('clear')
+            ->with('SESSION.auth_challenges');
+
+        $this->service->login_by_id($auth_id, ['auth_provider' => 'telegram']);
+    }
+
     // ── login_with_secret (additional) ────────────────────────────────────────
 
     public function test_login_with_secret_throws_when_no_provider(): void

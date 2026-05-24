@@ -21,6 +21,8 @@ use Engine\Atomic\Enums\Role;
 
 class AuthService implements LoginInterface
 {
+    private const AUTH_CHALLENGES_SESSION_KEY = 'SESSION.auth_challenges';
+
     private ?AuthenticatableInterface $current_user = null;
     private ?UserProviderInterface    $user_provider = null;
 
@@ -49,6 +51,7 @@ class AuthService implements LoginInterface
 
             $created_at = $this->clock->now();
             $this->session->start_for_user($auth_id);
+            $this->clear_transient_auth_session_state();
             if ($this->session->is_started()) {
                 $this->php_session->regenerate_id(true);
             }
@@ -73,6 +76,11 @@ class AuthService implements LoginInterface
             ]);
             throw $e;
         }
+    }
+
+    private function clear_transient_auth_session_state(): void
+    {
+        $this->app->clear(self::AUTH_CHALLENGES_SESSION_KEY);
     }
 
     public function login_with_secret(array $credentials, string $secret): ?AuthenticatableInterface
