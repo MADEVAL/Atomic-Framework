@@ -321,6 +321,9 @@ class ConnectionManager
         if ($db === null && $required) {
             throw new \RuntimeException('MySQL connection failed');
         }
+        if ($db instanceof SQL && $name === 'default') {
+            App::instance()->set('DB', $db);
+        }
         if ($if_reconnected) {
             return [$db, $reconnected];
         }

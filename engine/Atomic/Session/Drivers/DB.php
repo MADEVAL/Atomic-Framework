@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Session\Models\Session as SessionModel;
 use SessionHandlerInterface;
 
@@ -161,6 +162,7 @@ class DB implements SessionHandlerInterface
 
     public function __construct(?callable $onsuspect = null, ?string $key = null)
     {
+        ConnectionManager::instance()->get_db();
         $this->mapper = new SessionModel();
         $this->onsuspect = $onsuspect;
         $ttl = (int)App::instance()->get('SESSION_CONFIG.lifetime');

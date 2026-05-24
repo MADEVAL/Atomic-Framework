@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Tests\Engine\Session;
 
 use Engine\Atomic\Session\Drivers\DB as DbSession;
+use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
@@ -39,6 +41,17 @@ final class SessionDbDriverTest extends TestCase
         $this->assertSame('', $driver->read('missing-session'));
         $this->assertSame('missing-session', $driver->sid());
         $this->assertTrue($driver->dry());
+    }
+
+    public function test_constructor_connects_when_app_db_hive_value_is_missing(): void
+    {
+        ConnectionManager::instance()->close_sql();
+        App::instance()->clear('DB');
+
+        $driver = new DbSession();
+
+        $this->assertTrue($driver->write('session-lazy-db', 'payload=1'));
+        $this->assertSame('payload=1', $this->db_session_row('session-lazy-db')['data'] ?? null);
     }
 
     public function test_write_inserts_session_payload_and_metadata(): void
