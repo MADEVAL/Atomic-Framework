@@ -174,6 +174,7 @@ class ConfigLoader {
             'lifetime'        => $this->get_env('SESSION_LIFETIME', 7200),
             'cookie'          => $this->get_env('SESSION_COOKIE', 'atomicsession'),
             'kill_on_suspect' => filter_var($this->get_env('SESSION_KILL_ON_SUSPECT', true), FILTER_VALIDATE_BOOLEAN),
+            'redis_prefix'    => $this->get_env('SESSION_REDIS_PREFIX', $redis_prefix . 'session.'),
         ]);
 
         $this->atomic->set('JAR.lifetime', (int)$this->get_env('COOKIE_EXPIRE', 0));
@@ -205,6 +206,7 @@ class ConfigLoader {
                 'queues' => $this->build_queue_config('QUEUE_DB_')
             ],
             'redis' => [
+                'prefix' => $this->get_env('QUEUE_REDIS_PREFIX', $redis_prefix . 'queue.'),
                 'queues' => $this->build_queue_config('QUEUE_REDIS_')
             ],
         ]);

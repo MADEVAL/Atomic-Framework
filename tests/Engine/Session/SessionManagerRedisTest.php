@@ -64,7 +64,7 @@ final class SessionManagerRedisTest extends TestCase
         $manager = new SessionManager('redis');
 
         $this->assertTrue($manager->delete_session('manager-redis-delete'));
-        $this->assertFalse($this->redis()->exists($this->prefix . 'manager-redis-delete') > 0);
+        $this->assertFalse($this->redis()->exists($this->redis_session_key('manager-redis-delete')) > 0);
         $this->assertTrue($this->redis()->exists($this->redis_revoked_key('manager-redis-delete')) > 0);
         $this->assertFalse($manager->delete_session('manager-redis-missing'));
     }
@@ -86,7 +86,7 @@ final class SessionManagerRedisTest extends TestCase
 
     public function test_get_session_data_returns_null_for_invalid_json(): void
     {
-        $this->redis()->setex($this->prefix . 'manager-redis-bad-json', 60, 'not-json');
+        $this->redis()->setex($this->redis_session_key('manager-redis-bad-json'), 60, 'not-json');
         $manager = new SessionManager('redis');
 
         $this->assertNull($manager->get_session_data('manager-redis-bad-json'));
@@ -99,7 +99,7 @@ final class SessionManagerRedisTest extends TestCase
         string $agent = 'Atomic Test Agent',
         ?int $stamp = null,
     ): void {
-        $this->redis()->setex($this->prefix . $session_id, 60, \json_encode([
+        $this->redis()->setex($this->redis_session_key($session_id), 60, \json_encode([
             'session_id' => $session_id,
             'data' => $data,
             'ip' => $ip,

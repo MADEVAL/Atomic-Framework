@@ -200,6 +200,7 @@ class PhpConfigLoader {
             'lifetime'        => (string)($session['lifetime'] ?? '7200'),
             'cookie'          => (string)($session['cookie'] ?? 'atomicsession'),
             'kill_on_suspect' => (bool)($session['kill_on_suspect'] ?? true),
+            'redis_prefix'    => (string)($session['redis_prefix'] ?? ($redis_prefix . 'session.')),
         ]);
 
         // ── JAR (cookie settings) ──
@@ -264,6 +265,14 @@ class PhpConfigLoader {
                 }
                 $processed_queues[$queue_name] = $processed;
             }
+            if ($driver === 'redis') {
+                $queue[$driver] = [
+                    'prefix' => (string)($queue_config['redis']['prefix'] ?? ($redis_prefix . 'queue.')),
+                    'queues' => $processed_queues,
+                ];
+                continue;
+            }
+
             $queue[$driver] = ['queues' => $processed_queues];
         }
         $this->atomic->set('QUEUE', $queue);

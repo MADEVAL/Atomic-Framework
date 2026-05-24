@@ -106,7 +106,7 @@ final class AuthIntegrationTest extends TestCase
 
         \session_write_close();
 
-        $redis_key = $this->redis_prefix . $session_id;
+        $redis_key = $this->redis_prefix . 'session.' . $session_id;
         $payload = $this->redis->get($redis_key);
 
         self::assertIsString($payload);
@@ -243,6 +243,7 @@ final class AuthIntegrationTest extends TestCase
             'lifetime' => 7200,
             'cookie' => 'atomic_session_' . \bin2hex(\random_bytes(4)),
             'kill_on_suspect' => false,
+            'redis_prefix' => $this->redis_prefix . 'session.',
         ]);
 
         App::instance($base);

@@ -197,16 +197,20 @@ class RedisTest extends TestCase
         $this->assertTrue($cache->reset());
         $cache->set('new', 'new', 60);
         $this->redis()->set($this->prefix . '_neighbor.entry.1.key', 'keep');
+        $this->redis()->set($this->prefix . '.session-id', 'session');
+        $this->redis()->set($this->prefix . '.revoked.session-id', 'revoked');
 
         $deleted = $cache->purge();
 
         $this->assertSame(2, $deleted);
-        $this->assertSame([], $this->redis()->keys($this->prefix . '.*'));
+        $this->assertSame([], $this->redis()->keys($this->prefix . '.entry.*'));
+        $this->assertSame('session', $this->redis()->get($this->prefix . '.session-id'));
+        $this->assertSame('revoked', $this->redis()->get($this->prefix . '.revoked.session-id'));
         $this->assertSame('keep', $this->redis()->get($this->prefix . '_neighbor.entry.1.key'));
         $this->redis()->del($this->prefix . '_neighbor.entry.1.key');
     }
 
-    public function test_purge_deletes_metadata_without_counting_it_as_cache_entries(): void
+    public function test_purge_keeps_metadata_without_counting_it_as_cache_entries(): void
     {
         $cache = new RedisCache($this->redis(), $this->prefix);
         $cache->set('one', 'one', 60);
@@ -215,7 +219,9 @@ class RedisTest extends TestCase
         $this->redis()->set($this->prefix . '.meta.metadata.cursor', 'internal');
 
         $this->assertSame(2, $cache->purge());
-        $this->assertSame([], $this->redis()->keys($this->prefix . '.*'));
+        $this->assertSame([], $this->redis()->keys($this->prefix . '.entry.*'));
+        $this->assertSame('internal', $this->redis()->get($this->prefix . '.meta.metadata'));
+        $this->assertSame('internal', $this->redis()->get($this->prefix . '.meta.metadata.cursor'));
         $this->assertSame(0, $cache->purge());
     }
 
@@ -240,7 +246,8 @@ class RedisTest extends TestCase
         $this->assertStringContainsString('Cache driver: Engine\Atomic\Cache\Drivers\Redis', $output);
         $this->assertStringContainsString('Deleted: 2 cache entries', $output);
         $this->assertStringContainsString('[OK] Cache cleared.', $output);
-        $this->assertSame([], $this->redis()->keys($this->prefix . '.*'));
+        $this->assertSame([], $this->redis()->keys($this->prefix . '.entry.*'));
+        $this->assertSame('internal', $this->redis()->get($this->prefix . '.meta.metadata'));
     }
 
     private function redis(): \Redis

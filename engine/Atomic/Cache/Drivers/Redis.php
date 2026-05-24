@@ -166,14 +166,14 @@ class Redis implements CacheStoreInterface, PurgeableCacheStoreInterface
 
         $deleted_total = 0;
         $iterator = null;
-        $pattern = $this->namespace . '.*';
         $entry_prefix = $this->namespace . '.' . self::ENTRY_PREFIX . '.';
+        $pattern = $entry_prefix . '*';
         $this->redis->setOption(\Redis::OPT_SCAN, \Redis::SCAN_RETRY);
 
         while (($keys = $this->redis->scan($iterator, $pattern, 500)) !== false) {
             $keys = array_values(array_filter(
                 (array) $keys,
-                fn (string $key): bool => $key === $this->gen_key || str_starts_with($key, $this->namespace . '.')
+                fn (string $key): bool => str_starts_with($key, $entry_prefix)
             ));
 
             if ($keys === []) {
@@ -185,11 +185,7 @@ class Redis implements CacheStoreInterface, PurgeableCacheStoreInterface
                 throw new \RuntimeException('Redis cache physical purge failed.');
             }
 
-            foreach ($keys as $key) {
-                if (str_starts_with($key, $entry_prefix)) {
-                    $deleted_total++;
-                }
-            }
+            $deleted_total += (int) $deleted;
         }
 
         $this->cached_gen = null;

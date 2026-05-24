@@ -59,7 +59,7 @@ final class SessionRedisDriverTest extends TestCase
         $this->assertSame('127.0.0.1', $payload['ip']);
         $this->assertSame('Atomic Test Agent', $payload['agent']);
         $this->assertGreaterThan(0, (int)$payload['stamp']);
-        $this->assertGreaterThan(0, $this->redis()->ttl($this->prefix . 'session-one'));
+        $this->assertGreaterThan(0, $this->redis()->ttl($this->redis_session_key('session-one')));
     }
 
     public function test_read_returns_payload_and_hydrates_metadata(): void
@@ -82,7 +82,7 @@ final class SessionRedisDriverTest extends TestCase
 
         $payload = $this->decode_session('session-three');
         $this->assertSame('new=1', $payload['data']);
-        $this->assertGreaterThan(30, $this->redis()->ttl($this->prefix . 'session-three'));
+        $this->assertGreaterThan(30, $this->redis()->ttl($this->redis_session_key('session-three')));
     }
 
     public function test_destroy_deletes_session_and_creates_revoked_marker(): void
@@ -92,7 +92,7 @@ final class SessionRedisDriverTest extends TestCase
 
         $this->assertTrue($driver->destroy('session-destroy'));
 
-        $this->assertFalse($this->redis()->exists($this->prefix . 'session-destroy') > 0);
+        $this->assertFalse($this->redis()->exists($this->redis_session_key('session-destroy')) > 0);
         $this->assertTrue($this->redis()->exists($this->redis_revoked_key('session-destroy')) > 0);
         $this->assertGreaterThan(0, $this->redis()->ttl($this->redis_revoked_key('session-destroy')));
     }
@@ -103,12 +103,12 @@ final class SessionRedisDriverTest extends TestCase
         $driver = $this->new_driver();
 
         $this->assertTrue($driver->write('session-revoked', 'payload'));
-        $this->assertFalse($this->redis()->exists($this->prefix . 'session-revoked') > 0);
+        $this->assertFalse($this->redis()->exists($this->redis_session_key('session-revoked')) > 0);
     }
 
     public function test_malformed_json_is_treated_as_empty_data(): void
     {
-        $this->redis()->setex($this->prefix . 'session-bad-json', 60, 'not-json');
+        $this->redis()->setex($this->redis_session_key('session-bad-json'), 60, 'not-json');
         $driver = $this->new_driver();
 
         $this->assertSame('', $driver->read('session-bad-json'));
@@ -126,7 +126,7 @@ final class SessionRedisDriverTest extends TestCase
 
         $this->assertSame('payload', $driver->read('session-suspect'));
         $this->assertTrue($called);
-        $this->assertTrue($this->redis()->exists($this->prefix . 'session-suspect') > 0);
+        $this->assertTrue($this->redis()->exists($this->redis_session_key('session-suspect')) > 0);
     }
 
     private function write_raw_session(
@@ -137,7 +137,7 @@ final class SessionRedisDriverTest extends TestCase
         ?int $stamp = null,
         int $ttl = 60,
     ): void {
-        $this->redis()->setex($this->prefix . $session_id, $ttl, \json_encode([
+        $this->redis()->setex($this->redis_session_key($session_id), $ttl, \json_encode([
             'session_id' => $session_id,
             'data' => $data,
             'ip' => $ip,
@@ -153,7 +153,7 @@ final class SessionRedisDriverTest extends TestCase
 
     private function decode_session(string $session_id): array
     {
-        $raw = $this->redis()->get($this->prefix . $session_id);
+        $raw = $this->redis()->get($this->redis_session_key($session_id));
         $this->assertIsString($raw);
         $decoded = \json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
         $this->assertIsArray($decoded);

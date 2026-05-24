@@ -371,7 +371,10 @@ final class WorkerIntegrationTest extends TestCase
         App::instance()->set('QUEUE_NAME', $queues[0]);
         App::instance()->set('QUEUE', [
             'db' => ['queues' => $configured],
-            'redis' => ['queues' => $configured],
+            'redis' => [
+                'prefix' => (string)App::instance()->get('QUEUE.redis.prefix'),
+                'queues' => $configured,
+            ],
         ]);
     }
 

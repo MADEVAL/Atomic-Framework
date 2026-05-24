@@ -97,7 +97,7 @@ final class SessionDriverContractTest extends TestCase
             return (string)($this->db_session_row($session_id)['agent'] ?? '');
         }
 
-        $raw = $this->redis()->get($this->redis_prefix . $session_id);
+        $raw = $this->redis()->get($this->redis_session_key($session_id));
         $this->assertIsString($raw);
         $decoded = \json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
         $this->assertIsArray($decoded);

@@ -197,23 +197,25 @@ class DBTest extends TestCase
 
         $this->assertFalse(Options::has_option($old_key));
         $this->assertFalse(Options::has_option($new_key));
-        $this->assertFalse(Options::has_option($this->namespace . '.meta.gen'));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.meta.gen'));
     }
 
-    public function test_purge_deletes_metadata_without_counting_it_as_cache_entries(): void
+    public function test_purge_keeps_metadata_and_non_cache_options(): void
     {
         $cache = new DBCache($this->namespace);
         $cache->set('one', 'one', 60);
         $cache->set('two', 'two', 60);
         Options::set_option($this->namespace . '.meta.metadata', 'internal');
         Options::set_option($this->namespace . '.meta.metadata.cursor', 'internal');
+        Options::set_option($this->namespace . '.session.user', 'session');
 
         $this->assertSame(2, $cache->purge());
         $this->assertFalse(Options::has_option($this->namespace . '.entry.1.one'));
         $this->assertFalse(Options::has_option($this->namespace . '.entry.1.two'));
-        $this->assertFalse(Options::has_option($this->namespace . '.meta.gen'));
-        $this->assertFalse(Options::has_option($this->namespace . '.meta.metadata'));
-        $this->assertFalse(Options::has_option($this->namespace . '.meta.metadata.cursor'));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.meta.gen'));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.meta.metadata'));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.meta.metadata.cursor'));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.session.user'));
         $this->assertSame(0, $cache->purge());
     }
 
@@ -238,7 +240,7 @@ class DBTest extends TestCase
         $this->assertStringContainsString('Cache driver: Engine\Atomic\Cache\Drivers\DB', $output);
         $this->assertStringContainsString('Deleted: 2 cache entries', $output);
         $this->assertStringContainsString('[OK] Cache cleared.', $output);
-        $this->assertFalse(Options::has_option($this->namespace . '.meta.metadata'));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.meta.metadata'));
     }
 
     public function test_prune_removes_expired_entries_only(): void

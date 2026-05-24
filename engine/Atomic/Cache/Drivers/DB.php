@@ -224,12 +224,13 @@ class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInter
 
     public function purge(): int
     {
-        $deleted = Options::count_option_like($this->namespace . '.' . self::ENTRY_PREFIX . '.%.%');
+        $pattern = $this->namespace . '.' . self::ENTRY_PREFIX . '.%.%';
+        $deleted = Options::count_option_like($pattern);
         if ($deleted === false) {
             throw new \RuntimeException('DB cache entry count failed.');
         }
 
-        if (!Options::delete_option_like($this->namespace . '.%')) {
+        if (!Options::delete_option_like($pattern)) {
             throw new \RuntimeException('DB cache physical purge failed.');
         }
 

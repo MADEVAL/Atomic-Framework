@@ -4,7 +4,6 @@ namespace Engine\Atomic\Telemetry\Queue\Adapters;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
-use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Enums\Driver;
@@ -16,7 +15,7 @@ trait Redis
     {
         try {
             $redis = $this->connection_manager->get_redis(true);
-            $prefix = App::instance()->get('REDIS.prefix');
+            $prefix = $this->get_prefix();
 
             $uuid_job = $entry['uuid_job'];
             $uuid_batch = $entry['uuid_batch'];
@@ -64,7 +63,7 @@ trait Redis
 
     private function fetch_indexed_jobs_by_state(string $queue, string $state, int $page = 1, int $per_page = 50): array {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.prefix');
+        $prefix = $this->get_prefix();
 
         $jobs = [];
         $total = 0;
@@ -136,7 +135,7 @@ trait Redis
 
     public function fetch_pending_jobs(string $queue = '*', int $page = 1, int $per_page = 50): array {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.prefix');
+        $prefix = $this->get_prefix();
 
         $jobs = [];
         $total = 0;
@@ -182,7 +181,7 @@ trait Redis
         }
 
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.prefix');
+        $prefix = $this->get_prefix();
         $keyUuid = \strtolower($uuid);
 
         try {
@@ -258,7 +257,7 @@ trait Redis
 
     public function fetch_events(string $queue, string $uuid): array {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.prefix');
+        $prefix = $this->get_prefix();
 
         $events = [];
 

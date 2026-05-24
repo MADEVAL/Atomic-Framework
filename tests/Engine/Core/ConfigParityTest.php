@@ -176,6 +176,12 @@ class ConfigParityTest extends TestCase
         $this->assertIsBool(self::$php_data['SESSION_CONFIG']['kill_on_suspect']);
     }
 
+    public function test_session_redis_prefix_matches_between_loaders(): void
+    {
+        $this->assertSame('atomic.session.', self::$env_data['SESSION_CONFIG']['redis_prefix']);
+        $this->assertSame('atomic.session.', self::$php_data['SESSION_CONFIG']['redis_prefix']);
+    }
+
     public function test_cors_credentials_is_bool(): void
     {
         $this->assertIsBool(self::$env_data['CORS']['credentials']);
@@ -194,6 +200,8 @@ class ConfigParityTest extends TestCase
     {
         $this->assertArrayHasKey('db', self::$php_data['QUEUE']);
         $this->assertArrayHasKey('redis',    self::$php_data['QUEUE']);
+        $this->assertSame('atomic.queue.', self::$env_data['QUEUE']['redis']['prefix']);
+        $this->assertSame('atomic.queue.', self::$php_data['QUEUE']['redis']['prefix']);
     }
 
     public function test_i18n_languages_is_array_with_values(): void

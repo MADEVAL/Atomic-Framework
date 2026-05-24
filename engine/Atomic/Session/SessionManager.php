@@ -25,7 +25,7 @@ class SessionManager
         
         if ($this->driver === 'redis') {
             $this->connection_manager = ConnectionManager::instance();
-            $this->redis_prefix = $atomic->get('REDIS.prefix');
+            $this->redis_prefix = (string)$atomic->get('SESSION_CONFIG.redis_prefix');
         }
     }
     

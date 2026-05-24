@@ -19,6 +19,7 @@ return [
         ],
     ],
     'redis' => [
+        'prefix' => 'atomic.queue.',
         'queues' => [
             'default' => [
                 'delay'        => 0,

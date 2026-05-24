@@ -50,7 +50,10 @@ trait QueueDriverTestHarness
         App::instance()->set('QUEUE_NAME', $queue);
         App::instance()->set('QUEUE', [
             'db' => ['queues' => [$queue => \array_merge($defaults, $overrides)]],
-            'redis' => ['queues' => [$queue => \array_merge($defaults, $overrides)]],
+            'redis' => [
+                'prefix' => (string)App::instance()->get('QUEUE.redis.prefix'),
+                'queues' => [$queue => \array_merge($defaults, $overrides)],
+            ],
         ]);
     }
 
@@ -123,6 +126,7 @@ trait QueueDriverTestHarness
             'db' => (int)$this->required_redis_config_value($cfg, 'db'),
             'prefix' => $prefix,
         ])));
+        App::instance()->set('QUEUE.redis.prefix', $prefix);
         ConnectionManager::instance()->close_redis();
     }
 

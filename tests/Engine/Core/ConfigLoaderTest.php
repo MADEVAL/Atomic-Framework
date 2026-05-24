@@ -352,6 +352,7 @@ class ConfigLoaderTest extends TestCase
         $session = $this->f3->get('SESSION_CONFIG');
         $this->assertSame('redis', $session['driver']);
         $this->assertSame('my_session', $session['cookie']);
+        $this->assertSame('atomic.session.', $session['redis_prefix']);
     }
 
     public function test_load_sets_cors(): void
@@ -394,6 +395,7 @@ class ConfigLoaderTest extends TestCase
             'QUEUE_DB_DEFAULT_MAX_ATTEMPTS=3',
             'QUEUE_DB_EMAIL_DELAY=10',
             'QUEUE_DB_EMAIL_MAX_ATTEMPTS=5',
+            'QUEUE_REDIS_PREFIX=atomic.queue.',
             'CACHE_DRIVER=folder',
         ]));
 
@@ -407,6 +409,7 @@ class ConfigLoaderTest extends TestCase
         $this->assertArrayHasKey('email', $db_queues);
         $this->assertSame(10, $db_queues['email']['delay']);
         $this->assertSame(5, $db_queues['email']['max_attempts']);
+        $this->assertSame('atomic.queue.', $queue['redis']['prefix']);
     }
 
     public function test_env_custom_config_maps_config_prefixed_scalars_only(): void

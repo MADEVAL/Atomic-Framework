@@ -84,9 +84,7 @@ class Redis implements SessionHandlerInterface
         $redis = $this->connection_manager->get_redis(true);
         
         try {
-            if ($redis->exists($this->revoked_key($id))) {
-                return true;
-            }
+            if ($redis->exists($this->revoked_key($id))) return true;
 
             $session_data = \json_encode([
                 'session_id' => $id,
@@ -169,6 +167,11 @@ class Redis implements SessionHandlerInterface
         return $this->prefix . self::REVOKED_SEGMENT . '.' . $id;
     }
 
+    private function session_prefix(App $atomic): string
+    {
+        return (string)$atomic->get('SESSION_CONFIG.redis_prefix');
+    }
+
     /**
      * Instantiate class
      * @param callable|null $onsuspect Callback for suspicious sessions
@@ -180,7 +183,7 @@ class Redis implements SessionHandlerInterface
     ) {
         $atomic = App::instance();
         $ttl = (int)$atomic->get('SESSION_CONFIG.lifetime');
-        $this->prefix = (string)$atomic->get('REDIS.prefix');
+        $this->prefix = $this->session_prefix($atomic);
         $this->ttl = $ttl ?: (int)\ini_get('session.gc_maxlifetime') ?: 1440;
         $this->onsuspect = $onsuspect;
         $this->connection_manager = ConnectionManager::instance();

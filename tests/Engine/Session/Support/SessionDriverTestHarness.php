@@ -36,11 +36,13 @@ trait SessionDriverTestHarness
 
     protected function configure_session(string $driver, int $lifetime = 60): void
     {
+        $redis_prefix = (string)App::instance()->get('SESSION_CONFIG.redis_prefix');
         App::instance()->set('SESSION_CONFIG', [
             'driver' => $driver,
             'lifetime' => $lifetime,
             'cookie' => 'Atomic_Test_Session',
             'kill_on_suspect' => true,
+            'redis_prefix' => $redis_prefix,
             'cookie_expire' => $lifetime,
             'cookie_path' => '/',
             'cookie_domain' => '',
@@ -127,7 +129,12 @@ trait SessionDriverTestHarness
 
     protected function redis_revoked_key(string $session_id): string
     {
-        return $this->prefix . 'revoked.' . $session_id;
+        return (string)App::instance()->get('SESSION_CONFIG.redis_prefix') . 'revoked.' . $session_id;
+    }
+
+    protected function redis_session_key(string $session_id): string
+    {
+        return (string)App::instance()->get('SESSION_CONFIG.redis_prefix') . $session_id;
     }
 
     protected function connect_pdo_or_skip(): array

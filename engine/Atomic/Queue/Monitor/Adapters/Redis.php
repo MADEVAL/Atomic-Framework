@@ -4,7 +4,6 @@ namespace Engine\Atomic\Queue\Monitor\Adapters;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
-use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Enums\LogChannel;
 use Engine\Atomic\Queue\Enums\State;
@@ -13,7 +12,7 @@ trait Redis {
     public function load_stuck_jobs(array $exclude, string $queue = '*'): array
     {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.prefix');
+        $prefix = $this->get_prefix();
         $now = \time();
         $stuck_jobs = [];
         $exclude_json = $this->serialize($exclude);
@@ -61,7 +60,7 @@ trait Redis {
     public function load_active_jobs(string $queue = '*'): array
     {
         $redis = $this->connection_manager->get_redis(true);
-        $prefix = App::instance()->get('REDIS.prefix');
+        $prefix = $this->get_prefix();
         $res = [];
 
         try {
@@ -127,7 +126,7 @@ trait Redis {
     public function exists_in_jobs_table(string $uuid, int $pid): bool
     {
         $redis = $this->connection_manager->get_redis();
-        $prefix = App::instance()->get('REDIS.prefix');
+        $prefix = $this->get_prefix();
 
         try {
             $stored_pid = $redis->hGet($prefix . 'registry.' . $uuid, 'pid');
