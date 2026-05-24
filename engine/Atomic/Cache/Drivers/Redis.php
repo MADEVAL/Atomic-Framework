@@ -5,9 +5,10 @@ namespace Engine\Atomic\Cache\Drivers;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\Cache\Helpers\Payload;
 
-class Redis implements CacheStoreInterface
+class Redis implements CacheStoreInterface, PurgeableCacheStoreInterface
 {
     private \Redis $redis;
     private string $namespace;
@@ -152,6 +153,40 @@ class Redis implements CacheStoreInterface
         $this->cached_gen = (int)$new_gen;
 
         return true;
+    }
+
+    public function purge(): int
+    {
+        if (!$this->valid_namespace) {
+            return 0;
+        }
+
+        $deleted_total = 0;
+        $iterator = null;
+        $pattern = $this->namespace . '.*';
+        $this->redis->setOption(\Redis::OPT_SCAN, \Redis::SCAN_RETRY);
+
+        while (($keys = $this->redis->scan($iterator, $pattern, 500)) !== false) {
+            $keys = array_values(array_filter(
+                (array) $keys,
+                fn (string $key): bool => $key === $this->gen_key || str_starts_with($key, $this->namespace . '.')
+            ));
+
+            if ($keys === []) {
+                continue;
+            }
+
+            $deleted = $this->redis->del($keys);
+            if ($deleted === false) {
+                throw new \RuntimeException('Redis cache physical purge failed.');
+            }
+
+            $deleted_total += (int) $deleted;
+        }
+
+        $this->cached_gen = null;
+
+        return $deleted_total;
     }
 
 }

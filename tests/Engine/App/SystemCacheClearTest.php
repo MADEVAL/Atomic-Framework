@@ -4,9 +4,10 @@ declare(strict_types=1);
 namespace Tests\Engine\App;
 
 use Engine\Atomic\App\System;
+use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\CacheManager;
 use PHPUnit\Framework\TestCase;
-use Tests\Support\OutputCapture;
+use Tests\Support\StreamCapture;
 use Tests\Support\TempPath;
 use Tests\Support\TestConfig;
 
@@ -32,17 +33,56 @@ final class SystemCacheClearTest extends TestCase
         TestConfig::reset_managers();
     }
 
-    public function test_cache_clear_resets_configured_cache_store(): void
+    public function test_cache_invalidate_resets_configured_cache_store(): void
     {
         $cache = CacheManager::instance()->store();
         $this->assertTrue($cache->set('cli-clear-key', 'value', 3600));
         $this->assertSame('value', $cache->get('cli-clear-key'));
 
-        $output = OutputCapture::capture(fn() => (new System())->cache_clear());
+        [$out, $stream] = $this->captureOutput();
+        (new System())->cache_invalidate($out);
+        $output = StreamCapture::read($stream);
 
-        $this->assertStringContainsString('Clearing cache...', $output);
-        $this->assertStringContainsString('Cache cleared', $output);
+        $this->assertStringContainsString('Operation name: cache/invalidate', $output);
+        $this->assertStringContainsString('generation invalidation', $output);
+        $this->assertStringContainsString('physical files/keys are not deleted', $output);
+        $this->assertStringContainsString('Result: success.', $output);
         $cache->flush_local_cache();
         $this->assertFalse($cache->get('cli-clear-key'));
+    }
+
+    public function test_cache_clear_physically_purges_configured_cache_store(): void
+    {
+        $cache = CacheManager::instance()->store();
+        $this->assertTrue($cache->set('cli-clear-key', 'value', 3600));
+
+        [$out, $stream] = $this->captureOutput();
+        (new System())->cache_clear($out);
+        $output = StreamCapture::read($stream);
+
+        $this->assertStringContainsString('Operation name: cache/clear', $output);
+        $this->assertStringContainsString('physical clear', $output);
+        $this->assertMatchesRegularExpression('/Deleted: [1-9][0-9]* files\/keys\\./', $output);
+        $this->assertStringContainsString('Result: success.', $output);
+        $cache->flush_local_cache();
+        $this->assertFalse($cache->get('cli-clear-key'));
+    }
+
+    public function test_cache_prune_reports_expired_corrupt_cleanup_scope(): void
+    {
+        [$out, $stream] = $this->captureOutput();
+        (new System())->cache_prune($out);
+        $output = StreamCapture::read($stream);
+
+        $this->assertStringContainsString('Operation name: cache/prune', $output);
+        $this->assertStringContainsString('removes stale expired or corrupt cache entries only', $output);
+        $this->assertStringContainsString('valid cache entries are not cleared', $output);
+        $this->assertStringContainsString('Result: success.', $output);
+    }
+
+    private function captureOutput(): array
+    {
+        $stream = StreamCapture::memory();
+        return [new Output($stream, StreamCapture::memory()), $stream];
     }
 }

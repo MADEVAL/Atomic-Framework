@@ -10,6 +10,12 @@ interface CacheStoreInterface
     public function set(string $key, mixed $value, int $ttl = 0): bool;
     public function get(string $key): mixed;
     public function clear(string $key): bool;
+    /**
+     * Invalidate all entries by advancing the namespace generation.
+     *
+     * Old entries become unreachable immediately but may still exist physically
+     * until the driver expires, prunes, or purges them.
+     */
     public function reset(): bool;
     public function flush_local_cache(): void;
 }

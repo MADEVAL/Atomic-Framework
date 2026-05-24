@@ -6,10 +6,11 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\Cache\Helpers\Payload;
 use Engine\Atomic\Core\Filesystem;
 
-class Folder implements CacheStoreInterface, PrunableCacheStoreInterface
+class Folder implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
 {
     private const META_FILE = 'namespace.meta';
     private const PRUNE_DELETE_LIMIT = 20;
@@ -291,6 +292,34 @@ class Folder implements CacheStoreInterface, PrunableCacheStoreInterface
     {
         $this->prune_expired_from_shards(null, null, false);
         return true;
+    }
+
+    public function purge(): int
+    {
+        $deleted = 0;
+
+        foreach ($this->shard_names() as $shard) {
+            $dir = $this->path . DIRECTORY_SEPARATOR . $shard;
+            $files = $this->filesystem->glob($dir . DIRECTORY_SEPARATOR . '*.cache') ?: [];
+
+            foreach ($files as $file) {
+                if (!$this->filesystem->is_file($file)) {
+                    continue;
+                }
+
+                if (!$this->filesystem->delete($file)) {
+                    throw new \RuntimeException('Folder cache purge delete failed.');
+                }
+
+                $deleted++;
+            }
+
+            if (is_dir($dir)) {
+                @rmdir($dir);
+            }
+        }
+
+        return $deleted;
     }
 
     private function should_run_gc(): bool

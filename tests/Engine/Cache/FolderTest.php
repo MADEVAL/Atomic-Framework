@@ -7,6 +7,7 @@ use Engine\Atomic\Cache\Drivers\Folder;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Helpers\Payload;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\ReflectionHelper;
 use Tests\Support\TempPath;
@@ -86,6 +87,11 @@ class FolderTest extends TestCase
         $this->assertInstanceOf(PrunableCacheStoreInterface::class, new Folder($this->path, $this->namespace));
     }
 
+    public function test_folder_driver_is_purgeable(): void
+    {
+        $this->assertInstanceOf(PurgeableCacheStoreInterface::class, new Folder($this->path, $this->namespace));
+    }
+
     public function test_ttl_expiry_deletes_on_read(): void
     {
         $cache = new Folder($this->path, $this->namespace);
@@ -159,6 +165,21 @@ class FolderTest extends TestCase
         $this->assertSame(2, $cache->get_generation());
         $this->assertFalse($cache->get('one'));
         $this->assertFileExists($old_file);
+    }
+
+    public function test_purge_deletes_cache_files_and_keeps_metadata_files(): void
+    {
+        $cache = new Folder($this->path, $this->namespace);
+        $cache->set('one', '1', 60);
+        $cache->set('two', '2', 60);
+        $root = $this->cacheRoot($cache);
+
+        $this->assertFileExists($root . DIRECTORY_SEPARATOR . 'namespace.meta');
+        $this->assertSame(2, $cache->purge());
+        $this->assertCount(0, glob($root . DIRECTORY_SEPARATOR . '*' . DIRECTORY_SEPARATOR . '*.cache') ?: []);
+        $this->assertFileExists($root . DIRECTORY_SEPARATOR . 'namespace.meta');
+        $this->assertFalse($cache->get('one'));
+        $this->assertFalse($cache->get('two'));
     }
 
     public function test_concurrent_resets_each_advance_generation_once(): void

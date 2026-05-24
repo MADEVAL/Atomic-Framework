@@ -6,6 +6,7 @@ namespace Tests\Engine\Cache;
 use Engine\Atomic\Cache\Drivers\Redis as RedisCache;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\Core\ConnectionManager;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\Wait;
@@ -178,6 +179,27 @@ class RedisTest extends TestCase
     public function test_redis_driver_is_not_manually_prunable(): void
     {
         $this->assertNotInstanceOf(PrunableCacheStoreInterface::class, new RedisCache($this->redis(), $this->prefix));
+    }
+
+    public function test_redis_driver_is_purgeable(): void
+    {
+        $this->assertInstanceOf(PurgeableCacheStoreInterface::class, new RedisCache($this->redis(), $this->prefix));
+    }
+
+    public function test_purge_deletes_only_atomic_namespace_keys(): void
+    {
+        $cache = new RedisCache($this->redis(), $this->prefix);
+        $cache->set('old', 'old', 60);
+        $this->assertTrue($cache->reset());
+        $cache->set('new', 'new', 60);
+        $this->redis()->set($this->prefix . '_neighbor.1.key', 'keep');
+
+        $deleted = $cache->purge();
+
+        $this->assertGreaterThanOrEqual(3, $deleted);
+        $this->assertSame([], $this->redis()->keys($this->prefix . '.*'));
+        $this->assertSame('keep', $this->redis()->get($this->prefix . '_neighbor.1.key'));
+        $this->redis()->del($this->prefix . '_neighbor.1.key');
     }
 
     private function redis(): \Redis

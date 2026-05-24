@@ -6,6 +6,7 @@ namespace Tests\Engine\Cache;
 use Engine\Atomic\Cache\Drivers\DB as DBCache;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\App\Models\Options;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ID;
@@ -168,6 +169,31 @@ class DBTest extends TestCase
     public function test_db_driver_is_prunable(): void
     {
         $this->assertInstanceOf(PrunableCacheStoreInterface::class, new DBCache($this->namespace));
+    }
+
+    public function test_db_driver_is_purgeable(): void
+    {
+        $this->assertInstanceOf(PurgeableCacheStoreInterface::class, new DBCache($this->namespace));
+    }
+
+    public function test_purge_removes_cache_entries_across_generations(): void
+    {
+        $cache = new DBCache($this->namespace);
+        $cache->set('old', 'old', 60);
+        $old_key = $this->namespace . '.1.old';
+        $this->assertTrue($cache->reset());
+        $cache->set('new', 'new', 60);
+        $new_key = $this->namespace . '.2.new';
+
+        $this->assertNotFalse(Options::has_option($old_key));
+        $this->assertNotFalse(Options::has_option($new_key));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.gen'));
+
+        $this->assertSame(3, $cache->purge());
+
+        $this->assertFalse(Options::has_option($old_key));
+        $this->assertFalse(Options::has_option($new_key));
+        $this->assertFalse(Options::has_option($this->namespace . '.gen'));
     }
 
     public function test_prune_removes_expired_entries_only(): void

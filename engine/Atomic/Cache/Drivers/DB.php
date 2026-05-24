@@ -5,10 +5,11 @@ namespace Engine\Atomic\Cache\Drivers;
 use Engine\Atomic\App\Models\Options;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\Cache\Helpers\Payload;
 use Engine\Atomic\Core\App;
 
-class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInterface
+class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
 {
     protected Options $options;
     private string $namespace;
@@ -201,12 +202,27 @@ class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInter
     }
 
     public function prune(): bool {
-        $pattern = $this->namespace . '.' . $this->get_generation() . '.%';
+        $pattern = $this->namespace . '.%.%';
 
         if (!$this->options->delete_expired_option_like($pattern)) {
             throw new \RuntimeException('DB cache expired key cleanup failed.');
         }
 
         return true;
+    }
+
+    public function purge(): int
+    {
+        $pattern = $this->namespace . '.%';
+        $uuid = App::instance()->get('APP_UUID');
+        $deleted = (int) $this->options->count(['uuid = ? AND key LIKE ?', $uuid, $pattern], null, 0);
+
+        if (!Options::delete_option_like($pattern)) {
+            throw new \RuntimeException('DB cache physical purge failed.');
+        }
+
+        $this->cached_gen = null;
+
+        return $deleted;
     }
 }

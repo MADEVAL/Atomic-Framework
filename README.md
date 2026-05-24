@@ -541,7 +541,9 @@ php atomic init/key              # Generate application keys
 php atomic version               # Display framework version
 php atomic routes                # List all registered routes
 
-php atomic cache/clear           # Clear application cache
+php atomic cache/invalidate      # Fast generation invalidation; old entries become unreachable
+php atomic cache/clear           # Physical cache deletion where supported
+php atomic cache/prune           # Remove expired/corrupt cache entries only
 php atomic db/tables             # List database tables
 php atomic seed/users            # Seed user data
 

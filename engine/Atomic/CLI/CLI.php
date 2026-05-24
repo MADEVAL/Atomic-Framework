@@ -44,7 +44,9 @@ class CLI {
         $this->output->writeln('  help               - View this help');
         $this->output->writeln('  migrations/init    - Create/verify the migrations tracking table');
         $this->output->writeln('  migrations/migrate - Run database migrations');
-        $this->output->writeln('  cache/clear        - Clear cache');
+        $this->output->writeln('  cache/invalidate   - Invalidate cache by advancing generation');
+        $this->output->writeln('  cache/clear        - Physically delete cache files/keys where supported');
+        $this->output->writeln('  cache/prune        - Remove expired/corrupt cache entries where supported');
         $this->output->writeln('  version            - View versions F3, PHP and Atomic');
         $this->output->writeln('  routes             - View routes list');
         $this->output->writeln('  classes            - View classes list');
@@ -174,7 +176,9 @@ class CLI {
             '/plugin/deps',
             '/access/user/create',
             '/access/user/reset',
+            '/cache/invalidate',
             '/cache/clear',
+            '/cache/prune',
             '/db/truncate',
             '/db/truncate/queue',
             '/migrations/init',

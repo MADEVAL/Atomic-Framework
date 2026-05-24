@@ -6,6 +6,7 @@ namespace Tests\Engine\Cache;
 use Engine\Atomic\Cache\Drivers\Memcached as MemcachedCache;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\Core\ConnectionManager;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\Wait;
@@ -179,6 +180,11 @@ class MemcachedTest extends TestCase
     public function test_memcached_driver_is_not_manually_prunable(): void
     {
         $this->assertNotInstanceOf(PrunableCacheStoreInterface::class, new MemcachedCache($this->memcached(), $this->namespace));
+    }
+
+    public function test_memcached_driver_is_not_purgeable(): void
+    {
+        $this->assertNotInstanceOf(PurgeableCacheStoreInterface::class, new MemcachedCache($this->memcached(), $this->namespace));
     }
 
     private function memcached(): \Memcached

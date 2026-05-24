@@ -13,7 +13,9 @@ $atomic->route('GET /access/user/reset [cli]', 'Engine\Atomic\App\System->access
 $atomic->route('GET /access/user/list [cli]', 'Engine\Atomic\App\System->access_user_list');
 
 $atomic->route('GET /help [cli]', 'Engine\Atomic\App\System->help');
+$atomic->route('GET /cache/invalidate [cli]', 'Engine\Atomic\App\System->cache_invalidate');
 $atomic->route('GET /cache/clear [cli]', 'Engine\Atomic\App\System->cache_clear');
+$atomic->route('GET /cache/prune [cli]', 'Engine\Atomic\App\System->cache_prune');
 $atomic->route('GET /version [cli]', 'Engine\Atomic\App\System->version');
 $atomic->route('GET /routes [cli]', 'Engine\Atomic\App\System->routes');
 $atomic->route('GET /classes [cli]', 'Engine\Atomic\App\System->classes');

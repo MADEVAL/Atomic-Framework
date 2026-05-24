@@ -5,11 +5,13 @@ namespace Engine\Atomic\App;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\App\Controller;
+use Engine\Atomic\Cache\Drivers\Memcached as MemcachedCache;
+use Engine\Atomic\Cache\Drivers\Redis as RedisCache;
+use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\CLI\Console\Output;
-use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\CLI\CLI;
-use Engine\Atomic\Core\ConnectionManager;
 
 class System extends Controller
 {
@@ -70,12 +72,70 @@ class System extends Controller
         $this->cli()->help();
     }
 
-    public function cache_clear(): void
+    public function cache_clear(?Output $out = null): void
     {
-        $out = new Output();
-        $out->writeln('Clearing cache...');
-        CacheManager::instance()->store()->reset();
-        $out->writeln('Cache cleared');
+        $out ??= new Output();
+        $store = CacheManager::instance()->store();
+
+        $this->write_cache_header($out, 'cache/clear', $store);
+        $out->writeln('Operation: physical clear.');
+        $out->writeln('Effect: attempts to delete cache files or keys for the selected Atomic cache namespace across generations.');
+
+        if (!$store instanceof PurgeableCacheStoreInterface) {
+            $out->err('Result: failed.');
+            $out->err($this->unsupported_purge_message($store));
+            $this->exit_cli(1);
+            return;
+        }
+
+        $deleted = $store->purge();
+
+        $out->writeln('Deletion: physical files/keys were deleted; this is not generation invalidation.');
+        $out->writeln('Deleted: ' . $deleted . ' files/keys.');
+        $out->writeln('Result: success.');
+    }
+
+    public function cache_invalidate(?Output $out = null): void
+    {
+        $out ??= new Output();
+        $store = CacheManager::instance()->store();
+
+        $this->write_cache_header($out, 'cache/invalidate', $store);
+        $out->writeln('Operation: generation invalidation.');
+        $out->writeln('Effect: advances the namespace generation so old entries are unreachable immediately.');
+        $out->writeln('Deletion: physical files/keys are not deleted and may remain until expiry, prune, or purge.');
+
+        $result = $store->reset();
+        $out->writeln('Result: ' . ($result ? 'success.' : 'failed.'));
+
+        if (!$result) {
+            $this->exit_cli(1);
+        }
+    }
+
+    public function cache_prune(?Output $out = null): void
+    {
+        $out ??= new Output();
+        $store = CacheManager::instance()->store();
+
+        $this->write_cache_header($out, 'cache/prune', $store);
+        $out->writeln('Operation: prune expired/corrupt entries.');
+        $out->writeln('Effect: removes stale expired or corrupt cache entries only; valid cache entries are not cleared.');
+        $out->writeln('Deletion: physical files/rows may be deleted only when they are stale or corrupt.');
+
+        if (!$store instanceof PrunableCacheStoreInterface) {
+            $out->err('Result: failed.');
+            $out->err($this->unsupported_prune_message($store));
+            $this->exit_cli(1);
+            return;
+        }
+
+        $result = $store->prune();
+        $out->writeln('Result: ' . ($result ? 'success.' : 'failed.'));
+
+        if (!$result) {
+            $this->exit_cli(1);
+        }
     }
 
     public function version(): void
@@ -252,21 +312,54 @@ class System extends Controller
         $this->cli()->schedule_help();
     }
 
-    public function redis_clear(): void
+    public function redis_clear(?Output $out = null): void
     {
-        $out = new Output();
-        $prefix = (string) App::instance()->get('REDIS.prefix');
-        $pattern = $prefix . '*';
-        $redis = ConnectionManager::instance()->get_redis();
-        $it    = null;
-        $total = 0;
-        $redis->setOption(\Redis::OPT_SCAN, \Redis::SCAN_RETRY);
-        while (($keys = $redis->scan($it, $pattern, 500)) !== false) {
-            if (!empty($keys)) {
-                $redis->del($keys);
-                $total += count($keys);
-            }
+        $out ??= new Output();
+        $store = CacheManager::instance()->redis();
+
+        $this->write_cache_header($out, 'redis/clear', $store);
+        $out->writeln('Compatibility: redis/clear is a compatibility alias for Redis physical purge; prefer cache/clear.');
+        $out->writeln('Operation: physical clear.');
+        $out->writeln('Effect: uses cursor-based SCAN with strict Atomic cache namespace matching; KEYS, FLUSHDB, and FLUSHALL are not used.');
+
+        $deleted = $store->purge();
+        $out->writeln('Deletion: physical Redis keys were deleted; this is not generation invalidation.');
+        $out->writeln('Deleted: ' . $deleted . ' keys.');
+        $out->writeln('Result: success.');
+    }
+
+    private function write_cache_header(Output $out, string $operation, object $store): void
+    {
+        $out->writeln('Operation name: ' . $operation);
+        $out->writeln('Selected cache driver/class: ' . $store::class);
+    }
+
+    private function unsupported_purge_message(object $store): string
+    {
+        if ($store instanceof MemcachedCache) {
+            return 'Physical clear is not supported by Memcached because Memcached cannot safely enumerate namespaced keys. Use cache/invalidate.';
         }
-        $out->writeln("Cleared {$total} keys (pattern: {$pattern})");
+
+        return 'Physical clear is not supported by ' . $store::class . '. Use cache/invalidate.';
+    }
+
+    private function unsupported_prune_message(object $store): string
+    {
+        if ($store instanceof MemcachedCache) {
+            return 'Prune is not supported by Memcached because Memcached does not safely expose namespaced expired/corrupt key enumeration. Use cache/invalidate.';
+        }
+
+        if ($store instanceof RedisCache) {
+            return 'Prune is not supported by Redis cache because Redis TTL cleanup is handled by Redis itself. Use cache/clear for full physical cleanup or cache/invalidate for generation invalidation.';
+        }
+
+        return 'Prune is not supported by ' . $store::class . '.';
+    }
+
+    private function exit_cli(int $code): void
+    {
+        if (PHP_SAPI === 'cli') {
+            exit($code);
+        }
     }
 }
