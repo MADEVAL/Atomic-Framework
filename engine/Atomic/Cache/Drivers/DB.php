@@ -8,15 +8,23 @@ use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\Cache\Helpers\Payload;
 use Engine\Atomic\Core\App;
+use DB\SQL;
 
 class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
 {
+    protected ?SQL $db;
     protected Options $options;
     private string $namespace;
     private string $gen_key;
     private ?int $cached_gen = null;
 
-    public function __construct(string $namespace = 'atomic'){
+    public function __construct(SQL|string|null $db = null, string $namespace = 'atomic'){
+        if (is_string($db)) {
+            $namespace = $db;
+            $db = null;
+        }
+
+        $this->db = $db;
         $this->options = new Options();
         $this->namespace = $this->normalize_namespace($namespace);
         $this->gen_key = $this->namespace . '.gen';
@@ -30,8 +38,8 @@ class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInter
 
     private function transaction(string $context, callable $callback): mixed
     {
-        $db = App::instance()->get('DB');
-        if (!$db instanceof \DB\SQL) {
+        $db = $this->db ?? App::instance()->get('DB');
+        if (!$db instanceof SQL) {
             throw new \RuntimeException($context . ': DB connection is not configured.');
         }
         $started = false;

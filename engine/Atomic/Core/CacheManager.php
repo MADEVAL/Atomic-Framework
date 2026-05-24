@@ -67,7 +67,8 @@ class CacheManager extends \Prefab
         if (isset($this->hive[self::DRIVER_DB])) {
             return $this->hive[self::DRIVER_DB];
         }
-        $this->hive[self::DRIVER_DB] = new DB();
+
+        $this->hive[self::DRIVER_DB] = new DB(ConnectionManager::instance()->get_db(false));
         return $this->hive[self::DRIVER_DB];
     }
 

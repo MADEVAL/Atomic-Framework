@@ -152,8 +152,6 @@ class PhpConfigLoader {
             'url' => 'ws://' . $ws_client_host . ':' . $ports['ws'],
         ]);
 
-        $this->apply_settings_to_hive($this->atomic, $settings);
-
         // ── DB_CONFIG ──
         $this->atomic->set('DB_CONFIG', [
             'driver'                 => (string)($conn['driver'] ?? $default_conn),
@@ -173,6 +171,8 @@ class PhpConfigLoader {
 
         // ── MEMCACHED ──
         $this->atomic->set('MEMCACHED', $memcached_config);
+
+        $this->apply_settings_to_hive($this->atomic, $settings);
 
         // ── MUTEX ──
         $mutex = $this->cfg('database', 'mutex', []);

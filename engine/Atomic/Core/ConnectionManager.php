@@ -315,7 +315,7 @@ class ConnectionManager
         return $memcached;
     }
 
-    public function get_db(bool $required = true, bool $if_reconnected = false, string $name = 'default'): array|SQL
+    public function get_db(bool $required = true, bool $if_reconnected = false, string $name = 'default'): array|SQL|null
     {
         list($db, $reconnected) = $this->open_db($name);
         if ($db === null && $required) {
@@ -398,7 +398,10 @@ class ConnectionManager
             !empty($db_cfg['username']) &&
             !empty($db_cfg['password'])
         ) {
-            $atomic->set('DB', $this->get_db());
+            $db = $this->get_db(false);
+            if ($db instanceof SQL) {
+                $atomic->set('DB', $db);
+            }
         }
     }
 }

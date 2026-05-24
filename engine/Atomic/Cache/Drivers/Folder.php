@@ -31,7 +31,7 @@ class Folder implements CacheStoreInterface, PrunableCacheStoreInterface, Purgea
         if ($base === '') throw new \InvalidArgumentException('Folder cache path cannot be empty.');
 
         $this->namespace = $this->normalize_namespace($namespace);
-        $this->path = $base . DIRECTORY_SEPARATOR . 'atomic-cache' . DIRECTORY_SEPARATOR . $this->hash($this->namespace);
+        $this->path = $base . DIRECTORY_SEPARATOR . $this->hash($this->namespace);
         $this->meta_file = $this->path . DIRECTORY_SEPARATOR . self::META_FILE;
         $this->lock_file = $this->path . DIRECTORY_SEPARATOR . self::META_FILE . '.lock';
         $this->filesystem = Filesystem::instance();

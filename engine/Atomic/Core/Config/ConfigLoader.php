@@ -134,8 +134,6 @@ class ConfigLoader {
             'url' => 'ws://' . $ws_client_host . ':' . $ports['ws'],
         ]);
 
-        $this->apply_settings_to_hive($this->atomic, $settings);
-
         $this->atomic->set('DB_CONFIG', [
             'driver'      => $this->get_env('DB_DRIVER'),
             'host'        => $this->get_env('DB_HOST', '127.0.0.1'),
@@ -152,6 +150,8 @@ class ConfigLoader {
         $this->atomic->set('REDIS', $redis_config);
 
         $this->atomic->set('MEMCACHED', $memcached_config);
+
+        $this->apply_settings_to_hive($this->atomic, $settings);
 
         $this->atomic->set('MUTEX', [
             'driver' => $this->get_env('MUTEX_DRIVER', ''),

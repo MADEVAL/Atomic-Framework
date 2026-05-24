@@ -244,7 +244,8 @@ class FolderTest extends TestCase
         $this->assertTrue($cache->set('../escape', 'safe', 60));
 
         $this->assertFileDoesNotExist($escape);
-        $this->assertCount(1, glob($this->path . DIRECTORY_SEPARATOR . 'atomic-cache' . DIRECTORY_SEPARATOR . '*' . DIRECTORY_SEPARATOR . '*' . DIRECTORY_SEPARATOR . '*.cache') ?: []);
+        $root = $this->cacheRoot($cache);
+        $this->assertCount(1, glob($root . DIRECTORY_SEPARATOR . '*' . DIRECTORY_SEPARATOR . '*.cache') ?: []);
     }
 
     public function test_colon_is_not_treated_as_a_separator(): void

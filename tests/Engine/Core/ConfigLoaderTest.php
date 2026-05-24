@@ -4,12 +4,15 @@ declare(strict_types=1);
 namespace Tests\Engine\Core;
 
 use Engine\Atomic\Auth\ConfigUserStore;
+use Engine\Atomic\Cache\Drivers\Redis as RedisCache;
 use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Core\Config\ConfigLoader;
 use Engine\Atomic\Core\Config\PhpConfigLoader;
+use Engine\Atomic\Core\ConnectionManager;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\ReflectionHelper;
 use Tests\Support\TempPath;
+use Tests\Support\TestConfig;
 
 class ConfigLoaderTest extends TestCase
 {
@@ -34,7 +37,7 @@ class ConfigLoaderTest extends TestCase
         $this->f3->clear('CACHE_CONFIG');
         ReflectionHelper::set(CacheManager::instance(), 'hive', []);
         ReflectionHelper::set(CacheManager::instance(), 'store', null);
-        TempPath::remove(ATOMIC_DIR . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'atomic-cache');
+        TempPath::remove(ATOMIC_DIR . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'cache');
     }
 
     public function test_parse_env_basic(): void
@@ -231,6 +234,58 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame('redis', $cache_config['default']);
     }
 
+    public function test_env_loader_resolves_configured_redis_cache_after_loading_connection_config(): void
+    {
+        $this->skip_if_redis_unavailable();
+        $redis_config = TestConfig::redis(['prefix' => 'atomic.config_loader_regression.']);
+
+        file_put_contents($this->env_file, implode("\n", [
+            'APP_KEY=cache-order-test',
+            'CACHE_DRIVER=redis',
+            'CACHE_PREFIX=atomic.config_loader_regression.',
+            'REDIS_HOST=' . $redis_config['host'],
+            'REDIS_PORT=' . $redis_config['port'],
+            'REDIS_PASSWORD=' . $redis_config['password'],
+            'REDIS_DB=' . $redis_config['db'],
+            'REDIS_PREFIX=' . $redis_config['prefix'],
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertInstanceOf(RedisCache::class, CacheManager::instance()->store());
+    }
+
+    public function test_php_loader_resolves_configured_redis_cache_after_loading_connection_config(): void
+    {
+        $this->skip_if_redis_unavailable();
+        $redis_config = TestConfig::redis(['prefix' => 'atomic.config_loader_regression.']);
+
+        $config_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_php_config_' . uniqid() . DIRECTORY_SEPARATOR;
+        mkdir($config_dir);
+
+        file_put_contents($config_dir . 'app.php', "<?php\nreturn ['key' => 'cache-order-test'];\n");
+        file_put_contents($config_dir . 'cache.php', "<?php\nreturn ['default' => 'redis', 'path' => 'tmp/cache/', 'prefix' => 'atomic.config_loader_regression.'];\n");
+        file_put_contents($config_dir . 'database.php', "<?php\nreturn ['default' => 'mysql', 'connections' => ['mysql' => ['driver' => 'mysql']], 'redis' => " . var_export($redis_config, true) . "];\n");
+
+        try {
+            $loader = new class($this->f3) extends PhpConfigLoader {
+                public function set_config_path(string $path): void
+                {
+                    $this->config_path = $path;
+                }
+            };
+            $loader->set_config_path($config_dir);
+            $loader->load();
+
+            $this->assertInstanceOf(RedisCache::class, CacheManager::instance()->store());
+        } finally {
+            foreach (glob($config_dir . '*.php') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($config_dir);
+        }
+    }
+
     public function test_load_enables_f3_cache_bridge_for_memcached_cache(): void
     {
         file_put_contents($this->env_file, implode("\n", [
@@ -416,6 +471,22 @@ class ConfigLoaderTest extends TestCase
                 @unlink($file);
             }
             @rmdir($config_dir);
+        }
+    }
+
+    private function skip_if_redis_unavailable(): void
+    {
+        if (!extension_loaded('redis')) {
+            $this->markTestSkipped('ext-redis not loaded');
+        }
+
+        $this->f3->set('REDIS', TestConfig::redis());
+
+        $redis = ConnectionManager::instance()->get_redis(false);
+        TestConfig::reset_managers();
+
+        if (!$redis instanceof \Redis) {
+            $this->markTestSkipped('Redis is not reachable through ConnectionManager');
         }
     }
 }
