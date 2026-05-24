@@ -12,7 +12,7 @@ use Engine\Atomic\Core\Log;
 
 class Redis implements SessionHandlerInterface
 {
-    private const REVOKED_KEY_PREFIX = ':revoked:';
+    private const REVOKED_SEGMENT = 'revoked';
 
     private ?string $sid = null;
     private string $_csrf;
@@ -166,7 +166,7 @@ class Redis implements SessionHandlerInterface
 
     private function revoked_key(string $id): string
     {
-        return $this->prefix . self::REVOKED_KEY_PREFIX . $id;
+        return $this->prefix . self::REVOKED_SEGMENT . '.' . $id;
     }
 
     /**

@@ -125,6 +125,11 @@ trait SessionDriverTestHarness
         return (string)$cfg[$key];
     }
 
+    protected function redis_revoked_key(string $session_id): string
+    {
+        return $this->prefix . 'revoked.' . $session_id;
+    }
+
     protected function connect_pdo_or_skip(): array
     {
         if (!\extension_loaded('pdo_mysql')) {

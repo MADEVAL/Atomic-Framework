@@ -8,7 +8,7 @@ use Engine\Atomic\Core\Log;
 
 trait RedisSessionTrait
 {
-    private const REDIS_REVOKED_KEY_PREFIX = ':revoked:';
+    private const REDIS_REVOKED_SEGMENT = 'revoked';
 
     private function delete_redis_session(string $session_id): bool
     {
@@ -54,6 +54,6 @@ trait RedisSessionTrait
 
     private function redis_revoked_key(string $session_id): string
     {
-        return $this->redis_prefix . self::REDIS_REVOKED_KEY_PREFIX . $session_id;
+        return $this->redis_prefix . self::REDIS_REVOKED_SEGMENT . '.' . $session_id;
     }
 }

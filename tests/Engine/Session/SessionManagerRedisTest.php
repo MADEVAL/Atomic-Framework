@@ -65,7 +65,7 @@ final class SessionManagerRedisTest extends TestCase
 
         $this->assertTrue($manager->delete_session('manager-redis-delete'));
         $this->assertFalse($this->redis()->exists($this->prefix . 'manager-redis-delete') > 0);
-        $this->assertTrue($this->redis()->exists($this->prefix . ':revoked:manager-redis-delete') > 0);
+        $this->assertTrue($this->redis()->exists($this->redis_revoked_key('manager-redis-delete')) > 0);
         $this->assertFalse($manager->delete_session('manager-redis-missing'));
     }
 

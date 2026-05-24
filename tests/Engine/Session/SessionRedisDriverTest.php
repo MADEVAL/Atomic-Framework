@@ -93,13 +93,13 @@ final class SessionRedisDriverTest extends TestCase
         $this->assertTrue($driver->destroy('session-destroy'));
 
         $this->assertFalse($this->redis()->exists($this->prefix . 'session-destroy') > 0);
-        $this->assertTrue($this->redis()->exists($this->prefix . ':revoked:session-destroy') > 0);
-        $this->assertGreaterThan(0, $this->redis()->ttl($this->prefix . ':revoked:session-destroy'));
+        $this->assertTrue($this->redis()->exists($this->redis_revoked_key('session-destroy')) > 0);
+        $this->assertGreaterThan(0, $this->redis()->ttl($this->redis_revoked_key('session-destroy')));
     }
 
     public function test_write_is_ignored_when_session_is_revoked(): void
     {
-        $this->redis()->setex($this->prefix . ':revoked:session-revoked', 60, '1');
+        $this->redis()->setex($this->redis_revoked_key('session-revoked'), 60, '1');
         $driver = $this->new_driver();
 
         $this->assertTrue($driver->write('session-revoked', 'payload'));
