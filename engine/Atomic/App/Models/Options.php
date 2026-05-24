@@ -120,6 +120,12 @@ class Options extends Storage
         return $results;
     }
 
+    public static function count_option_like(string $key_pattern): int|false {
+        $atomic = App::instance();
+        $uuid = $atomic->get('APP_UUID');
+        return parent::_count_like($uuid, $key_pattern);
+    }
+
     public static function delete_option(string $key): bool {
         $atomic = App::instance();
         $uuid = $atomic->get('APP_UUID');

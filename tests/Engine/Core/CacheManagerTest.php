@@ -232,8 +232,11 @@ class CacheManagerTest extends TestCase
             ->method('set')
             ->with('_atomic_healthcheck', '1', 3)
             ->willReturn(false);
-        $failing->expects($this->once())
+        $failing->expects($this->never())
             ->method('get')
+            ->with('_atomic_healthcheck');
+        $failing->expects($this->once())
+            ->method('clear')
             ->with('_atomic_healthcheck')
             ->willReturn(false);
 
@@ -246,6 +249,10 @@ class CacheManagerTest extends TestCase
             ->method('get')
             ->with('_atomic_healthcheck')
             ->willReturn('1');
+        $healthy->expects($this->once())
+            ->method('clear')
+            ->with('_atomic_healthcheck')
+            ->willReturn(true);
 
         $manager = $this->getMockBuilder(CacheManager::class)
             ->onlyMethods(['cascade_drivers', 'driver'])

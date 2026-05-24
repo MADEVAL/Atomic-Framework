@@ -119,13 +119,8 @@ class CacheManager extends \Prefab
             try {
                 $cache = $this->driver($driver);
 
-                if ($cache !== null) {
-                    $testKey = '_atomic_healthcheck';
-                    $cache->set($testKey, '1', 3);
-                    $val = $cache->get($testKey);
-                    if ($val == '1') {
-                        return $cache;
-                    }
+                if ($cache !== null && $this->health_check($cache)) {
+                    return $cache;
                 }
             } catch (\Throwable $e) {
                 Log::error(ucfirst($driver) . ' health check error: ' . $e->getMessage());
@@ -133,6 +128,34 @@ class CacheManager extends \Prefab
         }
 
         return $this->folder();
+    }
+
+    private function health_check(CacheStoreInterface $cache): bool
+    {
+        $test_key = '_atomic_healthcheck';
+
+        try {
+            if (!$cache->set($test_key, '1', 3)) {
+                Log::warning('Cache health check write failed.');
+                return false;
+            }
+
+            if ($cache->get($test_key) != '1') {
+                Log::warning('Cache health check read verification failed.');
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('Cache health check failed: ' . $e->getMessage());
+            return false;
+        } finally {
+            try {
+                $cache->clear($test_key);
+            } catch (\Throwable $e) {
+                Log::warning('Cache health check cleanup failed: ' . $e->getMessage());
+            }
+        }
     }
 
     public function resolve(): CacheStoreInterface

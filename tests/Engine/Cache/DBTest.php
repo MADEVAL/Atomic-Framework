@@ -9,8 +9,12 @@ use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\App\Models\Options;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Core\ID;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\CapturingSystem;
+use Tests\Support\ReflectionHelper;
+use Tests\Support\StreamCapture;
 use Tests\Support\Wait;
 
 class DBTest extends TestCase
@@ -109,7 +113,7 @@ class DBTest extends TestCase
 
     public function test_reset_normalizes_invalid_generation_before_incrementing(): void
     {
-        Options::set_option($this->namespace . '.gen', 'bad');
+        Options::set_option($this->namespace . '.meta.gen', 'bad');
         $cache = new DBCache($this->namespace);
 
         $this->assertTrue($cache->reset());
@@ -150,7 +154,7 @@ class DBTest extends TestCase
         $cache->set('corrupt', 'value', 60);
 
         $gen = $cache->get_generation();
-        $real_key = $this->namespace . '.' . $gen . '.corrupt';
+        $real_key = $this->namespace . '.entry.' . $gen . '.corrupt';
         Options::set_option($real_key, 'not-a-valid-payload');
 
         $val = 'unchanged';
@@ -180,20 +184,61 @@ class DBTest extends TestCase
     {
         $cache = new DBCache($this->namespace);
         $cache->set('old', 'old', 60);
-        $old_key = $this->namespace . '.1.old';
+        $old_key = $this->namespace . '.entry.1.old';
         $this->assertTrue($cache->reset());
         $cache->set('new', 'new', 60);
-        $new_key = $this->namespace . '.2.new';
+        $new_key = $this->namespace . '.entry.2.new';
 
         $this->assertNotFalse(Options::has_option($old_key));
         $this->assertNotFalse(Options::has_option($new_key));
-        $this->assertNotFalse(Options::has_option($this->namespace . '.gen'));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.meta.gen'));
 
-        $this->assertSame(3, $cache->purge());
+        $this->assertSame(2, $cache->purge());
 
         $this->assertFalse(Options::has_option($old_key));
         $this->assertFalse(Options::has_option($new_key));
-        $this->assertFalse(Options::has_option($this->namespace . '.gen'));
+        $this->assertFalse(Options::has_option($this->namespace . '.meta.gen'));
+    }
+
+    public function test_purge_deletes_metadata_without_counting_it_as_cache_entries(): void
+    {
+        $cache = new DBCache($this->namespace);
+        $cache->set('one', 'one', 60);
+        $cache->set('two', 'two', 60);
+        Options::set_option($this->namespace . '.meta.metadata', 'internal');
+        Options::set_option($this->namespace . '.meta.metadata.cursor', 'internal');
+
+        $this->assertSame(2, $cache->purge());
+        $this->assertFalse(Options::has_option($this->namespace . '.entry.1.one'));
+        $this->assertFalse(Options::has_option($this->namespace . '.entry.1.two'));
+        $this->assertFalse(Options::has_option($this->namespace . '.meta.gen'));
+        $this->assertFalse(Options::has_option($this->namespace . '.meta.metadata'));
+        $this->assertFalse(Options::has_option($this->namespace . '.meta.metadata.cursor'));
+        $this->assertSame(0, $cache->purge());
+    }
+
+    public function test_cache_clear_output_reports_db_driver_and_user_entry_count_without_metadata(): void
+    {
+        $cache = new DBCache($this->namespace);
+        $cache->set('one', 'one', 60);
+        $cache->set('two', 'two', 60);
+        Options::set_option($this->namespace . '.meta.metadata', 'internal');
+
+        ReflectionHelper::set(CacheManager::instance(), 'store', $cache);
+
+        try {
+            [$system, $stream] = CapturingSystem::make();
+            $system->cache_clear();
+        } finally {
+            ReflectionHelper::set(CacheManager::instance(), 'store', null);
+            ReflectionHelper::set(CacheManager::instance(), 'hive', []);
+        }
+
+        $output = StreamCapture::read($stream, true);
+        $this->assertStringContainsString('Cache driver: Engine\Atomic\Cache\Drivers\DB', $output);
+        $this->assertStringContainsString('Deleted: 2 cache entries', $output);
+        $this->assertStringContainsString('[OK] Cache cleared.', $output);
+        $this->assertFalse(Options::has_option($this->namespace . '.meta.metadata'));
     }
 
     public function test_prune_removes_expired_entries_only(): void
@@ -201,14 +246,14 @@ class DBTest extends TestCase
         $cache = new DBCache($this->namespace);
         $cache->set('fresh', 'keep', 60);
         $cache->set('expired', 'gone', 1);
-        Options::set_option($this->namespace . '.1.malformed', 'not-a-cache-payload');
+        Options::set_option($this->namespace . '.entry.1.malformed', 'not-a-cache-payload');
 
         $this->assertTrue(Wait::until(fn (): bool => $cache->get('expired') === false, 4));
 
         $this->assertTrue($cache->prune());
         $this->assertSame('keep', $cache->get('fresh'));
         $this->assertFalse($cache->get('expired'));
-        $this->assertNotFalse(Options::has_option($this->namespace . '.1.malformed'));
+        $this->assertNotFalse(Options::has_option($this->namespace . '.entry.1.malformed'));
     }
 
     protected function newCacheStore(string $namespace): CacheStoreInterface

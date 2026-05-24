@@ -10,6 +10,9 @@ use Engine\Atomic\Cache\Helpers\Payload;
 
 class Redis implements CacheStoreInterface, PurgeableCacheStoreInterface
 {
+    private const ENTRY_PREFIX = 'entry';
+    private const META_PREFIX = 'meta';
+
     private \Redis $redis;
     private string $namespace;
     private string $gen_key;
@@ -24,7 +27,7 @@ class Redis implements CacheStoreInterface, PurgeableCacheStoreInterface
         $this->redis = $redis;
         $this->namespace = $this->normalize_namespace($namespace);
         $this->valid_namespace = $this->namespace !== '';
-        $this->gen_key = $this->namespace . '.gen';
+        $this->gen_key = $this->namespace . '.' . self::META_PREFIX . '.gen';
     }
 
     private function normalize_namespace(string $namespace): string
@@ -50,7 +53,7 @@ class Redis implements CacheStoreInterface, PurgeableCacheStoreInterface
             return false;
         }
 
-        return $this->namespace . '.' . $this->get_generation() . '.' . $key;
+        return $this->namespace . '.' . self::ENTRY_PREFIX . '.' . $this->get_generation() . '.' . $key;
     }
 
     private function lua_script(string $name): string
@@ -164,6 +167,7 @@ class Redis implements CacheStoreInterface, PurgeableCacheStoreInterface
         $deleted_total = 0;
         $iterator = null;
         $pattern = $this->namespace . '.*';
+        $entry_prefix = $this->namespace . '.' . self::ENTRY_PREFIX . '.';
         $this->redis->setOption(\Redis::OPT_SCAN, \Redis::SCAN_RETRY);
 
         while (($keys = $this->redis->scan($iterator, $pattern, 500)) !== false) {
@@ -181,7 +185,11 @@ class Redis implements CacheStoreInterface, PurgeableCacheStoreInterface
                 throw new \RuntimeException('Redis cache physical purge failed.');
             }
 
-            $deleted_total += (int) $deleted;
+            foreach ($keys as $key) {
+                if (str_starts_with($key, $entry_prefix)) {
+                    $deleted_total++;
+                }
+            }
         }
 
         $this->cached_gen = null;

@@ -7,8 +7,12 @@ use Engine\Atomic\Cache\Drivers\Redis as RedisCache;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
+use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Core\ConnectionManager;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\CapturingSystem;
+use Tests\Support\ReflectionHelper;
+use Tests\Support\StreamCapture;
 use Tests\Support\Wait;
 
 class RedisTest extends TestCase
@@ -160,7 +164,7 @@ class RedisTest extends TestCase
         $cache->set('corrupt', 'value', 60);
 
         $gen = $cache->get_generation();
-        $real_key = $this->prefix . '.' . $gen . '.corrupt';
+        $real_key = $this->prefix . '.entry.' . $gen . '.corrupt';
         $this->redis->set($real_key, 'not-a-valid-payload');
 
         $val = 'unchanged';
@@ -192,14 +196,51 @@ class RedisTest extends TestCase
         $cache->set('old', 'old', 60);
         $this->assertTrue($cache->reset());
         $cache->set('new', 'new', 60);
-        $this->redis()->set($this->prefix . '_neighbor.1.key', 'keep');
+        $this->redis()->set($this->prefix . '_neighbor.entry.1.key', 'keep');
 
         $deleted = $cache->purge();
 
-        $this->assertGreaterThanOrEqual(3, $deleted);
+        $this->assertSame(2, $deleted);
         $this->assertSame([], $this->redis()->keys($this->prefix . '.*'));
-        $this->assertSame('keep', $this->redis()->get($this->prefix . '_neighbor.1.key'));
-        $this->redis()->del($this->prefix . '_neighbor.1.key');
+        $this->assertSame('keep', $this->redis()->get($this->prefix . '_neighbor.entry.1.key'));
+        $this->redis()->del($this->prefix . '_neighbor.entry.1.key');
+    }
+
+    public function test_purge_deletes_metadata_without_counting_it_as_cache_entries(): void
+    {
+        $cache = new RedisCache($this->redis(), $this->prefix);
+        $cache->set('one', 'one', 60);
+        $cache->set('two', 'two', 60);
+        $this->redis()->set($this->prefix . '.meta.metadata', 'internal');
+        $this->redis()->set($this->prefix . '.meta.metadata.cursor', 'internal');
+
+        $this->assertSame(2, $cache->purge());
+        $this->assertSame([], $this->redis()->keys($this->prefix . '.*'));
+        $this->assertSame(0, $cache->purge());
+    }
+
+    public function test_cache_clear_output_reports_redis_driver_and_user_entry_count_without_metadata(): void
+    {
+        $cache = new RedisCache($this->redis(), $this->prefix);
+        $cache->set('one', 'one', 60);
+        $cache->set('two', 'two', 60);
+        $this->redis()->set($this->prefix . '.meta.metadata', 'internal');
+
+        ReflectionHelper::set(CacheManager::instance(), 'store', $cache);
+
+        try {
+            [$system, $stream] = CapturingSystem::make();
+            $system->cache_clear();
+        } finally {
+            ReflectionHelper::set(CacheManager::instance(), 'store', null);
+            ReflectionHelper::set(CacheManager::instance(), 'hive', []);
+        }
+
+        $output = StreamCapture::read($stream, true);
+        $this->assertStringContainsString('Cache driver: Engine\Atomic\Cache\Drivers\Redis', $output);
+        $this->assertStringContainsString('Deleted: 2 cache entries', $output);
+        $this->assertStringContainsString('[OK] Cache cleared.', $output);
+        $this->assertSame([], $this->redis()->keys($this->prefix . '.*'));
     }
 
     private function redis(): \Redis

@@ -12,6 +12,7 @@ use Engine\Atomic\Core\Filesystem;
 
 class Folder implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
 {
+    private const ENTRY_PREFIX = 'entry';
     private const META_FILE = 'namespace.meta';
     private const PRUNE_DELETE_LIMIT = 20;
     private const PRUNE_SCAN_LIMIT = 100;
@@ -61,7 +62,7 @@ class Folder implements CacheStoreInterface, PrunableCacheStoreInterface, Purgea
             return false;
         }
 
-        $hash = $this->hash($this->get_generation() . "\0" . $key);
+        $hash = $this->hash(self::ENTRY_PREFIX . "\0" . $this->get_generation() . "\0" . $key);
         $shard = substr($hash, 0, 2);
 
         return $this->path . DIRECTORY_SEPARATOR . $shard . DIRECTORY_SEPARATOR . $hash . '.cache';

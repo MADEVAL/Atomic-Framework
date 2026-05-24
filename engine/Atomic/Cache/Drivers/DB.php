@@ -12,6 +12,9 @@ use DB\SQL;
 
 class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
 {
+    private const ENTRY_PREFIX = 'entry';
+    private const META_PREFIX = 'meta';
+
     protected ?SQL $db;
     protected Options $options;
     private string $namespace;
@@ -27,7 +30,7 @@ class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInter
         $this->db = $db;
         $this->options = new Options();
         $this->namespace = $this->normalize_namespace($namespace);
-        $this->gen_key = $this->namespace . '.gen';
+        $this->gen_key = $this->namespace . '.' . self::META_PREFIX . '.gen';
     }
 
     private function normalize_namespace(string $namespace): string
@@ -117,7 +120,7 @@ class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInter
             return false;
         }
 
-        return $this->namespace . '.' . $this->get_generation() . '.' . $key;
+        return $this->namespace . '.' . self::ENTRY_PREFIX . '.' . $this->get_generation() . '.' . $key;
     }
     
     public function exists(string $key, mixed &$val = NULL): array|false {
@@ -210,7 +213,7 @@ class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInter
     }
 
     public function prune(): bool {
-        $pattern = $this->namespace . '.%.%';
+        $pattern = $this->namespace . '.' . self::ENTRY_PREFIX . '.%.%';
 
         if (!$this->options->delete_expired_option_like($pattern)) {
             throw new \RuntimeException('DB cache expired key cleanup failed.');
@@ -221,11 +224,12 @@ class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInter
 
     public function purge(): int
     {
-        $pattern = $this->namespace . '.%';
-        $uuid = App::instance()->get('APP_UUID');
-        $deleted = (int) $this->options->count(['uuid = ? AND key LIKE ?', $uuid, $pattern], null, 0);
+        $deleted = Options::count_option_like($this->namespace . '.' . self::ENTRY_PREFIX . '.%.%');
+        if ($deleted === false) {
+            throw new \RuntimeException('DB cache entry count failed.');
+        }
 
-        if (!Options::delete_option_like($pattern)) {
+        if (!Options::delete_option_like($this->namespace . '.%')) {
             throw new \RuntimeException('DB cache physical purge failed.');
         }
 

@@ -131,6 +131,21 @@ abstract class Storage extends Model
         }
     }
 
+    protected static function _count_like(string $uuid, string $key_pattern): int|false
+    {
+        if (!ID::is_valid_uuid_v4($uuid)) {
+            Log::error('Invalid UUID v4 provided to _count_like: ' . $uuid);
+            return false;
+        }
+        try {
+            $storage = new static();
+            return (int) $storage->count(['uuid = ? AND key LIKE ?', $uuid, $key_pattern]);
+        } catch (\Throwable $e) {
+            Log::error('Error in _count_like: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     protected static function _delete(string $uuid, string $key): bool
     {
         if (!ID::is_valid_uuid_v4($uuid)) {

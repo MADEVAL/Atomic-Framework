@@ -131,7 +131,7 @@ class MemcachedTest extends TestCase
 
     public function test_false_generation_value_is_normalized(): void
     {
-        $this->memcached()->set($this->namespace . '.gen', false, 60);
+        $this->memcached()->set($this->namespace . '.meta.gen', false, 60);
 
         $cache = new MemcachedCache($this->memcached(), $this->namespace);
 
@@ -161,7 +161,7 @@ class MemcachedTest extends TestCase
         $cache->set('corrupt', 'value', 60);
 
         $gen = $cache->get_generation();
-        $real_key = $this->namespace . '.' . $gen . '.corrupt';
+        $real_key = $this->namespace . '.entry.' . $gen . '.corrupt';
         $this->memcached->set($real_key, 'not-a-valid-payload', 60);
 
         $val = 'unchanged';

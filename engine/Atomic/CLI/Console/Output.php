@@ -4,6 +4,8 @@ namespace Engine\Atomic\CLI\Console;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\CLI\Style;
+
 class Output
 {
     /** @var resource */
@@ -42,6 +44,31 @@ class Output
         $this->write_to($this->stderr, $message . PHP_EOL);
     }
 
+    public function section(string $title): void
+    {
+        $this->writeln(Style::bold($title));
+    }
+
+    public function field(string $label, string|int|float|bool|null $value): void
+    {
+        $this->writeln('  ' . Style::cyan($label . ':', true) . ' ' . $this->string_value($value));
+    }
+
+    public function success(string $message): void
+    {
+        $this->writeln('  ' . Style::success_label() . ' ' . $message);
+    }
+
+    public function failure(string $message): void
+    {
+        $this->err('  ' . Style::error_label() . ' ' . $message);
+    }
+
+    public function warning(string $message): void
+    {
+        $this->writeln('  ' . Style::warning_label() . ' ' . $message);
+    }
+
     public static function plain(string $output): string
     {
         return preg_replace('/\033\[[0-9;]*m/', '', $output) ?? $output;
@@ -51,6 +78,15 @@ class Output
     {
         fwrite($stream, $message);
         fflush($stream);
+    }
+
+    private function string_value(string|int|float|bool|null $value): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'yes' : 'no';
+        }
+
+        return $value === null ? '' : (string)$value;
     }
 
     /** @return resource */

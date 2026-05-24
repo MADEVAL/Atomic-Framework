@@ -22,6 +22,11 @@ class System extends Controller
         return $this->cli ??= new CLI();
     }
 
+    protected function output(): Output
+    {
+        return new Output();
+    }
+
     public function app_init(): void
     {
         $this->cli()->init();
@@ -74,39 +79,44 @@ class System extends Controller
 
     public function cache_clear(): void
     {
-        $out = new Output();
+        $out = $this->output();
         $store = CacheManager::instance()->store();
 
+        $out->section('Cache clear');
         $this->write_cache_header($out, 'cache/clear', $store);
-        $out->writeln('Operation: physical clear.');
-        $out->writeln('Effect: attempts to delete cache files or keys for the selected Atomic cache namespace across generations.');
+        $out->field('Action', 'Physical cache clear');
+        $out->field('Scope', 'All generations in the configured cache namespace');
 
         if (!$store instanceof PurgeableCacheStoreInterface) {
-            $out->err('Result: failed.');
-            $out->err($this->unsupported_purge_message($store));
+            $out->failure($this->unsupported_purge_message($store));
             $this->exit_cli(1);
             return;
         }
 
         $deleted = $store->purge();
 
-        $out->writeln('Deletion: physical files/keys were deleted; this is not generation invalidation.');
-        $out->writeln('Deleted: ' . $deleted . ' files/keys.');
-        $out->writeln('Result: success.');
+        $out->field('Deleted', $deleted . ' cache ' . ($deleted === 1 ? 'entry' : 'entries'));
+        $out->field('Generation', 'Unchanged');
+        $out->success('Cache cleared.');
     }
 
     public function cache_invalidate(): void
     {
-        $out = new Output();
+        $out = $this->output();
         $store = CacheManager::instance()->store();
 
+        $out->section('Cache invalidate');
         $this->write_cache_header($out, 'cache/invalidate', $store);
-        $out->writeln('Operation: generation invalidation.');
-        $out->writeln('Effect: advances the namespace generation so old entries are unreachable immediately.');
-        $out->writeln('Deletion: physical files/keys are not deleted and may remain until expiry, prune, or purge.');
+        $out->field('Action', 'Generation invalidation');
+        $out->field('Scope', 'Configured cache namespace');
+        $out->field('Deleted', 'No files or keys were deleted');
 
         $result = $store->reset();
-        $out->writeln('Result: ' . ($result ? 'success.' : 'failed.'));
+        if ($result) {
+            $out->success('Cache invalidated.');
+        } else {
+            $out->failure('Cache could not be invalidated.');
+        }
 
         if (!$result) {
             $this->exit_cli(1);
@@ -115,23 +125,27 @@ class System extends Controller
 
     public function cache_prune(): void
     {
-        $out = new Output();
+        $out = $this->output();
         $store = CacheManager::instance()->store();
 
+        $out->section('Cache prune');
         $this->write_cache_header($out, 'cache/prune', $store);
-        $out->writeln('Operation: prune expired/corrupt entries.');
-        $out->writeln('Effect: removes stale expired or corrupt cache entries only; valid cache entries are not cleared.');
-        $out->writeln('Deletion: physical files/rows may be deleted only when they are stale or corrupt.');
+        $out->field('Action', 'Expired/corrupt cleanup');
+        $out->field('Scope', 'Expired and corrupt entries only');
+        $out->field('Fresh entries', 'Kept');
 
         if (!$store instanceof PrunableCacheStoreInterface) {
-            $out->err('Result: failed.');
-            $out->err($this->unsupported_prune_message($store));
+            $out->failure($this->unsupported_prune_message($store));
             $this->exit_cli(1);
             return;
         }
 
         $result = $store->prune();
-        $out->writeln('Result: ' . ($result ? 'success.' : 'failed.'));
+        if ($result) {
+            $out->success('Cache pruned.');
+        } else {
+            $out->failure('Cache could not be pruned.');
+        }
 
         if (!$result) {
             $this->exit_cli(1);
@@ -314,24 +328,25 @@ class System extends Controller
 
     public function redis_clear(): void
     {
-        $out = new Output();
+        $out = $this->output();
         $store = CacheManager::instance()->redis();
 
+        $out->section('Redis clear');
         $this->write_cache_header($out, 'redis/clear', $store);
-        $out->writeln('Compatibility: redis/clear is a compatibility alias for Redis physical purge; prefer cache/clear.');
-        $out->writeln('Operation: physical clear.');
-        $out->writeln('Effect: uses cursor-based SCAN with strict Atomic cache namespace matching; KEYS, FLUSHDB, and FLUSHALL are not used.');
+        $out->warning('redis/clear is a compatibility alias; prefer cache/clear.');
+        $out->field('Action', 'Physical Redis cache clear');
+        $out->field('Scope', 'Only keys in the Atomic Redis cache namespace');
+        $out->field('Redis safety', 'Uses SCAN; does not use KEYS, FLUSHDB, or FLUSHALL');
 
         $deleted = $store->purge();
-        $out->writeln('Deletion: physical Redis keys were deleted; this is not generation invalidation.');
-        $out->writeln('Deleted: ' . $deleted . ' keys.');
-        $out->writeln('Result: success.');
+        $out->field('Deleted', $deleted . ' cache ' . ($deleted === 1 ? 'key' : 'keys'));
+        $out->success('Redis cache cleared.');
     }
 
     private function write_cache_header(Output $out, string $operation, object $store): void
     {
-        $out->writeln('Operation name: ' . $operation);
-        $out->writeln('Selected cache driver/class: ' . $store::class);
+        $out->field('Command', $operation);
+        $out->field('Cache driver', $store::class);
     }
 
     private function unsupported_purge_message(object $store): string

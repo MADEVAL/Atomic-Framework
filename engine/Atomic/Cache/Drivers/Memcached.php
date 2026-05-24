@@ -9,6 +9,8 @@ use Engine\Atomic\Cache\Helpers\Payload;
 
 class Memcached implements CacheStoreInterface
 {
+    private const ENTRY_PREFIX = 'entry';
+    private const META_PREFIX = 'meta';
     private const GEN_TTL = 0;
     private const MAX_RELATIVE_EXPIRATION = 2592000;
 
@@ -23,7 +25,7 @@ class Memcached implements CacheStoreInterface
         $this->mc = $mc;
         $this->namespace = $this->normalize_namespace($namespace);
         $this->valid_namespace = $this->namespace !== '';
-        $this->gen_key = $this->namespace . '.gen';
+        $this->gen_key = $this->namespace . '.' . self::META_PREFIX . '.gen';
     }
 
     private function normalize_namespace(string $namespace): string
@@ -86,7 +88,7 @@ class Memcached implements CacheStoreInterface
             return false;
         }
 
-        return $this->namespace . '.' . $this->get_generation() . '.' . $key;
+        return $this->namespace . '.' . self::ENTRY_PREFIX . '.' . $this->get_generation() . '.' . $key;
     }
 
     private function normalize_key(string $key): string|false

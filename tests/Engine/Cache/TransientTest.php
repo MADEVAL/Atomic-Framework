@@ -183,7 +183,7 @@ class TransientTest extends TestCase
 
         $key = $this->key('prefix');
         $cache = CacheManager::instance()->redis();
-        $expected = $this->normalized_redis_prefix() . '.' . $cache->get_generation() . '.transient.' . $key;
+        $expected = $this->normalized_redis_prefix() . '.entry.' . $cache->get_generation() . '.transient.' . $key;
 
         $this->assertTrue(Transient::set($key, 'prefixed', 60, Transient::DRIVER_REDIS));
 
