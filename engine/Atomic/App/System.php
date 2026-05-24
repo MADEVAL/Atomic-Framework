@@ -72,9 +72,9 @@ class System extends Controller
         $this->cli()->help();
     }
 
-    public function cache_clear(?Output $out = null): void
+    public function cache_clear(): void
     {
-        $out ??= new Output();
+        $out = new Output();
         $store = CacheManager::instance()->store();
 
         $this->write_cache_header($out, 'cache/clear', $store);
@@ -95,9 +95,9 @@ class System extends Controller
         $out->writeln('Result: success.');
     }
 
-    public function cache_invalidate(?Output $out = null): void
+    public function cache_invalidate(): void
     {
-        $out ??= new Output();
+        $out = new Output();
         $store = CacheManager::instance()->store();
 
         $this->write_cache_header($out, 'cache/invalidate', $store);
@@ -113,9 +113,9 @@ class System extends Controller
         }
     }
 
-    public function cache_prune(?Output $out = null): void
+    public function cache_prune(): void
     {
-        $out ??= new Output();
+        $out = new Output();
         $store = CacheManager::instance()->store();
 
         $this->write_cache_header($out, 'cache/prune', $store);
@@ -312,9 +312,9 @@ class System extends Controller
         $this->cli()->schedule_help();
     }
 
-    public function redis_clear(?Output $out = null): void
+    public function redis_clear(): void
     {
-        $out ??= new Output();
+        $out = new Output();
         $store = CacheManager::instance()->redis();
 
         $this->write_cache_header($out, 'redis/clear', $store);
