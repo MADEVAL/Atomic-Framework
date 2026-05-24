@@ -7,6 +7,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use Engine\Atomic\App\Controller;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\Core\ConnectionManager;
 
@@ -73,8 +74,7 @@ class System extends Controller
     {
         $out = new Output();
         $out->writeln('Clearing cache...');
-        $atomic = App::instance();
-        $atomic->reset();
+        CacheManager::instance()->store()->reset();
         $out->writeln('Cache cleared');
     }
 
