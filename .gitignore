@@ -16,5 +16,3 @@ composer.lock
 /public/
 /resources/
 /views/
-
-*.md
