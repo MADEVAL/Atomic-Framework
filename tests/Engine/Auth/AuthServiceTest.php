@@ -442,12 +442,11 @@ class AuthServiceTest extends TestCase
         $this->assertNull($this->service->get_current_user());
     }
 
-    public function test_get_current_user_throws_when_no_provider(): void
+    public function test_get_current_user_returns_null_when_no_provider(): void
     {
         $this->session->method('is_started')->willReturn(true);
 
-        $this->expectException(\RuntimeException::class);
-        $this->service->get_current_user();
+        $this->assertNull($this->service->get_current_user());
     }
 
     public function test_get_current_user_returns_null_when_no_uuid_in_session(): void

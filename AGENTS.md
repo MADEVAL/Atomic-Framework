@@ -96,8 +96,10 @@ composer install
 
 # Run all tests (requires MySQL)
 composer test
-# Or:
+# Or (verbose output, one line per test):
 php vendor/bin/phpunit --configuration tests/phpunit.xml
+# Standard dot-progress output (recommended for CI / quick runs):
+php vendor/bin/phpunit --configuration tests/phpunit.dots.xml
 
 # Run a specific test group
 php vendor/bin/phpunit --filter "Auth" --configuration tests/phpunit.xml
@@ -105,6 +107,26 @@ php vendor/bin/phpunit --filter "Auth" --configuration tests/phpunit.xml
 # Run a single test file
 php vendor/bin/phpunit tests/Engine/Core/CryptoTest.php --configuration tests/phpunit.xml
 ```
+
+## Testing & coverage requirements
+
+- **Every bug fix MUST include a failing test first** (TDD — red-green-refactor).
+- **Every new feature MUST have test coverage** before merging.
+- **Tests go in `tests/Engine/`**, mirroring the namespace structure of `engine/Atomic/`.
+- Test classes extend `PHPUnit\Framework\TestCase`. No custom base class.
+- Use `assertSame` over `assertEquals` when possible (strict type checks).
+- Test methods use `snake_case` naming: `test_<what>_<expected_behavior>`.
+- Platform-specific tests (pcntl, Redis, Memcached) MUST guard with `markTestSkipped()` or `#[RequiresPhpExtension]` in `setUp()` — never let them ERROR on unsupported platforms.
+- After any code change, run the full test suite and verify: `PASS` count does not decrease, `FAIL` and `ERROR` counts do not increase.
+- Current baseline: **1245 PASS, 0 FAIL, 1 ERROR (workerman), 217 SKIP** on Windows with MySQL.
+
+## Test output formats
+
+| Config | Output | When to use |
+|--------|--------|-------------|
+| `tests/phpunit.xml` | Dots + summary | Default, CI |
+| `tests/phpunit.dots.xml` | Dots + summary | Same as above (no custom extension) |
+| `--no-extensions` flag | Standard PHPUnit dots | Quick debug without custom printer |
 
 ## Test prerequisites
 

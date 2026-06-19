@@ -6,9 +6,9 @@ if (!defined('ATOMIC_START')) exit;
 
 class Hash
 {
-    public static function password(string $password): string
+    public static function password(string $password, int $cost = 12): string
     {
-        return password_hash($password, PASSWORD_DEFAULT);
+        return password_hash($password, PASSWORD_DEFAULT, ['cost' => $cost]);
     }
 
     public static function verify_password(string $password, string $hash): bool

@@ -100,21 +100,25 @@ class Options extends Storage
         $results = parent::_get_like($uuid, $key_pattern);
         
         $now = time();
+        $expired_keys = [];
+        $storage = new static();
         foreach ($results as $key => $value) {
             try {
-                $storage = new static();
-                $storage->load(['uuid = ? AND key = ?', $uuid, $key]);
+                $storage->load(['uuid = ? AND `key` = ?', $uuid, $key]);
                 
                 if (!$storage->dry() && !empty($storage->expired_at)) {
                     $expired_timestamp = strtotime($storage->expired_at);
                     if ($expired_timestamp <= $now) {
-                        static::delete_option($key);
-                        unset($results[$key]);
+                        $expired_keys[] = $key;
                     }
                 }
             } catch (\Throwable $e) {
                 Log::error('Error checking expiration in get_option_like: ' . $e->getMessage());
             }
+        }
+        foreach ($expired_keys as $key) {
+            static::delete_option($key);
+            unset($results[$key]);
         }
         
         return $results;

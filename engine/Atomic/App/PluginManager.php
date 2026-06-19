@@ -20,6 +20,8 @@ class PluginManager
     protected array $booted = [];
     protected array $loaded_route_types = [];
     protected array $registered_autoloaders = [];
+    /** @var array<string, string> plugin_name => error_message */
+    protected array $errors = [];
 
     private function __construct()
     {
@@ -61,6 +63,7 @@ class PluginManager
                 $this->registered[$name] = true;
             } catch (\Throwable $e) {
                 Log::error("Plugin {$name} registration failed: " . $e->getMessage());
+                $this->errors[$name] = 'register: ' . $e->getMessage();
                 if ($e instanceof PluginDependencyException) {
                     throw $e;
                 }
@@ -81,6 +84,7 @@ class PluginManager
                 $this->booted[$name] = true;
             } catch (\Throwable $e) {
                 Log::error("Plugin {$name} boot failed: " . $e->getMessage());
+                $this->errors[$name] = 'boot: ' . $e->getMessage();
                 if ($e instanceof PluginDependencyException) {
                     throw $e;
                 }
@@ -172,6 +176,7 @@ class PluginManager
                 $plugin = new $plugin_class($this->get_atomic());
             } catch (\Throwable $e) {
                 Log::error("Failed to create plugin {$plugin_class}: " . $e->getMessage());
+                $this->errors[$plugin_class] = 'construct: ' . $e->getMessage();
                 continue;
             }
 
@@ -179,6 +184,7 @@ class PluginManager
                 $this->register($plugin);
             } catch (\Throwable $e) {
                 Log::error("Failed to register plugin {$plugin_class}: " . $e->getMessage());
+                $this->errors[$plugin_class] = 'register: ' . $e->getMessage();
             }
         }
     }
@@ -400,7 +406,7 @@ class PluginManager
         foreach ($plugin->get_dependencies() as $dependency_class) {
             $dependency = $this->resolve_dependency($plugin, $dependency_class);
             if (!$dependency->is_enabled()) {
-                throw new \RuntimeException("Plugin {$plugin->get_plugin_name()} requires {$dependency_class}, but it is disabled.");
+                throw new \Engine\Atomic\Exceptions\PluginDependencyException("Plugin {$plugin->get_plugin_name()} requires {$dependency_class}, but it is disabled.");
             }
         }
     }
@@ -533,6 +539,12 @@ class PluginManager
     public function has(string $name): bool
     {
         return isset($this->plugins[$name]);
+    }
+
+    /** @return array<string, string> */
+    public function get_errors(): array
+    {
+        return $this->errors;
     }
 
     public function all(): array

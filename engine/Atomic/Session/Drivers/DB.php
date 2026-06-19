@@ -69,6 +69,13 @@ class DB implements SessionHandlerInterface
                 return true;
             }
 
+            $db = \Base::instance()->DB;
+            $in_transaction = false;
+            if ($db instanceof \DB\SQL) {
+                $db->begin();
+                $in_transaction = true;
+            }
+
             if ($this->mapper->dry() || $this->mapper->get('session_id') !== $id) {
                 $this->mapper->reset();
                 $this->mapper->load(['session_id = ?', $id]);
@@ -80,8 +87,15 @@ class DB implements SessionHandlerInterface
             $this->mapper->set('agent', $this->_agent);
             $this->mapper->set('stamp', \time());
             $this->mapper->save();
+
+            if ($in_transaction) {
+                $db->commit();
+            }
             return true;
         } catch (\Throwable $e) {
+            if ($in_transaction && $db instanceof \DB\SQL) {
+                $db->rollback();
+            }
             Log::error('DB session write error: ' . $e->getMessage());
             return false;
         }

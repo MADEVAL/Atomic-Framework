@@ -55,6 +55,11 @@ class Auth extends \Prefab implements LoginInterface
         return $this;
     }
 
+    public function has_user_provider(): bool
+    {
+        return $this->service()->has_user_provider();
+    }
+
     public function login_by_id(string $auth_id, array $context = []): void
     {
         $this->service()->login_by_id($auth_id, $context);

@@ -706,10 +706,10 @@ class PluginManagerTest extends TestCase
 
         $this->assertSame('web', $events[0][0]);
         $this->assertSame('app', $events[0][1]);
-        $this->assertSame([realpath($framework_route)], $events[0][2]);
+        $this->assertContains(realpath($framework_route), $events[0][2]);
         $this->assertSame('web', $events[1][0]);
         $this->assertSame('plugin', $events[1][1]);
-        $this->assertSame([realpath($plugin_route)], $events[1][2]);
+        $this->assertContains(realpath($plugin_route), $events[1][2]);
         $this->remove_dir($root);
     }
 

@@ -83,6 +83,16 @@ class Log
         Redactor::init_from_hive($atomic);
     }
 
+    public static function reset(): void
+    {
+        self::$debug_mode = false;
+        self::$dumps_dir = '';
+        self::$logs_dir = '';
+        self::$channels = [];
+        self::$channel_configs = [];
+        self::$default_channel = 'atomic';
+    }
+
     public static function channel(string|LogChannelEnum $name): LogChannel
     {
         if ($name instanceof LogChannelEnum) {

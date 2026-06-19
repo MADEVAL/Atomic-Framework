@@ -55,6 +55,7 @@ class Response {
 
     public function redirect(string $url, int $status = self::STATUS_FOUND, bool $terminate = true): void
     {
+        $url = $this->sanitize_redirect_url($url);
         App::instance()->status($status);
 
         if (!headers_sent()) {
@@ -64,6 +65,22 @@ class Response {
         if ($terminate) {
             exit;
         }
+    }
+
+    private function sanitize_redirect_url(string $url): string
+    {
+        $parsed = parse_url($url);
+        if (isset($parsed['host'])) {
+            $domain = (string)App::instance()->get('DOMAIN');
+            if ($domain !== '' && str_ends_with($parsed['host'], $domain)) {
+                return $url;
+            }
+            return '/';
+        }
+        if (str_starts_with($url, '//')) {
+            return '/';
+        }
+        return $url;
     }
 
     public function send_html(string $html, int $status = self::STATUS_OK, bool $terminate = true): void

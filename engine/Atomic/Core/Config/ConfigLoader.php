@@ -39,7 +39,7 @@ class ConfigLoader {
                 }
                 $parts = explode('=', $line, 2);
                 if (count($parts) === 2) {
-                    $data[trim($parts[0])] = trim($parts[1]);
+                    $data[trim($parts[0])] = $this->strip_quotes(trim($parts[1]));
                 }
             }
         }
@@ -48,6 +48,18 @@ class ConfigLoader {
 
     protected function get_env(string $key, mixed $default = null): mixed {
         return $this->env[$key] ?? $default;
+    }
+
+    private function strip_quotes(string $value): string
+    {
+        if (strlen($value) >= 2) {
+            $first = $value[0];
+            $last = $value[strlen($value) - 1];
+            if (($first === '"' && $last === '"') || ($first === "'" && $last === "'")) {
+                return substr($value, 1, -1);
+            }
+        }
+        return $value;
     }
 
     public function load(string $file): void {

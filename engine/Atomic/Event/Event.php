@@ -32,8 +32,60 @@ class Event extends \Prefab {
 		$this->atomic->set($full, $e);
 	}
 
-	public function off(string|\UnitEnum $key): void {
-		$this->atomic->clear($this->ekey.$this->normalize_key($key));
+	public function off(string|\UnitEnum $key, ?callable $func = null, ?int $priority = null): void {
+		$full = $this->ekey . $this->normalize_key($key);
+
+		if ($func === null && $priority === null) {
+			$this->atomic->clear($full);
+			return;
+		}
+
+		if (!$this->atomic->exists($full)) return;
+		$e = $this->atomic->get($full);
+		if (!is_array($e)) return;
+
+		$target_id = $func !== null ? $this->callback_id($func) : null;
+
+		foreach ($e as $prio => &$listeners) {
+			if ($priority !== null && (int)$prio !== $priority) continue;
+
+			if ($target_id !== null) {
+				$listeners = array_values(array_filter($listeners, function ($call) use ($target_id) {
+					$cb = $this->extract_callable($call);
+					return $cb === null || $this->callback_id($cb) !== $target_id;
+				}));
+			} else {
+				$listeners = [];
+			}
+
+			if (empty($listeners)) {
+				unset($e[$prio]);
+			}
+		}
+
+		if (empty($e)) {
+			$this->atomic->clear($full);
+		} else {
+			$this->atomic->set($full, $e);
+		}
+	}
+
+	private function extract_callable(mixed $call): ?callable
+	{
+		if (is_callable($call)) return $call;
+		if (is_array($call) && isset($call[0]) && is_callable($call[0])) return $call[0];
+		return null;
+	}
+
+	private function callback_id(callable $cb): string
+	{
+		if (is_string($cb)) return 'str:' . $cb;
+		if (is_array($cb)) {
+			$class = is_object($cb[0]) ? get_class($cb[0]) : (string)$cb[0];
+			return 'arr:' . $class . '::' . $cb[1];
+		}
+		if ($cb instanceof \Closure) return 'closure:' . spl_object_id($cb);
+		return 'inv:' . get_class($cb);
 	}
 
 	public function has(string|\UnitEnum $key): bool {

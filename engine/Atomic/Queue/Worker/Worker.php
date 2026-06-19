@@ -23,6 +23,7 @@ class Worker
     private array $pending_respawns = [];
 
     private bool $shutdown = false;
+    private bool $job_cancelled_by_signal = false;
 
     private const IDLE_SLEEP_MICROSECONDS_DEFAULT = 200000;
     private const DEFAULT_MEMORY_LIMIT_MB = 128;
@@ -207,9 +208,10 @@ class Worker
             $shutdown = true;
         };
 
+        $this->job_cancelled_by_signal = false;
         $cancel_job = function () use ($worker_id): void {
             Log::channel(LogChannel::QUEUE_WORKER)->info("Worker #$worker_id received job cancellation signal. Will attempt to cancel current job.");
-            throw new JobCancelledException('Job cancellation requested');
+            $this->job_cancelled_by_signal = true;
         };
 
         \pcntl_signal(SIGTERM, $graceful_shutdown);
@@ -278,13 +280,20 @@ class Worker
         $atomic = App::instance();
 
         $timed_out = false;
-        \pcntl_signal(SIGALRM, function () use (&$timed_out, $job): void {
+        \pcntl_signal(SIGALRM, function () use (&$timed_out): void {
             $timed_out = true;
-            throw new \RuntimeException("Job {$job['uuid']} timed out after {$job['timeout']}s");
         });
         \pcntl_alarm((int)$job['timeout']);
 
         try {
+            if ($timed_out) {
+                throw new \RuntimeException("Job {$job['uuid']} timed out after {$job['timeout']}s");
+            }
+
+            if ($this->job_cancelled_by_signal) {
+                throw new JobCancelledException('Job cancellation requested');
+            }
+
             $atomic->set('ATOMIC_QUEUE_CURRENT_UUID', $job['uuid']);
             $atomic->set('ATOMIC_QUEUE_CURRENT_BATCH_UUID', $job['payload']['uuid_batch']);
             $atomic->set('ATOMIC_QUEUE_CURRENT_NAME', $job['queue']);
@@ -327,6 +336,8 @@ class Worker
 
         } finally {
             \pcntl_alarm(0);
+            \pcntl_signal(SIGALRM, SIG_IGN);
+            $this->job_cancelled_by_signal = false;
 
             $atomic->set('ATOMIC_QUEUE_CURRENT_UUID', null);
             $atomic->set('ATOMIC_QUEUE_CURRENT_BATCH_UUID', null);

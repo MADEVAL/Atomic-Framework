@@ -137,7 +137,7 @@ class ConnectionManager
         $charset = $cfg['charset'];
         $collation = $cfg['collation'];
 
-        $dsn = "mysql:host={$host};dbname={$db}";
+        $dsn = "mysql:host=" . $this->sanitize_dsn_value($host) . ";dbname=" . $this->sanitize_dsn_value($db);
         if (!empty($charset)) {
             $dsn .= ";charset={$charset}";
         }
@@ -265,9 +265,9 @@ class ConnectionManager
             ? $this->normalize_optional_string($config['username'])
             : null;
         $password = $this->normalize_optional_string($this->require_config_value($config, 'password', 'REDIS'));
-        if ($login !== null && $password !== null) {
+        if ($login !== null && $login !== '' && $password !== null) {
             $redis->auth([$login, $password]);
-        } elseif ($password !== null) {
+        } elseif ($password !== null && $password !== '') {
             $redis->auth($password);
         }
 
@@ -398,13 +398,17 @@ class ConnectionManager
             is_array($db_cfg) &&
             !empty($db_cfg['host']) &&
             !empty($db_cfg['db']) &&
-            !empty($db_cfg['username']) &&
-            !empty($db_cfg['password'])
+            !empty($db_cfg['username'])
         ) {
             $db = $this->get_db(false);
             if ($db instanceof SQL) {
                 $atomic->set('DB', $db);
             }
         }
+    }
+
+    private function sanitize_dsn_value(string $value): string
+    {
+        return preg_replace('/[^a-zA-Z0-9._\-\/:\[\]]/', '', $value);
     }
 }

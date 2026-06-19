@@ -11,6 +11,9 @@ class GuardTest extends TestCase
     protected function setUp(): void
     {
         \Base::instance()->set('SESSION', []);
+        \Engine\Atomic\Auth\Auth::instance()->set_user_provider(
+            new \Engine\Atomic\Auth\ConfigUserProvider('test_guard')
+        );
     }
 
     public function test_is_guest_when_no_user(): void

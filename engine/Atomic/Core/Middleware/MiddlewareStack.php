@@ -27,10 +27,17 @@ class MiddlewareStack
     public static function for_route(string $route_pattern, array $middleware_names): void
     {
         $url_pattern = self::extract_url_pattern($route_pattern);
-        self::$route_map[$url_pattern] = $middleware_names;
+        self::$route_map[$url_pattern] = array_merge(
+            self::$route_map[$url_pattern] ?? [],
+            $middleware_names
+        );
 
         foreach (self::extract_methods($route_pattern) as $method) {
-            self::$route_map[$method . ' ' . $url_pattern] = $middleware_names;
+            $key = $method . ' ' . $url_pattern;
+            self::$route_map[$key] = array_merge(
+                self::$route_map[$key] ?? [],
+                $middleware_names
+            );
         }
     }
 

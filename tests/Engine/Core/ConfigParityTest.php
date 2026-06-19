@@ -95,6 +95,8 @@ class ConfigParityTest extends TestCase
         $php_loader->set_config_path($fixture_config_dir);
         $php_loader->load();
         self::$php_data = self::capture_hive($f3);
+
+        $set_hive($clean_hive);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

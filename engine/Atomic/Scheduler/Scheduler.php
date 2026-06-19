@@ -37,10 +37,11 @@ class Scheduler extends \Prefab
 
     public function exec(string $command): Event
     {
-        return $this->call(function () use ($command) {
+        $escaped_command = \escapeshellcmd($command);
+        return $this->call(function () use ($escaped_command) {
             $output = [];
             $returnCode = 0;
-            \exec($command, $output, $returnCode);
+            \exec($escaped_command, $output, $returnCode);
             
             if ($returnCode !== 0) {
                 throw new \RuntimeException(

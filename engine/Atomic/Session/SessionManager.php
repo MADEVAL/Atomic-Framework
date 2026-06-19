@@ -28,9 +28,17 @@ class SessionManager
             $this->redis_prefix = (string)$atomic->get('SESSION_CONFIG.redis_prefix');
         }
     }
+
+    private function validate_session_id(string $session_id): void
+    {
+        if ($session_id === '' || strlen($session_id) > 128 || !preg_match('/^[a-zA-Z0-9_-]+$/', $session_id)) {
+            throw new \InvalidArgumentException('Invalid session ID format.');
+        }
+    }
     
     public function delete_session(string $session_id): bool
     {
+        $this->validate_session_id($session_id);
         if ($this->driver === 'redis') {
             return $this->delete_redis_session($session_id);
         }
@@ -39,6 +47,7 @@ class SessionManager
     
     public function session_exists(string $session_id): bool
     {
+        $this->validate_session_id($session_id);
         if ($this->driver === 'redis') {
             return $this->redis_session_exists($session_id);
         }
@@ -47,6 +56,7 @@ class SessionManager
     
     public function get_session_data(string $session_id): ?array
     {
+        $this->validate_session_id($session_id);
         if ($this->driver === 'redis') {
             return $this->get_redis_session_data($session_id);
         }

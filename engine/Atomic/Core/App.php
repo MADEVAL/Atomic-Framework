@@ -349,6 +349,10 @@ class App {
 
     protected function controller_has_custom_route_hook(string $class): bool
     {
+        static $cache = [];
+        if (isset($cache[$class])) {
+            return $cache[$class];
+        }
         try {
             $r = new \ReflectionClass($class);
             $custom_before = false;
@@ -361,9 +365,9 @@ class App {
                 $m = $r->getMethod('afterroute');
                 $custom_after = $m->getDeclaringClass()->getName() !== $this->base_controller_class;
             }
-            return $custom_before || $custom_after;
+            return $cache[$class] = $custom_before || $custom_after;
         } catch (\Throwable $e) {
-            return false;
+            return $cache[$class] = false;
         }
     }
 
@@ -390,7 +394,10 @@ class App {
         $credentials = (bool)$cors['credentials'];
 
         if ($credentials && $origin === '*' && $request_origin !== '') {
-            $origin = $request_origin;
+            $domain = (string)$this->atomic->get('DOMAIN');
+            if ($domain !== '' && str_ends_with($request_origin, $domain)) {
+                $origin = $request_origin;
+            }
         }
 
         header('Access-Control-Allow-Origin: ' . $origin);
@@ -432,7 +439,7 @@ class App {
             }
         }
 
-        // $this->atomic->unload();
+        $this->atomic->unload();
         exit($message);
     }  
 
@@ -440,6 +447,8 @@ class App {
     {
         MiddlewareStack::register_alias('access', AccessMiddleware::class);
         MiddlewareStack::register_alias('role', RoleMiddleware::class);
+        MiddlewareStack::register_alias('csrf', \Engine\Atomic\Core\Middleware\CsrfMiddleware::class);
+        MiddlewareStack::register_alias('ratelimit', \Engine\Atomic\RateLimit\Middleware\RateLimitMiddleware::class);
 
         $config_file = ATOMIC_CONFIG . 'middleware.php';
         $resolved_config_file = realpath($config_file);
@@ -539,16 +548,16 @@ class App {
         }
 
         $this->auth_session_hooks_registered = true;
-        Hook::instance()->add_action('SESSION_STARTED', function (): void {
-            $app = new \Engine\Atomic\Auth\Adapters\AppContextAdapter();
-            $session = new AuthSessionService(
-                $app,
-                new \Engine\Atomic\Auth\Adapters\PhpSessionAdapter(),
-                new \Engine\Atomic\Auth\Adapters\SessionDriverFactoryAdapter($app),
-                new \Engine\Atomic\Auth\Adapters\SystemClockAdapter(),
-                new \Engine\Atomic\Auth\Adapters\IdValidatorAdapter(),
-                new \Engine\Atomic\Auth\Adapters\LogAdapter(),
-            );
+        $app = new \Engine\Atomic\Auth\Adapters\AppContextAdapter();
+        $session = new AuthSessionService(
+            $app,
+            new \Engine\Atomic\Auth\Adapters\PhpSessionAdapter(),
+            new \Engine\Atomic\Auth\Adapters\SessionDriverFactoryAdapter($app),
+            new \Engine\Atomic\Auth\Adapters\SystemClockAdapter(),
+            new \Engine\Atomic\Auth\Adapters\IdValidatorAdapter(),
+            new \Engine\Atomic\Auth\Adapters\LogAdapter(),
+        );
+        Hook::instance()->add_action('SESSION_STARTED', function () use ($session): void {
             $session->validate_auth_session();
         }, 10, 0);
     }

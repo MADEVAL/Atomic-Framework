@@ -44,6 +44,11 @@ class AuthService implements LoginInterface
         return $this;
     }
 
+    public function has_user_provider(): bool
+    {
+        return $this->user_provider !== null;
+    }
+
     public function login_by_id(string $auth_id, array $context = []): void
     {
         try {
@@ -89,9 +94,18 @@ class AuthService implements LoginInterface
             throw new \RuntimeException('User provider not configured. Call set_user_provider() first.');
         }
 
+        if ($this->is_login_rate_limited()) {
+            $this->logger->warning('Auth login rate limited', [
+                'ip' => $this->app->get('IP'),
+            ]);
+            return null;
+        }
+
         $credential_keys = array_keys(array_diff_key($credentials, array_flip(['password', 'secret', 'token'])));
         $user = $this->user_provider->find_by_credentials($credentials);
         if (!$user) {
+            Hash::verify_password($secret, '$2y$12$dummy_hash_for_timing_mitigation_00000000000000000000000');
+            $this->record_login_failure();
             $this->logger->warning('Auth login failed: user not found', [
                 'ip' => $this->app->get('IP'),
                 'credential_keys' => $credential_keys,
@@ -101,11 +115,18 @@ class AuthService implements LoginInterface
 
         $password_hash = $user->get_password_hash();
         if (!$password_hash || !Hash::verify_password($secret, $password_hash)) {
+            $this->record_login_failure();
             $this->logger->warning('Auth login failed: invalid secret', [
                 'ip' => $this->app->get('IP'),
                 'credential_keys' => $credential_keys,
             ]);
             return null;
+        }
+
+        if (Hash::password_needs_rehash($password_hash)) {
+            $this->logger->info('Auth: rehashing password with current algorithm', [
+                'auth_id' => $user->get_auth_id(),
+            ]);
         }
 
         $sanitized = $credentials;
@@ -167,9 +188,8 @@ class AuthService implements LoginInterface
                     }
                 }
             } else {
-                $meta_deleted = $this->meta->delete_meta_like($user_id, 'auth_session_%');
-                $session_deleted_count = $this->session_manager->delete_sessions(array_values($sessions_to_delete));
-                $deleted_count = $meta_deleted ? count($sessions_to_delete) : $session_deleted_count;
+                $this->meta->delete_meta_like($user_id, 'auth_session_%');
+                $deleted_count = $this->session_manager->delete_sessions(array_values($sessions_to_delete));
             }
         }
 
@@ -195,8 +215,7 @@ class AuthService implements LoginInterface
         }
 
         if (!$this->user_provider) {
-            $this->logger->error('User provider not configured in get_current_user');
-            throw new \RuntimeException('User provider not configured. Call set_user_provider() first.');
+            return null;
         }
 
         if ($uuid) {
@@ -316,5 +335,29 @@ class AuthService implements LoginInterface
         }
 
         return $this->user_provider->find_by_id($admin_uuid);
+    }
+
+    private function is_login_rate_limited(): bool
+    {
+        try {
+            $ip = (string)$this->app->get('IP');
+            $limiter = \Engine\Atomic\RateLimit\RateLimiter::from_config();
+            $key = 'auth_login:' . $ip;
+            $result = $limiter->fixed($key, 5, 60);
+            return !$result->allowed;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function record_login_failure(): void
+    {
+        try {
+            $ip = (string)$this->app->get('IP');
+            $limiter = \Engine\Atomic\RateLimit\RateLimiter::from_config();
+            $key = 'auth_login_fail:' . $ip;
+            $limiter->fixed($key, 5, 60);
+        } catch (\Throwable) {
+        }
     }
 }

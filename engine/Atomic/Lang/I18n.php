@@ -63,7 +63,7 @@ final class I18n
         $this->content = $lang;
         $this->app->language($lang);
         if (session_status() === \PHP_SESSION_ACTIVE) $this->app->set($this->session, $lang); //TODO: save session in \SESSION
-        setcookie($this->cookie, $lang, time()+31536000, '/', '', false, true);
+        setcookie($this->cookie, $lang, time()+31536000, '/', '', $this->app->get('JAR.secure'), true);
     }
 
     public function get(): string

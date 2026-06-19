@@ -189,7 +189,7 @@ function has_any_role(array $roles): bool { return Guard::has_any_role($roles); 
 function is_admin(): bool { return Guard::has_role(Role::ADMIN); }
 function is_seller(): bool { return Guard::has_role(Role::SELLER); }
 function is_buyer(): bool { return Guard::has_role(Role::BUYER); }
-function is_moterator(): bool { return Guard::has_role(Role::MODERATOR); }
+function is_moderator(): bool { return Guard::has_role(Role::MODERATOR); }
 function is_support(): bool { return Guard::has_role(Role::SUPPORT); }
 
 // Impersonation functions

@@ -137,10 +137,10 @@ class CSV extends \Prefab {
 		$data = $this->dump_csv($rows, $headers, $delimiter, $enclosure, $enclose_all);
 		header("Expires: 0");
 		header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
-		header('Content-Type: text/csv;charset=UTF-16LE');
+		header('Content-Type: text/csv;charset=UTF-8');
 		header("Content-Disposition: attachment;filename=".$filename);
 		header("Content-Transfer-Encoding: binary");
-		echo "\xFF"."\xFE".($encoding !== 'UTF-8' ? mb_convert_encoding($data, $encoding, 'UTF-8') : $data);
+		echo ($encoding !== 'UTF-8' ? mb_convert_encoding($data, $encoding, 'UTF-8') : $data);
 		exit();
 	}
 

@@ -18,7 +18,9 @@ final class AccessMiddleware implements MiddlewareInterface
     {
         $guard = $this->guard();
         $auth = Auth::instance();
-        $auth->set_user_provider(new ConfigUserProvider($guard));
+        if (!$auth->has_user_provider()) {
+            $auth->set_user_provider(new ConfigUserProvider($guard));
+        }
 
         if (Guard::is_authenticated()) {
             return true;

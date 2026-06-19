@@ -39,7 +39,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
             $result = $this->check($limiter, $atomic);
         } catch (\InvalidArgumentException) {
             return false;
-        } catch (\Throwable) {
+        } catch (\Exception) {
             return (string)App::instance()->get(self::CONFIG_FAIL) === RateLimiter::FAIL_OPEN;
         }
 

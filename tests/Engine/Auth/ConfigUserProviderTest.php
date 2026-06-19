@@ -71,4 +71,25 @@ final class ConfigUserProviderTest extends TestCase
 
         $this->assertNull($provider->find_by_credentials(['login' => 'viewer']));
     }
+
+    public function test_finds_user_by_mixed_case_username(): void
+    {
+        $atomic = \Base::instance();
+        $atomic->set('ACCESS.guards.telemetry.users.AdminUser', [
+            'id' => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            'username' => 'AdminUser',
+            'secret_hash' => password_hash('adminsecret', PASSWORD_DEFAULT),
+            'roles' => ['admin'],
+        ]);
+
+        $provider = new ConfigUserProvider('telemetry');
+
+        $user = $provider->find_by_credentials(['username' => 'adminuser']);
+        $this->assertNotNull($user, 'Should find user with lowercase lookup when config has mixed case');
+        $this->assertSame('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', $user->get_auth_id());
+
+        $user2 = $provider->find_by_credentials(['username' => 'AdminUser']);
+        $this->assertNotNull($user2, 'Should find user with exact case lookup');
+        $this->assertSame('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', $user2->get_auth_id());
+    }
 }

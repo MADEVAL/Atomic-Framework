@@ -9,9 +9,9 @@ return [
             'driver'      => 'mysql',
             'host'        => '127.0.0.1',
             'port'        => 3306,
-            'db'          => 'atomic',
-            'username'    => 'atomic',
-            'password'    => '',
+            'db'          => 'atomic_test',
+            'username'    => 'atomic_test_user',
+            'password'    => 'atomic_test_pass',
             'unix_socket' => '',
             'charset'     => 'utf8mb4',
             'collation'   => 'utf8mb4_general_ci',
@@ -33,6 +33,6 @@ return [
     ],
     'prefix' => 'atomic_',
     'mutex' => [
-        'driver' => 'db',
+        'driver' => 'redis',
     ],
 ];

@@ -67,7 +67,8 @@ class PDF
 
     private function embed_font_binary(): void
     {
-        $ttf_path = App::instance()->get('FONTS') . $this->font_name . '.ttf';
+        $sanitized_font = basename($this->font_name);
+        $ttf_path = App::instance()->get('FONTS') . $sanitized_font . '.ttf';
         $ttf_binary_path = $this->font_cash_path . '_stream' . self::CACHE_EXTENSION;
         $font_stream = null;
 

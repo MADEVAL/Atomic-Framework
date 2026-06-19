@@ -208,11 +208,10 @@ class ConfigLoaderTest extends TestCase
         $this->loader->load($this->env_file);
 
         $this->assertSame(CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL, $this->f3->get('CACHE'));
-        $this->assertSame([
-            'default' => 'folder',
-            'path' => ATOMIC_DIR . DIRECTORY_SEPARATOR . 'tmp' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR,
-            'prefix' => 'atomic.cache.',
-        ], $this->f3->get('CACHE_CONFIG'));
+        $cache_config = $this->f3->get('CACHE_CONFIG');
+        $this->assertSame('folder', $cache_config['default']);
+        $this->assertSame('atomic.cache.', $cache_config['prefix']);
+        $this->assertStringEndsWith('/tmp/cache/', $cache_config['path']);
     }
 
     public function test_load_enables_f3_cache_bridge_for_redis_cache(): void

@@ -131,10 +131,10 @@ class PhpConfigLoader {
             'FONTS'                 => $this->fix_path($paths['fonts'] ?? 'engine/Atomic/Files/fonts/'),
             'FONTS_TEMP'            => $this->fix_path($paths['fonts_temp'] ?? 'storage/framework/cache/fonts/'),
             'MIGRATIONS'            => $this->fix_path($paths['migrations'] ?? 'database/migrations/'),
-            'MIGRATIONS_BUNDLED'    => $this->fix_path($paths['migrations'] ?? 'database/migrations/') . 'atomic/',
+            'MIGRATIONS_BUNDLED'    => $this->fix_path(($paths['migrations'] ?? 'database/migrations/') . 'atomic/'),
             'MIGRATIONS_CORE'       => $this->fix_path($paths['migrations_core'] ?? 'Atomic/Core/Database/Migrations/'),
             'SEEDS'                 => $this->fix_path($paths['seeds'] ?? 'database/seeds/'),
-            'SEEDS_BUNDLED'         => $this->fix_path($paths['seeds'] ?? 'database/seeds/') . 'atomic/',
+            'SEEDS_BUNDLED'         => $this->fix_path(($paths['seeds'] ?? 'database/seeds/') . 'atomic/'),
             'USER_PLUGINS'          => $this->fix_path($paths['user_plugins'] ?? 'plugins/'),
             'FRAMEWORK_ROUTES'      => $this->fix_path($paths['framework_routes'] ?? 'Atomic/Core/Routes/'),
         ];
@@ -199,7 +199,7 @@ class PhpConfigLoader {
             'driver'          => (string)($session['driver'] ?? 'db'),
             'lifetime'        => (string)($session['lifetime'] ?? '7200'),
             'cookie'          => (string)($session['cookie'] ?? 'atomicsession'),
-            'kill_on_suspect' => (bool)($session['kill_on_suspect'] ?? true),
+            'kill_on_suspect' => $this->to_bool($session['kill_on_suspect'] ?? true),
             'redis_prefix'    => (string)($session['redis_prefix'] ?? ($redis_prefix . 'session.')),
         ]);
 
@@ -207,8 +207,8 @@ class PhpConfigLoader {
         $this->atomic->set('JAR.lifetime', (int)($session['cookie_expire'] ?? 0));
         $this->atomic->set('JAR.path',     (string)($session['cookie_path'] ?? '/'));
         $this->atomic->set('JAR.domain',   (string)($session['cookie_domain'] ?? ''));
-        $this->atomic->set('JAR.secure',   (bool)($session['cookie_secure'] ?? false));
-        $this->atomic->set('JAR.httponly',  (bool)($session['cookie_httponly'] ?? true));
+        $this->atomic->set('JAR.secure',   $this->to_bool($session['cookie_secure'] ?? false));
+        $this->atomic->set('JAR.httponly',  $this->to_bool($session['cookie_httponly'] ?? true));
         $this->atomic->set('JAR.samesite', (string)($session['cookie_samesite'] ?? 'Lax'));
 
         // ── CORS ──
@@ -216,7 +216,7 @@ class PhpConfigLoader {
         $this->atomic->set('CORS', [
             'headers'     => (string)($cors['headers'] ?? 'Content-Type,Authorization'),
             'origin'      => (string)($cors['origin'] ?? '*'),
-            'credentials' => (bool)($cors['credentials'] ?? false),
+            'credentials' => $this->to_bool($cors['credentials'] ?? false),
             'expose'      => (string)($cors['expose'] ?? 'Authorization'),
             'ttl'         => (int)($cors['ttl'] ?? 0),
         ]);
@@ -313,7 +313,7 @@ class PhpConfigLoader {
         // ── MONOPAY ──
         $monopay = $this->cfg('tools', 'monopay', []);
         $this->atomic->set('MONOPAY.TOKEN',        (string)($monopay['token'] ?? ''));
-        $this->atomic->set('MONOPAY.TEST_MODE',    (bool)($monopay['test_mode'] ?? false));
+        $this->atomic->set('MONOPAY.TEST_MODE',    $this->to_bool($monopay['test_mode'] ?? false));
         $this->atomic->set('MONOPAY.WEBHOOK_URL',  (string)($monopay['webhook_url'] ?? ''));
         $this->atomic->set('MONOPAY.REDIRECT_URL', (string)($monopay['redirect_url'] ?? ''));
 
@@ -410,5 +410,13 @@ class PhpConfigLoader {
         $name = strtolower((string)$name);
         $name = preg_replace('/[^a-z0-9]+/', '_', $name) ?? $name;
         return trim($name, '_');
+    }
+
+    private function to_bool(mixed $value): bool
+    {
+        if (is_string($value)) {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        }
+        return (bool)$value;
     }
 }

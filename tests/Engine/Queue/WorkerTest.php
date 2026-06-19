@@ -7,9 +7,11 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\Queue\Exceptions\JobCancelledException;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Worker\Worker;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\Wait;
 
+#[RequiresPhpExtension('pcntl')]
 final class WorkerTest extends TestCase
 {
     private array $originalState = [];

@@ -173,7 +173,9 @@ class MigrationsTest extends TestCase
             $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=%s', $host, $db_port, $db_name, $db_charset);
 
             try {
-                return [new \PDO($dsn, $db_user, $db_password), $host, null];
+                return [new \PDO($dsn, $db_user, $db_password, [
+                    \PDO::ATTR_TIMEOUT => 3,
+                ]), $host, null];
             } catch (\Throwable $e) {
                 $last_error = $e->getMessage();
             }

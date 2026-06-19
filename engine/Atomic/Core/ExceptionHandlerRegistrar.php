@@ -113,6 +113,7 @@ class ExceptionHandlerRegistrar
                 }
 
                 if ($prevDebug >= 3) $atomic->set('DEBUG', $prevDebug);
+                $atomic->clear('ERROR.recursion_counter');
                 echo $text;
             } catch (\Throwable $e) {
                 Log::channel(LogChannel::ERROR)->critical('Critical error in exception handler: ' . $e->getMessage());

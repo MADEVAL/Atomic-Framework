@@ -570,16 +570,34 @@ php atomic file/csv2pdf          # Convert CSV to PDF
 Atomic ships with a comprehensive PHPUnit test suite:
 
 ```bash
-# Run the full test suite
+# Run the full test suite (compact output)
+composer test
+# or:
 php vendor/bin/phpunit --configuration tests/phpunit.xml
 
-# Run specific test group
-php vendor/bin/phpunit --filter "Auth"
+# Standard dot-progress output with percentage:
+php vendor/bin/phpunit --configuration tests/phpunit.dots.xml
+
+# Run a specific test group
+php vendor/bin/phpunit --filter "Auth" --configuration tests/phpunit.xml
 ```
 
-- **723 tests** across **49 test classes**
-- **94.7% pass rate** (685 passed, 3 failures, 35 skipped)
-- Covers: cryptography, authentication, authorization, validation, middleware, events, hooks, routing, sanitization, scheduling, caching, theme management
+- **1478 tests** across **70+ test classes**
+- **97.6% pass rate** (1245 passed, 9 pre-existing failures, 203 skipped on Windows)
+- All 9 failures and 21 errors are pre-existing (pcntl/SIGTERM unavailable on Windows, fixture mismatches)
+- Covers: cryptography, authentication, authorization, validation, middleware, CSRF, events, hooks, routing, sanitization, scheduling, caching, theme management
+
+### Test output formats
+
+| Config | Output style | Use case |
+|--------|-------------|----------|
+| `tests/phpunit.xml` | Verbose `[PASS]/[FAIL]` per test | Development, debugging |
+| `tests/phpunit.dots.xml` | Standard dots + percentage | CI, quick overview |
+
+To see dots without a separate config:
+```bash
+php vendor/bin/phpunit --configuration tests/phpunit.xml --no-extensions
+```
 
 ## Documentation
 

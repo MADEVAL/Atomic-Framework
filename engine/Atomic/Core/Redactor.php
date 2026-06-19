@@ -160,7 +160,7 @@ class Redactor
         return $value;
     }
 
-    public static function redact(mixed $data, int $depth = 0, int $max_depth = 6, int $max_items = 1000): mixed
+    public static function redact(mixed $data, int $depth = 0, int $max_depth = 6, int $max_items = 1000, array &$seen = []): mixed
     {
         if ($depth >= $max_depth) return '[[max_depth]]';
         if (is_null($data)) return $data;
@@ -173,30 +173,36 @@ class Redactor
             $i = 0;
             foreach ($data as $key => $value) {
                 if ($i++ >= $max_items) { $out['[[truncated]]'] = true; break; }
-                // Keep nested structures traversable even under sensitive parent keys.
                 if (self::is_sensitive_key($key) && !is_array($value) && !is_object($value)) {
                     $out[$key] = self::MASKED;
                 } else {
-                    $out[$key] = self::redact($value, $depth + 1, $max_depth, $max_items);
+                    $out[$key] = self::redact($value, $depth + 1, $max_depth, $max_items, $seen);
                 }
             }
             return $out;
         }
 
         if (is_object($data)) {
-            if ($data instanceof \DateTimeInterface) return $data->format(\DateTimeInterface::RFC3339_EXTENDED);
+            $oid = spl_object_id($data);
+            if (isset($seen[$oid])) return '[[circular:' . get_class($data) . ']]';
+            $seen[$oid] = true;
+
+            if ($data instanceof \DateTimeInterface) {
+                unset($seen[$oid]);
+                return $data->format(\DateTimeInterface::RFC3339_EXTENDED);
+            }
 
             $cls = get_class($data);
             $props = [];
             foreach (get_object_vars($data) as $name => $value) {
-                // Keep nested structures traversable even under sensitive parent keys.
                 if (self::is_sensitive_key($name) && !is_array($value) && !is_object($value)) {
                     $props[$name] = self::MASKED;
                 } else {
-                    $props[$name] = self::redact($value, $depth + 1, $max_depth, $max_items);
+                    $props[$name] = self::redact($value, $depth + 1, $max_depth, $max_items, $seen);
                 }
             }
 
+            unset($seen[$oid]);
             $out = ['__object__' => $cls];
             if ($props !== []) $out['properties'] = $props;
             return $out;

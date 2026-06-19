@@ -178,12 +178,15 @@ class Upload
         $basename = $pathInfo['filename'];
         
         $slug = \Web::instance()->slug($basename);
-        $finalName = $slug . $extension;
-        $counter = 1;
+        $random = substr(bin2hex(random_bytes(4)), 0, 8);
+        $finalName = $slug . '-' . $random . $extension;
 
-        while (file_exists($dir . $finalName)) {
-            $finalName = $slug . '-' . $counter . $extension;
-            $counter++;
+        if (file_exists($dir . $finalName)) {
+            $counter = 1;
+            while (file_exists($dir . $slug . '-' . $counter . $extension)) {
+                $counter++;
+            }
+            return $slug . '-' . $counter . $extension;
         }
 
         return $finalName;
@@ -306,8 +309,45 @@ class Upload
         return \Web::instance()->mime($file, true);
     }
 
+    protected function is_url_allowed(string $url): bool
+    {
+        $parsed = parse_url($url);
+        if ($parsed === false || !isset($parsed['scheme'], $parsed['host'])) {
+            return false;
+        }
+
+        $scheme = strtolower($parsed['scheme']);
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
+        $host = strtolower($parsed['host']);
+        if (in_array($host, ['localhost', '127.0.0.1', '::1', '0.0.0.0'], true)) {
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            $ip = $host;
+        } else {
+            $ip = gethostbyname($host);
+            if ($ip === $host) {
+                return false;
+            }
+        }
+
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function download_image_from_url(string $url, string $destination_dir, string $default_filename = 'image.jpg'): array
     {
+        if (!$this->is_url_allowed($url)) {
+            return ['ok' => false, 'error' => 'URL not allowed: only public http/https URLs are permitted'];
+        }
+
         $imageData = @file_get_contents($url);
         if ($imageData === false) {
             return ['ok' => false, 'error' => 'Failed to download file from URL'];

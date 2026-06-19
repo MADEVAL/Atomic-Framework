@@ -252,10 +252,17 @@ class Filesystem
 
     public function remove_dir(string $path, bool $recursive = false): bool
     {
+        if (is_link($path)) {
+            return false;
+        }
+
         if ($recursive) {
             $files = array_diff(scandir($path), ['.', '..']);
             foreach ($files as $file) {
                 $fullPath = $path . DIRECTORY_SEPARATOR . $file;
+                if (is_link($fullPath)) {
+                    continue;
+                }
                 if (is_dir($fullPath)) {
                     $this->remove_dir($fullPath, true);
                 } else {

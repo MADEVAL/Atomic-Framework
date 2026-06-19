@@ -67,6 +67,9 @@ final class Request
         }
 
         if (str_contains($content_type, self::CONTENT_TYPE_FORM)) {
+            if (strlen($raw) > 65536) {
+                return [];
+            }
             parse_str($raw, $data);
             return $data;
         }

@@ -17,8 +17,16 @@ final class ConfigUserProvider implements UserProviderInterface
         $username = $this->normalize_username($credentials['username'] ?? null);
         if ($username === '') return null;
 
-        $config = $this->configured_users()[$username] ?? null;
-        return is_array($config) ? $this->create_user_from_config($username, $config) : null;
+        foreach ($this->configured_users() as $key => $config) {
+            if (!is_string($key) || !is_array($config)) {
+                continue;
+            }
+            if ($this->normalize_username($key) === $username) {
+                return $this->create_user_from_config($key, $config);
+            }
+        }
+
+        return null;
     }
 
     public function find_by_id(string $auth_id): ?AuthenticatableInterface
@@ -50,7 +58,7 @@ final class ConfigUserProvider implements UserProviderInterface
         $id = $this->normalize_auth_id($config['id'] ?? null);
         $username = $this->normalize_username($config['username'] ?? null);
         $secret_hash = $this->normalize_secret_hash($config['secret_hash'] ?? null);
-        if ($id === '' || $username === '' || $secret_hash === '' || $username !== $configured_username) {
+        if ($id === '' || $username === '' || $secret_hash === '' || $username !== $this->normalize_username($configured_username)) {
             return null;
         }
 

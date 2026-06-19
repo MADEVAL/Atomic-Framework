@@ -15,11 +15,11 @@ class SessionDriverFactoryAdapter
     {
         switch (strtolower($driver)) {
             case 'redis':
-                new RedisSession($onsuspect);
+                new RedisSession($onsuspect, 'SESSION.csrf_token');
                 break;
             case 'db':
             default:
-                new DBSession($onsuspect);
+                new DBSession($onsuspect, 'SESSION.csrf_token');
                 break;
         }
     }

@@ -129,7 +129,8 @@ final class Schema
             $placeholder = '{' . $key . '}';
             
             if (is_scalar($value)) {
-                $json = str_replace($placeholder, addslashes((string)$value), $json);
+                $escaped = substr(json_encode((string)$value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 1, -1);
+                $json = str_replace($placeholder, $escaped, $json);
             }
         }
 

@@ -90,7 +90,7 @@ final class ConfigUserStore
         $content .= "if (!defined('ATOMIC_START')) exit;\n\n";
         $content .= 'return ' . var_export(['guards' => $this->normalize_guards($data['guards'] ?? [])], true) . ";\n";
 
-        return @file_put_contents($path, $content) !== false;
+        return @file_put_contents($path, $content, LOCK_EX) !== false;
     }
 
     /** @return array<string, array{users: array<string, array<string, mixed>>}> */

@@ -14,6 +14,13 @@ use Tests\Support\Wait;
 
 final class QueueMonitorProcessIntegrationTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        if (!\function_exists('pcntl_signal')) {
+            $this->markTestSkipped('pcntl extension required for process integration tests.');
+        }
+    }
+
     protected function tearDown(): void
     {
         if (\function_exists('pcntl_async_signals')) {

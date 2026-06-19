@@ -46,7 +46,7 @@ class SeederTest extends TestCase
     {
         [$out, $stream] = $this->make_output_with_stderr_capture();
         Seeder::run('/nonexistent/seed.php', $out);
-        $this->assertSame("Source file not found or not readable: /nonexistent/seed.php\n", $this->read_stream($stream));
+        $this->assertSame("Source file not found or not readable: /nonexistent/seed.php" . PHP_EOL, $this->read_stream($stream));
     }
 
     public function test_run_invalid_seed_without_run_key(): void
@@ -56,7 +56,7 @@ class SeederTest extends TestCase
 
         [$out, $stream] = $this->make_output_with_stderr_capture();
         Seeder::run($seedFile, $out);
-        $this->assertSame("Invalid seed file: 'run' function not found.\n", $this->read_stream($stream));
+        $this->assertSame("Invalid seed file: 'run' function not found." . PHP_EOL, $this->read_stream($stream));
     }
 
     public function test_run_seed_with_exception(): void
