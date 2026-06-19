@@ -57,9 +57,10 @@ class AppTest extends TestCase
 
     public function test_route_registers_middleware_for_route(): void
     {
+        $this->app->register_middleware();
         $pattern = 'GET /test-route-' . uniqid();
-        $this->app->route($pattern, 'Engine\Atomic\App\Controller->test', ['auth']);
-        $this->assertNotNull(MiddlewareStack::resolve('auth'));
+        $this->app->route($pattern, 'Engine\Atomic\App\Controller->test', ['access']);
+        $this->assertNotNull(MiddlewareStack::resolve('access'));
     }
 
     public function test_config_loaded_fires_hook(): void

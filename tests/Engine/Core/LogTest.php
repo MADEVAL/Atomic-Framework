@@ -47,16 +47,18 @@ class LogTest extends TestCase
                 if (is_file($f)) @unlink($f);
             }
         }
-        if (is_dir(self::$dumpsDir)) {
-            $dFiles = glob(self::$dumpsDir . '*');
+        $dumpsDir = self::$logDir . 'dumps' . DIRECTORY_SEPARATOR;
+        if (is_dir($dumpsDir)) {
+            $dFiles = glob($dumpsDir . '*');
             if ($dFiles) {
                 foreach ($dFiles as $f) {
                     if (is_file($f)) @unlink($f);
                 }
             }
-            @rmdir(self::$dumpsDir);
+            @rmdir($dumpsDir);
         }
-        @rmdir(self::$logDir);
+        $f3 = \Base::instance();
+        $f3->set('LOGS', sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_logs' . DIRECTORY_SEPARATOR);
     }
 
     // ────────────────────────────────────────

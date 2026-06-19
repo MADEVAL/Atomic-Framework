@@ -13,6 +13,7 @@ final class AccessMiddlewareTest extends TestCase
 
     protected function setUp(): void
     {
+        $_SERVER['SERVER_PROTOCOL'] = 'HTTP/1.1';
         $this->atomic = \Base::instance();
         App::instance($this->atomic);
         $this->atomic->clear('POST');
