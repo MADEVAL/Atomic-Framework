@@ -715,6 +715,10 @@ class PluginManagerTest extends TestCase
 
     public function test_websockets_plugin_registers_route_type(): void
     {
+        if (!class_exists(\Workerman\Worker::class)) {
+            $this->markTestSkipped('workerman/workerman not available.');
+        }
+
         $this->manager->register(new WebSockets());
 
         $this->manager->register_all();

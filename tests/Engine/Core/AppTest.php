@@ -94,6 +94,35 @@ class AppTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function test_cors_rejects_foreign_domain_with_str_ends_with_bypass(): void
+    {
+        $this->app->atomic()->set('DOMAIN', 'example.com');
+        $this->app->atomic()->set('CORS', [
+            'headers' => 'Content-Type',
+            'origin' => '*',
+            'credentials' => true,
+            'expose' => '',
+            'ttl' => 0,
+        ]);
+        $this->app->atomic()->set('HEADERS.Origin', 'https://notexample.com');
+        $this->app->atomic()->set('VERB', 'GET');
+
+        ReflectionHelper::invoke($this->app, 'apply_cors');
+
+        $cors_header = '';
+        foreach (xdebug_get_headers() as $header) {
+            if (str_starts_with($header, 'Access-Control-Allow-Origin:')) {
+                $cors_header = $header;
+                break;
+            }
+        }
+        $this->assertStringContainsString(
+            'Access-Control-Allow-Origin: *',
+            $cors_header,
+            'Foreign domain notexample.com must NOT be allowed when DOMAIN=example.com'
+        );
+    }
+
     public function test_before_server_start_runs_once(): void
     {
         $called = false;

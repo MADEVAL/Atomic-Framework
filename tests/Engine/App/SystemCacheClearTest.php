@@ -39,7 +39,9 @@ final class SystemCacheClearTest extends TestCase
         $this->assertTrue($cache->set('cli-clear-key', 'value', 3600));
         $this->assertSame('value', $cache->get('cli-clear-key'));
 
-        (new System())->cache_invalidate();
+        [$system, $stream] = CapturingSystem::make();
+        $system->cache_invalidate();
+        fclose($stream);
         $cache->flush_local_cache();
         $this->assertFalse($cache->get('cli-clear-key'));
     }
@@ -49,7 +51,9 @@ final class SystemCacheClearTest extends TestCase
         $cache = CacheManager::instance()->store();
         $this->assertTrue($cache->set('cli-clear-key', 'value', 3600));
 
-        (new System())->cache_clear();
+        [$system, $stream] = CapturingSystem::make();
+        $system->cache_clear();
+        fclose($stream);
         $cache->flush_local_cache();
         $this->assertFalse($cache->get('cli-clear-key'));
     }
@@ -97,10 +101,14 @@ final class SystemCacheClearTest extends TestCase
         $this->assertSame(0, $cache->purge());
         $this->assertTrue($cache->set('cli-clear-key', 'value', 3600));
 
-        (new System())->cache_clear();
+        [$system, $stream] = CapturingSystem::make();
+        $system->cache_clear();
+        fclose($stream);
         $this->assertSame(0, $cache->purge());
 
-        (new System())->cache_clear();
+        [$system, $stream] = CapturingSystem::make();
+        $system->cache_clear();
+        fclose($stream);
         $this->assertSame(0, $cache->purge());
     }
 
