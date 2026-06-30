@@ -72,7 +72,7 @@ class Response {
         $parsed = parse_url($url);
         if (isset($parsed['host'])) {
             $domain = (string)App::instance()->get('DOMAIN');
-            if ($domain !== '' && str_ends_with($parsed['host'], $domain)) {
+            if ($domain !== '' && ($parsed['host'] === $domain || str_ends_with($parsed['host'], '.' . $domain))) {
                 return $url;
             }
             return '/';

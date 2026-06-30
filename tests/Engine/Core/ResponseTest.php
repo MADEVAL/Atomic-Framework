@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace Tests\Engine\Core;
 
+use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Response;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
 
 class ResponseTest extends TestCase
 {
@@ -63,5 +65,30 @@ class ResponseTest extends TestCase
     {
         $this->assertSame('[]', $this->response->atomic_json_encode([]));
         $this->assertSame('{}', $this->response->atomic_json_encode(new \stdClass()));
+    }
+
+    public function test_sanitize_redirect_rejects_foreign_domain(): void
+    {
+        App::instance()->atomic()->set('DOMAIN', 'example.com');
+        $result = ReflectionHelper::invoke($this->response, 'sanitize_redirect_url', ['https://notexample.com/phishing']);
+        $this->assertSame(
+            '/',
+            $result,
+            'Foreign domain notexample.com must redirect to / when DOMAIN=example.com'
+        );
+    }
+
+    public function test_sanitize_redirect_allows_exact_domain(): void
+    {
+        App::instance()->atomic()->set('DOMAIN', 'example.com');
+        $result = ReflectionHelper::invoke($this->response, 'sanitize_redirect_url', ['https://example.com/dashboard']);
+        $this->assertSame('https://example.com/dashboard', $result);
+    }
+
+    public function test_sanitize_redirect_allows_subdomain(): void
+    {
+        App::instance()->atomic()->set('DOMAIN', 'example.com');
+        $result = ReflectionHelper::invoke($this->response, 'sanitize_redirect_url', ['https://app.example.com/dashboard']);
+        $this->assertSame('https://app.example.com/dashboard', $result);
     }
 }

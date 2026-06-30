@@ -395,7 +395,7 @@ class App {
 
         if ($credentials && $origin === '*' && $request_origin !== '') {
             $domain = (string)$this->atomic->get('DOMAIN');
-            if ($domain !== '' && str_ends_with($request_origin, $domain)) {
+            if ($domain !== '' && ($request_origin === $domain || str_ends_with($request_origin, '.' . $domain))) {
                 $origin = $request_origin;
             }
         }
