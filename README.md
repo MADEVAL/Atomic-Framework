@@ -1,17 +1,12 @@
-<p align="center">
-  <strong>Atomic Framework</strong><br>
-  <em>Power in minimalism</em>
-</p>
+# Atomic Framework
 
-<p align="center">
-  <a href="https://www.php.net/releases/8.1/en.php"><img src="https://img.shields.io/badge/PHP-%3E%3D8.1-8892BF?style=flat-square&logo=php" alt="PHP ≥ 8.1"></a>
-  <a href="https://github.com/MADEVAL/Atomic-Framework/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square" alt="License"></a>
-  <a href="https://github.com/MADEVAL/Atomic-Framework"><img src="https://img.shields.io/badge/version-0.1.0-orange?style=flat-square" alt="Version"></a>
-</p>
+[![PHP](https://img.shields.io/badge/PHP-%3E%3D8.1-8892BF.svg)](https://www.php.net/releases/8.1/en.php)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)]()
+
+*Power in minimalism*
 
 ---
-
-# Atomic Framework
 
 A modular, full-featured PHP framework built on top of [Fat-Free Framework](https://fatfreeframework.com/). Atomic provides a structured application skeleton with authentication, queue processing, scheduling, caching, CLI tooling, and more - while staying lightweight and unopinionated.
 
