@@ -20,3 +20,4 @@ jobs:
           tag: ${{ github.ref_name }}
           user_name: 'github-actions'
           user_email: 'actions@github.com'
+          github_token: ${{ secrets.GH_ACCESS_TOKEN }}
