@@ -11,6 +11,8 @@
 [![Stars](https://img.shields.io/github/stars/MADEVAL/Atomic-Framework?style=social)](https://github.com/MADEVAL/Atomic-Framework)
 
 > **Status: stable (`v0.1.4`)** — production-ready, 1481 tests, 0 failures, API is stable.
+>
+> **Packagist:** [`globus-studio/atomic-framework`](https://packagist.org/packages/globus-studio/atomic-framework) · `composer require globus-studio/atomic-framework`
 
 A modular, full-featured PHP framework built on [Fat-Free Framework](https://fatfreeframework.com/). Ships with authentication, queue processing, task scheduling, caching, CLI tooling, WebSockets, and plugin management — all in a ~2 MB core.
 
