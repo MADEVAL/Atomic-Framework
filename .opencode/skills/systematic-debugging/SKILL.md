@@ -1,7 +1,8 @@
 ---
-description: "Systematic debugging agent for finding root causes before attempting fixes. Use for test failures, bugs, unexpected behavior, performance problems, or build failures."
-mode: subagent
+name: systematic-debugging
+description: Systematic debugging workflow for finding root causes before attempting fixes. Use for test failures, bugs, unexpected behavior, performance problems, or build failures.
 ---
+
 # Systematic Debugging
 
 ## Overview
@@ -24,7 +25,7 @@ If you haven't completed Phase 1, you cannot propose fixes.
 
 Use for ANY technical issue: test failures, bugs in production, unexpected behavior, performance problems, build failures, integration issues.
 
-**When verifying audit findings (per AGENTS.md):** write runtime tests in `wordpress/temp_tests/` using `@coversNothing`. Call real functions, observe wrong behavior. Tracing the full execution chain (Phase 1 §5) is mandatory — every function in the call path must be read to completion.
+**When verifying audit findings (per AGENTS.md):** write runtime tests in `tests/` using `@coversNothing`. Call real functions, observe wrong behavior. Tracing the full execution chain (Phase 1 §5) is mandatory - every function in the call path must be read to completion.
 
 **Use this ESPECIALLY when:**
 - Under time pressure (emergencies make guessing tempting)
@@ -80,29 +81,29 @@ You MUST complete each phase before proceeding to the next.
 
 **Find the pattern before fixing:**
 
-1. **Find Working Examples** — Locate similar working code in same codebase
-2. **Compare Against References** — Read reference implementation COMPLETELY, don't skim
-3. **Identify Differences** — What's different between working and broken? List every difference
-4. **Understand Dependencies** — What other components does this need? What assumptions?
+1. **Find Working Examples** - Locate similar working code in same codebase
+2. **Compare Against References** - Read reference implementation COMPLETELY, don't skim
+3. **Identify Differences** - What's different between working and broken? List every difference
+4. **Understand Dependencies** - What other components does this need? What assumptions?
 
 ### Phase 3: Hypothesis and Testing
 
 **Scientific method:**
 
-1. **Form Single Hypothesis** — "I think X is the root cause because Y". Be specific.
-2. **Test Minimally** — Smallest possible change, one variable at a time
-3. **Verify Before Continuing** — Did it work? Yes → Phase 4. No → new hypothesis. Don't add more fixes.
-4. **When You Don't Know** — Say "I don't understand X". Don't pretend. Ask for help.
+1. **Form Single Hypothesis** - "I think X is the root cause because Y". Be specific.
+2. **Test Minimally** - Smallest possible change, one variable at a time
+3. **Verify Before Continuing** - Did it work? Yes → Phase 4. No → new hypothesis. Don't add more fixes.
+4. **When You Don't Know** - Say "I don't understand X". Don't pretend. Ask for help.
 
 ### Phase 4: Implementation
 
 **Fix the root cause, not the symptom:**
 
-1. **Create Failing Test Case** — MUST have before fixing. Use TDD.
-2. **Implement Single Fix** — Address root cause. ONE change. No "while I'm here" improvements.
-3. **Verify Fix** — Test passes? No other tests broken? Issue resolved?
-4. **If Fix Doesn't Work** — STOP. Count fixes tried. If < 3: return to Phase 1. **If ≥ 3: question the architecture.**
-5. **If 3+ Fixes Failed: Question Architecture** — Pattern indicating architectural problem: each fix reveals new problem, fixes require massive refactoring, each fix creates new symptoms. STOP and question fundamentals. Discuss with your human partner.
+1. **Create Failing Test Case** - MUST have before fixing. Use TDD.
+2. **Implement Single Fix** - Address root cause. ONE change. No "while I'm here" improvements.
+3. **Verify Fix** - Test passes? No other tests broken? Issue resolved?
+4. **If Fix Doesn't Work** - STOP. Count fixes tried. If < 3: return to Phase 1. **If ≥ 3: question the architecture.**
+5. **If 3+ Fixes Failed: Question Architecture** - Pattern indicating architectural problem: each fix reveals new problem, fixes require massive refactoring, each fix creates new symptoms. STOP and question fundamentals. Discuss with your human partner.
 
 ## Red Flags - STOP and Follow Process
 

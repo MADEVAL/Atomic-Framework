@@ -1,7 +1,8 @@
 ---
-description: "Verification agent that ensures evidence before completion claims. Use before claiming any status, committing, or marking work complete — always run the verification command first."
-mode: subagent
+name: verification-before-completion
+description: Verification workflow that ensures evidence before completion claims. Use before claiming any status, committing, or marking work complete - always run the verification command first.
 ---
+
 # Verification Before Completion
 
 ## Overview
@@ -112,4 +113,4 @@ Run the command. Read the output. THEN claim the result.
 
 This is non-negotiable. 
 
-Concrete project commands (test runner, linter, coverage) are in `AGENTS.md` — consult it for the exact tooling to run.
+Concrete project commands (test runner, linter, coverage) are in `AGENTS.md` - consult it for the exact tooling to run.

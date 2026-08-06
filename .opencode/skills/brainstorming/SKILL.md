@@ -1,7 +1,8 @@
 ---
-description: "Brainstorming agent for turning ideas into fully formed designs and specs. Use when planning new features, components, or behavior changes before implementation."
-mode: subagent
+name: brainstorming
+description: Brainstorming workflow for turning ideas into fully formed designs and specs. Use when planning new features, components, or behavior changes before implementation.
 ---
+
 # Brainstorming Ideas Into Designs
 
 Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
@@ -16,17 +17,17 @@ Do NOT write any code or take any implementation action until you have presented
 
 Every new feature, component, or behavior change goes through this process. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
 
-Bug fixes are the exception: they need a **mini-brainstorm** — verify the bug is real, assess its impact and scope, confirm it's not a false report — then proceed directly to the debugging workflow (systematic-debugging agent) with TDD. Do NOT skip the mini-brainstorm and rush to a fix without understanding consequences. Bug verification must follow AGENTS.md Code Review & Audit rules: runtime test, not source inspection.
+Bug fixes are the exception: they need a **mini-brainstorm** - verify the bug is real, assess its impact and scope, confirm it's not a false report - then proceed directly to the debugging workflow (systematic-debugging skill) with TDD. Do NOT skip the mini-brainstorm and rush to a fix without understanding consequences. Bug verification must follow AGENTS.md Code Review & Audit rules: runtime test, not source inspection.
 
 ## Checklist
 
 You MUST create a task for each of these items and complete them in order:
 
-1. **Explore project context** — check files, docs, recent commits
-2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-3. **Propose 2-3 approaches** — with trade-offs and your recommendation
-4. **Present design** — in sections scaled to their complexity, get user approval after each section
-5. **Transition to implementation** — create implementation plan
+1. **Explore project context** - check files, docs, recent commits
+2. **Ask clarifying questions** - one at a time, understand purpose/constraints/success criteria
+3. **Propose 2-3 approaches** - with trade-offs and your recommendation
+4. **Present design** - in sections scaled to their complexity, get user approval after each section
+5. **Transition to implementation** - create implementation plan
 
 ## The Process
 
@@ -78,13 +79,13 @@ After writing the spec, look at it with fresh eyes:
 After spec review, ask user to review the written spec before proceeding.
 
 **Implementation:**
-Transition to the TDD workflow — start with `grep @covers` to find existing tests, write failing test, implement.
+Transition to the TDD workflow - start with `grep @covers` to find existing tests, write failing test, implement.
 
 ## Key Principles
 
-- **One question at a time** — Don't overwhelm with multiple questions
-- **Multiple choice preferred** — Easier to answer than open-ended when possible
-- **YAGNI ruthlessly** — Remove unnecessary features from all designs
-- **Explore alternatives** — Always propose 2-3 approaches before settling
-- **Incremental validation** — Present design, get approval before moving on
-- **Be flexible** — Go back and clarify when something doesn't make sense
+- **One question at a time** - Don't overwhelm with multiple questions
+- **Multiple choice preferred** - Easier to answer than open-ended when possible
+- **YAGNI ruthlessly** - Remove unnecessary features from all designs
+- **Explore alternatives** - Always propose 2-3 approaches before settling
+- **Incremental validation** - Present design, get approval before moving on
+- **Be flexible** - Go back and clarify when something doesn't make sense

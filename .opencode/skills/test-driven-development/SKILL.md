@@ -1,7 +1,8 @@
 ---
-description: "TDD agent that enforces test-first development. Use for new features, bug fixes, refactoring, or any behavior changes. Write the test first, watch it fail, then implement."
-mode: subagent
+name: test-driven-development
+description: TDD workflow that enforces test-first development. Use for new features, bug fixes, refactoring, or any behavior changes. Write the test first, watch it fail, then implement.
 ---
+
 # Test-Driven Development (TDD)
 
 ## Overview
@@ -68,7 +69,7 @@ Confirm:
 
 ### GREEN - Minimal Code
 
-Write simplest code to pass the test. No comments — use clear naming instead.
+Write simplest code to pass the test. No comments - use clear naming instead.
 Don't add features, refactor other code, or "improve" beyond the test.
 
 ### Verify GREEN - Watch It Pass
@@ -98,13 +99,13 @@ Keep tests green. Don't add behavior.
 
 ## Why Order Matters
 
-**"I'll write tests after to verify it works"** — Tests written after code pass immediately. Passing immediately proves nothing: might test wrong thing, might test implementation not behavior, might miss edge cases, you never saw it catch the bug.
+**"I'll write tests after to verify it works"** - Tests written after code pass immediately. Passing immediately proves nothing: might test wrong thing, might test implementation not behavior, might miss edge cases, you never saw it catch the bug.
 
-**"I already manually tested all the edge cases"** — Manual testing is ad-hoc. No record, can't re-run, easy to forget. Automated tests are systematic.
+**"I already manually tested all the edge cases"** - Manual testing is ad-hoc. No record, can't re-run, easy to forget. Automated tests are systematic.
 
-**"Deleting X hours of work is wasteful"** — Sunk cost fallacy. Delete and rewrite with TDD = high confidence. Keep and add tests after = low confidence, likely bugs.
+**"Deleting X hours of work is wasteful"** - Sunk cost fallacy. Delete and rewrite with TDD = high confidence. Keep and add tests after = low confidence, likely bugs.
 
-**"TDD is dogmatic, being pragmatic means adapting"** — TDD IS pragmatic: finds bugs before commit, prevents regressions, documents behavior, enables refactoring.
+**"TDD is dogmatic, being pragmatic means adapting"** - TDD IS pragmatic: finds bugs before commit, prevents regressions, documents behavior, enables refactoring.
 
 ## Common Rationalizations
 
