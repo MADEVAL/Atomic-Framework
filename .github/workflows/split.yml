@@ -1,23 +1,32 @@
-name: Split Monorepo
+name: Sync Skeleton
 
 on:
   push:
     tags: ['*']
 
 jobs:
-  split-skeleton:
+  sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Split skeleton to application repo
-        uses: danharrin/monorepo-split-github-action@v2
-        with:
-          package_directory: 'packages/skeleton'
-          repository_organization: 'MADEVAL'
-          repository_name: 'Atomic-Framework-Application'
-          branch: 'main'
-          tag: ${{ github.ref_name }}
-          user_name: 'github-actions'
-          user_email: 'actions@github.com'
-          github_token: ${{ secrets.GH_ACCESS_TOKEN }}
+      - name: Sync skeleton to application repo
+        env:
+          TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'actions@github.com'
+
+          TARGET_REPO="https://x-access-token:${TOKEN}@github.com/MADEVAL/Atomic-Framework-Application.git"
+          WORKDIR="/tmp/skeleton-sync"
+
+          git clone "$TARGET_REPO" "$WORKDIR"
+          find "$WORKDIR" -mindepth 1 -not -name '.git' -delete
+          cp -r packages/skeleton/* "$WORKDIR/"
+          cp packages/skeleton/.env.example "$WORKDIR/" 2>/dev/null || true
+
+          cd "$WORKDIR"
+          git add -A
+          git commit -m "Sync from monorepo ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          git tag -f "${GITHUB_REF_NAME}"
+          git push origin main --tags
