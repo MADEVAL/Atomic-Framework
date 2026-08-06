@@ -1,29 +1,17 @@
 /vendor/
-/vendor/bin/
 /tests/.phpunit.cache/
+/tests/tmp/
 composer.lock
 .env
 
-# Framework package
-/packages/framework/tests/.phpunit.cache/
-/packages/framework/vendor/
-/packages/framework/composer.lock
-
-# Skeleton package
+# Skeleton package (dev dependency)
 /packages/skeleton/vendor/
 /packages/skeleton/composer.lock
 /packages/skeleton/.env
 /packages/skeleton/storage/logs/
 /packages/skeleton/storage/framework/cache/
 
-/tests/tmp/
-/tests/.phpunit.cache/
-/tmp/
-
-# Framework runtime (test artifacts)
-/packages/framework/storage/framework/cache/
-/packages/framework/tmp/
-
-# Legacy (old paths, cleaned up)
+# Runtime
 /engine/storage/logs/*
 /engine/storage/framework/testing/*
+/tmp/

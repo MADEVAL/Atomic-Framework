@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="packages/framework/tests/bootstrap.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
          cacheDirectory="tests/.phpunit.cache"
          displayDetailsOnTestsThatTriggerWarnings="true"
@@ -10,11 +10,11 @@
          failOnWarning="true">
     <testsuites>
         <testsuite name="Framework">
-            <directory>packages/framework/tests/Engine</directory>
+            <directory>tests/Engine</directory>
         </testsuite>
         <testsuite name="Plugins">
-            <directory suffix="Test.php">packages/framework/engine/Atomic/Plugins</directory>
-            <exclude>packages/framework/engine/Atomic/Plugins/*/vendor</exclude>
+            <directory suffix="Test.php">engine/Atomic/Plugins</directory>
+            <exclude>engine/Atomic/Plugins/*/vendor</exclude>
         </testsuite>
         <testsuite name="Integration">
             <directory>tests/Integration</directory>
@@ -22,7 +22,7 @@
     </testsuites>
     <source>
         <include>
-            <directory>packages/framework/engine/Atomic</directory>
+            <directory>engine/Atomic</directory>
         </include>
     </source>
     <php>
