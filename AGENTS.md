@@ -4,7 +4,7 @@
 
 A modular PHP framework built on **Fat-Free Framework (F3)**, not Laravel. Composer package: `globus-studio/atomic-framework`. Designed as a Composer dependency consumed by a separate application skeleton package.
 
-The framework lives at the **repo root**. The application skeleton lives in `packages/skeleton/` as a dev-only subdirectory. On release tag, GitHub Actions splits the skeleton to its own repo (`MADEVAL/Atomic-Framework-Application`) for Packagist.
+The framework lives at the **repo root**. The application skeleton lives in `packages/skeleton/` as a dev-only subdirectory. On release tag, sync skeleton manually (or via CI when GitHub Actions runners are available).
 
 ## Architecture
 
@@ -37,13 +37,22 @@ atomic-framework/                          ← single git repo (IS the framework
 │       ├── routes/                        ← route definitions
 │       └── public/                        ← web root (index.php entry point)
 │
-└── .github/workflows/split.yml            ← auto-split skeleton on tag
+└── .github/workflows/ci.yml               ← sync skeleton on tag
 ```
 
 ## Publishing
 
 - **Framework** (`globus-studio/atomic-framework`) — Packagist reads `composer.json` from repo root. No split needed.
-- **Skeleton** (`globus-studio/atomic-framework-application`) — on release tag, GitHub Actions pushes `packages/skeleton/` to `MADEVAL/Atomic-Framework-Application`. Packagist auto-updates from that repo.
+- **Skeleton** (`globus-studio/atomic-framework-application`) — on release tag, sync manually or via `.github/workflows/ci.yml` (when GitHub Actions runners are available). The workflow pushes `packages/skeleton/` to `MADEVAL/Atomic-Framework-Application`. Packagist auto-updates from that repo.
+
+**Manual sync (fallback):**
+```bash
+git clone https://github.com/MADEVAL/Atomic-Framework-Application.git /tmp/skel
+rm -rf /tmp/skel/*
+cp -r packages/skeleton/* /tmp/skel/
+cd /tmp/skel && git add -A && git commit -m "Sync v0.1.x" && git tag v0.1.x
+git push origin main --tags
+```
 
 ## Bootstrap chain (skeleton canonical order)
 
@@ -159,7 +168,7 @@ Tests are integration-style and require **MySQL** running on `127.0.0.1:3306` wi
 
 Credentials are set in `phpunit.xml.dist` `<php><env>` block and can be overridden via the real `.env` or environment variables. Test fixture `.env` exists at `tests/fixtures/.env`.
 
-No linter, static analysis, or CI workflows are present in this repo.
+No linter or static analysis are present in this repo. A CI workflow (`.github/workflows/ci.yml`) is present for skeleton sync on release tags but requires GitHub Actions runner availability.
 
 ## Key conventions
 
