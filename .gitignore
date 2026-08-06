@@ -16,3 +16,5 @@ composer.lock
 /engine/storage/framework/testing/*
 /tmp/
 /storage/
+
+/docs/specs

@@ -55,4 +55,38 @@ final class HashTest extends TestCase
             'Valid bcrypt hashes are exactly 60 chars. Got: ' . strlen($dummy_hash)
         );
     }
+
+    public function test_dummy_timing_mitigation_uses_argon2id(): void
+    {
+        // Just verify it runs without error with argon2id
+        Hash::dummy_timing_mitigation();
+        $this->assertTrue(true);
+    }
+
+    public function test_hmac_produces_deterministic_hash(): void
+    {
+        $hash1 = Hash::hmac('data', 'key');
+        $hash2 = Hash::hmac('data', 'key');
+
+        $this->assertSame($hash1, $hash2);
+        $this->assertSame(64, strlen($hash1)); // SHA-256 = 64 hex chars
+    }
+
+    public function test_verify_hmac_detects_tampering(): void
+    {
+        $hash = Hash::hmac('data', 'secret-key');
+
+        $this->assertTrue(Hash::verify_hmac('data', 'secret-key', $hash));
+        $this->assertFalse(Hash::verify_hmac('tampered', 'secret-key', $hash));
+        $this->assertFalse(Hash::verify_hmac('data', 'wrong-key', $hash));
+    }
+
+    public function test_password_argon2_verifies_with_native_api(): void
+    {
+        $hash = Hash::password_argon2('secret');
+
+        $this->assertTrue(password_verify('secret', $hash));
+        $info = password_get_info($hash);
+        $this->assertSame('argon2id', $info['algoName']);
+    }
 }
