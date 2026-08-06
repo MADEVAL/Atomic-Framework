@@ -5,23 +5,12 @@ on:
     tags: ['*']
 
 jobs:
-  split:
+  split-skeleton:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Split framework
-        uses: danharrin/monorepo-split-github-action@v2
-        with:
-          package_directory: 'packages/framework'
-          repository_organization: 'MADEVAL'
-          repository_name: 'Atomic-Framework'
-          branch: 'main'
-          tag: ${{ github.ref_name }}
-          user_name: 'github-actions'
-          user_email: 'actions@github.com'
-
-      - name: Split skeleton
+      - name: Split skeleton to application repo
         uses: danharrin/monorepo-split-github-action@v2
         with:
           package_directory: 'packages/skeleton'
