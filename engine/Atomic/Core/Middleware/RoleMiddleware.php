@@ -33,4 +33,9 @@ final class RoleMiddleware implements MiddlewareInterface
         $response->send_text('Forbidden', Response::STATUS_FORBIDDEN, false);
         return false;
     }
+
+    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    {
+        throw new \RuntimeException('RoleMiddleware::process() not yet implemented. Use handle() for legacy mode.');
+    }
 }

@@ -128,4 +128,9 @@ button{width:100%;margin-top:18px;border:0;border-radius:6px;background:#111827;
 </html>
 HTML;
     }
+
+    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    {
+        throw new \RuntimeException('AccessMiddleware::process() not yet implemented. Use handle() for legacy mode.');
+    }
 }

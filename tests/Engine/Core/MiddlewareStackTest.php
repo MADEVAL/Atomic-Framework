@@ -14,6 +14,11 @@ class MiddlewarePassStub implements MiddlewareInterface
     {
         return true;
     }
+
+    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    {
+        return $next($request);
+    }
 }
 
 class MiddlewareBlockStub implements MiddlewareInterface
@@ -21,6 +26,11 @@ class MiddlewareBlockStub implements MiddlewareInterface
     public function handle(\Base $atomic): bool
     {
         return false;
+    }
+
+    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    {
+        return \Engine\Atomic\Http\Response::json(['error' => 'Blocked'], 403);
     }
 }
 
@@ -36,6 +46,11 @@ class MiddlewareParamStub implements MiddlewareInterface
     public function handle(\Base $atomic): bool
     {
         return true;
+    }
+
+    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    {
+        return $next($request);
     }
 }
 

@@ -101,4 +101,9 @@ final class RateLimitMiddleware implements MiddlewareInterface
             header(self::HEADER_RETRY_AFTER . ': ' . $result->retry_after);
         }
     }
+
+    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    {
+        throw new \RuntimeException('RateLimitMiddleware::process() not yet implemented. Use handle() for legacy mode.');
+    }
 }

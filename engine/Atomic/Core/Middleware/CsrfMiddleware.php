@@ -71,4 +71,9 @@ final class CsrfMiddleware implements MiddlewareInterface
 
         return null;
     }
+
+    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    {
+        throw new \RuntimeException('CsrfMiddleware::process() not yet implemented. Use handle() for legacy mode.');
+    }
 }
