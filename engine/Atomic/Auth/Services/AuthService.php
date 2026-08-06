@@ -57,9 +57,7 @@ class AuthService implements LoginInterface
             $created_at = $this->clock->now();
             $this->session->start_for_user($auth_id);
             $this->clear_transient_auth_session_state();
-            if ($this->session->is_started()) {
-                $this->php_session->regenerate_id(true);
-            }
+            $this->php_session->regenerate_id(true);
 
             $session_data = array_merge($context, [
                 'ip'          => $this->app->get('IP'),
@@ -104,7 +102,7 @@ class AuthService implements LoginInterface
         $credential_keys = array_keys(array_diff_key($credentials, array_flip(['password', 'secret', 'token'])));
         $user = $this->user_provider->find_by_credentials($credentials);
         if (!$user) {
-            Hash::verify_password($secret, '$2y$12$dummy_hash_for_timing_mitigation_00000000000000000000000');
+            Hash::verify_password($secret, Hash::dummy_hash_for_timing_mitigation());
             $this->record_login_failure();
             $this->logger->warning('Auth login failed: user not found', [
                 'ip' => $this->app->get('IP'),
@@ -253,9 +251,7 @@ class AuthService implements LoginInterface
         $this->app->set('SESSION.user_uuid', $user_uuid);
         $this->current_user = null;
 
-        if ($this->session->is_started()) {
-            $this->php_session->regenerate_id(true);
-        }
+        $this->php_session->regenerate_id(true);
 
         $this->meta->set_meta($user_uuid, 'auth_session_' . $this->php_session->id(), json_encode([
             'ip'              => $this->app->get('IP'),
@@ -289,9 +285,7 @@ class AuthService implements LoginInterface
         $this->app->set('SESSION.admin_uuid', null);
         $this->current_user = null;
 
-        if ($this->session->is_started()) {
-            $this->php_session->regenerate_id(true);
-        }
+        $this->php_session->regenerate_id(true);
 
         $this->meta->set_meta($admin_uuid, 'auth_session_' . $this->php_session->id(), json_encode([
             'ip'          => $this->app->get('IP'),

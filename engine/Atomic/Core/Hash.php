@@ -20,4 +20,9 @@ class Hash
     {
         return password_needs_rehash($hash, PASSWORD_DEFAULT);
     }
+
+    public static function dummy_hash_for_timing_mitigation(): string
+    {
+        return password_hash(random_bytes(32), PASSWORD_BCRYPT);
+    }
 }

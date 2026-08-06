@@ -344,6 +344,25 @@ class AuthServiceTest extends TestCase
         $this->service->login_by_id($auth_id);
     }
 
+    public function test_login_by_id_regenerates_session_id_even_when_is_started_returns_false(): void
+    {
+        $auth_id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+        $this->app->method('get')->willReturnMap([
+            ['IP', '1.2.3.4'],
+            ['AGENT', 'TestAgent/1.0'],
+        ]);
+        $this->app->method('get_device_type')->willReturn('desktop');
+        $this->clock->method('now')->willReturn(1_700_000_000);
+        $this->php_session->method('id')->willReturn('sess_xyz');
+
+        $this->session->method('start_for_user');
+        $this->session->method('is_started')->willReturn(false);
+        $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
+
+        $this->service->login_by_id($auth_id);
+    }
+
     public function test_login_by_id_merges_context_into_session_meta(): void
     {
         $auth_id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
@@ -706,7 +725,7 @@ class AuthServiceTest extends TestCase
         $this->assertNull($set_calls['SESSION.admin_uuid']);
     }
 
-    public function test_stop_impersonation_skips_regenerate_when_session_not_started(): void
+    public function test_stop_impersonation_regenerates_session_id_even_when_session_not_started(): void
     {
         $admin_uuid = 'aaaaaaaa-bbbb-4ccc-8ddd-aaaaaaaaaaaa';
 
@@ -724,7 +743,7 @@ class AuthServiceTest extends TestCase
         $this->meta->method('set_meta');
         $this->logger->method('info');
 
-        $this->php_session->expects($this->never())->method('regenerate_id');
+        $this->php_session->expects($this->once())->method('regenerate_id')->with(true);
 
         $result = $this->service->stop_impersonation();
         $this->assertTrue($result);

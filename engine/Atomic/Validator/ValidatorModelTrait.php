@@ -360,6 +360,12 @@ trait ValidatorModelTrait
 		return (float) Audit::instance()->entropy($val) >= $min_entropy;
 	}
 
+	/**
+	 * Application-level uniqueness check via findone().
+	 * NOTE: This is a best-effort early detection, NOT a concurrency guarantee.
+	 * True uniqueness must be enforced at the database level via UNIQUE constraint
+	 * (Cortex already creates UNIQUE indexes from fieldConf 'unique' => true).
+	 */
 	public static function unique(Cortex $model, mixed $val, string $field): bool
 	{
 		$valid = true;

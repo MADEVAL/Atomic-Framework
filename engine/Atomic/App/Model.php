@@ -138,17 +138,29 @@ abstract class Model extends Cortex
 		return [$this->last_err_code, $this->last_err_vars];
 	}
 
-	public function update_property(mixed $filter, string $key, mixed $value): bool
-	{
-		$this->load($filter);
-		if ($this->dry()) {
-			return false;
-		}
-		while (!$this->dry()) {
-			$this->set($key, $value);
-			$this->save();
-			$this->next();
-		}
-		return true;
-	}
+    public function update_property(mixed $filter, string $key, mixed $value): bool
+    {
+        $this->load($filter);
+        if ($this->dry()) {
+            return false;
+        }
+
+        $ids = [];
+        while (!$this->dry()) {
+            $ids[] = $this->_id;
+            $this->next();
+        }
+
+        if ($ids === []) {
+            return false;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $this->db->exec(
+            "UPDATE `{$this->table}` SET `{$key}` = ? WHERE `_id` IN ({$placeholders})",
+            array_merge([$value], $ids)
+        );
+
+        return true;
+    }
 }

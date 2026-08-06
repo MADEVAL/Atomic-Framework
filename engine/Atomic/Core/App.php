@@ -167,6 +167,15 @@ class App {
         return $this;
     }
 
+    public function register_schedule(): self {
+        $schedule_file = ATOMIC_APP_ROUTES . 'schedule.php';
+        $resolved = realpath($schedule_file);
+        if ($resolved !== false && is_file($resolved) && is_readable($resolved)) {
+            require $resolved;
+        }
+        return $this;
+    }
+
     public function register_route_type(string $request_type, array|string $file_names): self
     {
         $request_type = strtolower(trim($request_type));
@@ -428,6 +437,31 @@ class App {
             return $this->atomic->$name(...$arguments);
         }
         throw new \Exception("Method {$name} not found");
+    }
+
+    public function get(string $key): mixed
+    {
+        return $this->atomic->get($key);
+    }
+
+    public function set(string $key, mixed $val): void
+    {
+        $this->atomic->set($key, $val);
+    }
+
+    public function clear(string $key): void
+    {
+        $this->atomic->clear($key);
+    }
+
+    public function exists(string $key): bool
+    {
+        return $this->atomic->exists($key);
+    }
+
+    public function hive(): array
+    {
+        return $this->atomic->hive();
     }
 
     public function die($message = '', bool $run_afterroute = false): void

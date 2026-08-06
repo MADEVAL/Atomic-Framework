@@ -2,7 +2,9 @@
 declare(strict_types=1);
 if (!defined('ATOMIC_START')) exit;
 
-define('ATOMIC_ROOT', __DIR__);
+if (!defined('ATOMIC_ROOT')) {
+    define('ATOMIC_ROOT', __DIR__);
+}
 require_once ATOMIC_ROOT . DIRECTORY_SEPARATOR . 'const.php';
 require_once ATOMIC_ROOT . DIRECTORY_SEPARATOR . 'error.php';
 require_once ATOMIC_VENDOR . 'autoload.php';
@@ -43,6 +45,7 @@ $application
     ->register_core_plugins()
     ->register_plugins()
     ->register_routes()
+    ->register_schedule()
     ->init_session()
     ->open_connections()
     ->register_user_provider()
