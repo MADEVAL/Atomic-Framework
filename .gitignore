@@ -20,6 +20,10 @@ composer.lock
 /tests/.phpunit.cache/
 /tmp/
 
+# Framework runtime (test artifacts)
+/packages/framework/storage/framework/cache/
+/packages/framework/tmp/
+
 # Legacy (old paths, cleaned up)
 /engine/storage/logs/*
 /engine/storage/framework/testing/*
