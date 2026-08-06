@@ -1,0 +1,22 @@
+{
+  "name": "globus-studio/atomic-framework-application",
+  "description": "Atomic Framework Application",
+  "type": "project",
+  "license": "GPL-3.0-or-later",
+  "require": {
+    "php": ">=8.1",
+    "globus-studio/atomic-framework": "^0.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "sort-packages": true
+  },
+  "scripts": {
+    "test": "phpunit"
+  }
+}

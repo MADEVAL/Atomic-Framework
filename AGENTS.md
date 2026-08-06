@@ -2,32 +2,66 @@
 
 ## What is this?
 
-A modular PHP framework built on **Fat-Free Framework (F3)**, not Laravel. Composer package: `globus-studio/atomic-framework`. Designed as a Composer dependency consumed by a separate application skeleton repo.
+A modular PHP framework built on **Fat-Free Framework (F3)**, not Laravel. Composer package: `globus-studio/atomic-framework`. Designed as a Composer dependency consumed by a separate application skeleton package.
+
+This is a **monorepo** containing both packages:
+- `packages/framework/` — Composer package `globus-studio/atomic-framework`
+- `packages/skeleton/` — Composer package `globus-studio/atomic-framework-application`
+
+On release tag, GitHub Actions auto-splits each package to its own repo (`MADEVAL/Atomic-Framework`, `MADEVAL/Atomic-Framework-Application`) for Packagist.
 
 ## Architecture
 
-- **Framework core**: `engine/Atomic/` — the only code that ships in the Composer package. PSR-4 namespace `Engine\Atomic\` maps here.
-- **Application skeleton**: `app/`, `bootstrap/`, `config/`, `routes/`, `storage/`, `public/`, `resources/` — excluded from git tracking (`.gitignore`). Used only for local framework development. Do not consider these directories as framework source.
-- **Tests**: `tests/Engine/` mirrors `engine/Atomic/`. Test support classes in `tests/Support/`.
+- **Framework core**: `packages/framework/engine/Atomic/` — the only code that ships in the framework Composer package. PSR-4 namespace `Engine\Atomic\` maps here.
+- **Application skeleton**: `packages/skeleton/` — app code (`app/`, `bootstrap/`, `config/`, `routes/`, `public/`, `resources/`, `database/`). Published as `globus-studio/atomic-framework-application`.
+- **Tests**: `packages/framework/tests/Engine/` mirrors `packages/framework/engine/Atomic/`. Test support classes in `packages/framework/tests/Support/`. Integration tests in `tests/Integration/`.
 - **F3 integration**: `Engine\Atomic\Core\App` wraps F3's `\Base` as a singleton (has its own `instance()` — does NOT use the `Singleton` trait). It proxies unknown method calls to `\Base` via `__call`.
-- **Entry point**: `engine/Atomic/index.php` (placeholder only — real bootstrapping happens in the application skeleton via `bootstrap/app.php`).
+- **Entry point**: `packages/skeleton/public/index.php` — bootstraps app via `bootstrap/app.php`.
 
-## Two-repo split
-
-Framework repo (`globus-studio/atomic-framework`) and application skeleton (`MADEVAL/Atomic-Framework-Application`) differ in one critical constant:
-
-- **Skeleton** — `bootstrap/const.php`: `ATOMIC_FRAMEWORK` = `vendor/globus-studio/atomic-framework/`
-- **Framework dev** — `bootstrap/const.php`: `ATOMIC_FRAMEWORK` = `vendor/atomic/framework/`
-
-`ATOMIC_FRAMEWORK` resolves to an absolute path via `realpath()`. `ATOMIC_ENGINE` and `ATOMIC_SUPPORT` are PHP constants that derive from it. Config keys like `FRAMEWORK_ROUTES`, `MIGRATIONS_CORE`, `LOCALES` are **F3 hive variables** set by `ConfigLoader` from `.env` — they use `ATOMIC_ENGINE` as base path but are not PHP constants themselves.
-
-When writing framework code, only touch files inside `engine/Atomic/`. When writing app code, work in the skeleton repo instead.
-
-### Bootstrap chain (skeleton canonical order)
-
-The skeleton `bootstrap/app.php` is the authoritative reference. Order matters — hooks fire at specific points:
+## Monorepo layout
 
 ```
+atomic-framework/                          ← single git repo
+├── composer.json                          ← PRIVATE dev-only meta-package
+├── phpunit.xml.dist                       ← root PHPUnit (runs all tests)
+│
+├── packages/
+│   ├── framework/                         ← globus-studio/atomic-framework
+│   │   ├── composer.json
+│   │   ├── engine/Atomic/                 ← framework source
+│   │   ├── tests/                         ← framework unit tests
+│   │   └── docs/                          ← framework documentation
+│   └── skeleton/                          ← globus-studio/atomic-framework-application
+│       ├── composer.json
+│       ├── app/                           ← app code (controllers, models, middleware)
+│       ├── bootstrap/                     ← app bootstrap (const.php, app.php, error.php)
+│       ├── config/                        ← config files
+│       ├── routes/                        ← route definitions
+│       └── public/                        ← web root (index.php entry point)
+│
+├── tests/Integration/                     ← cross-package integration tests
+└── .github/workflows/split.yml            ← auto-split on tag
+```
+
+## Two-repo split (publishing)
+
+The monorepo is for development only. Publishing uses subtree split via GitHub Actions:
+
+- `packages/framework/` → `MADEVAL/Atomic-Framework` → Packagist: `globus-studio/atomic-framework`
+- `packages/skeleton/` → `MADEVAL/Atomic-Framework-Application` → Packagist: `globus-studio/atomic-framework-application`
+
+The skeleton's `bootstrap/const.php` detects the context automatically:
+
+- **Monorepo** — vendor is two levels up from skeleton (`../../vendor/`)
+- **Standalone** (after split) — vendor is at skeleton root (`skeleton/vendor/`)
+
+## Bootstrap chain (skeleton canonical order)
+
+The skeleton `packages/skeleton/bootstrap/app.php` is the authoritative reference. Order matters — hooks fire at specific points:
+
+```
+\App\Event\Application::init()
+\App\Hook\Application::init()
 config_loaded → register_logger → register_exception_handler → prefly
 → register_locales → register_locale_hrefs → register_unload_handler
 → register_middleware → core_ready → register_core_plugins
@@ -35,17 +69,13 @@ config_loaded → register_logger → register_exception_handler → prefly
 → open_connections → register_user_provider → app_bootstrapped
 ```
 
-`App\Hook\Application::init()` and `App\Event\Application::init()` are called **before** the fluent chain in the skeleton.
-
-**DO NOT use the framework dev repo's `bootstrap/app.php` as reference.** Its method names are camelCase (`registerLogger`, `setDB`, etc.) that do NOT match `App`'s actual snake_case methods (`register_logger`, `open_connections`, etc.) — the dev bootstrap is non-functional structural placeholder.
-
 ## Configuration modes
 
 Controlled by `ATOMIC_LOADER` in `bootstrap/const.php`:
 - `env` (default) — reads `.env` file via `ConfigLoader`
 - `php` — reads `config/*.php` array files via `PhpConfigLoader`
 
-Config values become F3 variables (accessible via `$atomic->get('KEY')`). The `.env.example` in the skeleton is the complete reference of all recognized keys. For tests in this repo, the fixture at `tests/fixtures/.env` contains the test defaults.
+Config values become F3 variables (accessible via `$atomic->get('KEY')`). The `.env.example` in the skeleton is the complete reference of all recognized keys. For tests in this repo, the fixture at `packages/framework/tests/fixtures/.env` contains the test defaults.
 
 ## Route loading order
 
@@ -91,28 +121,31 @@ $this->route('GET /dashboard', 'App\Http\Controllers\DashboardController->index'
 ## Dev commands
 
 ```bash
-# Install
+# Install (from repo root)
 composer install
 
 # Run all tests (requires MySQL)
 composer test
-# Or (verbose output, one line per test):
-php vendor/bin/phpunit --configuration tests/phpunit.xml
-# Standard dot-progress output (recommended for CI / quick runs):
-php vendor/bin/phpunit --configuration tests/phpunit.dots.xml
 
-# Run a specific test group
-php vendor/bin/phpunit --filter "Auth" --configuration tests/phpunit.xml
+# Run framework tests only
+composer test-fw
+
+# Run integration tests only
+composer test-integration
+
+# Run a specific test group within framework
+php vendor/bin/phpunit --filter "Auth" --configuration packages/framework/phpunit.xml.dist
 
 # Run a single test file
-php vendor/bin/phpunit tests/Engine/Core/CryptoTest.php --configuration tests/phpunit.xml
+php vendor/bin/phpunit packages/framework/tests/Engine/Core/CryptoTest.php --configuration packages/framework/phpunit.xml.dist
 ```
 
 ## Testing & coverage requirements
 
 - **Every bug fix MUST include a failing test first** (TDD — red-green-refactor).
 - **Every new feature MUST have test coverage** before merging.
-- **Tests go in `tests/Engine/`**, mirroring the namespace structure of `engine/Atomic/`.
+- **Framework tests** go in `packages/framework/tests/Engine/`, mirroring the namespace structure of `packages/framework/engine/Atomic/`.
+- **Integration tests** go in `tests/Integration/`.
 - Test classes extend `PHPUnit\Framework\TestCase`. No custom base class.
 - Use `assertSame` over `assertEquals` when possible (strict type checks).
 - Test methods use `snake_case` naming: `test_<what>_<expected_behavior>`.
@@ -124,8 +157,8 @@ php vendor/bin/phpunit tests/Engine/Core/CryptoTest.php --configuration tests/ph
 
 | Config | Output | When to use |
 |--------|--------|-------------|
-| `tests/phpunit.xml` | Dots + summary | Default, CI |
-| `tests/phpunit.dots.xml` | Dots + summary | Same as above (no custom extension) |
+| `packages/framework/phpunit.xml.dist` | Dots + summary | Framework tests |
+| `phpunit.xml.dist` (root) | Dots + summary | All tests (framework + integration) |
 | `--no-extensions` flag | Standard PHPUnit dots | Quick debug without custom printer |
 
 ## Test prerequisites
@@ -133,9 +166,9 @@ php vendor/bin/phpunit tests/Engine/Core/CryptoTest.php --configuration tests/ph
 Tests are integration-style and require **MySQL** running on `127.0.0.1:3306` with:
 - Database: `atomic_test`
 - User: `atomic_test_user` / `atomic_test_pass`
-- Tables are auto-created by `tests/bootstrap.php`
+- Tables are auto-created by `packages/framework/tests/bootstrap.php`
 
-Credentials are set in `tests/phpunit.xml` `<php><env>` block and can be overridden via the real `.env` or environment variables. Test fixture `.env` exists at `tests/fixtures/.env`.
+Credentials are set in `packages/framework/phpunit.xml.dist` `<php><env>` block and can be overridden via the real `.env` or environment variables. Test fixture `.env` exists at `packages/framework/tests/fixtures/.env`.
 
 No linter, static analysis, or CI workflows are present in this repo.
 
@@ -150,4 +183,4 @@ No linter, static analysis, or CI workflows are present in this repo.
 
 ## Documentation
 
-Docs in `docs/`. Root `README.md` is the comprehensive reference. `docs/testing_guide.md` covers test patterns. Application skeleton: https://github.com/MADEVAL/Atomic-Framework-Application
+Docs in `packages/framework/docs/`. Framework README at `packages/framework/README.md`. `docs/testing_guide.md` covers test patterns. Application skeleton: https://github.com/MADEVAL/Atomic-Framework-Application

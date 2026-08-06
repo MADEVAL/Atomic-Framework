@@ -1,7 +1,8 @@
 {
-  "name": "globus-studio/atomic-framework",
-  "description": "Atomic Framework – power in minimalism",
+  "name": "globus-studio/atomic-monorepo",
+  "description": "Atomic Framework monorepo — development environment",
   "type": "project",
+  "private": true,
   "license": "GPL-3.0-or-later",
   "require": {
     "php": ">=8.1",
@@ -12,27 +13,42 @@
     "ext-pdo": "*",
     "ext-pdo_mysql": "*",
     "ext-curl": "*",
-    "globus-studio/fatfree-core": "^3.9.2.1",
-    "globus-studio/cortex-atomic": "^2.0"
+    "globus-studio/atomic-framework": "@dev",
+    "globus-studio/atomic-framework-application": "@dev"
   },
-  "prefer-stable": true,
-  "autoload": {
-    "psr-4": {
-      "Engine\\Atomic\\": "engine/Atomic/"
+  "repositories": [
+    {
+      "type": "path",
+      "url": "packages/framework",
+      "options": {
+        "symlink": true
+      }
+    },
+    {
+      "type": "path",
+      "url": "packages/skeleton",
+      "options": {
+        "symlink": true
+      }
     }
+  ],
+  "require-dev": {
+    "phpunit/phpunit": "^10.5"
   },
   "autoload-dev": {
     "psr-4": {
-      "Tests\\": "tests/"
+      "Tests\\Integration\\": "tests/Integration/",
+      "Tests\\": "packages/framework/tests/"
     }
   },
   "config": {
-    "optimize-autoloader": true
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true
   },
   "scripts": {
-    "test": "phpunit -c tests/phpunit.xml"
-  },
-  "require-dev": {
-    "phpunit/phpunit": "^10.5"
+    "test": "phpunit",
+    "test-fw": "phpunit -c packages/framework/phpunit.xml.dist",
+    "test-integration": "phpunit --testsuite Integration"
   }
 }
