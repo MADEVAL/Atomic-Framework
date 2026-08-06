@@ -137,4 +137,64 @@ class AppTest extends TestCase
         $this->app->before_server_start();
         $this->assertFalse($called, 'Should not fire twice');
     }
+
+    public function test_security_headers_apply_default(): void
+    {
+        $this->app->atomic()->set('SECURITY_HEADERS.ENABLED', true);
+        $this->app->atomic()->set('SECURITY_HEADERS.XFO', 'DENY');
+        $this->app->atomic()->set('SECURITY_HEADERS.HSTS', '');
+        $this->app->atomic()->set('SECURITY_HEADERS.CSP', '');
+
+        ReflectionHelper::invoke($this->app, 'apply_security_headers');
+
+        $headers = [];
+        foreach (xdebug_get_headers() as $h) {
+            $parts = explode(':', $h, 2);
+            $headers[trim($parts[0])] = trim($parts[1] ?? '');
+        }
+
+        $this->assertArrayHasKey('X-Content-Type-Options', $headers);
+        $this->assertSame('nosniff', $headers['X-Content-Type-Options']);
+
+        $this->assertArrayHasKey('X-Frame-Options', $headers);
+        $this->assertSame('DENY', $headers['X-Frame-Options']);
+
+        $this->assertArrayHasKey('Referrer-Policy', $headers);
+        $this->assertSame('strict-origin-when-cross-origin', $headers['Referrer-Policy']);
+
+        $this->assertArrayHasKey('X-Permitted-Cross-Domain-Policies', $headers);
+        $this->assertSame('none', $headers['X-Permitted-Cross-Domain-Policies']);
+
+        $this->assertArrayNotHasKey('Strict-Transport-Security', $headers);
+        $this->assertArrayNotHasKey('Content-Security-Policy', $headers);
+    }
+
+    public function test_security_headers_hsts_when_configured(): void
+    {
+        $this->app->atomic()->set('SECURITY_HEADERS.ENABLED', true);
+        $this->app->atomic()->set('SECURITY_HEADERS.HSTS', 'max-age=31536000; includeSubDomains');
+
+        ReflectionHelper::invoke($this->app, 'apply_security_headers');
+
+        $found = false;
+        foreach (xdebug_get_headers() as $h) {
+            if (str_starts_with($h, 'Strict-Transport-Security:')) {
+                $found = true;
+                $this->assertStringContainsString('max-age=31536000', $h);
+                break;
+            }
+        }
+        $this->assertTrue($found, 'HSTS header should be present when configured');
+    }
+
+    public function test_security_headers_disabled_by_config(): void
+    {
+        $this->app->atomic()->set('SECURITY_HEADERS.ENABLED', false);
+
+        $before = count(xdebug_get_headers());
+        ReflectionHelper::invoke($this->app, 'apply_security_headers');
+        $after = count(xdebug_get_headers());
+
+        $this->assertSame($before, $after, 'No new headers when SECURITY_HEADERS.ENABLED=false');
+    }
 }

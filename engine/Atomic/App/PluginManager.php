@@ -190,11 +190,13 @@ class PluginManager
         }
     }
 
+    /** @deprecated Use load_plugins() instead. */
     public function load_user_plugins(?array $plugin_classes = null): void
     {
         $this->load_plugins($plugin_classes);
     }
 
+    /** @deprecated Use load_plugins() instead. */
     public function load_core_plugins(?array $plugin_classes = null): void
     {
         $this->load_plugins($plugin_classes);

@@ -338,7 +338,7 @@ class App {
 
         if (!empty($middleware)) {
             MiddlewareStack::for_route($pattern, $middleware);
-            $ttl = 0;
+            $ttl = 0; // Disable route cache: middleware-protected routes are user-aware and must not be served from cache
         }
 
         if (is_string($handler) && preg_match('/^([^>:]+)\s*(?:->|::)\s*\w+$/', $handler, $m)) {
@@ -388,6 +388,7 @@ class App {
                 $this->atomic->reroute($clean . ($query ? '?' . $query : ''), true);
             }
             $this->apply_cors();
+            $this->apply_security_headers();
         }
         $this->before_server_start();
         $this->atomic->run();
@@ -426,6 +427,32 @@ class App {
         if ($verb === 'OPTIONS') {
             http_response_code(204);
             exit;
+        }
+    }
+
+    private function apply_security_headers(): void
+    {
+        if (!filter_var($this->atomic->get('SECURITY_HEADERS.ENABLED'), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        header('X-Content-Type-Options: nosniff');
+        header('X-Permitted-Cross-Domain-Policies: none');
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+
+        $xfo = trim((string)$this->atomic->get('SECURITY_HEADERS.XFO'));
+        if ($xfo !== '') {
+            header('X-Frame-Options: ' . $xfo);
+        }
+
+        $hsts = trim((string)$this->atomic->get('SECURITY_HEADERS.HSTS'));
+        if ($hsts !== '') {
+            header('Strict-Transport-Security: ' . $hsts);
+        }
+
+        $csp = trim((string)$this->atomic->get('SECURITY_HEADERS.CSP'));
+        if ($csp !== '') {
+            header('Content-Security-Policy: ' . $csp);
         }
     }
 

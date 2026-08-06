@@ -409,6 +409,6 @@ class ConnectionManager
 
     private function sanitize_dsn_value(string $value): string
     {
-        return preg_replace('/[^a-zA-Z0-9._\-\/:\[\]]/', '', $value);
+        return preg_replace('/[^a-zA-Z0-9._\-\/:]/', '', $value);
     }
 }

@@ -3,6 +3,8 @@ declare(strict_types=1);
 namespace Engine\Atomic\Core\Config;
 
 use Engine\Atomic\Auth\ConfigUserStore;
+use Engine\Atomic\Cache\FatFreeCacheBridge;
+use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\RateLimit\RateLimiter;
 
 if (!defined( 'ATOMIC_START' ) ) exit; 
@@ -94,48 +96,27 @@ class ConfigLoader {
             'password' => $this->get_env('MEMCACHED_PASSWORD', ''),
             'prefix'   => $memcached_prefix,
         ];
-        $settings = [
-            'APP_UUID'              => $this->get_env('APP_UUID', ''),
-            'APP_ENCRYPTION_KEY'    => $this->get_env('APP_ENCRYPTION_KEY', ''),
-            'CACHE_CONFIG'          => [
-                'default' => $cache_driver,
-                'path'    => $cache_path,
-                'prefix'  => $cache_prefix,
-            ],
-            'CACHE_PREFIX'          => $cache_prefix,
-            'DOMAIN'                => $this->get_env('DOMAIN', ''),
-            'LANGUAGE'              => $this->get_env('LANGUAGE') ?? $this->get_env('LANG', 'en'),
-            'ENCODING'              => $this->get_env('ENCODING', 'UTF-8'),
-            'TZ'                    => $this->get_env('TZ', 'UTC'),
-            'APP_NAME'              => $this->get_env('APP_NAME', 'Atomic'),
-            'APP_KEY'               => $this->get_env('APP_KEY', ''),
-            'DEBUG_MODE'            => $this->get_env('DEBUG_MODE', 'false'),
-            'DEBUG_LEVEL'           => $this->get_env('DEBUG_LEVEL', 'error'),
-            'TELEMETRY_ACCESS_MODE' => $this->telemetry_access_mode((string)$this->get_env('TELEMETRY_ACCESS_MODE', 'none')),
-            'TELEMETRY_ACCESS_ALLOWED_ROLES' => $this->csv_list((string)$this->get_env('TELEMETRY_ACCESS_ALLOWED_ROLES', 'admin')),
-            'THEME.envname'         => $this->get_env('THEME', 'default'),
-            'QUEUE_DRIVER'          => $this->get_env('QUEUE_DRIVER', 'db'),
-            'QUEUE_NAME'            => $this->get_env('QUEUE_NAME', 'default'),
-            'TELEGRAM_BOT_TOKEN'    => $this->get_env('TELEGRAM_BOT_TOKEN', ''), 
-            'TELEGRAM_CHAT_ID'      => $this->get_env('TELEGRAM_CHAT_ID', ''),
-            'UI'                    => $this->get_env('UI', 'public/themes/'),
-            'TEMP'                  => $this->fix_path($this->get_env('TEMP', 'storage/framework/cache/data/')),
-            'LOGS'                  => $this->fix_path($this->get_env('LOGS', 'storage/logs/')),
-            'LOCALES'               => $this->fix_path($this->get_env('LOCALES', 'engine/Atomic/Lang/locales/')),
-            'FONTS'                 => $this->fix_path($this->get_env('FONTS', 'engine/Atomic/Files/fonts/')),
-            'FONTS_TEMP'            => $this->fix_path($this->get_env('FONTS_TEMP', 'storage/framework/cache/fonts/')),
-            'MIGRATIONS'            => $this->fix_path($this->get_env('MIGRATIONS', 'database/migrations/')),
-            'MIGRATIONS_BUNDLED'    => $this->fix_path($this->get_env('MIGRATIONS', 'database/migrations/') . 'atomic/'),
-            'MIGRATIONS_CORE'       => $this->fix_path($this->get_env('MIGRATIONS_CORE', 'Atomic/Core/Database/Migrations/')),
-            'SEEDS'                 => $this->fix_path($this->get_env('SEEDS', 'database/seeds/')),
-            'SEEDS_BUNDLED'         => $this->fix_path($this->get_env('SEEDS', 'database/seeds/') . 'atomic/'),
-            'USER_PLUGINS'          => $this->fix_path($this->get_env('USER_PLUGINS', 'plugins/')),
-            'FRAMEWORK_ROUTES'      => $this->fix_path($this->get_env('FRAMEWORK_ROUTES', 'Atomic/Core/Routes/')),
-        ];
 
-        $this->atomic->set('THEME.ENQ_UI', $settings['UI']);
-        $settings['UI'] = ATOMIC_DIR . DIRECTORY_SEPARATOR . $settings['UI'];
-        $settings['ENQ_UI_FIX'] = $settings['UI'];
+        $this->register_framework_defaults();
+
+        $ui_raw = $this->get_env('UI', 'public/themes/');
+        $this->atomic->set('THEME.ENQ_UI', $ui_raw);
+
+        $this->load_registered_schemas();
+
+        $this->atomic->set('UI', ATOMIC_DIR . DIRECTORY_SEPARATOR . $this->atomic->get('UI'));
+        $this->atomic->set('ENQ_UI_FIX', $this->atomic->get('UI'));
+
+        $this->atomic->set('CACHE_CONFIG', [
+            'default' => $cache_driver,
+            'path'    => $cache_path,
+            'prefix'  => $cache_prefix,
+        ]);
+
+        $this->atomic->set('MIGRATIONS_BUNDLED', $this->fix_path($this->get_env('MIGRATIONS', 'database/migrations/') . 'atomic/'));
+        $this->atomic->set('SEEDS_BUNDLED', $this->fix_path($this->get_env('SEEDS', 'database/seeds/') . 'atomic/'));
+        $this->atomic->set('TELEGRAM_BOT_TOKEN', $this->get_env('TELEGRAM_BOT_TOKEN', ''));
+        $this->atomic->set('TELEGRAM_CHAT_ID', $this->get_env('TELEGRAM_CHAT_ID', ''));
 
         $this->atomic->set('PORTS', $ports);
         $this->atomic->set('WS', [
@@ -160,10 +141,7 @@ class ConfigLoader {
         ]);
 
         $this->atomic->set('REDIS', $redis_config);
-
         $this->atomic->set('MEMCACHED', $memcached_config);
-
-        $this->apply_settings_to_hive($this->atomic, $settings);
 
         $this->atomic->set('MUTEX', [
             'driver' => $this->get_env('MUTEX_DRIVER', ''),
@@ -188,13 +166,6 @@ class ConfigLoader {
             'kill_on_suspect' => filter_var($this->get_env('SESSION_KILL_ON_SUSPECT', true), FILTER_VALIDATE_BOOLEAN),
             'redis_prefix'    => $this->get_env('SESSION_REDIS_PREFIX', $redis_prefix . 'session.'),
         ]);
-
-        $this->atomic->set('JAR.lifetime', (int)$this->get_env('COOKIE_EXPIRE', 0));
-        $this->atomic->set('JAR.path', $this->get_env('COOKIE_PATH', '/'));
-        $this->atomic->set('JAR.domain', $this->get_env('COOKIE_DOMAIN', ''));
-        $this->atomic->set('JAR.secure', filter_var($this->get_env('COOKIE_SECURE', false), FILTER_VALIDATE_BOOLEAN));
-        $this->atomic->set('JAR.httponly', filter_var($this->get_env('COOKIE_HTTPONLY', true), FILTER_VALIDATE_BOOLEAN));
-        $this->atomic->set('JAR.samesite', $this->get_env('COOKIE_SAMESITE', 'Lax'));
 
         $this->atomic->set('CORS', [
             'headers'     => $this->get_env('CORS_HEADERS', 'Content-Type,Authorization'),
@@ -243,41 +214,112 @@ class ConfigLoader {
                 'bot_token'     => $this->get_env('OAUTH_TELEGRAM_BOT_TOKEN', ''),
                 'callback_url'  => $this->get_env('OAUTH_TELEGRAM_CALLBACK_URL', '/auth/telegram/callback'),
             ],
-        ]);        
-        
+        ]);
+
         $this->atomic->set('LOG_CHANNELS', [
             'default'  => $this->get_env('LOG_DEFAULT_CHANNEL', 'atomic'),
             'channels' => $this->build_log_channels(),
         ]);
 
-        $this->atomic->set('MONOPAY.TOKEN', $this->get_env('MONOPAY_TOKEN', ''));
-        $this->atomic->set('MONOPAY.TEST_MODE', filter_var($this->get_env('MONOPAY_TEST_MODE', 'false'), FILTER_VALIDATE_BOOLEAN));
-        $this->atomic->set('MONOPAY.WEBHOOK_URL', $this->get_env('MONOPAY_WEBHOOK_URL', ''));
-        $this->atomic->set('MONOPAY.REDIRECT_URL', $this->get_env('MONOPAY_REDIRECT_URL', ''));
-
-        $this->atomic->set('ai', [
-            'openai'     => ['api_key' => $this->get_env('AI_OPENAI_API_KEY', '')],
-            'groq'       => ['api_key' => $this->get_env('AI_GROQ_API_KEY', '')],
-            'openrouter' => ['api_key' => $this->get_env('AI_OPENROUTER_API_KEY', '')],
-            'globus'     => ['api_key' => $this->get_env('AI_GLOBUS_API_KEY', '')],
-        ]);
-
         $this->atomic->set('CONFIG', $this->build_custom_config());
+
+        $tz = $this->atomic->get('TZ');
+        if ($tz) @date_default_timezone_set($tz);
+
+        $cache_bridge = \Engine\Atomic\Cache\FatFreeCacheBridge::install();
+        $cache_config = $this->atomic->get('CACHE_CONFIG');
+        $f3_cache = $this->build_f3_cache_setting(is_array($cache_config) ? $cache_config : []);
+        $this->atomic->set('CACHE', $f3_cache);
+        CacheManager::instance()->resolve();
+        $cache_bridge->load($f3_cache);
+
+        $this->sync_domain_to_hive($this->atomic, ['DOMAIN' => $this->atomic->get('DOMAIN')]);
     }
 
-    private function telemetry_access_mode(string $mode): string
+    private function register_framework_defaults(): void
     {
-        $mode = strtolower(trim($mode));
-        return in_array($mode, ['config', 'auth', 'none'], true) ? $mode : 'none';
+        ConfigRegistry::register('APP_NAME', 'APP_NAME', 'Atomic');
+        ConfigRegistry::register('APP_KEY', 'APP_KEY', '');
+        ConfigRegistry::register('APP_UUID', 'APP_UUID', '');
+        ConfigRegistry::register('APP_ENCRYPTION_KEY', 'APP_ENCRYPTION_KEY', '');
+        ConfigRegistry::register('DOMAIN', 'DOMAIN', '');
+        ConfigRegistry::register('LANGUAGE', 'LANGUAGE', 'en');
+        ConfigRegistry::register('ENCODING', 'ENCODING', 'UTF-8');
+        ConfigRegistry::register('TZ', 'TZ', 'UTC');
+        ConfigRegistry::register('DEBUG_MODE', 'DEBUG_MODE', 'false');
+        ConfigRegistry::register('DEBUG_LEVEL', 'DEBUG_LEVEL', 'error');
+        ConfigRegistry::register('THEME.envname', 'THEME', 'default');
+        ConfigRegistry::register('QUEUE_DRIVER', 'QUEUE_DRIVER', 'db');
+        ConfigRegistry::register('QUEUE_NAME', 'QUEUE_NAME', 'default');
+        ConfigRegistry::register('TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN', '');
+        ConfigRegistry::register('TELEGRAM_CHAT_ID', 'TELEGRAM_CHAT_ID', '');
+        ConfigRegistry::register('CACHE_PREFIX', 'CACHE_PREFIX', 'atomic.');
+
+        ConfigRegistry::register('TELEMETRY_ACCESS_MODE', 'TELEMETRY_ACCESS_MODE', 'none', 'string',
+            fn($v) => in_array(strtolower(trim((string)$v)), ['config', 'auth', 'none'], true)
+                ? strtolower(trim((string)$v)) : 'none');
+
+        ConfigRegistry::register('UI', 'UI', 'public/themes/');
+        ConfigRegistry::register('TEMP', 'TEMP', 'storage/framework/cache/data/', 'path');
+        ConfigRegistry::register('LOGS', 'LOGS', 'storage/logs/', 'path');
+        ConfigRegistry::register('LOCALES', 'LOCALES', 'engine/Atomic/Lang/locales/', 'path');
+        ConfigRegistry::register('FONTS', 'FONTS', 'engine/Atomic/Files/fonts/', 'path');
+        ConfigRegistry::register('FONTS_TEMP', 'FONTS_TEMP', 'storage/framework/cache/fonts/', 'path');
+        ConfigRegistry::register('MIGRATIONS', 'MIGRATIONS', 'database/migrations/', 'path');
+        ConfigRegistry::register('MIGRATIONS_CORE', 'MIGRATIONS_CORE', 'Atomic/Core/Database/Migrations/', 'path');
+        ConfigRegistry::register('SEEDS', 'SEEDS', 'database/seeds/', 'path');
+        ConfigRegistry::register('USER_PLUGINS', 'USER_PLUGINS', 'plugins/', 'path');
+        ConfigRegistry::register('FRAMEWORK_ROUTES', 'FRAMEWORK_ROUTES', 'Atomic/Core/Routes/', 'path');
+
+        ConfigRegistry::register('JAR.lifetime', 'COOKIE_EXPIRE', 0, 'int');
+        ConfigRegistry::register('JAR.path', 'COOKIE_PATH', '/');
+        ConfigRegistry::register('JAR.domain', 'COOKIE_DOMAIN', '');
+        ConfigRegistry::register('JAR.secure', 'COOKIE_SECURE', false, 'bool');
+        ConfigRegistry::register('JAR.httponly', 'COOKIE_HTTPONLY', true, 'bool');
+        ConfigRegistry::register('JAR.samesite', 'COOKIE_SAMESITE', 'Lax');
+
+        ConfigRegistry::register('MONOPAY.TOKEN', 'MONOPAY_TOKEN', '');
+        ConfigRegistry::register('MONOPAY.TEST_MODE', 'MONOPAY_TEST_MODE', false, 'bool');
+        ConfigRegistry::register('MONOPAY.WEBHOOK_URL', 'MONOPAY_WEBHOOK_URL', '');
+        ConfigRegistry::register('MONOPAY.REDIRECT_URL', 'MONOPAY_REDIRECT_URL', '');
+
+        ConfigRegistry::register('ai.openai.api_key', 'AI_OPENAI_API_KEY', '');
+        ConfigRegistry::register('ai.groq.api_key', 'AI_GROQ_API_KEY', '');
+        ConfigRegistry::register('ai.openrouter.api_key', 'AI_OPENROUTER_API_KEY', '');
+        ConfigRegistry::register('ai.globus.api_key', 'AI_GLOBUS_API_KEY', '');
+
+        ConfigRegistry::register('TELEMETRY_ACCESS_ALLOWED_ROLES', 'TELEMETRY_ACCESS_ALLOWED_ROLES', 'admin', 'csv');
+
+        ConfigRegistry::register('SECURITY_HEADERS.ENABLED', 'SECURITY_HEADERS_ENABLED', true, 'bool');
+        ConfigRegistry::register('SECURITY_HEADERS.XFO', 'SECURITY_HEADERS_XFO', 'DENY');
+        ConfigRegistry::register('SECURITY_HEADERS.HSTS', 'SECURITY_HEADERS_HSTS', '');
+        ConfigRegistry::register('SECURITY_HEADERS.CSP', 'SECURITY_HEADERS_CSP', '');
     }
 
-    /** @return list<string> */
-    private function csv_list(string $value): array
+    private function load_registered_schemas(): void
     {
-        return array_values(array_filter(
-            array_map('trim', explode(',', $value)),
-            static fn (string $item): bool => $item !== ''
-        ));
+        foreach (ConfigRegistry::schemas() as $key => $def) {
+            $value = $this->get_env($def['env'], $def['default']);
+            $value = $this->cast_config_value($value, $def['type']);
+            if ($def['map'] !== null) {
+                $value = ($def['map'])($value);
+            }
+            $this->atomic->set($key, $value);
+        }
+    }
+
+    private function cast_config_value(mixed $value, string $type): mixed
+    {
+        return match ($type) {
+            'int'  => (int)$value,
+            'bool' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+            'path' => $this->fix_path((string)$value),
+            'csv'  => array_values(array_filter(
+                array_map('trim', explode(',', (string)$value)),
+                static fn(string $item): bool => $item !== ''
+            )),
+            default => (string)$value,
+        };
     }
 
     protected function build_log_channels(): array {
