@@ -3,6 +3,7 @@ name: Sync Skeleton
 on:
   push:
     tags: ['*']
+  workflow_dispatch:
 
 jobs:
   sync:
