@@ -10,9 +10,14 @@ use Engine\Atomic\Auth\Adapters\LogAdapter;
 use Engine\Atomic\Auth\Adapters\TelegramClientAdapter;
 use Engine\Atomic\Auth\Interfaces\OAuthUserResolverInterface;
 use Engine\Atomic\Auth\Services\TelegramAuthService;
+use Engine\Atomic\Core\Traits\Singleton;
 
-class TelegramAuth extends \Prefab
+class TelegramAuth
 {
+    use Singleton;
+
+    private function __construct() {}
+
     private ?TelegramAuthService $service = null;
 
     private function service(): TelegramAuthService

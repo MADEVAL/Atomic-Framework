@@ -171,7 +171,7 @@ function remote_post(string $url, mixed $data = null, array $args = []): array {
 function remote_put(string $url, mixed $data = null, array $args = []): array  { return HTTP::instance()->remote_put($url, $data, $args); }
 
 // Telegram functions
-function telegram(?string $token = null, ?string $chat_id = null): TG { return TG::instance($token, $chat_id); }
+function telegram(?string $token = null, ?string $chat_id = null): TG { return $token !== null || $chat_id !== null ? TG::for($token, $chat_id) : TG::instance(); }
 function telegram_send(string $text, ?string $chat_id = null, array $opts = []): array { return TG::instance()->send($text, $chat_id, $opts); }
 
 // Options functions

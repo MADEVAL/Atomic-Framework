@@ -10,9 +10,14 @@ use Engine\Atomic\Auth\Adapters\IdValidatorAdapter;
 use Engine\Atomic\Auth\Adapters\LogAdapter;
 use Engine\Atomic\Auth\Interfaces\OAuthUserResolverInterface;
 use Engine\Atomic\Auth\Services\GoogleAuthService;
+use Engine\Atomic\Core\Traits\Singleton;
 
-class GoogleAuth extends \Prefab
+class GoogleAuth
 {
+    use Singleton;
+
+    private function __construct() {}
+
     private ?GoogleAuthService $service = null;
 
     private function service(): GoogleAuthService

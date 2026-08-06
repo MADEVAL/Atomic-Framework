@@ -18,10 +18,17 @@ use Engine\Atomic\Auth\Interfaces\LoginInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\Auth\Services\AuthService;
 use Engine\Atomic\Auth\Services\AuthSessionService;
+use Engine\Atomic\Core\Traits\Singleton;
+use Engine\Atomic\Hook\Hook;
 
-class Auth extends \Prefab implements LoginInterface
+class Auth implements LoginInterface
 {
+    use Singleton;
+
+    private function __construct() {}
+
     private ?AuthService $service = null;
+    private bool $session_hooks_registered = false;
 
     private function service(): AuthService
     {
@@ -49,9 +56,23 @@ class Auth extends \Prefab implements LoginInterface
         return $this->service;
     }
 
+    private function register_session_hooks(): void
+    {
+        if ($this->session_hooks_registered) {
+            return;
+        }
+        $this->session_hooks_registered = true;
+
+        $service = $this->service();
+        Hook::instance()->add_action('SESSION_STARTED', function () use ($service): void {
+            $service->validate_auth_session();
+        }, 10, 0);
+    }
+
     public function set_user_provider(UserProviderInterface $provider): self
     {
         $this->service()->set_user_provider($provider);
+        $this->register_session_hooks();
         return $this;
     }
 

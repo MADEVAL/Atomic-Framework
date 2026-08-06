@@ -23,6 +23,6 @@ class Hash
 
     public static function dummy_hash_for_timing_mitigation(): string
     {
-        return password_hash(random_bytes(32), PASSWORD_BCRYPT);
+        return password_hash(base64_encode(random_bytes(32)), PASSWORD_BCRYPT);
     }
 }

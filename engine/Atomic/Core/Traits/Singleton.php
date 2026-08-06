@@ -6,10 +6,17 @@ if (!defined('ATOMIC_START')) exit;
 
 trait Singleton
 {
-    private static ?self $instance = null;
+    protected static ?self $instance = null;
 
-    public static function instance(): self
+    public static function instance(...$args): static
     {
-        return self::$instance ??= new self();
+        return static::$instance ??= new static(...$args);
     }
+
+    public static function reset(): void
+    {
+        static::$instance = null;
+    }
+
+    private function __clone(): void {}
 }

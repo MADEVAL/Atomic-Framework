@@ -3,8 +3,14 @@ declare(strict_types=1);
 namespace Engine\Atomic\Core;
 if (!defined('ATOMIC_START')) exit;
 
-class RouteLoader extends \Prefab
+use Engine\Atomic\Core\Traits\Singleton;
+
+class RouteLoader
 {
+    use Singleton;
+
+    private function __construct() {}
+
     protected string $framework_routes_path = '';
     protected string $app_routes_path = '';
 

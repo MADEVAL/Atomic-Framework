@@ -20,6 +20,7 @@ class PluginManager
     protected array $booted = [];
     protected array $loaded_route_types = [];
     protected array $registered_autoloaders = [];
+    private bool $autoloader_registered = false;
     /** @var array<string, string> plugin_name => error_message */
     protected array $errors = [];
 
@@ -335,30 +336,36 @@ class PluginManager
 
         $this->registered_autoloaders[$namespace] = $resolved_plugin_dir;
 
-        spl_autoload_register(static function (string $class) use ($namespace, $resolved_plugin_dir): void {
-            if (!str_starts_with($class, $namespace)) {
-                return;
-            }
+        if (!$this->autoloader_registered) {
+            $this->autoloader_registered = true;
+            spl_autoload_register(function (string $class): void {
+                foreach ($this->registered_autoloaders as $ns => $plugin_dir) {
+                    if (!str_starts_with($class, $ns)) {
+                        continue;
+                    }
 
-            $relative_class = substr($class, strlen($namespace));
-            if ($relative_class === '' || str_contains($relative_class, '..')) {
-                return;
-            }
+                    $relative_class = substr($class, strlen($ns));
+                    if ($relative_class === '' || str_contains($relative_class, '..')) {
+                        continue;
+                    }
 
-            $file = $resolved_plugin_dir . DIRECTORY_SEPARATOR
-                . str_replace('\\', DIRECTORY_SEPARATOR, $relative_class)
-                . '.php';
+                    $file = $plugin_dir . DIRECTORY_SEPARATOR
+                        . str_replace('\\', DIRECTORY_SEPARATOR, $relative_class)
+                        . '.php';
 
-            $resolved_file = realpath($file);
-            if (
-                $resolved_file !== false
-                && is_file($resolved_file)
-                && is_readable($resolved_file)
-                && str_starts_with($resolved_file, $resolved_plugin_dir . DIRECTORY_SEPARATOR)
-            ) {
-                require_once $resolved_file;
-            }
-        });
+                    $resolved_file = realpath($file);
+                    if (
+                        $resolved_file !== false
+                        && is_file($resolved_file)
+                        && is_readable($resolved_file)
+                        && str_starts_with($resolved_file, $plugin_dir . DIRECTORY_SEPARATOR)
+                    ) {
+                        require_once $resolved_file;
+                        return;
+                    }
+                }
+            });
+        }
     }
 
     protected function plugin_namespace_prefix(string $plugin_class): string

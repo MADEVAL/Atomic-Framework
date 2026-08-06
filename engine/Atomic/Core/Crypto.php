@@ -4,7 +4,10 @@ namespace Engine\Atomic\Core;
 
 if (!defined('ATOMIC_START')) exit;
 
-class Crypto extends \Prefab {
+use Engine\Atomic\Core\Traits\Singleton;
+
+class Crypto {
+    use Singleton;
     private string $key;
 
     public function __construct() {

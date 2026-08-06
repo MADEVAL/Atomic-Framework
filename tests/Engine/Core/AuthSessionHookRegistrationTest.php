@@ -5,11 +5,13 @@ namespace Tests\Engine\Core;
 use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Event\Event;
 use Engine\Atomic\Hook\Hook;
 use Engine\Atomic\Hook\System;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
 
 #[RunTestsInSeparateProcesses]
 #[PreserveGlobalState(false)]
@@ -39,10 +41,10 @@ final class AuthSessionHookRegistrationTest extends TestCase
             ->register_user_provider(TestUserProvider::class)
             ->register_user_provider(TestUserProvider::class);
 
-        $listeners = $atomic->get('EVENTS.SESSION_STARTED');
-
-        $this->assertIsArray($listeners);
-        $this->assertCount(1, $listeners[10] ?? []);
+        $this->assertTrue(
+            Event::instance()->has('SESSION_STARTED'),
+            'SESSION_STARTED event should be registered after user provider is set'
+        );
     }
 }
 

@@ -115,7 +115,8 @@ class RouteLoaderTest extends TestCase
 
     public function test_websocket_is_not_a_default_route_type(): void
     {
-        $loader = new RouteLoader();
+        RouteLoader::reset();
+        $loader = RouteLoader::instance();
 
         $this->assertFalse($loader->has_route_type('websocket'));
     }

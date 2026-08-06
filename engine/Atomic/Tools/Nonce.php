@@ -14,7 +14,7 @@ class Nonce
 
     protected ?App $atomic = null;
 
-    public function __construct()
+    private function __construct()
     {
         $this->atomic = App::instance();
     }

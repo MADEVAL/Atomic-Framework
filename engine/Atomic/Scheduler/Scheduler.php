@@ -6,9 +6,14 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Traits\Singleton;
 
-class Scheduler extends \Prefab
+class Scheduler
 {
+    use Singleton;
+
+    private function __construct() {}
+
     protected array $events = [];
     protected bool $logging = true;
     protected int $max_execution_time = 300;

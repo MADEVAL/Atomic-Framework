@@ -8,8 +8,9 @@ use Engine\Atomic\Core\App;
 
 final class Notifier
 {
+    use Singleton;
+
     protected App $atomic;
-    private static ?self $instance = null;
 
     private string $sessionKey;
     private array $messages = [];
@@ -22,11 +23,6 @@ final class Notifier
         $this->atomic = App::instance();
         $this->sessionKey = $key;
         $this->load_from_session();
-    }
-
-    public static function instance(string $key = 'notifier'): self
-    {
-        return self::$instance ??= new self($key);
     }
 
     private function load_from_session(): void
@@ -197,7 +193,7 @@ final class Notifier
         return $this;
     }
 
-    public function reset(): self
+    public function clear_all(): self
     {
         $this->messages = [];
         $this->flash = [];
@@ -216,6 +212,4 @@ final class Notifier
             fn($msg) => $msg['type'] === $type
         ));
     }
-
-    private function __clone() {}
 }

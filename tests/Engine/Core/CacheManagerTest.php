@@ -256,6 +256,7 @@ class CacheManagerTest extends TestCase
 
         $manager = $this->getMockBuilder(CacheManager::class)
             ->onlyMethods(['cascade_drivers', 'driver'])
+            ->disableOriginalConstructor()
             ->getMock();
 
         $manager->expects($this->once())

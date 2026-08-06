@@ -79,4 +79,10 @@ class NonceTest extends TestCase
         $this->assertFalse($this->nonce->verify_nonce($token, 'ua_check'));
         $f3->set('AGENT', 'PHPUnit/TestAgent');
     }
+
+    public function test_cannot_instantiate_externally(): void
+    {
+        $this->expectException(\Error::class);
+        new Nonce();
+    }
 }

@@ -8,9 +8,14 @@ use PHPUnit\Framework\TestCase;
 
 class SchedulerExecEscapingTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        Scheduler::reset();
+    }
+
     public function test_exec_escapes_shell_metacharacters(): void
     {
-        $scheduler = new Scheduler();
+        $scheduler = Scheduler::instance();
         $command = 'echo hello & calc.exe';
         $event = $scheduler->exec($command);
 
@@ -21,7 +26,7 @@ class SchedulerExecEscapingTest extends TestCase
 
     public function test_exec_safe_command_unchanged_by_escaping(): void
     {
-        $scheduler = new Scheduler();
+        $scheduler = Scheduler::instance();
         $command = 'echo hello';
         $event = $scheduler->exec($command);
 
@@ -31,7 +36,7 @@ class SchedulerExecEscapingTest extends TestCase
 
     public function test_exec_description_contains_original_command(): void
     {
-        $scheduler = new Scheduler();
+        $scheduler = Scheduler::instance();
         $command = 'echo "hello world"';
         $event = $scheduler->exec($command);
 

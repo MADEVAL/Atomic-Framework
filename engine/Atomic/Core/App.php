@@ -4,7 +4,6 @@ namespace Engine\Atomic\Core;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
-use Engine\Atomic\Auth\Services\AuthSessionService;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Lang\I18n;
 use Engine\Atomic\Core\ExceptionHandlerRegistrar;
@@ -30,7 +29,6 @@ class App {
     protected array $extra_route_files = [];
     protected array $loaded_app_route_types = [];
     protected bool $server_start_hook_fired = false;
-    protected bool $auth_session_hooks_registered = false;
      
     public function __construct(\Base $atomic) {
         $this->atomic = $atomic;
@@ -569,30 +567,8 @@ class App {
             Log::error("User provider {$provider_class} must implement UserProviderInterface.");
             return $this;
         }
-
         Auth::instance()->set_user_provider($provider);
-        $this->register_auth_session_hooks();
         return $this;
     }
-
-    private function register_auth_session_hooks(): void
-    {
-        if ($this->auth_session_hooks_registered) {
-            return;
-        }
-
-        $this->auth_session_hooks_registered = true;
-        $app = new \Engine\Atomic\Auth\Adapters\AppContextAdapter();
-        $session = new AuthSessionService(
-            $app,
-            new \Engine\Atomic\Auth\Adapters\PhpSessionAdapter(),
-            new \Engine\Atomic\Auth\Adapters\SessionDriverFactoryAdapter($app),
-            new \Engine\Atomic\Auth\Adapters\SystemClockAdapter(),
-            new \Engine\Atomic\Auth\Adapters\IdValidatorAdapter(),
-            new \Engine\Atomic\Auth\Adapters\LogAdapter(),
-        );
-        Hook::instance()->add_action('SESSION_STARTED', function () use ($session): void {
-            $session->validate_auth_session();
-        }, 10, 0);
-    }
 }
+

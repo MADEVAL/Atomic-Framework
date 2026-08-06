@@ -254,7 +254,8 @@ class SchedulerEventTest extends TestCase
         try {
             $skipped = false;
             $allowed = false;
-            $scheduler = new Scheduler();
+            Scheduler::reset();
+            $scheduler = Scheduler::instance();
 
             $scheduler->call(function() use (&$skipped) {
                 $skipped = true;
@@ -278,7 +279,8 @@ class SchedulerEventTest extends TestCase
     public function test_runner_force_run_executes_non_due_events(): void
     {
         $called = false;
-        $scheduler = new Scheduler();
+        Scheduler::reset();
+        $scheduler = Scheduler::instance();
         $next_minute = ((int)\date('i') + 1) % 60;
 
         $scheduler->call(function() use (&$called) {

@@ -4,7 +4,12 @@ namespace Engine\Atomic\Files;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
 
-class CSV extends \Prefab {
+use Engine\Atomic\Core\Traits\Singleton;
+
+class CSV {
+    use Singleton;
+
+    private function __construct() {}
 
 	public function parse_csv(string $filepath, string $delimiter=";", string $enclosure='"'): array|false {
 		if (!is_file($filepath)) {

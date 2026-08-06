@@ -86,6 +86,11 @@ class AuthService implements LoginInterface
         $this->app->clear(self::AUTH_CHALLENGES_SESSION_KEY);
     }
 
+    public function validate_auth_session(): void
+    {
+        $this->session->validate_auth_session();
+    }
+
     public function login_with_secret(array $credentials, string $secret): ?AuthenticatableInterface
     {
         if (!$this->user_provider) {

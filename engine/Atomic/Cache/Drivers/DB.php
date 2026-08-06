@@ -10,7 +10,7 @@ use Engine\Atomic\Cache\Helpers\Payload;
 use Engine\Atomic\Core\App;
 use DB\SQL;
 
-class DB extends \Prefab implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
+class DB implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
 {
     private const ENTRY_PREFIX = 'entry';
     private const META_PREFIX = 'meta';

@@ -10,8 +10,9 @@ use Engine\Atomic\Core\Request;
 
 final class Telegram
 {
+    use Singleton;
+
     protected App $atomic;
-    private static ?self $instance = null;
 
     protected string $token = '';
     protected string|int|null $chat_id = null;
@@ -23,12 +24,9 @@ final class Telegram
         $this->chat_id = $chat_id ?: ($this->atomic->get('TELEGRAM_CHAT_ID') ?: getenv('TELEGRAM_CHAT_ID') ?: null);
     }
 
-    public static function instance(?string $token = null, string|int|null $chat_id = null): self
+    public static function for(?string $token = null, string|int|null $chat_id = null): self
     {
-        if ($token !== null || $chat_id !== null) {
-            return new self($token, $chat_id);
-        }
-        return self::$instance ??= new self();
+        return new self($token, $chat_id);
     }
 
     public function set_token(string $token): self
@@ -321,6 +319,4 @@ final class Telegram
         }
         return $this->api('setMyName', $params);
     }
-
-    private function __clone() {}
 }

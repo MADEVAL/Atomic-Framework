@@ -9,9 +9,14 @@ use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Drivers\Folder;
 use Engine\Atomic\Cache\Drivers\Memcached;
 use Engine\Atomic\Cache\Drivers\Redis as RedisCache;
+use Engine\Atomic\Core\Traits\Singleton;
 
-class CacheManager extends \Prefab
+class CacheManager
 {
+    use Singleton;
+
+    private function __construct() {}
+
     public const FAT_FREE_CACHE_BRIDGE_SENTINEL = 'atomic';
 
     private const DRIVER_REDIS = 'redis';
