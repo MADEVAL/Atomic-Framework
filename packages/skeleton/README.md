@@ -6,8 +6,9 @@
 [![Version](https://img.shields.io/github/v/tag/MADEVAL/Atomic-Framework-Application?label=version&color=blue)](https://github.com/MADEVAL/Atomic-Framework-Application/tags)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-green.svg)](LICENSE)
 [![Packagist](https://img.shields.io/packagist/v/globus-studio/atomic-framework-application?label=packagist&color=orange)](https://packagist.org/packages/globus-studio/atomic-framework-application)
+[![Downloads](https://img.shields.io/packagist/dt/globus-studio/atomic-framework-application?color=blue)](https://packagist.org/packages/globus-studio/atomic-framework-application)
 
-> **Start here:** `composer create-project globus-studio/atomic-framework-application myapp` — one command, ready to go.
+> **Packagist:** [`globus-studio/atomic-framework-application`](https://packagist.org/packages/globus-studio/atomic-framework-application) · `composer create-project globus-studio/atomic-framework-application myapp`
 
 ---
 
