@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Engine\Atomic\Exceptions;
 
-class NotFoundException extends AtomicException
+class NotFoundException extends HttpException
 {
     public function __construct(string $message = 'Resource not found', int $code = 404, ?\Throwable $previous = null)
     {
