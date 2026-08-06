@@ -15,15 +15,12 @@ jobs:
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'actions@github.com'
-
           TARGET="https://x-access-token:${{ secrets.GH_ACCESS_TOKEN }}@github.com/MADEVAL/Atomic-Framework-Application.git"
           WORKDIR="/tmp/skel-sync"
-
           git clone "$TARGET" "$WORKDIR"
           find "$WORKDIR" -mindepth 1 -not -name '.git' -delete
           cp -r packages/skeleton/* "$WORKDIR/"
           cp packages/skeleton/.env.example "$WORKDIR/" 2>/dev/null || true
-
           cd "$WORKDIR"
           git add -A
           git commit -m "Sync from monorepo ${GITHUB_REF_NAME}" || echo "No changes"
