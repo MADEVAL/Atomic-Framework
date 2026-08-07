@@ -78,9 +78,11 @@ final class HttpKernel
         }
 
         $body = $this->getMethodBody($method);
-        if ($body !== null && str_contains($body, 'Not yet implemented')
+        if ($body !== null && (
+            str_contains($body, 'Not yet implemented')
             || str_contains($body, 'Not yet migrated')
-            || str_contains($body, 'not yet implemented')) {
+            || str_contains($body, 'not yet implemented')
+        )) {
             return false;
         }
 

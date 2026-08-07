@@ -32,6 +32,7 @@ class CacheManager
     private const DRIVER_PRIORITY = [
         self::DRIVER_REDIS,
         self::DRIVER_MEMCACHED,
+        self::DRIVER_DB,
         self::DRIVER_FOLDER,
     ];
     

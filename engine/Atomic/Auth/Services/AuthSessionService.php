@@ -33,6 +33,8 @@ class AuthSessionService implements AuthSessionInterface
         $this->session->start();
         $this->app->set('SESSION.user_uuid', $uuid);
         $this->app->set('SESSION.created_at', $this->clock->now());
+        $this->app->set('SESSION.auth_ip', $this->app->get('IP'));
+        $this->app->set('SESSION.auth_agent', $this->app->get('AGENT'));
     }
 
     public function validate_auth_session(): void
@@ -40,6 +42,20 @@ class AuthSessionService implements AuthSessionInterface
         $stored_uuid = $this->app->get('SESSION.user_uuid');
         if (!$stored_uuid) {
             return;
+        }
+
+        $kill_on_suspect = (bool) $this->app->get('SESSION_CONFIG.kill_on_suspect');
+        if ($kill_on_suspect) {
+            $current_ip = $this->app->get('IP');
+            $stored_ip = $this->app->get('SESSION.auth_ip');
+            $current_agent = $this->app->get('AGENT');
+            $stored_agent = $this->app->get('SESSION.auth_agent');
+
+            if (($stored_ip && $stored_ip !== $current_ip)
+                || ($stored_agent && $stored_agent !== $current_agent)) {
+                $this->destroy();
+                return;
+            }
         }
 
         if (!$this->id_validator->is_valid_uuid_v4($stored_uuid) || $this->is_expired()) {
@@ -68,5 +84,7 @@ class AuthSessionService implements AuthSessionInterface
         $this->app->clear('SESSION.user_uuid');
         $this->app->clear('SESSION.created_at');
         $this->app->clear('SESSION.admin_uuid');
+        $this->app->clear('SESSION.auth_ip');
+        $this->app->clear('SESSION.auth_agent');
     }
 }

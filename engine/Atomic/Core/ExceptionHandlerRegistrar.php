@@ -21,7 +21,12 @@ class ExceptionHandlerRegistrar
                 $recursionCounter = (int)$atomic->get('ERROR.recursion_counter');
                 if ($recursionCounter > 2) {
                     http_response_code(500);
-                    die('Fatal error: too many error handler recursions');
+                    $msg = '<h1>500 Internal Server Error</h1><p>A fatal error occurred. Please try again later.</p>';
+                    if ((int)$atomic->get('DEBUG') > 0) {
+                        $msg .= '<p><small>Recursion limit reached in error handler.</small></p>';
+                    }
+                    echo $msg;
+                    return;
                 }
                 $atomic->set('ERROR.recursion_counter', $recursionCounter + 1);
 
@@ -118,7 +123,8 @@ class ExceptionHandlerRegistrar
             } catch (\Throwable $e) {
                 Log::channel(LogChannel::ERROR)->critical('Critical error in exception handler: ' . $e->getMessage());
                 http_response_code(500);
-                die('Critical error in exception handler: ' . $e->getMessage());
+                echo '<h1>500 Internal Server Error</h1>';
+                return;
             }
         });
     }

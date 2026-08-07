@@ -4,7 +4,6 @@
 
 [![PHP](https://img.shields.io/badge/php-%3E%3D8.1-777BB4?logo=php&logoColor=white)](#)
 [![Version](https://img.shields.io/github/v/tag/MADEVAL/Atomic-Framework?label=version&color=blue)](https://github.com/MADEVAL/Atomic-Framework/tags)
-[![Tests](https://img.shields.io/badge/tests-1481%2F1481-brightgreen)](#testing)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-green.svg)](LICENSE)
 [![Packagist](https://img.shields.io/packagist/v/globus-studio/atomic-framework?label=packagist&color=orange)](https://packagist.org/packages/globus-studio/atomic-framework)
 [![Downloads](https://img.shields.io/packagist/dt/globus-studio/atomic-framework?color=blue)](https://packagist.org/packages/globus-studio/atomic-framework)
@@ -165,6 +164,14 @@ class Authenticate implements MiddlewareInterface
     {
         return Guard::is_authenticated();
     }
+
+    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    {
+        if (Guard::is_authenticated()) {
+            return $next($request);
+        }
+        return \Engine\Atomic\Http\Response::json(['error' => 'Unauthorized'], 401);
+    }
 }
 ```
 
@@ -179,7 +186,7 @@ class DashboardController extends Controller
 {
     public function index(\Base $f3): void
     {
-        $this->render('dashboard/index.html');
+        $this->display('dashboard/index.html');
     }
 }
 ```
@@ -189,14 +196,10 @@ use Engine\Atomic\App\Model;
 
 class User extends Model
 {
-    protected function get_rules(): array
-    {
-        return [
-            'email'    => ['rule' => Rule::EMAIL, 'required' => true],
-            'uuid'     => ['rule' => Rule::UUID_V4, 'required' => true],
-            'password' => ['rule' => Rule::PASSWORD_ENTROPY, 'min_entropy' => 40],
-        ];
-    }
+    protected $fieldConf = [
+        'email'    => ['type' => \DB\SQL\Schema::DT_VARCHAR256, 'nullable' => false],
+        'password' => ['type' => \DB\SQL\Schema::DT_VARCHAR256, 'nullable' => false],
+    ];
 }
 ```
 
@@ -206,6 +209,7 @@ class User extends Model
 
 ```php
 use Engine\Atomic\Auth\Auth;
+use Engine\Atomic\Auth\GoogleAuth;
 
 // Password-based login
 $user = Auth::instance()->login_with_secret(
@@ -214,13 +218,13 @@ $user = Auth::instance()->login_with_secret(
 );
 
 // OAuth login
-$url = Auth::instance()->google()->get_login_url();
-$userId = Auth::instance()->google()->handle_callback($code, $state);
+$url = GoogleAuth::instance()->get_login_url();
+$userId = GoogleAuth::instance()->handle_callback($code, $state);
 
 // Session management
 $currentUser = Auth::instance()->get_current_user();
 Auth::instance()->logout();
-Auth::instance()->kill_all_sessions($userId);
+Auth::kill_all_sessions($userId);
 
 // Admin impersonation
 Auth::instance()->impersonate_user($targetUuid);

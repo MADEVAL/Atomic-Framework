@@ -76,7 +76,10 @@ class AuthSessionServiceTest extends TestCase
 
     public function test_validate_auth_session_clears_auth_keys_when_stored_uuid_is_invalid(): void
     {
-        $this->app->method('get')->with('SESSION.user_uuid')->willReturn('not-a-valid-uuid');
+        $this->app->method('get')->willReturnMap([
+            ['SESSION_CONFIG.kill_on_suspect', false],
+            ['SESSION.user_uuid',              'not-a-valid-uuid'],
+        ]);
         $this->id_validator->method('is_valid_uuid_v4')->willReturn(false);
 
         $clear_calls = [];
@@ -90,6 +93,8 @@ class AuthSessionServiceTest extends TestCase
             'SESSION.user_uuid',
             'SESSION.created_at',
             'SESSION.admin_uuid',
+            'SESSION.auth_ip',
+            'SESSION.auth_agent',
         ], $clear_calls);
     }
 
@@ -98,9 +103,10 @@ class AuthSessionServiceTest extends TestCase
         $valid_uuid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
         $this->app->method('get')->willReturnMap([
-            ['SESSION.user_uuid',       $valid_uuid],
-            ['SESSION.created_at',      1_000_000_000],
-            ['SESSION_CONFIG.lifetime', 7200],
+            ['SESSION_CONFIG.kill_on_suspect', false],
+            ['SESSION.user_uuid',              $valid_uuid],
+            ['SESSION.created_at',             1_000_000_000],
+            ['SESSION_CONFIG.lifetime',        7200],
         ]);
         $this->id_validator->method('is_valid_uuid_v4')->willReturn(true);
         $this->clock->method('now')->willReturn(2_000_000_000);
@@ -122,9 +128,10 @@ class AuthSessionServiceTest extends TestCase
         $valid_uuid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
         $this->app->method('get')->willReturnMap([
-            ['SESSION.user_uuid',       $valid_uuid],
-            ['SESSION.created_at',      1_700_000_000],
-            ['SESSION_CONFIG.lifetime', 7200],
+            ['SESSION_CONFIG.kill_on_suspect', false],
+            ['SESSION.user_uuid',              $valid_uuid],
+            ['SESSION.created_at',             1_700_000_000],
+            ['SESSION_CONFIG.lifetime',        7200],
         ]);
         $this->id_validator->method('is_valid_uuid_v4')->willReturn(true);
         $this->clock->method('now')->willReturn(1_700_003_600);
@@ -183,6 +190,8 @@ class AuthSessionServiceTest extends TestCase
             'SESSION.user_uuid',
             'SESSION.created_at',
             'SESSION.admin_uuid',
+            'SESSION.auth_ip',
+            'SESSION.auth_agent',
         ], $clear_calls);
     }
 }

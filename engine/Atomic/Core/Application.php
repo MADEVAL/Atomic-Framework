@@ -39,16 +39,68 @@ final class Application
             return;
         }
 
-        foreach ($this->providers as $provider) {
+        $ordered = $this->resolveOrder();
+
+        foreach ($ordered as $provider) {
             $provider->setContainer($this->container);
             $provider->register();
         }
 
-        foreach ($this->providers as $provider) {
+        foreach ($ordered as $provider) {
             $provider->boot();
         }
 
         $this->booted = true;
+    }
+
+    /** @return ServiceProvider[] */
+    private function resolveOrder(): array
+    {
+        $byClass = [];
+        foreach ($this->providers as $p) {
+            $byClass[$p::class] = $p;
+        }
+
+        $inDegree = [];
+        $deps = [];
+        foreach ($this->providers as $p) {
+            $class = $p::class;
+            if (!isset($inDegree[$class])) {
+                $inDegree[$class] = 0;
+            }
+            $deps[$class] = [];
+            foreach ($p->requires() as $req) {
+                if (isset($byClass[$req])) {
+                    $deps[$class][] = $req;
+                    $inDegree[$req] = ($inDegree[$req] ?? 0) + 1;
+                }
+            }
+        }
+
+        $queue = [];
+        foreach ($this->providers as $p) {
+            if (($inDegree[$p::class] ?? 0) === 0) {
+                $queue[] = $p;
+            }
+        }
+
+        $ordered = [];
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            $ordered[] = $current;
+            foreach ($deps[$current::class] as $dependent) {
+                $inDegree[$dependent]--;
+                if ($inDegree[$dependent] === 0) {
+                    $queue[] = $byClass[$dependent];
+                }
+            }
+        }
+
+        if (count($ordered) !== count($this->providers)) {
+            $ordered = $this->providers;
+        }
+
+        return $ordered;
     }
 
     public function run(): Response

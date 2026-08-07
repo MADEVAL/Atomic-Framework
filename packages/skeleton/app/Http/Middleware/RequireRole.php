@@ -5,6 +5,9 @@ namespace App\Http\Middleware;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Middleware\MiddlewareInterface;
+use Engine\Atomic\Core\Response;
+use Engine\Atomic\Http\Response as HttpResponse;
+use Engine\Atomic\Auth\Auth;
 
 class RequireRole implements MiddlewareInterface
 {
@@ -18,7 +21,7 @@ class RequireRole implements MiddlewareInterface
 
     public function handle(\Base $atomic): bool
     {
-        $user = \Engine\Atomic\Auth\Auth::instance()->get_current_user();
+        $user = Auth::instance()->get_current_user();
         if ($user === null) {
             $atomic->reroute('/login');
             return false;
@@ -31,12 +34,24 @@ class RequireRole implements MiddlewareInterface
             }
         }
 
-        \Engine\Atomic\Core\App::instance()->send_json_error('Forbidden', 403);
+        Response::instance()->send_json_error('Forbidden', 403, [], false);
         return false;
     }
 
-    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    public function process(mixed $request, callable $next): HttpResponse
     {
-        throw new \RuntimeException('Not yet migrated to process() pattern');
+        $user = Auth::instance()->get_current_user();
+        if ($user === null) {
+            return new HttpResponse(302, '', ['Location' => '/login']);
+        }
+
+        $userRoles = $user->get_role_slugs();
+        foreach ($this->roles as $required) {
+            if (in_array($required, $userRoles, true)) {
+                return $next($request);
+            }
+        }
+
+        return HttpResponse::json(['error' => 'Forbidden'], 403);
     }
 }

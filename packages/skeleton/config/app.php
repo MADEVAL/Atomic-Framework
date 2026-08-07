@@ -16,6 +16,7 @@ return [
     'name'         => 'Atomic',
     'key'          => '',           // APP_KEY from .env
     'uuid'         => '',           // APP_UUID from .env
+    'encryption_key' => '',         // APP_ENCRYPTION_KEY from .env
     'domain'       => '',           // DOMAIN from .env
     'timezone'     => 'UTC',
     'theme'        => 'default',
@@ -23,7 +24,7 @@ return [
     'language'     => 'en',
     'fallback'     => 'en',
     'debug'        => false,
-    'debug_level'  => 'debug',
+    'debug_level'  => 'error',
     'escape'       => true,
     'paths' => [
         'ui'                  => 'public/themes/',

@@ -26,20 +26,21 @@ class ThrottleRequests implements MiddlewareInterface
 
     public function handle(\Base $atomic): bool
     {
-        $key = 'throttle:' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+        $key = 'throttle:' . ($atomic->get('IP') ?: '127.0.0.1');
 
-        $cache = \Cache::instance();
+        $cache = \Engine\Atomic\Core\CacheManager::instance()->cascade();
         $attempts = (int)$cache->get($key);
         $attempts++;
 
         if ($attempts > $this->maxAttempts) {
-            $ttl = $cache->ttl($key);
-            $retryAfter = $ttl > 0 ? $ttl : $this->windowSeconds;
+            $retryAfter = $this->windowSeconds;
 
             header('Retry-After: ' . $retryAfter);
-            \Engine\Atomic\Core\App::instance()->send_json_error(
+            \Engine\Atomic\Core\Response::instance()->send_json_error(
                 'Too many requests. Try again in ' . $retryAfter . ' seconds.',
                 429,
+                [],
+                false,
             );
             return false;
         }
@@ -50,15 +51,15 @@ class ThrottleRequests implements MiddlewareInterface
 
     public function process(mixed $request, callable $next): HttpResponse
     {
-        $key = 'throttle:' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $key = 'throttle:' . $ip;
 
-        $cache = \Cache::instance();
+        $cache = \Engine\Atomic\Core\CacheManager::instance()->cascade();
         $attempts = (int)$cache->get($key);
         $attempts++;
 
         if ($attempts > $this->maxAttempts) {
-            $ttl = $cache->ttl($key);
-            $retryAfter = $ttl > 0 ? $ttl : $this->windowSeconds;
+            $retryAfter = $this->windowSeconds;
 
             return HttpResponse::json([
                 'error' => 'Too many requests. Try again in ' . $retryAfter . ' seconds.',

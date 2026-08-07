@@ -67,7 +67,7 @@ class CSV {
 		return $xls;
 	}
 
-	public function render_xls(array $rows, array $headers, string $filename): never {
+	public function render_xls(array $rows, array $headers, string $filename, bool $terminate = true): void {
 		$data = $this->dump_xls($rows,$headers);
 		header("Expires: 0");
 		header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
@@ -75,7 +75,9 @@ class CSV {
 		header("Content-Disposition: attachment;filename=".$filename);
 		header("Content-Transfer-Encoding: binary");
 		echo $data;
-		exit();
+		if ($terminate) {
+			exit();
+		}
 	}
 
 	protected function xls_bof(): string {
@@ -138,7 +140,7 @@ class CSV {
 		return implode("\n",$out);
 	}
 
-	public function render_csv(array $rows, array $headers, string $filename, string $delimiter=';', string $enclosure='"', bool $enclose_all=true, string $encoding='UTF-8'): never {
+	public function render_csv(array $rows, array $headers, string $filename, string $delimiter=';', string $enclosure='"', bool $enclose_all=true, string $encoding='UTF-8', bool $terminate = true): void {
 		$data = $this->dump_csv($rows, $headers, $delimiter, $enclosure, $enclose_all);
 		header("Expires: 0");
 		header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
@@ -146,7 +148,9 @@ class CSV {
 		header("Content-Disposition: attachment;filename=".$filename);
 		header("Content-Transfer-Encoding: binary");
 		echo ($encoding !== 'UTF-8' ? mb_convert_encoding($data, $encoding, 'UTF-8') : $data);
-		exit();
+		if ($terminate) {
+			exit();
+		}
 	}
 
 }

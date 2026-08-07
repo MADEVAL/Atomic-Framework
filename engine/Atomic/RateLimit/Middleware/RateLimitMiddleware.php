@@ -50,7 +50,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
 
         Response::instance()->send_json_error(self::RESPONSE_TOO_MANY_REQUESTS, Response::STATUS_TOO_MANY_REQUESTS, [
             self::RESPONSE_RETRY_AFTER => $result->retry_after,
-        ]);
+        ], false);
         return false;
     }
 

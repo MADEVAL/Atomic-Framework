@@ -217,12 +217,12 @@ class CacheManagerTest extends TestCase
         $this->assertInstanceOf(\Engine\Atomic\Cache\Drivers\DB::class, $cache);
     }
 
-    public function test_cascade_priority_excludes_db_unless_configured(): void
+    public function test_cascade_priority_includes_db(): void
     {
         $drivers = ReflectionHelper::invoke($this->manager, 'cascade_drivers');
 
-        $this->assertSame([self::DRIVER_REDIS, self::DRIVER_MEMCACHED, self::DRIVER_FOLDER], $drivers);
-        $this->assertNotContains(self::DRIVER_DB, $drivers);
+        $this->assertSame([self::DRIVER_REDIS, self::DRIVER_MEMCACHED, self::DRIVER_DB, self::DRIVER_FOLDER], $drivers);
+        $this->assertContains(self::DRIVER_DB, $drivers);
     }
 
     public function test_cascade_uses_next_driver_when_first_health_check_fails(): void

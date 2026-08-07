@@ -35,7 +35,9 @@ final class CsrfMiddleware implements MiddlewareInterface
         if ($request_token === null || !hash_equals($stored_token, $request_token)) {
             Response::instance()->send_json_error(
                 'CSRF token mismatch',
-                Response::STATUS_FORBIDDEN
+                Response::STATUS_FORBIDDEN,
+                [],
+                false,
             );
             return false;
         }

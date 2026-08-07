@@ -37,13 +37,13 @@ atomic-framework/                          ← single git repo (IS the framework
 │       ├── routes/                        ← route definitions
 │       └── public/                        ← web root (index.php entry point)
 │
-└── .github/workflows/ci.yml               ← sync skeleton on tag
+└── .github/workflows/sync-skeleton.yml       ← sync skeleton on tag
 ```
 
 ## Publishing
 
 - **Framework** (`globus-studio/atomic-framework`) — Packagist reads `composer.json` from repo root. No split needed.
-- **Skeleton** (`globus-studio/atomic-framework-application`) — on release tag, sync manually or via `.github/workflows/ci.yml` (when GitHub Actions runners are available). The workflow pushes `packages/skeleton/` to `MADEVAL/Atomic-Framework-Application`. Packagist auto-updates from that repo.
+- **Skeleton** (`globus-studio/atomic-framework-application`) — on release tag, the CI workflow `.github/workflows/sync-skeleton.yml` pushes `packages/skeleton/` to `MADEVAL/Atomic-Framework-Application`. Packagist auto-updates from that repo.
 
 **Manual sync (fallback):**
 ```bash
@@ -64,8 +64,8 @@ The skeleton `packages/skeleton/bootstrap/app.php` is the authoritative referenc
 config_loaded → register_logger → register_exception_handler → prefly
 → register_locales → register_locale_hrefs → register_unload_handler
 → register_middleware → core_ready → register_core_plugins
-→ register_plugins → register_routes → init_session
-→ open_connections → register_user_provider → app_bootstrapped
+→ register_plugins → register_routes → register_schedule
+→ init_session → open_connections → register_user_provider → app_bootstrapped
 ```
 
 ## Configuration modes
@@ -168,7 +168,7 @@ Tests are integration-style and require **MySQL** running on `127.0.0.1:3306` wi
 
 Credentials are set in `phpunit.xml.dist` `<php><env>` block and can be overridden via the real `.env` or environment variables. Test fixture `.env` exists at `tests/fixtures/.env`.
 
-No linter or static analysis are present in this repo. A CI workflow (`.github/workflows/ci.yml`) is present for skeleton sync on release tags but requires GitHub Actions runner availability.
+No linter or static analysis are present in this repo. A CI workflow (`.github/workflows/sync-skeleton.yml`) handles skeleton sync to `MADEVAL/Atomic-Framework-Application` on release tags.
 
 ## Key conventions
 

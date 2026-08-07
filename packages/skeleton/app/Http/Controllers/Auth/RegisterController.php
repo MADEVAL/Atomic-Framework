@@ -8,6 +8,7 @@ use Engine\Atomic\App\Controller;
 use Engine\Atomic\Auth\Auth;
 use Engine\Atomic\Core\Hash;
 use Engine\Atomic\Core\Response;
+use Engine\Atomic\Security\PasswordPolicy;
 use App\Models\User;
 
 class RegisterController extends Controller
@@ -40,8 +41,9 @@ class RegisterController extends Controller
             return;
         }
 
-        if (mb_strlen($password) < 8) {
-            $response->send_json_error('Password must be at least 8 characters.', 400);
+        $result = PasswordPolicy::default()->validate($password);
+        if (!$result->passed()) {
+            $response->send_json_error(implode(' ', $result->violations()), 400);
             return;
         }
 

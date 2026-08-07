@@ -41,11 +41,8 @@ class Transient
     }
 
     public static function set(string $name, mixed $value, int $expiration, ?string $driver = null): bool {
-        if ($expiration <= 0) {
-            throw new \InvalidArgumentException(
-                'Transient::set() requires TTL > 0 (got: ' . $expiration . '). '
-                . 'Options should be used as non-tmp storage.'
-            );
+        if ($expiration < 0) {
+            $expiration = 0;
         }
         $cache = self::get_cache_driver($driver);
         return (bool) $cache->set(self::get_cache_prefix($cache, $name), $value, $expiration);

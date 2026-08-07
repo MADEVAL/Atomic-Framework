@@ -181,7 +181,7 @@ class Head
         }
 
         if (isset($config['inline'])) {
-            $code = str_replace('{KEY}', htmlspecialchars($key, ENT_QUOTES), $config['inline']);
+            $code = str_replace('{KEY}', json_encode($key), $config['inline']);
             echo '<script>' . $code . '</script>' . PHP_EOL;
         }
     }

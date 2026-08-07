@@ -65,7 +65,7 @@ class PhpConfigLoader {
         $ws = $this->cfg('app', 'websocket', []);
 
         // ── Cache string (mirrors ConfigLoader) ──
-        $cache_driver = strtolower((string)$this->cfg('cache', 'default', 'false'));
+        $cache_driver = strtolower((string)$this->cfg('cache', 'default', 'folder'));
         $cache_prefix = (string)$this->cfg('cache', 'prefix', 'atomic.');
         $db_port        = (string)($conn['port'] ?? '3306');
         $redis_port     = (string)($redis['port'] ?? '6379');
@@ -120,7 +120,7 @@ class PhpConfigLoader {
             'TELEMETRY_ACCESS_MODE' => $this->telemetry_access_mode((string)$this->cfg_nested('app', 'telemetry.access_mode', 'none')),
             'TELEMETRY_ACCESS_ALLOWED_ROLES' => $this->role_list($this->cfg_nested('app', 'telemetry.access_allowed_roles', ['admin'])),
             'THEME.envname'         => (string)$this->cfg('app', 'theme', 'default'),
-            'QUEUE_DRIVER'          => (string)$this->cfg('queue', 'driver', 'db'),
+            'QUEUE_DRIVER'          => (string)$this->cfg('queue', 'driver', 'redis'),
             'QUEUE_NAME'            => (string)$this->cfg('queue', 'name', 'default'),
             'TELEGRAM_BOT_TOKEN'    => (string)$this->cfg_nested('tools', 'telegram.bot_token', ''),
             'TELEGRAM_CHAT_ID'      => (string)$this->cfg_nested('tools', 'telegram.chat_id', ''),
@@ -128,7 +128,7 @@ class PhpConfigLoader {
             'TEMP'                  => $this->fix_path($paths['temp'] ?? 'storage/framework/cache/data/'),
             'LOGS'                  => $this->fix_path($paths['logs'] ?? 'storage/logs/'),
             'LOCALES'               => $this->fix_path($paths['locales'] ?? 'engine/Atomic/Lang/locales/'),
-            'FONTS'                 => $this->fix_path($paths['fonts'] ?? 'engine/Atomic/Files/fonts/'),
+            'FONTS'                 => $this->fix_path($paths['fonts'] ?? 'storage/framework/fonts/'),
             'FONTS_TEMP'            => $this->fix_path($paths['fonts_temp'] ?? 'storage/framework/cache/fonts/'),
             'MIGRATIONS'            => $this->fix_path($paths['migrations'] ?? 'database/migrations/'),
             'MIGRATIONS_BUNDLED'    => $this->fix_path(($paths['migrations'] ?? 'database/migrations/') . 'atomic/'),
@@ -162,7 +162,7 @@ class PhpConfigLoader {
             'password'               => (string)($conn['password'] ?? ''),
             'unix_socket'            => (string)($conn['unix_socket'] ?? ''),
             'charset'                => (string)($conn['charset'] ?? 'utf8mb4'),
-            'collation'              => (string)($conn['collation'] ?? 'utf8mb4_unicode_ci'),
+            'collation'              => (string)($conn['collation'] ?? 'utf8mb4_general_ci'),
             'prefix'                 => $db_prefix,
         ]);
 
@@ -188,8 +188,8 @@ class PhpConfigLoader {
             'username'     => (string)($mail['username'] ?? ''),
             'password'     => (string)($mail['password'] ?? ''),
             'encryption'   => (string)($mail['encryption'] ?? 'tls'),
-            'from_address' => (string)($mail['from_address'] ?? ''),
-            'from_name'    => (string)($mail['from_name'] ?? ''),
+            'from_address' => (string)($mail['from_address'] ?? 'no-reply@example.com'),
+            'from_name'    => (string)($mail['from_name'] ?? 'Atomic'),
         ]);
         $this->apply_mail_settings_to_hive($this->atomic, (array)$this->atomic->get('MAIL'));
 
@@ -197,17 +197,17 @@ class PhpConfigLoader {
         $session = $this->configs['session'] ?? [];
         $this->atomic->set('SESSION_CONFIG', [
             'driver'          => (string)($session['driver'] ?? 'db'),
-            'lifetime'        => (string)($session['lifetime'] ?? '7200'),
-            'cookie'          => (string)($session['cookie'] ?? 'atomicsession'),
+            'lifetime'        => (string)($session['lifetime'] ?? '259200'),
+            'cookie'          => (string)($session['cookie'] ?? 'Atomic_Session'),
             'kill_on_suspect' => $this->to_bool($session['kill_on_suspect'] ?? true),
             'redis_prefix'    => (string)($session['redis_prefix'] ?? ($redis_prefix . 'session.')),
         ]);
 
         // ── JAR (cookie settings) ──
-        $this->atomic->set('JAR.lifetime', (int)($session['cookie_expire'] ?? 0));
+        $this->atomic->set('JAR.lifetime', (int)($session['cookie_expire'] ?? 259200));
         $this->atomic->set('JAR.path',     (string)($session['cookie_path'] ?? '/'));
         $this->atomic->set('JAR.domain',   (string)($session['cookie_domain'] ?? ''));
-        $this->atomic->set('JAR.secure',   $this->to_bool($session['cookie_secure'] ?? false));
+        $this->atomic->set('JAR.secure',   $this->to_bool($session['cookie_secure'] ?? true));
         $this->atomic->set('JAR.httponly',  $this->to_bool($session['cookie_httponly'] ?? true));
         $this->atomic->set('JAR.samesite', (string)($session['cookie_samesite'] ?? 'Lax'));
 
@@ -218,7 +218,7 @@ class PhpConfigLoader {
             'origin'      => (string)($cors['origin'] ?? '*'),
             'credentials' => $this->to_bool($cors['credentials'] ?? false),
             'expose'      => (string)($cors['expose'] ?? 'Authorization'),
-            'ttl'         => (int)($cors['ttl'] ?? 0),
+            'ttl'         => (int)($cors['ttl'] ?? 86400),
         ]);
 
         // ── RATE_LIMITER ──
@@ -283,7 +283,7 @@ class PhpConfigLoader {
             'languages' => $i18n_config['languages'] ?? ['en', 'ru'],
             'default'   => (string)($i18n_config['default'] ?? 'en'),
             'url_mode'  => (string)($i18n_config['url_mode'] ?? 'prefix'),
-            'ttl'       => (int)($i18n_config['ttl'] ?? 3600),
+            'ttl'       => (int)($i18n_config['ttl'] ?? 0),
             'cookie'    => (string)($i18n_config['cookie'] ?? 'lang'),
             'session'   => (string)($i18n_config['session'] ?? 'lang'),
         ]);

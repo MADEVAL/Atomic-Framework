@@ -13,23 +13,23 @@ class AuthController extends Controller
     public function login(\Base $f3): void
     {
         if ($f3->get('VERB') === 'GET') {
-            (new Auth\LoginController(app()))->showForm($f3);
+            (new Auth\LoginController())->showForm($f3);
         } else {
-            (new Auth\LoginController(app()))->login($f3);
+            (new Auth\LoginController())->login($f3);
         }
     }
 
     public function register(\Base $f3): void
     {
         if ($f3->get('VERB') === 'GET') {
-            (new Auth\RegisterController(app()))->showForm($f3);
+            (new Auth\RegisterController())->showForm($f3);
         } else {
-            (new Auth\RegisterController(app()))->register($f3);
+            (new Auth\RegisterController())->register($f3);
         }
     }
 
     public function logout(\Base $f3): void
     {
-        (new Auth\LogoutController(app()))->logout($f3);
+        (new Auth\LogoutController())->logout($f3);
     }
 }

@@ -124,11 +124,17 @@ class Redactor
         // URL credentials  scheme://user:pass@host
         '/(:\\/\\/[^:\\/\s]+:)([^@\s]+)(@)/i'
             => '$1' . self::MASKED . '$3',
+        // IPv4 addresses
+        '/\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/'
+            => self::MASKED,
+        // DSN / connection strings
+        '/((?:dsn|database|db)\s*[:=]\s*)("?)([^\s"&,;]+)(\2)/i'
+            => '$1$2' . self::MASKED . '$4',
         // Inline key=value for known sensitive params
-        '/((?:password|passwd|secret|token|api_?key|access_?token|refresh_?token|authorization|auth|encryption_?key|app_?key|chat_?id|session_?cookie|cookie)\s*[:=]\s*)("?)([^\s"&,;]+)(\2)/i'
+        '/((?:password|passwd|secret|token|api_?key|access_?token|refresh_?token|authorization|auth|encryption_?key|app_?key|app_?uuid|chat_?id|session_?cookie|cookie|client_?id|nonce|hmac|signature)\s*[:=]\s*)("?)([^\s"&,;]+)(\2)/i'
             => '$1$2' . self::MASKED . '$4',
         // JSON-style "key":"value" pairs for known sensitive params
-        '/(("(?:password|passwd|secret|token|api_?key|access_?token|refresh_?token|authorization|auth|encryption_?key|app_?key|chat_?id|session_?cookie|cookie)"\s*:\s*")((?:\\\\.|[^"\\\\])*)("))/i'
+        '/(("(?:password|passwd|secret|token|api_?key|access_?token|refresh_?token|authorization|auth|encryption_?key|app_?key|app_?uuid|chat_?id|session_?cookie|cookie|client_?id|nonce|hmac|signature)"\s*:\s*")((?:\\\\.|[^"\\\\])*)("))/i'
             => '$2' . self::MASKED . '$4',
     ];
 

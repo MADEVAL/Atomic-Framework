@@ -5,6 +5,7 @@ namespace Engine\Atomic\Mail;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Traits\Singleton;
 
 final class Notifier
 {

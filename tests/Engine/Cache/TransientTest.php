@@ -132,16 +132,28 @@ class TransientTest extends TestCase
 
     // ── Guard: invalid TTL ───────────────────────────────────────────────────
 
-    public function test_set_throws_for_zero_ttl(): void
+    public function test_set_accepts_zero_ttl(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        Transient::set($this->key('ttl0'), 'value', 0);
+        if (!$this->ping_driver(null)) {
+            $this->markTestSkipped('No cache driver available');
+            return;
+        }
+        $key = $this->key('ttl0');
+        Transient::set($key, 'value', 0);
+        $this->assertSame('value', Transient::get($key));
+        Transient::delete($key);
     }
 
-    public function test_set_throws_for_negative_ttl(): void
+    public function test_set_accepts_negative_ttl(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        Transient::set($this->key('ttlneg'), 'value', -5);
+        if (!$this->ping_driver(null)) {
+            $this->markTestSkipped('No cache driver available');
+            return;
+        }
+        $key = $this->key('ttlneg');
+        Transient::set($key, 'value', -5);
+        $this->assertSame('value', Transient::get($key));
+        Transient::delete($key);
     }
 
     public function test_default_driver_priority_is_wordpress_like(): void

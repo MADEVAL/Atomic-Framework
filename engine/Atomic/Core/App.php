@@ -18,6 +18,7 @@ use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Hook\ApplicationHook;
+use Engine\Atomic\Security\Middleware\SecurityHeadersMiddleware;
 use Engine\Atomic\Hook\Hook;
 use Engine\Atomic\Session\Session;
 
@@ -513,6 +514,7 @@ class App {
         MiddlewareStack::register_alias('role', RoleMiddleware::class);
         MiddlewareStack::register_alias('csrf', \Engine\Atomic\Core\Middleware\CsrfMiddleware::class);
         MiddlewareStack::register_alias('ratelimit', \Engine\Atomic\RateLimit\Middleware\RateLimitMiddleware::class);
+        MiddlewareStack::register_alias('security', SecurityHeadersMiddleware::class);
 
         $config_file = ATOMIC_CONFIG . 'middleware.php';
         $resolved_config_file = realpath($config_file);

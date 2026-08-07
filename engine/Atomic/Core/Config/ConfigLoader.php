@@ -66,7 +66,7 @@ class ConfigLoader {
 
     public function load(string $file): void {
         $this->env = $this->parse_env($file);
-        $cache_driver  = strtolower($this->get_env('CACHE_DRIVER', 'false'));
+        $cache_driver  = strtolower($this->get_env('CACHE_DRIVER', 'folder'));
         $cache_prefix  = (string)$this->get_env('CACHE_PREFIX', 'atomic.');
         $db_prefix = (string)$this->get_env('DB_PREFIX', 'atomic_');
         $redis_prefix = (string)$this->get_env('REDIS_PREFIX', $cache_prefix);
@@ -136,7 +136,7 @@ class ConfigLoader {
             'password'    => $this->get_env('DB_PASSWORD', ''),
             'unix_socket' => $this->get_env('DB_SOCKET', ''),
             'charset' => $this->get_env('DB_CHARSET', 'utf8mb4'),
-            'collation' => $this->get_env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'collation' => $this->get_env('DB_COLLATION', 'utf8mb4_general_ci'),
             'prefix'    => $db_prefix,
         ]);
 
@@ -154,15 +154,15 @@ class ConfigLoader {
             'username'     => $this->get_env('MAIL_USERNAME', ''),
             'password'     => $this->get_env('MAIL_PASSWORD', ''),
             'encryption'   => $this->get_env('MAIL_ENCRYPTION', 'tls'),
-            'from_address' => $this->get_env('MAIL_FROM_ADDRESS', ''),
-            'from_name'    => $this->get_env('MAIL_FROM_NAME', ''),
+            'from_address' => $this->get_env('MAIL_FROM_ADDRESS', 'no-reply@example.com'),
+            'from_name'    => $this->get_env('MAIL_FROM_NAME', 'Atomic'),
         ]);
         $this->apply_mail_settings_to_hive($this->atomic, (array)$this->atomic->get('MAIL'));
 
         $this->atomic->set('SESSION_CONFIG', [
             'driver'          => $this->get_env('SESSION_DRIVER', 'db'),
-            'lifetime'        => $this->get_env('SESSION_LIFETIME', 7200),
-            'cookie'          => $this->get_env('SESSION_COOKIE', 'atomicsession'),
+            'lifetime'        => $this->get_env('SESSION_LIFETIME', 259200),
+            'cookie'          => $this->get_env('SESSION_COOKIE', 'Atomic_Session'),
             'kill_on_suspect' => filter_var($this->get_env('SESSION_KILL_ON_SUSPECT', true), FILTER_VALIDATE_BOOLEAN),
             'redis_prefix'    => $this->get_env('SESSION_REDIS_PREFIX', $redis_prefix . 'session.'),
         ]);
@@ -172,7 +172,7 @@ class ConfigLoader {
             'origin'      => $this->get_env('CORS_ORIGIN', '*'),
             'credentials' => filter_var($this->get_env('CORS_CREDENTIALS', false), FILTER_VALIDATE_BOOLEAN),
             'expose'      => $this->get_env('CORS_EXPOSE', 'Authorization'),
-            'ttl'         => (int)$this->get_env('CORS_TTL', 0),
+            'ttl'         => (int)$this->get_env('CORS_TTL', 86400),
         ]);
 
         $this->atomic->set('RATE_LIMITER', [
@@ -198,7 +198,7 @@ class ConfigLoader {
             'languages' => array_filter(array_map('trim', explode(',', $this->get_env('I18N_LANGUAGES', 'en,ru')))),
             'default'   => $this->get_env('I18N_DEFAULT', 'en'),
             'url_mode'  => $this->get_env('I18N_URL_MODE', 'prefix'),
-            'ttl'       => (int)$this->get_env('I18N_TTL', 3600),
+            'ttl'       => (int)$this->get_env('I18N_TTL', 0),
             'cookie'    => $this->get_env('I18N_COOKIE', 'lang'),
             'session'   => $this->get_env('I18N_SESSION', 'lang'),
         ]);
@@ -249,7 +249,7 @@ class ConfigLoader {
         ConfigRegistry::register('DEBUG_MODE', 'DEBUG_MODE', 'false');
         ConfigRegistry::register('DEBUG_LEVEL', 'DEBUG_LEVEL', 'error');
         ConfigRegistry::register('THEME.envname', 'THEME', 'default');
-        ConfigRegistry::register('QUEUE_DRIVER', 'QUEUE_DRIVER', 'db');
+        ConfigRegistry::register('QUEUE_DRIVER', 'QUEUE_DRIVER', 'redis');
         ConfigRegistry::register('QUEUE_NAME', 'QUEUE_NAME', 'default');
         ConfigRegistry::register('TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN', '');
         ConfigRegistry::register('TELEGRAM_CHAT_ID', 'TELEGRAM_CHAT_ID', '');
@@ -263,7 +263,7 @@ class ConfigLoader {
         ConfigRegistry::register('TEMP', 'TEMP', 'storage/framework/cache/data/', 'path');
         ConfigRegistry::register('LOGS', 'LOGS', 'storage/logs/', 'path');
         ConfigRegistry::register('LOCALES', 'LOCALES', 'engine/Atomic/Lang/locales/', 'path');
-        ConfigRegistry::register('FONTS', 'FONTS', 'engine/Atomic/Files/fonts/', 'path');
+        ConfigRegistry::register('FONTS', 'FONTS', 'storage/framework/fonts/', 'path');
         ConfigRegistry::register('FONTS_TEMP', 'FONTS_TEMP', 'storage/framework/cache/fonts/', 'path');
         ConfigRegistry::register('MIGRATIONS', 'MIGRATIONS', 'database/migrations/', 'path');
         ConfigRegistry::register('MIGRATIONS_CORE', 'MIGRATIONS_CORE', 'Atomic/Core/Database/Migrations/', 'path');
@@ -271,10 +271,10 @@ class ConfigLoader {
         ConfigRegistry::register('USER_PLUGINS', 'USER_PLUGINS', 'plugins/', 'path');
         ConfigRegistry::register('FRAMEWORK_ROUTES', 'FRAMEWORK_ROUTES', 'Atomic/Core/Routes/', 'path');
 
-        ConfigRegistry::register('JAR.lifetime', 'COOKIE_EXPIRE', 0, 'int');
+        ConfigRegistry::register('JAR.lifetime', 'COOKIE_EXPIRE', 259200, 'int');
         ConfigRegistry::register('JAR.path', 'COOKIE_PATH', '/');
         ConfigRegistry::register('JAR.domain', 'COOKIE_DOMAIN', '');
-        ConfigRegistry::register('JAR.secure', 'COOKIE_SECURE', false, 'bool');
+        ConfigRegistry::register('JAR.secure', 'COOKIE_SECURE', true, 'bool');
         ConfigRegistry::register('JAR.httponly', 'COOKIE_HTTPONLY', true, 'bool');
         ConfigRegistry::register('JAR.samesite', 'COOKIE_SAMESITE', 'Lax');
 
