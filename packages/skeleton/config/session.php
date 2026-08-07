@@ -10,7 +10,7 @@ return [
     'cookie_expire'   => 259200,
     'cookie_path'     => '/',
     'cookie_domain'   => '',
-    'cookie_secure'   => false,
-    'cookie_httponly'  => true,
+    'cookie_secure'   => true,
+    'cookie_httponly' => true,
     'cookie_samesite' => 'Lax',
 ];

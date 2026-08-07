@@ -4,22 +4,23 @@ namespace App\Hook;
 
 if (!defined('ATOMIC_START')) exit;
 
-use Engine\Atomic\Core\App;
-use Engine\Atomic\Core\Traits\Singleton;
-
-class Application
+final class Application
 {
-    use Singleton;
+    private function __construct() {}
 
-    protected App $atomic;
-
-    private function __construct()
+    public static function init(): void
     {
-        $this->atomic = App::instance();
-    }
+        add_filter('body_class', function (array $classes): array {
+            if (is_page('dashboard')) {
+                $classes[] = 'dashboard-page';
+            }
+            return $classes;
+        });
 
-    public function init(): void
-    {
-        // Register application-level hooks and filters here
+        add_action('app_bootstrapped', function (): void {
+            \Engine\Atomic\Core\Log::info('Application bootstrapped', [
+                'url' => \Engine\Atomic\Core\App::atomic()->get('PATH'),
+            ]);
+        });
     }
 }

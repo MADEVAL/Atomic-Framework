@@ -4,22 +4,22 @@ namespace App\Event;
 
 if (!defined('ATOMIC_START')) exit;
 
-use Engine\Atomic\Core\App;
-use Engine\Atomic\Core\Traits\Singleton;
+use Engine\Atomic\Event\Event;
 
-class Application
+final class Application
 {
-    use Singleton;
+    private function __construct() {}
 
-    protected App $atomic;
-
-    private function __construct()
+    public static function init(): void
     {
-        $this->atomic = App::instance();
-    }
+        $events = Event::instance();
 
-    public function init(): void
-    {
-        // Register application-level event listeners here
+        $events->on('queue.job.completed', function (string $jobType, array $payload): void {
+            \Engine\Atomic\Core\Log::info("Queue job completed: {$jobType}");
+        });
+
+        $events->on('auth.login', function (string $userId): void {
+            \Engine\Atomic\Core\Log::info("User logged in: {$userId}");
+        });
     }
 }
