@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Engine\Atomic\Core;
+if (!defined('ATOMIC_START')) exit;
 
 abstract class ServiceProvider
 {
@@ -13,10 +14,10 @@ abstract class ServiceProvider
         $this->container = $container;
     }
 
-    /** Фаза 1: регистрация сервисов */
+    /** Р¤Р°Р·Р° 1: СЂРµРіРёСЃС‚СЂР°С†РёСЏ СЃРµСЂРІРёСЃРѕРІ */
     public function register(): void {}
 
-    /** Фаза 2: пост-регистрация (все сервисы доступны) */
+    /** Р¤Р°Р·Р° 2: РїРѕСЃС‚-СЂРµРіРёСЃС‚СЂР°С†РёСЏ (РІСЃРµ СЃРµСЂРІРёСЃС‹ РґРѕСЃС‚СѓРїРЅС‹) */
     public function boot(): void {}
 
     /** @return class-string<ServiceProvider>[] */

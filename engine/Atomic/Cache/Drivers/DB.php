@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Engine\Atomic\Cache\Drivers;
+if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\App\Models\Options;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;

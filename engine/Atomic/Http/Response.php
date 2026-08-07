@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Engine\Atomic\Http;
+if (!defined('ATOMIC_START')) exit;
 
 class Response
 {
@@ -14,7 +15,7 @@ class Response
         protected array $cookies = [],
     ) {}
 
-    // ── Factory methods ──
+    // в”Ђв”Ђ Factory methods в”Ђв”Ђ
 
     /** @param array<string, string> $headers */
     public static function html(string $body, int $status = 200, array $headers = []): static
@@ -62,7 +63,7 @@ class Response
         return new static($body, 200, ['Content-Type' => $contentType]);
     }
 
-    // ── Immutable modifiers ──
+    // в”Ђв”Ђ Immutable modifiers в”Ђв”Ђ
 
     public function withHeader(string $name, string $value): static
     {
@@ -93,7 +94,7 @@ class Response
         return $clone;
     }
 
-    // ── Send ──
+    // в”Ђв”Ђ Send в”Ђв”Ђ
 
     public function send(): void
     {
@@ -107,7 +108,7 @@ class Response
         echo $this->body;
     }
 
-    // ── Introspection ──
+    // в”Ђв”Ђ Introspection в”Ђв”Ђ
 
     public function status(): int { return $this->status; }
 

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Engine\Atomic\Http;
+if (!defined('ATOMIC_START')) exit;
 
 final class Request
 {

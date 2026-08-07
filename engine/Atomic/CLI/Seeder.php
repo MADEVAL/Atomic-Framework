@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Engine\Atomic\CLI;
+if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Seeder as CoreSeed;

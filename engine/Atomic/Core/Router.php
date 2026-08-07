@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Engine\Atomic\Core;
+if (!defined('ATOMIC_START')) exit;
 
 final class RouteGroup
 {
@@ -36,7 +37,7 @@ final class Router
         private readonly Container $container,
     ) {}
 
-    // ── Request type detection ──
+    // в”Ђв”Ђ Request type detection в”Ђв”Ђ
 
     public function detectRequestType(?string $path = null): string
     {
@@ -62,7 +63,7 @@ final class Router
         };
     }
 
-    // ── Fluent route definitions ──
+    // в”Ђв”Ђ Fluent route definitions в”Ђв”Ђ
 
     public function add(string $methods, string $path, callable|string $handler): Route
     {
@@ -101,7 +102,7 @@ final class Router
         return $this->add('DELETE', $path, $handler);
     }
 
-    // ── Backward-compat: F3-style routes ──
+    // в”Ђв”Ђ Backward-compat: F3-style routes в”Ђв”Ђ
 
     /** @param string[] $middleware */
     public function f3route(string $pattern, string $handler, array $middleware = [], int $ttl = 0): void
@@ -119,7 +120,7 @@ final class Router
         $this->f3route($pattern, $handler, $middleware, $ttl);
     }
 
-    // ── Group routing ──
+    // в”Ђв”Ђ Group routing в”Ђв”Ђ
 
     public function group(?string $prefix, callable $callback): RouteGroup
     {
@@ -139,7 +140,7 @@ final class Router
         return $group;
     }
 
-    // ── Named routes ──
+    // в”Ђв”Ђ Named routes в”Ђв”Ђ
 
     public function named(string $name): ?Route
     {
@@ -163,7 +164,7 @@ final class Router
         return $result;
     }
 
-    // ── Route types ──
+    // в”Ђв”Ђ Route types в”Ђв”Ђ
 
     public function registerRouteType(string $type, string $file, ?string $errorFile = null): void
     {
@@ -181,7 +182,7 @@ final class Router
         return $this->routeTypes;
     }
 
-    // ── Introspection ──
+    // в”Ђв”Ђ Introspection в”Ђв”Ђ
 
     /** @return Route[] */
     public function routes(): array

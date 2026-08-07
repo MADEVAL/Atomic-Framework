@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Engine\Atomic\Core\Config\V2;
+if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Config\ConfigSchema;
 

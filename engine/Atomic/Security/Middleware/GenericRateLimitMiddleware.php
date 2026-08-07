@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Engine\Atomic\Security\Middleware;
+if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Middleware\MiddlewareInterface;
 use Engine\Atomic\Http\Response;

@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+if (!defined('ATOMIC_START')) exit;
+
 namespace {
     $autoload = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
     if (is_file($autoload)) {

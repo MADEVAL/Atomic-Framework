@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 namespace Engine\Atomic\Scheduler\Jobs;
+if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Log;

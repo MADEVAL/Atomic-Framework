@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Engine\Atomic\Core\Config;
+if (!defined('ATOMIC_START')) exit;
 
 final class StringValue extends ConfigValue
 {
