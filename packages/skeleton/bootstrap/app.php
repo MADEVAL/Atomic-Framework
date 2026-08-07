@@ -10,18 +10,18 @@ require_once ATOMIC_ROOT . DIRECTORY_SEPARATOR . 'error.php';
 require_once ATOMIC_VENDOR . 'autoload.php';
 require_once ATOMIC_SUPPORT . 'helpers.php';
 
-// ── Container (DI kernel) — registered before everything so singletons delegate here ──
 use Engine\Atomic\Core\Container;
+use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Config\ConfigLoader;
+use Engine\Atomic\Core\Config\PhpConfigLoader;
 
+// ── Container (DI) ──
 $container = new Container();
 Container::setGlobal($container);
 
 $atomic = \Base::instance();
 
-use Engine\Atomic\Core\App;
-use Engine\Atomic\Core\Config\ConfigLoader;
-use Engine\Atomic\Core\Config\PhpConfigLoader;
-
+// ── Config loading ──
 switch (ATOMIC_LOADER) {
     case 'php':
         $phpLoader = new PhpConfigLoader($atomic);
@@ -35,33 +35,36 @@ switch (ATOMIC_LOADER) {
 
 $application = App::instance($atomic);
 
-// ── Register core services in Container (migrates ::instance() to Container) ──
+// ── Register core bindings ──
 $container->instance(\Base::class, $atomic);
 $container->instance(App::class, $application);
 $container->singleton(\Engine\Atomic\Core\CacheManager::class, \Engine\Atomic\Core\CacheManager::class);
 $container->singleton(\Engine\Atomic\Core\ConnectionManager::class, \Engine\Atomic\Core\ConnectionManager::class);
 $container->singleton(\Engine\Atomic\Core\F3Bridge::class, fn() => new \Engine\Atomic\Core\F3Bridge($atomic));
 
+// ── App hooks ──
 \App\Event\Application::instance()->init();
 \App\Hook\Application::instance()->init();
 
-$application
-    ->config_loaded($loader ?? null)
-    ->register_logger()
-    ->register_exception_handler()
-    ->prefly()
-    ->register_locales()
-    ->register_locale_hrefs()
-    ->register_unload_handler()
-    ->register_middleware()
-    ->core_ready()
-    ->register_core_plugins()
-    ->register_plugins()
-    ->register_routes()
-    ->register_schedule()
-    ->init_session()
-    ->open_connections()
-    ->register_user_provider()
-    ->app_bootstrapped();
+// ── Provider-based bootstrap (Container-native, replaces old 16-step chain) ──
+$newApp = new \Engine\Atomic\Core\Application($container);
+$newApp
+    ->registerProvider(new \Engine\Atomic\Core\Providers\ConfigServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\LogServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\ExceptionServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\PreflyServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\LocaleServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\UnloadServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\MiddlewareServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\CoreReadyServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\CorePluginServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\PluginServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\RouteServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\ScheduleServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\SessionServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\DatabaseServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\AuthServiceProvider())
+    ->registerProvider(new \Engine\Atomic\Core\Providers\AppBootstrappedServiceProvider())
+    ->boot();
 
 return $application;

@@ -23,7 +23,7 @@ abstract class Controller
         $this->atomic->set('__afterroute_done', false);
 
         if (!MiddlewareStack::run_for_route($this->atomic)) {
-            exit;
+            throw new \Engine\Atomic\Exceptions\HttpException('Middleware blocked', 403);
         }
     }
 
@@ -38,17 +38,23 @@ abstract class Controller
         define('ATOMIC_TIME', ATOMIC_STOP - ATOMIC_START);
     }
 
-    // Render and Display methods TEST
-    // TODO: move to THEME class and i18n support add
-    // TODO!!!!!!!!!!   Check cache ON BEFORE 
+    /** Render a view template and return as string */
     protected function render(string $file, string $mime = 'text/html', ?array $hive = null): string
     {
         $ttl = ATOMIC_CACHE_ALL_PAGES ? (int)ATOMIC_CACHE_EXPIRE_TIME : 0;
         return \View::instance()->render($file, $mime, $hive, $ttl);
     }
 
+    /** Render and echo a view template */
     protected function display(string $file, string $mime = 'text/html', ?array $hive = null): void
     {
         echo $this->render($file, $mime, $hive);
+    }
+
+    /** New v0.4: render view using ViewRenderer */
+    protected function view(string $template, array $data = []): \Engine\Atomic\Http\Response
+    {
+        $renderer = new \Engine\Atomic\View\ViewRenderer(ATOMIC_DIR . '/resources/views');
+        return $renderer->renderToResponse($template, $data);
     }
 }
