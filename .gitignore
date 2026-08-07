@@ -4,6 +4,13 @@
 composer.lock
 .env
 
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
 # Skeleton package (dev dependency)
 /packages/skeleton/vendor/
 /packages/skeleton/composer.lock
@@ -17,4 +24,5 @@ composer.lock
 /tmp/
 /storage/
 
+/coverage/
 /docs/specs

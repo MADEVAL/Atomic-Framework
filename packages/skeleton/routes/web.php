@@ -23,7 +23,7 @@ $this->route('GET  /email/verify', 'App\Http\Controllers\Auth\EmailVerificationC
 $this->route('GET  /email/verify/@token', 'App\Http\Controllers\Auth\EmailVerificationController->verify');
 
 // Protected (requires authentication)
-$this->route('GET /dashboard', 'App\Http\Controllers\DashboardController->index', ['auth']);
+$this->route('GET /dashboard', 'App\Http\Controllers\DashboardController->index', ['auth', 'verified']);
 $this->route('GET /admin', 'App\Http\Controllers\Admin\DashboardController->index', ['auth', 'admin']);
 
 // Example theme showcase — demonstrates all theme features

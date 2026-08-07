@@ -30,7 +30,7 @@ Atomic loads aliases from `config/middleware.php` through `App::register_middlew
 ```php
 return [
     'auth' => App\Http\Middleware\RequireAuth::class,
-    'role' => App\Http\Middleware\RequireRole::class,
+    'hasrole' => App\Http\Middleware\RequireRole::class,
 ];
 ```
 
@@ -38,6 +38,9 @@ Atomic also registers built-in aliases before user config is loaded:
 
 - `access` → `Engine\Atomic\Core\Middleware\AccessMiddleware`
 - `role` → `Engine\Atomic\Core\Middleware\RoleMiddleware`
+- `csrf` → `Engine\Atomic\Core\Middleware\CsrfMiddleware`
+- `ratelimit` → `Engine\Atomic\RateLimit\Middleware\RateLimitMiddleware`
+- `security` → `Engine\Atomic\Security\Middleware\SecurityHeadersMiddleware`
 
 ### Attach middleware to routes
 

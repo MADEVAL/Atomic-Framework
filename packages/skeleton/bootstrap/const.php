@@ -4,7 +4,7 @@ if (!defined('ATOMIC_START')) exit;
 
 define('ATOMIC_LOADER', 'env');                                     // php or env
 define('ATOMIC_PHP_ERRORS', true);                                  // Write PHP errors (true/false)
-define('ATOMIC_VERSION', '0.1.0');                                  // Framework version
+define('ATOMIC_VERSION', '0.2.0');                                  // Framework version
 define('ATOMIC_NAME', 'Atomic Framework');                          // Framework name
 define('ATOMIC_DIR', ATOMIC_ROOT);
 define('ATOMIC_ENV', ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env');

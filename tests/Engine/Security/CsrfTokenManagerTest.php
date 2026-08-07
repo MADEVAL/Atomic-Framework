@@ -87,7 +87,7 @@ final class CsrfTokenManagerTest extends TestCase
         $this->assertTrue($this->manager->validate($token));
 
         // Tampered token fails
-        $tampered = substr($token, 0, -1) . '0';
+        $tampered = substr($token, 0, -1) . (substr($token, -1) === '0' ? '1' : '0');
         $this->assertFalse($this->manager->validate($tampered));
     }
 

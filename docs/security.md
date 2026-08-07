@@ -111,7 +111,7 @@ Current failure behavior:
 
 ### Diagnostic sanitization
 
-`Engine\Atomic\Core\Sanitizer` is used for diagnostic output such as telemetry, logs, and dumps.
+`Engine\Atomic\Core\Redactor` is used for diagnostic output such as telemetry, logs, and dumps.
 
 It does the following:
 
@@ -122,7 +122,7 @@ It does the following:
 
 Important limitation:
 
-- `Sanitizer` is not an HTML escaping library and is not a replacement for request validation or output encoding.
+- `Redactor` is not an HTML escaping library and is not a replacement for request validation or output encoding.
 
 ### Error surface
 
