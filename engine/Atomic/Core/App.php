@@ -280,6 +280,7 @@ class App {
         switch ($first_segment) {
             case 'api': return 'api';
             case 'telemetry': return 'telemetry';
+            case 'cli': return 'cli';
             default: return 'web';
         }
     }

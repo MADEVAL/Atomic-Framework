@@ -1,8 +1,9 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Engine\Atomic\Core;
+
+if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Http\Response;
 
@@ -97,6 +98,7 @@ final class Application
         }
 
         if (count($ordered) !== count($this->providers)) {
+            error_log('[Atomic] Cycle detected in ServiceProvider dependencies. Falling back to registration order.', E_USER_WARNING);
             $ordered = $this->providers;
         }
 

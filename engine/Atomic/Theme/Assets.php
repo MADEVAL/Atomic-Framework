@@ -293,7 +293,9 @@ final class Assets
     private function __clone() {}
 }
 
+if (!function_exists('sanitize_key')) {
 function sanitize_key(string $key): string
 {
     return strtolower(preg_replace('/[^a-z0-9_\-]/', '-', $key));
+}
 }

@@ -180,7 +180,7 @@ class AuthServiceProvider extends ServiceProvider
 
 class AppBootstrappedServiceProvider extends ServiceProvider
 {
-    public function requires(): array { return [AuthServiceProvider::class, DatabaseServiceProvider::class]; }
+    public function requires(): array { return [AuthServiceProvider::class, DatabaseServiceProvider::class, RouteServiceProvider::class]; }
 
     public function boot(): void
     {

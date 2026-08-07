@@ -1,8 +1,9 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Engine\Atomic\Core;
+
+if (!defined('ATOMIC_START')) exit;
 
 use Psr\Container\ContainerInterface;
 use Psr\Container\NotFoundExceptionInterface;

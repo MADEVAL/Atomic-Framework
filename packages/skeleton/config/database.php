@@ -26,7 +26,7 @@ return [
         'port'     => 11211,
         'username' => '',
         'password' => '',
-        'prefix'   => 'atomic_',
+        'prefix'   => 'atomic.',
     ],
     'mutex' => [
         'driver' => 'redis',

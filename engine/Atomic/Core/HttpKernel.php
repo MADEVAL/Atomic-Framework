@@ -1,8 +1,9 @@
 <?php
-
 declare(strict_types=1);
 
 namespace Engine\Atomic\Core;
+
+if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Middleware\MiddlewareInterface;
 use Engine\Atomic\Http\Response;
@@ -58,7 +59,7 @@ final class HttpKernel
                     if ($passed) {
                         return $next($req);
                     }
-                    return Response::html('', 403);
+                    return Response::empty(204);
                 }
                 return $mw($req, $next);
             };
@@ -108,6 +109,6 @@ final class HttpKernel
             return null;
         }
 
-        return implode('', array_slice($lines, $startLine, $endLine - $startLine));
+        return implode('', array_slice($lines, $startLine - 1, $endLine - $startLine + 1));
     }
 }

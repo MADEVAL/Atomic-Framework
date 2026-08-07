@@ -135,6 +135,31 @@ HTML;
             return $next($request);
         }
 
-        return \Engine\Atomic\Http\Response::html('Unauthorized', 401);
+        if ($request instanceof \Engine\Atomic\Http\Request && ($request->header('Accept') !== null && str_contains((string)$request->header('Accept'), 'application/json'))) {
+            return \Engine\Atomic\Http\Response::json(['error' => 'Unauthorized'], 401);
+        }
+
+        $title = ucfirst($this->guard()) . ' Access';
+        $redirect = '/';
+        if ($request instanceof \Engine\Atomic\Http\Request && $request->method() === 'POST') {
+            $username = trim((string)($request->input('username') ?? ''));
+            $secret = (string)($request->input('key') ?? $request->input('password') ?? $request->input('secret') ?? '');
+            if ($username !== '' && $secret !== '') {
+                $auth = Auth::instance();
+                if (!$auth->has_user_provider()) {
+                    $auth->set_user_provider(new ConfigUserProvider($this->guard()));
+                }
+                $user = $auth->login_with_secret([
+                    'username' => $username,
+                    'guard'    => $this->guard(),
+                ], $secret);
+                if ($user !== null) {
+                    return \Engine\Atomic\Http\Response::redirect('/', 303);
+                }
+                return \Engine\Atomic\Http\Response::html($this->form($title, $redirect, 'Invalid username or key.'), 401);
+            }
+        }
+
+        return \Engine\Atomic\Http\Response::html($this->form($title, $redirect, ''), 401);
     }
 }
