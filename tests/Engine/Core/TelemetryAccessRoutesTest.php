@@ -16,11 +16,19 @@ final class TelemetryAccessRoutesTest extends TestCase
         ReflectionHelper::set(MiddlewareStack::class, 'route_map', []);
     }
 
+    private function loadTelemetryRoutes(): void
+    {
+        (function () {
+            $atomic = $this;
+            require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
+        })->call(\Engine\Atomic\Core\App::instance());
+    }
+
     public function test_telemetry_routes_register_access_and_role_middleware(): void
     {
-        $atomic = \Engine\Atomic\Core\App::instance();
-        $atomic->set('TELEMETRY_ACCESS_MODE', 'config');
-        require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
+        $app = \Engine\Atomic\Core\App::instance();
+        $app->set('TELEMETRY_ACCESS_MODE', 'config');
+        $this->loadTelemetryRoutes();
 
         $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
@@ -44,9 +52,9 @@ final class TelemetryAccessRoutesTest extends TestCase
 
     public function test_telemetry_routes_can_use_auth_system_roles_without_config_user_access(): void
     {
-        $atomic = \Engine\Atomic\Core\App::instance();
-        $atomic->set('TELEMETRY_ACCESS_MODE', 'auth');
-        require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
+        $app = \Engine\Atomic\Core\App::instance();
+        $app->set('TELEMETRY_ACCESS_MODE', 'auth');
+        $this->loadTelemetryRoutes();
 
         $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
@@ -57,10 +65,10 @@ final class TelemetryAccessRoutesTest extends TestCase
 
     public function test_telemetry_routes_use_configured_roles(): void
     {
-        $atomic = \Engine\Atomic\Core\App::instance();
-        $atomic->set('TELEMETRY_ACCESS_MODE', 'auth');
-        $atomic->set('TELEMETRY_ACCESS_ALLOWED_ROLES', ['admin', 'support']);
-        require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
+        $app = \Engine\Atomic\Core\App::instance();
+        $app->set('TELEMETRY_ACCESS_MODE', 'auth');
+        $app->set('TELEMETRY_ACCESS_ALLOWED_ROLES', ['admin', 'support']);
+        $this->loadTelemetryRoutes();
 
         $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
@@ -71,9 +79,9 @@ final class TelemetryAccessRoutesTest extends TestCase
 
     public function test_telemetry_routes_can_be_public(): void
     {
-        $atomic = \Engine\Atomic\Core\App::instance();
-        $atomic->set('TELEMETRY_ACCESS_MODE', 'none');
-        require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
+        $app = \Engine\Atomic\Core\App::instance();
+        $app->set('TELEMETRY_ACCESS_MODE', 'none');
+        $this->loadTelemetryRoutes();
 
         $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 
@@ -84,9 +92,9 @@ final class TelemetryAccessRoutesTest extends TestCase
 
     public function test_telemetry_routes_are_public_by_default(): void
     {
-        $atomic = \Engine\Atomic\Core\App::instance();
-        $atomic->clear('TELEMETRY_ACCESS_MODE');
-        require ATOMIC_ENGINE . 'Atomic/Core/Routes/telemetry.php';
+        $app = \Engine\Atomic\Core\App::instance();
+        $app->clear('TELEMETRY_ACCESS_MODE');
+        $this->loadTelemetryRoutes();
 
         $route_map = ReflectionHelper::get(MiddlewareStack::class, 'route_map');
 

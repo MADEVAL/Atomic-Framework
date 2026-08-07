@@ -71,8 +71,8 @@ final class Application
             $deps[$class] = [];
             foreach ($p->requires() as $req) {
                 if (isset($byClass[$req])) {
-                    $deps[$class][] = $req;
-                    $inDegree[$req] = ($inDegree[$req] ?? 0) + 1;
+                    $deps[$req][] = $class;
+                    $inDegree[$class] = ($inDegree[$class] ?? 0) + 1;
                 }
             }
         }

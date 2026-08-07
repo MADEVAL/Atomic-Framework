@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+if (!defined('ATOMIC_START')) exit;
 
 namespace {
     use Engine\Atomic\Plugins\Monopay\Monopay;

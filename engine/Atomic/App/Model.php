@@ -140,6 +140,11 @@ abstract class Model extends Cortex
 
     public function update_property(mixed $filter, string $key, mixed $value): bool
     {
+        $fieldConf = $this->getFieldConfiguration();
+        if (!array_key_exists($key, $fieldConf)) {
+            return false;
+        }
+
         $this->load($filter);
         if ($this->dry()) {
             return false;

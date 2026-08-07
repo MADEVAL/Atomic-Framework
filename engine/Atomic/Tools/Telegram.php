@@ -20,8 +20,8 @@ final class Telegram
     private function __construct(?string $token = null, string|int|null $chat_id = null)
     {
         $this->atomic = App::instance();
-        $this->token = $token ?: (string)($this->atomic->get('TELEGRAM_BOT_TOKEN') ?: getenv('TELEGRAM_BOT_TOKEN') ?: '');
-        $this->chat_id = $chat_id ?: ($this->atomic->get('TELEGRAM_CHAT_ID') ?: getenv('TELEGRAM_CHAT_ID') ?: null);
+        $this->token = $token ?: (string)$this->atomic->get('TELEGRAM_BOT_TOKEN') ?: '';
+        $this->chat_id = $chat_id ?: $this->atomic->get('TELEGRAM_CHAT_ID') ?: null;
     }
 
     public static function for(?string $token = null, string|int|null $chat_id = null): self
