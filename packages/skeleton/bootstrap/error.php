@@ -2,8 +2,6 @@
 declare(strict_types=1);
 if (!defined('ATOMIC_START')) { exit; }
 
-define('ATOMIC_PHP_ERRORS_CUSTOM', false);
-
 $baseLogFile = ATOMIC_ENGINE . 'storage' . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'php_errors.log';
 $logDir = dirname($baseLogFile);
 
@@ -15,11 +13,8 @@ $dailyLogFile = $logDir . DIRECTORY_SEPARATOR . 'php_errors-' . date('Y-m-d') . 
 
 ini_set('log_errors', '1');
 ini_set('html_errors', '0');
-
-if (ATOMIC_PHP_ERRORS_CUSTOM) {
-    ini_set('ignore_repeated_errors', '1'); // Ignore repeated errors
-    ini_set('log_errors_max_len', '16384'); // Max length
-}
+ini_set('ignore_repeated_errors', '1');
+ini_set('log_errors_max_len', '16384');
 
 ini_set('error_log', $dailyLogFile);
 

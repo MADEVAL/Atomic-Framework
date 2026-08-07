@@ -50,6 +50,7 @@ class RegisterController extends Controller
         $existing = new User();
         $existing->load(['email = ?', $email]);
         if (!$existing->dry()) {
+            Hash::dummy_timing_mitigation();
             $response->send_json_success(['message' => 'If the email is not registered, a verification link has been sent.']);
             return;
         }

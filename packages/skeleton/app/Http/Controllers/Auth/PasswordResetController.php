@@ -55,30 +55,26 @@ class PasswordResetController extends Controller
     public function reset(\Base $f3): void
     {
         $response = Response::instance();
-        $token = $f3->get('PARAMS.token');
+        $token    = $f3->get('PARAMS.token');
         $password = (string)$f3->get('POST.password');
-        $confirm = (string)$f3->get('POST.password_confirm');
+        $confirm  = (string)$f3->get('POST.password_confirm');
+
+        // Token validation first — prevents timing enumeration of valid tokens
+        $userId = Transient::get('pwd_reset_' . $token);
+        if ($userId === false || $userId === null) {
+            Hash::dummy_timing_mitigation();
+            $response->send_json_error('Invalid or expired reset token.', 400);
+            return;
+        }
 
         if ($password === '' || $password !== $confirm) {
             $response->send_json_error('Passwords do not match.', 400);
             return;
         }
 
-        if (mb_strlen($password) < 8) {
-            $response->send_json_error('Password must be at least 8 characters.', 400);
-            return;
-        }
-
         $result = PasswordPolicy::default()->validate($password);
         if (!$result->passed()) {
             $response->send_json_error(implode(' ', $result->violations()), 400);
-            return;
-        }
-
-        // Token validation
-        $userId = Transient::get('pwd_reset_' . $token);
-        if ($userId === false || $userId === null) {
-            $response->send_json_error('Invalid or expired reset token.', 400);
             return;
         }
 

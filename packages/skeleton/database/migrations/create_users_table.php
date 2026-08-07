@@ -16,11 +16,13 @@ return [
 
         if (!in_array($prefix . 'users', $tables)) {
             $table = $schema->createTable($prefix . 'users');
-            $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false)->index(true);
+            $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
             $table->addColumn('name')->type(Schema::DT_VARCHAR256)->nullable(true);
-            $table->addColumn('email')->type(Schema::DT_VARCHAR256)->nullable(false)->index(true);
+            $table->addColumn('email')->type(Schema::DT_VARCHAR256)->nullable(false);
             $table->addColumn('password')->type(Schema::DT_VARCHAR256)->nullable(true);
             $table->addColumn('role')->type(Schema::DT_VARCHAR128)->nullable(true);
+            $table->addColumn('email_verified_at')->type(Schema::DT_TIMESTAMP, true)->nullable(true);
+            $table->addColumn('remember_token')->type(Schema::DT_VARCHAR128)->nullable(true);
             $table->addColumn('created_at')->type(Schema::DT_TIMESTAMP, true)->nullable(false)->defaults(Schema::DF_CURRENT_TIMESTAMP);
             $table->addColumn('updated_at')->type(Schema::DT_TIMESTAMP, true)->nullable(false)->defaults(Schema::DF_CURRENT_TIMESTAMP);
             $table->build();

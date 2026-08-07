@@ -10,7 +10,7 @@ $this->route('GET  /login', 'App\Http\Controllers\Auth\LoginController->showForm
 $this->route('POST /login', 'App\Http\Controllers\Auth\LoginController->login', ['throttle']);
 $this->route('GET  /register', 'App\Http\Controllers\Auth\RegisterController->showForm', ['guest', 'throttle']);
 $this->route('POST /register', 'App\Http\Controllers\Auth\RegisterController->register', ['throttle']);
-$this->route('POST /logout', 'App\Http\Controllers\Auth\LogoutController->logout', ['auth']);
+$this->route('POST /logout', 'App\Http\Controllers\Auth\LogoutController->logout', ['auth', 'csrf_token']);
 
 // Password reset
 $this->route('GET  /password/reset', 'App\Http\Controllers\Auth\PasswordResetController->showRequestForm');
