@@ -4,6 +4,8 @@ namespace App\Hook;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Hook\ApplicationHook;
+
 final class Application
 {
     private function __construct() {}
@@ -17,10 +19,8 @@ final class Application
             return $classes;
         });
 
-        add_action('app_bootstrapped', function (): void {
-            \Engine\Atomic\Core\Log::info('Application bootstrapped', [
-                'url' => \Engine\Atomic\Core\App::atomic()->get('PATH'),
-            ]);
+        add_action(ApplicationHook::APP_BOOTSTRAPPED, function (): void {
+            \Engine\Atomic\Core\Log::info('Application bootstrapped | url=' . \Engine\Atomic\Core\App::atomic()->get('PATH'));
         });
     }
 }

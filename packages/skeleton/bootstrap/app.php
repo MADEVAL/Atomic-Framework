@@ -103,8 +103,8 @@ $container->instance(\Base::class, $atomic);
 $container->instance(App::class, $application);
 
 // ── App hooks ──
-\App\Event\Application::instance()->init();
-\App\Hook\Application::instance()->init();
+\App\Event\Application::init();
+\App\Hook\Application::init();
 
 // ── Provider-based bootstrap (Container-native) ──
 $newApp = new \Engine\Atomic\Core\Application($container);

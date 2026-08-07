@@ -48,4 +48,15 @@ final class CsrfTokenManager
     {
         return '<meta name="csrf-token" content="' . $this->token() . '">';
     }
+
+    public static function validateStatic(\Base $atomic, string $token): bool
+    {
+        $stored = $atomic->get('SESSION.csrf_token');
+
+        if (!is_string($stored) || $stored === '') {
+            return false;
+        }
+
+        return hash_equals($stored, $token);
+    }
 }

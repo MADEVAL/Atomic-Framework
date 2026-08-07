@@ -58,8 +58,14 @@ final class HashTest extends TestCase
 
     public function test_dummy_timing_mitigation_uses_same_algo_as_password(): void
     {
-        Hash::dummy_timing_mitigation();
-        $this->assertTrue(true);
+        $hash = Hash::dummy_hash_for_timing_mitigation();
+        $info = password_get_info($hash);
+
+        $this->assertSame('bcrypt', $info['algoName'], 'dummy_hash must use bcrypt (same as password())');
+
+        $this->assertSame(12, $info['options']['cost'], 'dummy_hash must use cost=12 (same as password())');
+
+        $this->assertSame(60, strlen($hash), 'bcrypt hashes are exactly 60 chars');
     }
 
     public function test_hmac_produces_deterministic_hash(): void

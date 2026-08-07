@@ -90,4 +90,29 @@ final class CsrfTokenManagerTest extends TestCase
         $tampered = substr($token, 0, -1) . '0';
         $this->assertFalse($this->manager->validate($tampered));
     }
+
+    public function test_validate_static_accepts_valid_token(): void
+    {
+        $atomic = \Base::instance();
+        $token = bin2hex(random_bytes(32));
+        $atomic->set('SESSION.csrf_token', $token);
+
+        $this->assertTrue(CsrfTokenManager::validateStatic($atomic, $token));
+    }
+
+    public function test_validate_static_rejects_invalid_token(): void
+    {
+        $atomic = \Base::instance();
+        $atomic->set('SESSION.csrf_token', 'real-token');
+
+        $this->assertFalse(CsrfTokenManager::validateStatic($atomic, 'wrong-token'));
+    }
+
+    public function test_validate_static_rejects_when_no_token_stored(): void
+    {
+        $atomic = \Base::instance();
+        $atomic->clear('SESSION.csrf_token');
+
+        $this->assertFalse(CsrfTokenManager::validateStatic($atomic, 'any-token'));
+    }
 }

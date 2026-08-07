@@ -27,7 +27,13 @@ final class CsrfMiddleware implements MiddlewareInterface
         $stored_token = $atomic->get(self::TOKEN_KEY);
 
         if (!is_string($stored_token) || $stored_token === '') {
-            return true;
+            Response::instance()->send_json_error(
+                'CSRF token missing',
+                Response::STATUS_FORBIDDEN,
+                [],
+                false,
+            );
+            return false;
         }
 
         $request_token = $this->extract_token($atomic);
@@ -86,7 +92,10 @@ final class CsrfMiddleware implements MiddlewareInterface
         $stored_token = $atomic->get(self::TOKEN_KEY);
 
         if (!is_string($stored_token) || $stored_token === '') {
-            return $next($request);
+            return \Engine\Atomic\Http\Response::json(
+                ['error' => 'CSRF token missing'],
+                403
+            );
         }
 
         $request_token = $this->extract_token($atomic);

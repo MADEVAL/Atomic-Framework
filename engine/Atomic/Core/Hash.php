@@ -49,13 +49,13 @@ class Hash
      */
     public static function dummy_timing_mitigation(): void
     {
-        password_hash(base64_encode(random_bytes(32)), PASSWORD_DEFAULT);
+        password_hash(base64_encode(random_bytes(32)), PASSWORD_DEFAULT, ['cost' => 12]);
     }
 
     /** @deprecated Use dummy_timing_mitigation() instead */
     public static function dummy_hash_for_timing_mitigation(): string
     {
         self::dummy_timing_mitigation();
-        return password_hash(base64_encode(random_bytes(32)), PASSWORD_DEFAULT);
+        return password_hash(base64_encode(random_bytes(32)), PASSWORD_DEFAULT, ['cost' => 12]);
     }
 }
