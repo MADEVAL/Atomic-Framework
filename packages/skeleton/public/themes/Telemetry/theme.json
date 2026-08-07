@@ -1,0 +1,11 @@
+{
+    "name": "Atomic Telemetry",
+    "package": "telemetry",
+    "version": "1.0.0",
+    "author": "GLOBUS.studio",
+    "copyright": "(c) GLOBUS.studio 2020-2025",
+    "license": "https://opensource.org/license/mit/",
+    "description": "Telemetry theme for Atomic Telemetry tool",
+    "link": "https://globus.studio",
+    "slug": "atomic-telemetry"
+}

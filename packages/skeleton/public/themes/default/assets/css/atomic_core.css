@@ -1,0 +1,27 @@
+/* Atomic Core Styles */
+:root {
+    --atomic-primary: #4f9cf7;
+    --atomic-primary-dark: #3b82f6;
+    --atomic-text-primary: #1a1a2e;
+    --atomic-text-secondary: #666;
+    --atomic-bg-primary: #fff;
+    --atomic-bg-secondary: #f8f9fa;
+    --atomic-bg-card: #fff;
+    --atomic-border: #e0e0e0;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--atomic-text-primary);
+    background: var(--atomic-bg-primary);
+    line-height: 1.6;
+}
+
+.atomic-container { max-width: 1100px; margin: 0 auto; padding: 0 1rem; }
+.atomic-flex { display: flex; }
+.atomic-justify-between { justify-content: space-between; }
+.atomic-items-center { align-items: center; }
+
+a { color: var(--atomic-primary); }

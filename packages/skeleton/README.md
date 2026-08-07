@@ -45,10 +45,20 @@ Open `http://localhost:8000` — you should see the Atomic welcome page.
 | `bootstrap/` | App initialization — constants, config loader, error handling |
 | `config/` | Configuration files — database, cache, mail, auth, queue |
 | `routes/` | Route definitions — `web.php`, `api.php`, `cli.php` |
-| `public/` | Web root — entry point, themes, uploads |
+| `public/` | Web root — entry point, themes (`default`, `ErrorPages`, `Telemetry`), uploads |
 | `database/` | Migrations and seeds |
 | `resources/` | View templates |
 | `storage/` | Logs, cache, sessions |
+
+**Bundled themes** (in `public/themes/`):
+
+| Theme | Purpose | Overridable |
+|-------|---------|-------------|
+| `default` | Frontend theme — landing page, auth forms, user dashboard | Yes — replace with your own |
+| `ErrorPages` | Error pages (400–503) — styled HTML for every HTTP error | Yes — drop your own `public/themes/ErrorPages/` |
+| `Telemetry` | Telemetry dashboard — queue monitor, log viewer, system info | Yes |
+
+> All themes are optional. The framework falls back to bare HTML if a theme is missing. To customize, copy the theme from `public/themes/` to your own directory and modify.
 
 **Bundled examples:**
 

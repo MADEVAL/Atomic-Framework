@@ -100,7 +100,12 @@ class Telemetry extends Controller
             'last_page' => (int)ceil($filtered_total / $per_page),
         ]);
 
-        echo \View::instance()->render('layout/telemetry-queue.atom.php');
+        try {
+            echo \View::instance()->render('layout/telemetry-queue.atom.php');
+        } catch (\Throwable $e) {
+            Log::error('Failed to render telemetry template: ' . $e->getMessage());
+            $this->render_fallback($atomic);
+        }
     }
 
     public function events(\Base $atomic, array $params = [], ?string $alias = null): void
@@ -537,5 +542,18 @@ class Telemetry extends Controller
         } else {
             $res->send_json(['dump_id' => $dumpId, 'error' => 'dump file could not be decoded'], terminate: false);
         }
+    }
+
+    private function render_fallback(\Base $atomic): void
+    {
+        $atomic->status(500);
+        if (!headers_sent()) {
+            header('HTTP/1.1 500 Internal Server Error');
+            header('Content-Type: text/html; charset=utf-8');
+        }
+        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Telemetry</title></head><body>';
+        echo '<h1>Telemetry Unavailable</h1>';
+        echo '<p>The telemetry theme is not installed. Place it in public/themes/Telemetry/.</p>';
+        echo '</body></html>';
     }
 }
