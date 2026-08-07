@@ -5,9 +5,18 @@ if (!defined('ATOMIC_START')) exit;
 if (!defined('ATOMIC_ROOT')) {
     define('ATOMIC_ROOT', __DIR__);
 }
-require_once ATOMIC_ROOT . DIRECTORY_SEPARATOR . 'const.php';
-require_once ATOMIC_ROOT . DIRECTORY_SEPARATOR . 'error.php';
-require_once ATOMIC_VENDOR . 'autoload.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'const.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'error.php';
+
+$autoloader = require ATOMIC_VENDOR . 'autoload.php';
+
+// In monorepo dev mode, register skeleton App\ namespace
+$skeletonAppDir = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'app';
+if (is_dir($skeletonAppDir)) {
+    $autoloader->setPsr4('App\\', [$skeletonAppDir . DIRECTORY_SEPARATOR]);
+}
+unset($skeletonAppDir, $autoloader);
+
 require_once ATOMIC_SUPPORT . 'helpers.php';
 
 use Engine\Atomic\Core\Container;

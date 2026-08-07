@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
+use Engine\Atomic\Theme\Theme;
 
 abstract class Controller
 {
@@ -21,6 +22,8 @@ abstract class Controller
         $this->atomic = $atomic ?: App::atomic();
         $this->atomic->set('__current_controller', $this);
         $this->atomic->set('__afterroute_done', false);
+
+        Theme::instance();
 
         if (!MiddlewareStack::run_for_route($this->atomic)) {
             throw new \Engine\Atomic\Exceptions\HttpException('Middleware blocked', 403);

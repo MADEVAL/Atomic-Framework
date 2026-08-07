@@ -7,14 +7,26 @@ if (!defined('ATOMIC_START')) exit;
 trait Singleton
 {
     protected static ?self $instance = null;
+    private static bool $resolving = false;
 
     public static function instance(...$args): static
     {
         if (static::$instance === null) {
             // Try Container first — enables seamless migration to DI
-            if ($container = \Engine\Atomic\Core\Container::global()) {
+            if (!static::$resolving && ($container = \Engine\Atomic\Core\Container::global())) {
                 if ($container->has(static::class)) {
-                    return $container->get(static::class);
+                    static::$resolving = true;
+                    try {
+                        $resolved = $container->get(static::class);
+                        if ($resolved instanceof static) {
+                            static::$instance = $resolved;
+                        }
+                    } finally {
+                        static::$resolving = false;
+                    }
+                    if (static::$instance !== null) {
+                        return static::$instance;
+                    }
                 }
             }
             static::$instance = new static(...$args);

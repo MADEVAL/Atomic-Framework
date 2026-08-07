@@ -9,8 +9,8 @@ declare(strict_types=1);
 
 if(!defined('ATOMIC_START')) exit;
 
-define('THEME_URL', get_theme_uri());
-define('PUBLIC_URL', get_public_uri());
+defined('THEME_URL')   || define('THEME_URL', get_theme_uri());
+defined('PUBLIC_URL')  || define('PUBLIC_URL', get_public_uri());
 
 enqueue_style('atomic-error', '~assets/css/atomic-errors.css', [], '1.0.0');
 

@@ -4,11 +4,12 @@ Atomic theme rendering helpers are provided by `Engine\Atomic\Theme\Theme`.
 
 ### Boot a theme
 
+The default theme is booted automatically by `Controller::beforeroute()`. No explicit call needed for the default theme.
+
 ```php
 use Engine\Atomic\Theme\Theme;
 
-Theme::instance();          // uses THEME.envname
-Theme::instance('Telemetry'); // switch theme explicitly
+Theme::instance('Telemetry'); // switch to a named theme explicitly
 ```
 
 When the theme boots, Atomic:

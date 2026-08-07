@@ -6,7 +6,7 @@ define('ATOMIC_LOADER', 'env');                                     // php or en
 define('ATOMIC_PHP_ERRORS', true);                                  // Write PHP errors (true/false)
 define('ATOMIC_VERSION', '0.1.0');                                  // Framework version
 define('ATOMIC_NAME', 'Atomic Framework');                          // Framework name
-define('ATOMIC_DIR', realpath(ATOMIC_ROOT . DIRECTORY_SEPARATOR . '..'));
+define('ATOMIC_DIR', ATOMIC_ROOT);
 define('ATOMIC_ENV', ATOMIC_DIR . DIRECTORY_SEPARATOR . '.env');
 define('ATOMIC_APP_ROUTES', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR);
 define('ATOMIC_CONFIG', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR);

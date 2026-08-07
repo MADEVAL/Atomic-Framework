@@ -15,9 +15,9 @@ class Redis implements SessionHandlerInterface
     private const REVOKED_SEGMENT = 'revoked';
 
     private ?string $sid = null;
-    private string $_csrf;
-    private string $_agent;
-    private string $_ip;
+    private string $_csrf = '';
+    private string $_agent = '';
+    private string $_ip = '';
     /** @var callable|null */
     private mixed $onsuspect;
     private string $prefix;

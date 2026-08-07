@@ -1,0 +1,13 @@
+{
+    "name": "Atomic Example Showcase",
+    "package": "example",
+    "version": "1.0.0",
+    "author": "GLOBUS.studio",
+    "copyright": "(c) GLOBUS.studio 2020-2026",
+    "license": "MIT",
+    "description": "Reference theme demonstrating every theme feature and global helper",
+    "link": "https://globus.studio",
+    "slug": "atomic-example",
+    "color": "#6c5ce7",
+    "color-dark": "#4834d4"
+}

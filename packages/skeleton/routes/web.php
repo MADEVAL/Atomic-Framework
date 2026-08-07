@@ -25,3 +25,6 @@ $this->route('GET  /email/verify/@token', 'App\Http\Controllers\Auth\EmailVerifi
 // Protected (requires authentication)
 $this->route('GET /dashboard', 'App\Http\Controllers\DashboardController->index', ['auth']);
 $this->route('GET /admin', 'App\Http\Controllers\Admin\DashboardController->index', ['auth', 'admin']);
+
+// Example theme showcase — demonstrates all theme features
+$this->route('GET /example', 'App\Http\Controllers\ExampleController->showcase');

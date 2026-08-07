@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 if (!defined('ATOMIC_START')) exit;
 
-define('THEME_DIR', get_theme_dir());
-define('THEME_URL', get_theme_uri());
-define('PUBLIC_URL', get_public_uri());
-define('DEFAULT_THEME_VERSION', '1.0.0');
+defined('THEME_DIR')   || define('THEME_DIR', get_theme_dir());
+defined('THEME_URL')   || define('THEME_URL', get_theme_uri());
+defined('PUBLIC_URL')  || define('PUBLIC_URL', get_public_uri());
+defined('DEFAULT_THEME_VERSION') || define('DEFAULT_THEME_VERSION', '1.0.0');
 
 if (is_home()) {
     enqueue_style('atomic-landing', '~assets/css/atomic_landing.css', [], DEFAULT_THEME_VERSION);

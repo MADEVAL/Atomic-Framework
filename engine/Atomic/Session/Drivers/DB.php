@@ -15,9 +15,9 @@ class DB implements SessionHandlerInterface
     private const REVOKED_KEY_PREFIX = '.revoked.';
 
     private ?string $sid = null;
-    private string $_csrf;
-    private string $_agent;
-    private string $_ip;
+    private string $_csrf = '';
+    private string $_agent = '';
+    private string $_ip = '';
     private int $ttl;
     /** @var callable|null */
     private mixed $onsuspect;

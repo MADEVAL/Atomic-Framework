@@ -12,6 +12,8 @@ Theme::instance('marketing'); // replaces the current singleton and boots that t
 Theme::reset();               // clears the singleton
 ```
 
+**Automatic default theme boot:** `Controller::beforeroute()` calls `Theme::instance()` implicitly. Every controller gets the default theme (`THEME.envname`) without explicit initialization. Controllers that need a specific theme (e.g., `ErrorPages`, `Telemetry`) call `Theme::instance('name')` in their constructor — this replaces the singleton and boots the named theme. `Theme::instance()` with no arguments on subsequent calls returns the existing singleton without reinitializing.
+
 Runtime behavior:
 
 1. Reads the UI root from `ENQ_UI_FIX`.

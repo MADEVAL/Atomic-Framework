@@ -29,7 +29,10 @@
   "autoload": {
     "psr-4": {
       "Engine\\Atomic\\": "engine/Atomic/"
-    }
+    },
+    "classmap": [
+      "engine/Atomic/Core/Providers/ServiceProviders.php"
+    ]
   },
   "autoload-dev": {
     "psr-4": {
