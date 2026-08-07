@@ -6,7 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
-use App\Http\Models\User;
+use App\Models\User;
 
 class UserProvider implements UserProviderInterface
 {

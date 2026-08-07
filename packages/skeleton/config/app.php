@@ -22,9 +22,9 @@ return [
     'encoding'     => 'UTF-8',
     'language'     => 'en',
     'fallback'     => 'en',
-    'debug'        => true,
+    'debug'        => false,
     'debug_level'  => 'debug',
-    'escape'       => false,
+    'escape'       => true,
     'paths' => [
         'ui'                  => 'public/themes/',
         'temp'                => 'storage/framework/cache/data/',

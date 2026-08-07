@@ -1,0 +1,19 @@
+# Apache URL rewriting — pretty URLs
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^index\.php$ - [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+</IfModule>
+
+# Deny access to sensitive files
+<FilesMatch "\.(env|log|sql|md|json|lock)$">
+    Require all denied
+</FilesMatch>
