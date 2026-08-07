@@ -36,6 +36,15 @@ final class RoleMiddleware implements MiddlewareInterface
 
     public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
     {
-        throw new \RuntimeException('RoleMiddleware::process() not yet implemented. Use handle() for legacy mode.');
+        $roles = array_values(array_filter(
+            array_map('trim', explode(',', (string)$this->role)),
+            static fn(string $role): bool => $role !== ''
+        ));
+
+        if ($roles !== [] && Guard::has_any_role($roles)) {
+            return $next($request);
+        }
+
+        return \Engine\Atomic\Http\Response::html('Forbidden', 403);
     }
 }

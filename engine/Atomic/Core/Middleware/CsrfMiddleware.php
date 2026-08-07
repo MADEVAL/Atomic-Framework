@@ -74,6 +74,28 @@ final class CsrfMiddleware implements MiddlewareInterface
 
     public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
     {
-        throw new \RuntimeException('CsrfMiddleware::process() not yet implemented. Use handle() for legacy mode.');
+        $atomic = \Base::instance();
+        $method = strtoupper((string)$atomic->get('VERB'));
+
+        if (in_array($method, self::SAFE_METHODS, true)) {
+            return $next($request);
+        }
+
+        $stored_token = $atomic->get(self::TOKEN_KEY);
+
+        if (!is_string($stored_token) || $stored_token === '') {
+            return $next($request);
+        }
+
+        $request_token = $this->extract_token($atomic);
+
+        if ($request_token === null || !hash_equals($stored_token, $request_token)) {
+            return \Engine\Atomic\Http\Response::json(
+                ['error' => 'CSRF token mismatch'],
+                403
+            );
+        }
+
+        return $next($request);
     }
 }

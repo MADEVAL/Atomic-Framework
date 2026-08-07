@@ -5,21 +5,25 @@ namespace App\Http\Middleware;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Middleware\MiddlewareInterface;
-use Engine\Atomic\App\Controller;
+use Engine\Atomic\Auth\Auth;
+use Engine\Atomic\Http\Response as HttpResponse;
 
 class RedirectIfAuthenticated implements MiddlewareInterface
 {
     public function handle(\Base $atomic): bool
     {
-        if (\Engine\Atomic\Auth\Auth::instance()->get_current_user() !== null) {
+        if (Auth::instance()->get_current_user() !== null) {
             $atomic->reroute('/dashboard');
             return false;
         }
         return true;
     }
 
-    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    public function process(mixed $request, callable $next): HttpResponse
     {
-        throw new \RuntimeException('Not yet migrated to process() pattern');
+        if (Auth::instance()->get_current_user() !== null) {
+            return HttpResponse::redirect('/dashboard');
+        }
+        return $next($request);
     }
 }

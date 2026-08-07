@@ -8,6 +8,7 @@ use Engine\Atomic\Core\Guard;
 use Engine\Atomic\Core\Middleware\MiddlewareInterface;
 use Engine\Atomic\Core\Response;
 use Engine\Atomic\Enums\Role;
+use Engine\Atomic\Http\Response as HttpResponse;
 
 class RequireAdmin implements MiddlewareInterface
 {
@@ -24,5 +25,14 @@ class RequireAdmin implements MiddlewareInterface
 
         Response::instance()->send_json_error('Forbidden', 403);
         return false;
+    }
+
+    public function process(mixed $request, callable $next): HttpResponse
+    {
+        if (Guard::has_role(Role::ADMIN)) {
+            return $next($request);
+        }
+
+        return HttpResponse::html('Forbidden', 403);
     }
 }

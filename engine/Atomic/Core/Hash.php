@@ -45,11 +45,11 @@ class Hash
 
     /**
      * Dummy-операция для timing attack mitigation.
-     * Использует тот же алгоритм Argon2id, что и password_argon2().
+     * Использует тот же алгоритм (PASSWORD_DEFAULT), что и password().
      */
     public static function dummy_timing_mitigation(): void
     {
-        password_hash(random_bytes(32), self::DEFAULT_ALGO, self::DEFAULT_COST);
+        password_hash(base64_encode(random_bytes(32)), PASSWORD_DEFAULT);
     }
 
     /** @deprecated Use dummy_timing_mitigation() instead */

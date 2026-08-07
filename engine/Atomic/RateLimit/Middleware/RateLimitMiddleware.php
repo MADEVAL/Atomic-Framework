@@ -104,6 +104,24 @@ final class RateLimitMiddleware implements MiddlewareInterface
 
     public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
     {
-        throw new \RuntimeException('RateLimitMiddleware::process() not yet implemented. Use handle() for legacy mode.');
+        try {
+            $limiter = RateLimiter::from_config();
+            $result = $this->check($limiter, \Base::instance());
+        } catch (\InvalidArgumentException) {
+            return \Engine\Atomic\Http\Response::html('Rate limit misconfigured', 500);
+        } catch (\Exception) {
+            $failOpen = (string)App::instance()->get(self::CONFIG_FAIL) === RateLimiter::FAIL_OPEN;
+            return $failOpen ? $next($request) : \Engine\Atomic\Http\Response::html('Rate limit error', 500);
+        }
+
+        $this->headers($result);
+        if ($result->allowed) {
+            return $next($request);
+        }
+
+        return \Engine\Atomic\Http\Response::json([
+            'error' => self::RESPONSE_TOO_MANY_REQUESTS,
+            self::RESPONSE_RETRY_AFTER => $result->retry_after,
+        ], Response::STATUS_TOO_MANY_REQUESTS);
     }
 }

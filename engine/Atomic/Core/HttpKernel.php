@@ -21,17 +21,23 @@ final class HttpKernel
         $this->coreHandler = fn() => Response::html('', 200);
     }
 
-    /** @param string|callable|MiddlewareInterface $middleware */
+    /** @param MiddlewareInterface|callable $middleware */
     public function appendMiddleware(MiddlewareInterface|callable $middleware): self
     {
         $this->middleware[] = $middleware;
         return $this;
     }
 
-    /** @param string|callable|MiddlewareInterface $middleware */
+    /** @param MiddlewareInterface|callable $middleware */
     public function prependMiddleware(MiddlewareInterface|callable $middleware): self
     {
         array_unshift($this->middleware, $middleware);
+        return $this;
+    }
+
+    public function setCoreHandler(callable $handler): self
+    {
+        $this->coreHandler = $handler;
         return $this;
     }
 
@@ -42,14 +48,64 @@ final class HttpKernel
         foreach (array_reverse($this->middleware) as $middleware) {
             $next = $pipeline;
             $mw = $middleware;
-            $pipeline = function ($req) use ($mw, $next) {
+            $pipeline = function ($req) use ($mw, $next): Response {
                 if ($mw instanceof MiddlewareInterface) {
-                    return $mw->process($req, $next);
+                    if ($this->supportsProcess($mw)) {
+                        return $mw->process($req, $next);
+                    }
+                    $atomic = \Base::instance();
+                    $passed = $mw->handle($atomic);
+                    if ($passed) {
+                        return $next($req);
+                    }
+                    return Response::html('', 403);
                 }
                 return $mw($req, $next);
             };
         }
 
         return $pipeline($request);
+    }
+
+    private function supportsProcess(MiddlewareInterface $mw): bool
+    {
+        $ref = new \ReflectionClass($mw);
+        $method = $ref->getMethod('process');
+        $declaringClass = $method->getDeclaringClass()->getName();
+
+        if ($declaringClass === MiddlewareInterface::class) {
+            return false;
+        }
+
+        $body = $this->getMethodBody($method);
+        if ($body !== null && str_contains($body, 'Not yet implemented')
+            || str_contains($body, 'Not yet migrated')
+            || str_contains($body, 'not yet implemented')) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function getMethodBody(\ReflectionMethod $method): ?string
+    {
+        $filename = $method->getFileName();
+        if ($filename === false) {
+            return null;
+        }
+
+        $startLine = $method->getStartLine();
+        $endLine = $method->getEndLine();
+
+        if ($startLine === false || $endLine === false) {
+            return null;
+        }
+
+        $lines = file($filename);
+        if ($lines === false) {
+            return null;
+        }
+
+        return implode('', array_slice($lines, $startLine, $endLine - $startLine));
     }
 }

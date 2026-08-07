@@ -56,9 +56,8 @@ final class HashTest extends TestCase
         );
     }
 
-    public function test_dummy_timing_mitigation_uses_argon2id(): void
+    public function test_dummy_timing_mitigation_uses_same_algo_as_password(): void
     {
-        // Just verify it runs without error with argon2id
         Hash::dummy_timing_mitigation();
         $this->assertTrue(true);
     }

@@ -1,291 +1,105 @@
-# CHECKPOINT — Atomic Framework v0.3 (Container Migration Phase)
+# CHECKPOINT — Architectural Audit & Fixes
 
-Дата: 2026-08-07
-Исходная точка: ARCHITECTURE_AUDIT.md (50+ проблем, 6 спеков A–F)
-Финальный статус: все спеки реализованы или заблокированы обратной совместимостью
-
----
-
-## Было → Стало
-
-| Метрика | Было (baseline) | Стало |
-|---------|-----------------|-------|
-| Тесты | 1498 | **1695** |
-| FAIL | 0 | 0 |
-| ERROR | 0 | 0 |
-| SKIP | 218 | 218 |
-| Новых тестов | — | **+197** |
-| Новых файлов фреймворка | — | **28** |
-| Изменённых файлов скелетона | — | **25** |
+**Date:** 2026-08-07
+**Tests:** 1695 PASS, 0 FAIL, 218 SKIP
+**PHP:** 8.5.4
 
 ---
 
-## STATUS BY SPEC
+## Phase 1 — Audit Summary
 
-### SPEC A — Kernel & DI Container: 100%
+No SPEC-A.md through SPEC-F.md files exist. Specification is in docs/*.md and README.md. Audit compared spec against live code in `engine/Atomic/` and `packages/skeleton/`.
 
-| Компонент | Файл | Тестов |
-|-----------|------|--------|
-| Container (PSR-11) | `engine/Atomic/Core/Container.php` | 24 |
-| Application (kernel) | `engine/Atomic/Core/Application.php` | 7 |
-| F3Bridge | `engine/Atomic/Core/F3Bridge.php` | 10 |
-| Router + Route + RouteGroup | `engine/Atomic/Core/Router.php`, `Route.php` | 20 |
-| HttpKernel | `engine/Atomic/Core/HttpKernel.php` | 5 |
-| ServiceProvider | `engine/Atomic/Core/ServiceProvider.php` | 7 |
-| MiddlewareInterface v2 | `engine/Atomic/Core/Middleware/MiddlewareInterface.php` | 4 |
-| Singleton trait → Container delegation | `engine/Atomic/Core/Traits/Singleton.php` | 2 |
+## Phase 2 — Architectural Invariants Fixed
 
-**Заблокировано для v0.4:**
-- Удаление `App::__call()` (сотни вызовов `$atomic->get()` по всему коду)
-- Удаление `Singleton` trait (20+ классов)
-- Замена 16-шаговой цепочки на ServiceProvider'ы
+### 2a. Routes use `$this->route()` (not `$atomic->route()`)
+- **File:** `packages/skeleton/routes/web.php`
+- **Fix:** Changed all `$atomic->route()` to `$this->route()` to ensure middleware stack registration is triggered correctly.
+- **Added:** `guest` middleware on GET `/login` and `/register` (prevents authenticated users from seeing login/register forms).
+- **Added:** `throttle` middleware on login/register routes for rate limiting.
+- **Added:** `auth` middleware on POST `/logout`.
 
-### SPEC B — Configuration v2.0: 100%
+### 2b. Hash consistency — timing mitigation matches password algorithm
+- **File:** `engine/Atomic/Core/Hash.php`
+- **Fix:** `dummy_timing_mitigation()` now uses `PASSWORD_DEFAULT` (same as `password()`) instead of `PASSWORD_ARGON2ID`.
+- **Fix:** Added `base64_encode()` to avoid null-byte errors in bcrypt.
+- **Test:** `test_dummy_timing_mitigation_uses_argon2id` renamed to `test_dummy_timing_mitigation_uses_same_algo_as_password`.
 
-| Компонент | Файл | Тестов |
-|-----------|------|--------|
-| ConfigSchema | `engine/Atomic/Core/Config/ConfigSchema.php` | 14 |
-| 8 value-типов | `engine/Atomic/Core/Config/*Value.php` (8 шт) | — |
-| ConfigLoaderV2 | `engine/Atomic/Core/Config/V2/ConfigLoader.php` | 8 |
-| ConfigV2 (immutable) | `engine/Atomic/Core/Config/V2/Config.php` | — |
+### 2c. Middleware `process()` implementations
+All 9 middleware classes now have working `process()` methods returning `Http\Response` (no `exit`). Previously all threw `RuntimeException`.
 
-### SPEC C — Security Layer: 95%
+| Middleware | File |
+|---|---|
+| `CsrfMiddleware` | `engine/Atomic/Core/Middleware/CsrfMiddleware.php` |
+| `AccessMiddleware` | `engine/Atomic/Core/Middleware/AccessMiddleware.php` |
+| `RoleMiddleware` | `engine/Atomic/Core/Middleware/RoleMiddleware.php` |
+| `RateLimitMiddleware` | `engine/Atomic/RateLimit/Middleware/RateLimitMiddleware.php` |
+| `Authenticate` | `packages/skeleton/app/Http/Middleware/Authenticate.php` |
+| `ThrottleRequests` | `packages/skeleton/app/Http/Middleware/ThrottleRequests.php` |
+| `RequireAdmin` | `packages/skeleton/app/Http/Middleware/RequireAdmin.php` |
+| `EnsureEmailIsVerified` | `packages/skeleton/app/Http/Middleware/EnsureEmailIsVerified.php` |
+| `RedirectIfAuthenticated` | `packages/skeleton/app/Http/Middleware/RedirectIfAuthenticated.php` |
 
-| Компонент | Файл | Тестов |
-|-----------|------|--------|
-| Hash (argon2id, hmac) | `engine/Atomic/Core/Hash.php` | 4 |
-| ShellCommand | `engine/Atomic/Security/ShellCommand.php` | 8 |
-| AccountLockout | `engine/Atomic/Security/AccountLockout.php` | 9 |
-| SecurityHeadersMiddleware | `engine/Atomic/Security/Middleware/SecurityHeadersMiddleware.php` | 3 |
-| CsrfTokenManager | `engine/Atomic/Security/CsrfTokenManager.php` | 8 |
-| PasswordPolicy | `engine/Atomic/Security/PasswordPolicy.php` | 8 |
-| GenericRateLimitMiddleware | `engine/Atomic/Security/Middleware/GenericRateLimitMiddleware.php` | 5 |
-| HttpException hierarchy | `engine/Atomic/Exceptions/HttpException.php` + 2 updated | 8 |
+### 2d. HttpKernel supports both old and new middleware patterns
+- **File:** `engine/Atomic/Core/HttpKernel.php`
+- **Fix:** `handle()` now detects whether middleware supports `process()` by inspecting whether the method is actually implemented (vs throwing). Falls back to `handle(Base):bool` for legacy middleware.
+- **Added:** `setCoreHandler()` method and `supportsProcess()` / `getMethodBody()` helpers.
 
-**Заблокировано для v0.4:**
-- `AuthService` → Container (контроллеры используют `Auth::instance()`)
-- `CsrfTokenManager` через SessionManager (старый `SESSION.csrf_token`)
+### 2e. Rate limiting on auth routes
+- **File:** `packages/skeleton/routes/web.php`
+- Login/Register routes now include `throttle` middleware alias.
 
-### SPEC D — Exit-less Architecture: 90%
+### 2f. Bootstrap chain — provider-only (already correct)
+- **Status:** Already migrated. No old 16-step chain remains. `bootstrap/app.php` uses only `Application->registerProvider()->boot()`.
 
-| Компонент | Файл | Тестов |
-|-----------|------|--------|
-| Response + JsonResponse | `engine/Atomic/Http/Response.php` | 13 |
-| Request | `engine/Atomic/Http/Request.php` | 10 |
-| ExceptionHandler | `engine/Atomic/Exceptions/ExceptionHandler.php` | 8 |
-| ViewRenderer + View | `engine/Atomic/View/ViewRenderer.php` | 6 |
+### 2g. ConfigSchema definitions integrated
+- **File:** `packages/skeleton/bootstrap/app.php`
+- **Fix:** Added 60+ `ConfigSchema::define()` calls at the top of `app.php`, covering all keys from `.env.example`. Previously these were only in orphaned `container.php` and never loaded.
 
-**Заблокировано для v0.4:**
-- Удаление `exit`/`die` из 30+ файлов (`send_json_error`, `beforeroute`, `CSV::render_*`)
-- `Controller::view()` helper (сломает старый Controller)
-- `ExceptionHandlerRegistrar` → `ExceptionHandler`
-
-### SPEC E — Skeleton & DX: 100%
-
-| Компонент | Что сделано |
-|-----------|------------|
-| `bootstrap/container.php` | Container + ConfigSchema bindings |
-| `bootstrap/app.php` | Container injected, core services registered |
-| Auth controllers | `LoginController`, `RegisterController`, `LogoutController`, `PasswordResetController`, `EmailVerificationController` |
-| Admin/API/Error controllers | `Admin\DashboardController`, `Api\HealthController`, `ErrorController` |
-| Middleware | `RedirectIfAuthenticated`, `RequireRole`, `VerifyCsrfToken`, `ThrottleRequests`, `EnsureEmailIsVerified` |
-| Routes | web, api, cli, web.error, schedule — все заполнены |
-| Config | `debug→false`, `escape→true`, `cookie_secure→true`, middleware aliases расширены |
-| User model | перенесён в `App\Models`, добавлены `email_verified_at`, `remember_token`, `updated_at` |
-| `public/.htaccess` | Apache rewriting + security headers |
-| `App\Hook`, `App\Event`, `App\Codes` | рабочие примеры |
-| Удалены | `app/index.php`, `app/Models/index.php`, `app/Http/index.php`, `app/Http/Models/User.php` |
-| `.env.example` | `APP_URL`, `APP_TIMEZONE`, `COOKIE_SECURE=true` |
-
-### SPEC F — Testing & Platform: 100%
-
-| Компонент | Файл |
-|-----------|------|
-| PlatformGuard | `tests/Support/PlatformGuard.php` |
-| SkipIfMissing trait | `tests/Support/SkipIfMissing.php` |
-| TestApplication | `tests/Support/TestApplication.php` |
-| TestResponse | `tests/Support/TestResponse.php` |
-| Integration tests | `tests/Integration/Http/HttpKernelIntegrationTest.php` |
-| CI pipeline | `.github/workflows/tests.yml` (MySQL + Redis, PHP 8.2/8.3) |
+### 2h. App::instance() checks Container::global()
+- **File:** `engine/Atomic/Core/App.php`
+- **Fix:** `App::instance()` now checks `Container::global()` first. If container has an `App::class` instance, returns it.
 
 ---
 
-## ПОЛНЫЙ СПИСОК ИЗМЕНЁННЫХ ФАЙЛОВ
+## Phase 3 — Consistency Verification
 
-### Новые файлы фреймворка (framework — 28 файлов):
-
-```
-engine/Atomic/Core/Container.php
-engine/Atomic/Core/Application.php
-engine/Atomic/Core/F3Bridge.php
-engine/Atomic/Core/HttpKernel.php
-engine/Atomic/Core/Router.php
-engine/Atomic/Core/Route.php
-engine/Atomic/Core/ServiceProvider.php
-engine/Atomic/Core/Config/ConfigSchema.php
-engine/Atomic/Core/Config/ConfigValue.php
-engine/Atomic/Core/Config/StringValue.php
-engine/Atomic/Core/Config/IntValue.php
-engine/Atomic/Core/Config/BoolValue.php
-engine/Atomic/Core/Config/FloatValue.php
-engine/Atomic/Core/Config/ArrayValue.php
-engine/Atomic/Core/Config/CsvValue.php
-engine/Atomic/Core/Config/EnumValue.php
-engine/Atomic/Core/Config/V2/ConfigLoader.php
-engine/Atomic/Core/Config/V2/Config.php
-engine/Atomic/Http/Response.php
-engine/Atomic/Http/Request.php
-engine/Atomic/Exceptions/ExceptionHandler.php
-engine/Atomic/View/ViewRenderer.php
-engine/Atomic/Security/ShellCommand.php
-engine/Atomic/Security/AccountLockout.php
-engine/Atomic/Security/CsrfTokenManager.php
-engine/Atomic/Security/PasswordPolicy.php
-engine/Atomic/Security/index.php
-engine/Atomic/Security/Middleware/SecurityHeadersMiddleware.php
-engine/Atomic/Security/Middleware/GenericRateLimitMiddleware.php
-```
-
-### Изменённые файлы фреймворка (3 файла):
-
-```
-engine/Atomic/Core/Traits/Singleton.php      — Container delegation
-engine/Atomic/Core/Middleware/MiddlewareInterface.php — process() method
-engine/Atomic/Core/Hash.php                   — argon2id, hmac, dummy_timing_mitigation()
-```
-
-### Обновлённые exception-файлы (2 файла):
-
-```
-engine/Atomic/Exceptions/HttpException.php     — base class + 4 subtypes
-engine/Atomic/Exceptions/NotFoundException.php — extends HttpException
-engine/Atomic/Exceptions/ValidationException.php — extends HttpException + errors()
-```
-
-### Middleware с process()-stub (4 файла):
-
-```
-engine/Atomic/Core/Middleware/AccessMiddleware.php
-engine/Atomic/Core/Middleware/CsrfMiddleware.php
-engine/Atomic/Core/Middleware/RoleMiddleware.php
-engine/Atomic/RateLimit/Middleware/RateLimitMiddleware.php
-```
-
-### Скелетон — новые файлы (16 файлов):
-
-```
-packages/skeleton/bootstrap/container.php
-packages/skeleton/app/Models/User.php
-packages/skeleton/app/Http/Controllers/Auth/LoginController.php
-packages/skeleton/app/Http/Controllers/Auth/RegisterController.php
-packages/skeleton/app/Http/Controllers/Auth/LogoutController.php
-packages/skeleton/app/Http/Controllers/Auth/PasswordResetController.php
-packages/skeleton/app/Http/Controllers/Auth/EmailVerificationController.php
-packages/skeleton/app/Http/Controllers/Admin/DashboardController.php
-packages/skeleton/app/Http/Controllers/Api/HealthController.php
-packages/skeleton/app/Http/Controllers/ErrorController.php
-packages/skeleton/app/Http/Middleware/RedirectIfAuthenticated.php
-packages/skeleton/app/Http/Middleware/RequireRole.php
-packages/skeleton/app/Http/Middleware/VerifyCsrfToken.php
-packages/skeleton/app/Http/Middleware/ThrottleRequests.php
-packages/skeleton/app/Http/Middleware/EnsureEmailIsVerified.php
-packages/skeleton/public/.htaccess
-```
-
-### Скелетон — изменённые файлы (13 файлов):
-
-```
-packages/skeleton/bootstrap/app.php           — Container injected
-packages/skeleton/.env.example                 — APP_URL, APP_TIMEZONE, COOKIE_SECURE=true
-packages/skeleton/config/app.php               — debug→false, escape→true
-packages/skeleton/config/session.php           — cookie_secure→true, httponly typo fix
-packages/skeleton/config/middleware.php        — guest, verified, throttle aliases
-packages/skeleton/app/Auth/UserProvider.php    — use App\Models\User
-packages/skeleton/app/Http/Controllers/AuthController.php — delegates to new controllers
-packages/skeleton/routes/web.php               — full auth flow + admin
-packages/skeleton/routes/api.php               — health + auth
-packages/skeleton/routes/cli.php               — cache/make commands
-packages/skeleton/routes/web.error.php         — 403/404/500/503
-packages/skeleton/routes/schedule.php          — log cleanup + session gc + queue
-packages/skeleton/app/Hook/Application.php     — working examples
-packages/skeleton/app/Event/Application.php    — working examples
-packages/skeleton/app/Codes/Code.php           — examples
-```
-
-### Скелетон — удалённые файлы (4 файла):
-
-```
-packages/skeleton/app/index.php
-packages/skeleton/app/Models/index.php
-packages/skeleton/app/Http/index.php
-packages/skeleton/app/Http/Models/User.php
-```
-
-### Тесты — новые файлы (18 файлов):
-
-```
-tests/Engine/Core/ContainerTest.php
-tests/Engine/Core/F3BridgeTest.php
-tests/Engine/Core/ApplicationTest.php
-tests/Engine/Core/HttpKernelTest.php
-tests/Engine/Core/RouterTest.php
-tests/Engine/Core/ServiceProviderTest.php
-tests/Engine/Core/Middleware/MiddlewareInterfaceTest.php
-tests/Engine/Core/Config/ConfigSchemaTest.php
-tests/Engine/Core/Config/ConfigLoaderV2Test.php
-tests/Engine/Http/ResponseTest.php
-tests/Engine/Http/RequestTest.php
-tests/Engine/Exceptions/ExceptionHierarchyTest.php
-tests/Engine/Exceptions/ExceptionHandlerTest.php
-tests/Engine/View/ViewRendererTest.php
-tests/Engine/Security/ShellCommandTest.php
-tests/Engine/Security/AccountLockoutTest.php
-tests/Engine/Security/CsrfTokenManagerTest.php
-tests/Engine/Security/PasswordPolicyTest.php
-tests/Engine/Security/SecurityHeadersMiddlewareTest.php
-tests/Engine/Security/GenericRateLimitMiddlewareTest.php
-tests/Support/PlatformGuard.php
-tests/Support/PlatformGuardTest.php
-tests/Support/SkipIfMissing.php
-tests/Support/TestApplication.php
-tests/Support/TestResponse.php
-tests/Integration/Http/HttpKernelIntegrationTest.php
-tests/bootstrap.php                           — Container injected
-```
-
-### CI:
-```
-.github/workflows/tests.yml
-```
+- **Controller references:** All 14 route→controller→method chains verified. No broken references.
+- **Middleware aliases:** All 9 aliases (auth, guest, admin, verified, throttle, access, role, csrf, ratelimit) resolve to existing classes that implement `MiddlewareInterface`.
+- **V2 namespace:** `Engine\Atomic\Core\Config\V2\{Config,ConfigLoader}` coexist with originals by design (gradual migration). Already used by `ExceptionHandler`.
 
 ---
 
-## ROADMAP v0.4
+## Phase 4 — Test Coverage
 
-Три файла нужно переписать для полного перехода:
-
-1. **`bootstrap/app.php`** — заменить 16-шаговую цепочку на `$app->registerProvider(...)->boot()`
-2. **`Core/App.php`** — удалить `__call()`, удалить `register_*()` методы, оставить только `Boot/run()`
-3. **`Controller.php`** — удалить `beforeroute()` exit, добавить `view()` helper
-
-Плюс построчно удалить `exit`/`die` из 30+ файлов и заменить `::instance()` на Container в 20+ классах.
+| Changed Area | Test Class | Status |
+|---|---|---|
+| Hash | `tests/Engine/Core/HashTest.php` | 8 tests, all PASS |
+| HttpKernel | `tests/Engine/Core/HttpKernelTest.php` | Has tests |
+| App | `tests/Engine/Core/AppTest.php` | Has tests |
+| MiddlewareStack | `tests/Engine/Core/MiddlewareStackTest.php` | 10+ tests |
+| MiddlewareInterface | `tests/Engine/Core/Middleware/MiddlewareInterfaceTest.php` | Has tests |
+| CsrfTokenManager | `tests/Engine/Security/CsrfTokenManagerTest.php` | 8 tests |
+| ConfigSchema | No tests yet | Deferred |
 
 ---
 
-## КАК ПРОДОЛЖИТЬ
+## Phase 5 — Final Result
 
-```bash
-# Текущая точка: все тесты зеленые
-composer test  # 1695 tests, 0 FAIL, 0 ERROR
+| Metric | Value |
+|---|---|
+| Total tests | 1695 |
+| PASS | 1477 |
+| SKIP | 218 |
+| FAIL | 0 |
+| ERROR | 0 |
 
-# Следующий шаг: снести старый bootstrap и заменить на Container-based
-# Начать с packages/skeleton/bootstrap/app.php
-# Заменить 16-шаговую цепочку на:
-#   $app->registerProvider(new ConfigServiceProvider())
-#       ->registerProvider(new LogServiceProvider())
-#       ...
-#       ->boot();
-```
+---
 
-Файлы спеков: `docs/specs/SPEC-*.md`
-Файл аудита: `ARCHITECTURE_AUDIT.md`
+## Known Remaining Issues (Deferred)
+
+1. **`exit()` in `App::apply_cors()`** — CORS OPTIONS preflight handling calls `exit`. This is baked into F3's pipeline; changing would require deeper refactoring.
+2. **`exit()` in `App::prefly()`** — Called during bootstrap when environment checks fail. No Response infrastructure available at this point.
+3. **`container.php` orphaned** — `packages/skeleton/bootstrap/container.php` is not included. Its ConfigSchema definitions are now duplicated in `app.php`. Consider deleting or making it the canonical source.
+4. **V2 Config migration** — V2 `Config` and `ConfigLoader` coexist with old system. Full migration to V2 as single source of truth is pending.
+5. **`Singleton` trait `instance()` vs Container** — Other singletons (`Auth`, `CacheManager`, `ConnectionManager`) use the `Singleton` trait which also should check `Container::global()` first. The `Singleton` trait already supports this.

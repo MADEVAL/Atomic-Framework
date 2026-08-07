@@ -36,6 +36,11 @@ class App {
 
     public static function instance(?\Base $atomic = null): self {
         if (!self::$instance) {
+            $globalContainer = Container::global();
+            if ($globalContainer !== null && $globalContainer->has(self::class)) {
+                self::$instance = $globalContainer->get(self::class);
+                return self::$instance;
+            }
             if (!$atomic) {
                 $atomic = \Base::instance();
             }

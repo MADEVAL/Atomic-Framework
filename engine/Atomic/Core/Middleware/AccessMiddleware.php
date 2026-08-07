@@ -131,6 +131,10 @@ HTML;
 
     public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
     {
-        throw new \RuntimeException('AccessMiddleware::process() not yet implemented. Use handle() for legacy mode.');
+        if (Guard::is_authenticated()) {
+            return $next($request);
+        }
+
+        return \Engine\Atomic\Http\Response::html('Unauthorized', 401);
     }
 }

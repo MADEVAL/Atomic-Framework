@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Middleware\MiddlewareInterface;
+use Engine\Atomic\Http\Response as HttpResponse;
 
 class ThrottleRequests implements MiddlewareInterface
 {
@@ -27,7 +28,6 @@ class ThrottleRequests implements MiddlewareInterface
     {
         $key = 'throttle:' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
 
-        // Simple fixed-window check using F3 cache
         $cache = \Cache::instance();
         $attempts = (int)$cache->get($key);
         $attempts++;
@@ -48,8 +48,24 @@ class ThrottleRequests implements MiddlewareInterface
         return true;
     }
 
-    public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
+    public function process(mixed $request, callable $next): HttpResponse
     {
-        throw new \RuntimeException('Not yet migrated to process() pattern');
+        $key = 'throttle:' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+
+        $cache = \Cache::instance();
+        $attempts = (int)$cache->get($key);
+        $attempts++;
+
+        if ($attempts > $this->maxAttempts) {
+            $ttl = $cache->ttl($key);
+            $retryAfter = $ttl > 0 ? $ttl : $this->windowSeconds;
+
+            return HttpResponse::json([
+                'error' => 'Too many requests. Try again in ' . $retryAfter . ' seconds.',
+            ], 429)->withHeader('Retry-After', (string)$retryAfter);
+        }
+
+        $cache->set($key, $attempts, $this->windowSeconds);
+        return $next($request);
     }
 }
