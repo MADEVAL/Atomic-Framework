@@ -7,61 +7,39 @@ on:
 
 jobs:
   sync:
-    runs-on: windows-latest
-    permissions:
-      contents: write
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout framework repo
         uses: actions/checkout@v4
 
-      - name: Get GH token from Windows Credential Manager
-        shell: pwsh
-        run: |
-          $token = (& {
-            "protocol=https`nhost=github.com" | git credential-manager get 2>$null
-          } | Where-Object { $_ -match 'password=' } | ForEach-Object { $_ -replace 'password=', '' })
-
-          if (-not $token) {
-            Write-Error "Failed to get token from Windows Credential Manager. Make sure 'git credential-manager' is installed and authenticated."
-            exit 1
-          }
-
-          "GH_TOKEN=$token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
       - name: Clone skeleton repo
-        shell: pwsh
         run: |
-          git clone https://github.com/MADEVAL/Atomic-Framework-Application.git "${{ runner.temp }}\skeleton"
+          git clone \
+            "https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/MADEVAL/Atomic-Framework-Application.git" \
+            /tmp/skeleton
 
       - name: Sync skeleton files
-        shell: pwsh
         run: |
-          $skeleton = "${{ runner.temp }}\skeleton"
-          $source = "packages\skeleton"
-
-          Remove-Item -LiteralPath "$skeleton\.git" -Recurse -Force -ErrorAction SilentlyContinue
-
-          Get-ChildItem -LiteralPath $skeleton -Exclude '.git' | Remove-Item -Recurse -Force
-
-          Copy-Item -LiteralPath "$source\*" -Destination $skeleton -Recurse -Force
+          cd /tmp/skeleton
+          git rm -r --quiet . 2>/dev/null || true
+          cp -r $GITHUB_WORKSPACE/packages/skeleton/* .
+          cp $GITHUB_WORKSPACE/packages/skeleton/.env.example . 2>/dev/null || true
+          cp $GITHUB_WORKSPACE/packages/skeleton/.gitignore . 2>/dev/null || true
 
       - name: Commit and push
-        shell: pwsh
         run: |
-          $skeleton = "${{ runner.temp }}\skeleton"
-          $tag = "${{ github.ref_name }}"
-          Set-Location -LiteralPath $skeleton
-
-          git config user.name "github-actions[bot]"
+          cd /tmp/skeleton
+          git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git remote set-url origin "https://x-access-token:$env:GH_TOKEN@github.com/MADEVAL/Atomic-Framework-Application.git"
-
           git add -A
-          git diff --cached --quiet
-          if ($LASTEXITCODE -ne 0) {
-            git commit -m "Sync $tag"
-          }
 
-          git tag -f $tag
-          git push origin main --tags --force-with-lease
+          if git diff --cached --quiet; then
+            echo "No changes — nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "Sync ${{ github.ref_name }}"
+
+          git tag -f "${{ github.ref_name }}"
+          git push origin main --tags
