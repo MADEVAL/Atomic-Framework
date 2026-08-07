@@ -10,6 +10,12 @@ require_once ATOMIC_ROOT . DIRECTORY_SEPARATOR . 'error.php';
 require_once ATOMIC_VENDOR . 'autoload.php';
 require_once ATOMIC_SUPPORT . 'helpers.php';
 
+// ── Container (DI kernel) — registered before everything so singletons delegate here ──
+use Engine\Atomic\Core\Container;
+
+$container = new Container();
+Container::setGlobal($container);
+
 $atomic = \Base::instance();
 
 use Engine\Atomic\Core\App;
@@ -28,6 +34,13 @@ switch (ATOMIC_LOADER) {
 }
 
 $application = App::instance($atomic);
+
+// ── Register core services in Container (migrates ::instance() to Container) ──
+$container->instance(\Base::class, $atomic);
+$container->instance(App::class, $application);
+$container->singleton(\Engine\Atomic\Core\CacheManager::class, \Engine\Atomic\Core\CacheManager::class);
+$container->singleton(\Engine\Atomic\Core\ConnectionManager::class, \Engine\Atomic\Core\ConnectionManager::class);
+$container->singleton(\Engine\Atomic\Core\F3Bridge::class, fn() => new \Engine\Atomic\Core\F3Bridge($atomic));
 
 \App\Event\Application::instance()->init();
 \App\Hook\Application::instance()->init();

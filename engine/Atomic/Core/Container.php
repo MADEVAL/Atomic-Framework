@@ -9,6 +9,8 @@ use Psr\Container\NotFoundExceptionInterface;
 
 final class Container implements ContainerInterface
 {
+    private static ?self $global = null;
+
     /** @var array<string, array{concrete: string|\Closure, shared: bool}> */
     private array $bindings = [];
 
@@ -25,6 +27,18 @@ final class Container implements ContainerInterface
     private static array $resolverCache = [];
 
     private bool $flushed = false;
+
+    // ── Global accessor ──
+
+    public static function global(): ?self
+    {
+        return self::$global;
+    }
+
+    public static function setGlobal(?self $container): void
+    {
+        self::$global = $container;
+    }
 
     // ── PSR-11 ──
 

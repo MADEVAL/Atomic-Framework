@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Engine\Core;
 
 use Engine\Atomic\Core\Traits\Singleton;
+use Engine\Atomic\Core\Container;
 use PHPUnit\Framework\TestCase;
 
 class SingletonTraitTest extends TestCase
@@ -86,6 +87,28 @@ class SingletonTraitTest extends TestCase
 
         $this->assertNotNull($obj);
     }
+
+    public function test_instance_delegates_to_container_when_registered(): void
+    {
+        ContainerSingletonStub::reset();
+
+        $container = new Container();
+        $prebuilt = new ContainerSingletonStub();
+        $container->instance(ContainerSingletonStub::class, $prebuilt);
+        Container::setGlobal($container);
+
+        $fromSingleton = ContainerSingletonStub::instance();
+
+        $this->assertSame($prebuilt, $fromSingleton);
+    }
+
+    public function test_instance_falls_back_to_new_when_not_in_container(): void
+    {
+        Container::setGlobal(new Container());
+
+        $obj = ContainerSingletonStub::instance();
+        $this->assertInstanceOf(ContainerSingletonStub::class, $obj);
+    }
 }
 
 final class SingletonStub
@@ -115,4 +138,11 @@ class SingletonParentStub
 final class SingletonChildStub extends SingletonParentStub
 {
     use Singleton;
+}
+
+final class ContainerSingletonStub
+{
+    use Singleton;
+
+    public function __construct() {}
 }

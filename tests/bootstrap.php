@@ -32,6 +32,11 @@ defined('ATOMIC_CACHE_EXPIRE_TIME') || define('ATOMIC_CACHE_EXPIRE_TIME', 3600);
 require_once ATOMIC_VENDOR . 'autoload.php';
 require_once ATOMIC_SUPPORT . 'helpers.php';
 
+// ── Container for Singleton delegation ──
+use Engine\Atomic\Core\Container;
+$testContainer = new Container();
+Container::setGlobal($testContainer);
+
 $atomic = \Base::instance();
 
 $logs_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_logs' . DIRECTORY_SEPARATOR;
