@@ -56,7 +56,7 @@ ConfigSchema::bool('COOKIE_HTTPONLY')->default(true);
 ConfigSchema::string('COOKIE_SAMESITE')->default('Lax');
 ConfigSchema::string('MAIL_DRIVER')->default('smtp');
 ConfigSchema::string('MAIL_HOST')->default('127.0.0.1');
-ConfigSchema::int('MAIL_PORT')->default(1025);
+ConfigSchema::int('MAIL_PORT')->default(587);
 ConfigSchema::string('MAIL_FROM_ADDRESS')->default('no-reply@example.com');
 ConfigSchema::string('MAIL_FROM_NAME')->default('Atomic');
 ConfigSchema::string('QUEUE_DRIVER')->default('redis');
@@ -101,9 +101,6 @@ $application = App::instance($atomic);
 // ── Register core bindings ──
 $container->instance(\Base::class, $atomic);
 $container->instance(App::class, $application);
-$container->singleton(\Engine\Atomic\Core\CacheManager::class, \Engine\Atomic\Core\CacheManager::class);
-$container->singleton(\Engine\Atomic\Core\ConnectionManager::class, \Engine\Atomic\Core\ConnectionManager::class);
-$container->singleton(\Engine\Atomic\Core\F3Bridge::class, fn() => new \Engine\Atomic\Core\F3Bridge($atomic));
 
 // ── App hooks ──
 \App\Event\Application::instance()->init();

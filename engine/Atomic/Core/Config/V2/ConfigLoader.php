@@ -72,13 +72,21 @@ final class ConfigLoader
                 continue;
             }
 
-            $pos = strpos($line, '=');
-            if ($pos === false) {
+            $comment_pos = strpos($line, '#');
+            if ($comment_pos !== false) {
+                $line = trim(substr($line, 0, $comment_pos));
+            }
+            if ($line === '') {
                 continue;
             }
 
-            $key = trim(substr($line, 0, $pos));
-            $value = trim(substr($line, $pos + 1));
+            $parts = explode('=', $line, 2);
+            if (count($parts) !== 2) {
+                continue;
+            }
+
+            $key = trim($parts[0]);
+            $value = trim($parts[1]);
 
             if (
                 (str_starts_with($value, '"') && str_ends_with($value, '"')) ||

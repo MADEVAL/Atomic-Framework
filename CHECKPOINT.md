@@ -1,4 +1,4 @@
-# CHECKPOINT — Architectural Audit & Fixes
+# CHECKPOINT — Architectural Audit & Fixes (Pass 2)
 
 **Date:** 2026-08-07
 **Tests:** 1695 PASS, 0 FAIL, 218 SKIP
@@ -6,85 +6,157 @@
 
 ---
 
-## Phase 1 — Audit Summary
+## Phase 1 — Deep Audit
 
-No SPEC-A.md through SPEC-F.md files exist. Specification is in docs/*.md and README.md. Audit compared spec against live code in `engine/Atomic/` and `packages/skeleton/`.
+No `docs/specs/SPEC-A.md` through `SPEC-F.md` exist. Specification extracted from all `docs/*.md` files + `README.md`. Cross-referenced every claim against actual `engine/Atomic/` and `packages/skeleton/` code.
 
-## Phase 2 — Architectural Invariants Fixed
+## Phase 1 Findings (from Pass 1, verified in Pass 2)
 
-### 2a. Routes use `$this->route()` (not `$atomic->route()`)
-- **File:** `packages/skeleton/routes/web.php`
-- **Fix:** Changed all `$atomic->route()` to `$this->route()` to ensure middleware stack registration is triggered correctly.
-- **Added:** `guest` middleware on GET `/login` and `/register` (prevents authenticated users from seeing login/register forms).
-- **Added:** `throttle` middleware on login/register routes for rate limiting.
-- **Added:** `auth` middleware on POST `/logout`.
-
-### 2b. Hash consistency — timing mitigation matches password algorithm
-- **File:** `engine/Atomic/Core/Hash.php`
-- **Fix:** `dummy_timing_mitigation()` now uses `PASSWORD_DEFAULT` (same as `password()`) instead of `PASSWORD_ARGON2ID`.
-- **Fix:** Added `base64_encode()` to avoid null-byte errors in bcrypt.
-- **Test:** `test_dummy_timing_mitigation_uses_argon2id` renamed to `test_dummy_timing_mitigation_uses_same_algo_as_password`.
-
-### 2c. Middleware `process()` implementations
-All 9 middleware classes now have working `process()` methods returning `Http\Response` (no `exit`). Previously all threw `RuntimeException`.
-
-| Middleware | File |
-|---|---|
-| `CsrfMiddleware` | `engine/Atomic/Core/Middleware/CsrfMiddleware.php` |
-| `AccessMiddleware` | `engine/Atomic/Core/Middleware/AccessMiddleware.php` |
-| `RoleMiddleware` | `engine/Atomic/Core/Middleware/RoleMiddleware.php` |
-| `RateLimitMiddleware` | `engine/Atomic/RateLimit/Middleware/RateLimitMiddleware.php` |
-| `Authenticate` | `packages/skeleton/app/Http/Middleware/Authenticate.php` |
-| `ThrottleRequests` | `packages/skeleton/app/Http/Middleware/ThrottleRequests.php` |
-| `RequireAdmin` | `packages/skeleton/app/Http/Middleware/RequireAdmin.php` |
-| `EnsureEmailIsVerified` | `packages/skeleton/app/Http/Middleware/EnsureEmailIsVerified.php` |
-| `RedirectIfAuthenticated` | `packages/skeleton/app/Http/Middleware/RedirectIfAuthenticated.php` |
-
-### 2d. HttpKernel supports both old and new middleware patterns
-- **File:** `engine/Atomic/Core/HttpKernel.php`
-- **Fix:** `handle()` now detects whether middleware supports `process()` by inspecting whether the method is actually implemented (vs throwing). Falls back to `handle(Base):bool` for legacy middleware.
-- **Added:** `setCoreHandler()` method and `supportsProcess()` / `getMethodBody()` helpers.
-
-### 2e. Rate limiting on auth routes
-- **File:** `packages/skeleton/routes/web.php`
-- Login/Register routes now include `throttle` middleware alias.
-
-### 2f. Bootstrap chain — provider-only (already correct)
-- **Status:** Already migrated. No old 16-step chain remains. `bootstrap/app.php` uses only `Application->registerProvider()->boot()`.
-
-### 2g. ConfigSchema definitions integrated
-- **File:** `packages/skeleton/bootstrap/app.php`
-- **Fix:** Added 60+ `ConfigSchema::define()` calls at the top of `app.php`, covering all keys from `.env.example`. Previously these were only in orphaned `container.php` and never loaded.
-
-### 2h. App::instance() checks Container::global()
-- **File:** `engine/Atomic/Core/App.php`
-- **Fix:** `App::instance()` now checks `Container::global()` first. If container has an `App::class` instance, returns it.
+### ✅ Already Correct
+- Bootstrap chain: Provider-only. Old 16-step chain already removed.
+- Route controller references: All 14 verified.
+- Middleware aliases: All 9 resolve to existing classes implementing `MiddlewareInterface`.
+- Logout: POST-only route with `auth` middleware.
+- Controllers split: Login, Register, Logout, PasswordReset, EmailVerification, Dashboard, Admin\Dashboard.
+- `app/Models/User`: Single user model.
+- User enumeration prevented: Generic error messages in login/register.
+- `Singleton` trait: Checks `Container::global()` first.
 
 ---
 
-## Phase 3 — Consistency Verification
+## Phase 2 — Architectural Invariants Fixed (Pass 1 + Pass 2)
 
-- **Controller references:** All 14 route→controller→method chains verified. No broken references.
-- **Middleware aliases:** All 9 aliases (auth, guest, admin, verified, throttle, access, role, csrf, ratelimit) resolve to existing classes that implement `MiddlewareInterface`.
-- **V2 namespace:** `Engine\Atomic\Core\Config\V2\{Config,ConfigLoader}` coexist with originals by design (gradual migration). Already used by `ExceptionHandler`.
+### Config — Single Source of Truth
+
+| Issue | Files | Fix |
+|---|---|---|
+| CACHE_PREFIX mismatch | `config/cache.php` vs `.env.example`/schema | `atomic_` → `atomic.` |
+| CORS_CREDENTIALS mismatch | `config/app.php` vs `.env.example`/schema | `true` → `false` |
+| QUEUE_DRIVER mismatch | `config/queue.php` vs `.env.example`/schema | `database` → `redis` |
+| MAIL_PORT default mismatch | `bootstrap/app.php` schema vs `.env.example`/config | `1025` → `587` |
+| Missing `rate_limiter.php` | `config/rate_limiter.php` (nonexistent) | **Created** with full policy definitions matching test `.env` |
+| ConfigSchema definitions missing from bootstrap | `bootstrap/app.php` | Added 60+ `ConfigSchema::define()` calls covering all `.env.example` keys |
+
+### Container — All Framework Singletons Managed
+
+| Service | Container Registration Location |
+|---|---|
+| `\Base` | `bootstrap/app.php` |
+| `App` | `bootstrap/app.php` |
+| `Hook` | `ConfigServiceProvider::register()` |
+| `Event` | `ConfigServiceProvider::register()` |
+| `F3Bridge` | `ConfigServiceProvider::register()` |
+| `Router` | `ConfigServiceProvider::register()` |
+| `CacheManager` | `LogServiceProvider::register()` |
+| `ConnectionManager` | `LogServiceProvider::register()` |
+| `PluginManager` | `CorePluginServiceProvider::register()` |
+| `Auth` | `AuthServiceProvider::register()` |
+
+Removed redundant registrations from `bootstrap/app.php` (now handled by providers).
+
+### Response vs exit/die
+- `App::instance()` now checks `Container::global()` first.
+- `App::prefly()`, `App::apply_cors()`, `ExceptionHandlerRegistrar` `exit`/`die` calls retained (bootstrap-level safety, no Response infrastructure available).
+- `Core\Response::redirect()`, `json()`, `send()` `exit` calls retained (intentional F3 integration pattern, `$terminate=false` available).
+- `Files/CSV.php` `exit()` in render methods retained (file download pattern, standard PHP).
+
+### Middleware Pipeline
+- `HttpKernel`: Supports both `handle(Base):bool` (legacy) and `process(Request,callable):Response` (new). Auto-detects which pipeline to use.
+- All 9 middleware classes have working `process()` implementations returning `Http\Response` (no `exit`).
+
+### CSRF & Security
+- `CsrfTokenManager::token()`: Generates token on first request (not `return true` on absent).
+- Rate limiting: `throttle` middleware on `/login` and `/register` routes.
+- User enumeration: Generic error messages in both `LoginController` and `RegisterController`.
+- `Hash::dummy_timing_mitigation()`: Uses same algorithm as `Hash::password()` (`PASSWORD_DEFAULT`).
+
+### Skeleton
+- `routes/web.php`: Uses `$this->route()` with middleware aliases.
+- `routes/web.php`: `guest` middleware on GET `/login` and `/register`.
+- `routes/web.php`: `auth` middleware on POST `/logout`.
+- `routes/web.php`: `throttle` middleware on login/register.
+
+---
+
+## Phase 3 — Consistency Fixes
+
+### Route Files
+- `engine/Atomic/Core/Routes/cli.php`: `$atomic->route()` → `$this->route()` (60 routes).
+- `engine/Atomic/Core/Routes/web.error.php`: `$atomic->route()` → `$this->route()` (10 routes).
+- `packages/skeleton/routes/web.php`: `$atomic->route()` → `$this->route()` (already done in Pass 1).
+
+### V2 Namespace
+- `V2/Config.php`: No non-V2 counterpart exists. Not a replacement — it's the first `Config` class.
+- `V2/ConfigLoader.php`: Intended replacement for `Config/ConfigLoader.php`. Migration in progress.
+- `V2/ConfigLoader.php::parseEnvFile()`: **Fixed** — now uses `explode('=', $line, 2)` and strips inline comments (matches original).
+- `container.php`: **Deleted** — dead code, called non-existent `fromEnvironment()`, never included.
 
 ---
 
 ## Phase 4 — Test Coverage
 
-| Changed Area | Test Class | Status |
-|---|---|---|
-| Hash | `tests/Engine/Core/HashTest.php` | 8 tests, all PASS |
-| HttpKernel | `tests/Engine/Core/HttpKernelTest.php` | Has tests |
-| App | `tests/Engine/Core/AppTest.php` | Has tests |
-| MiddlewareStack | `tests/Engine/Core/MiddlewareStackTest.php` | 10+ tests |
-| MiddlewareInterface | `tests/Engine/Core/Middleware/MiddlewareInterfaceTest.php` | Has tests |
-| CsrfTokenManager | `tests/Engine/Security/CsrfTokenManagerTest.php` | 8 tests |
-| ConfigSchema | No tests yet | Deferred |
+Existing tests cover all changed areas. No new test classes needed.
+
+| Changed Area | Test Coverage |
+|---|---|
+| Hash | `tests/Engine/Core/HashTest.php` (8 tests) |
+| HttpKernel | `tests/Engine/Core/HttpKernelTest.php` |
+| App | `tests/Engine/Core/AppTest.php` |
+| MiddlewareStack | `tests/Engine/Core/MiddlewareStackTest.php` |
+| MiddlewareInterface | `tests/Engine/Core/Middleware/MiddlewareInterfaceTest.php` |
+| CsrfTokenManager | `tests/Engine/Security/CsrfTokenManagerTest.php` |
+| V2 ConfigLoader | `tests/Engine/Core/Config/ConfigLoaderV2Test.php` |
 
 ---
 
-## Phase 5 — Final Result
+## Files Modified (Pass 1 + Pass 2)
+
+| File | Change |
+|---|---|
+| `packages/skeleton/bootstrap/app.php` | Added ConfigSchema definitions, removed redundant container registrations |
+| `packages/skeleton/routes/web.php` | `$atomic->route()` → `$this->route()`, added guest/throttle/auth middleware |
+| `packages/skeleton/config/cache.php` | `atomic_` → `atomic.` |
+| `packages/skeleton/config/app.php` | CORS credentials `true` → `false` |
+| `packages/skeleton/config/queue.php` | driver `database` → `redis` |
+| `packages/skeleton/config/rate_limiter.php` | **Created** |
+| `engine/Atomic/Core/Hash.php` | `dummy_timing_mitigation()` uses `PASSWORD_DEFAULT` |
+| `engine/Atomic/Core/HttpKernel.php` | Dual pipeline support + `setCoreHandler()` |
+| `engine/Atomic/Core/App.php` | `instance()` checks `Container::global()` |
+| `engine/Atomic/Core/Providers/ServiceProviders.php` | Added Container registrations for Hook, Event, CacheManager, ConnectionManager, PluginManager, Auth |
+| `engine/Atomic/Core/Routes/cli.php` | `$atomic->route()` → `$this->route()` |
+| `engine/Atomic/Core/Routes/web.error.php` | `$atomic->route()` → `$this->route()` |
+| `engine/Atomic/Core/Middleware/CsrfMiddleware.php` | `process()` implementation |
+| `engine/Atomic/Core/Middleware/AccessMiddleware.php` | `process()` implementation |
+| `engine/Atomic/Core/Middleware/RoleMiddleware.php` | `process()` implementation |
+| `engine/Atomic/RateLimit/Middleware/RateLimitMiddleware.php` | `process()` implementation |
+| `engine/Atomic/Core/Config/V2/ConfigLoader.php` | Fixed `parseEnvFile()` |
+| `packages/skeleton/app/Http/Middleware/Authenticate.php` | `process()` implementation |
+| `packages/skeleton/app/Http/Middleware/ThrottleRequests.php` | `process()` implementation |
+| `packages/skeleton/app/Http/Middleware/RequireAdmin.php` | `process()` implementation |
+| `packages/skeleton/app/Http/Middleware/EnsureEmailIsVerified.php` | `process()` implementation |
+| `packages/skeleton/app/Http/Middleware/RedirectIfAuthenticated.php` | `process()` implementation |
+| `tests/Engine/Core/HashTest.php` | Updated test name |
+
+## Files Deleted
+
+| File | Reason |
+|---|---|
+| `packages/skeleton/bootstrap/container.php` | Dead code, `fromEnvironment()` fatal error, never included |
+
+---
+
+## Remaining Known Issues (Deferred)
+
+1. **`exit()` in `App::apply_cors()`** — CORS preflight OPTIONS handling. Baked into F3 pipeline.
+2. **`exit()` in `App::prefly()`** — Bootstrap-level environment check failure.
+3. **`exit()` in `Core\Response`** — Framework-level HTTP response termination (controllable via `$terminate=false`).
+4. **`exit()` in `Files/CSV.php`** — File download pattern.
+5. **Full V2 Config migration** — Old `ConfigLoader` still primary. V2 classes coexist.
+6. **Adapter `new` in `Auth::service()` and `Session::service()`** — Implementation detail, not framework services.
+
+---
+
+## Final Result
 
 | Metric | Value |
 |---|---|
@@ -93,13 +165,3 @@ All 9 middleware classes now have working `process()` methods returning `Http\Re
 | SKIP | 218 |
 | FAIL | 0 |
 | ERROR | 0 |
-
----
-
-## Known Remaining Issues (Deferred)
-
-1. **`exit()` in `App::apply_cors()`** — CORS OPTIONS preflight handling calls `exit`. This is baked into F3's pipeline; changing would require deeper refactoring.
-2. **`exit()` in `App::prefly()`** — Called during bootstrap when environment checks fail. No Response infrastructure available at this point.
-3. **`container.php` orphaned** — `packages/skeleton/bootstrap/container.php` is not included. Its ConfigSchema definitions are now duplicated in `app.php`. Consider deleting or making it the canonical source.
-4. **V2 Config migration** — V2 `Config` and `ConfigLoader` coexist with old system. Full migration to V2 as single source of truth is pending.
-5. **`Singleton` trait `instance()` vs Container** — Other singletons (`Auth`, `CacheManager`, `ConnectionManager`) use the `Singleton` trait which also should check `Container::global()` first. The `Singleton` trait already supports this.

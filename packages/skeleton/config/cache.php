@@ -5,7 +5,7 @@ if (!defined('ATOMIC_START')) exit;
 return [
     'default'  => 'folder',
     'path'     => 'storage/framework/cache/',
-    'prefix'   => 'atomic_',
+    'prefix'   => 'atomic.',
     'server'   => 'localhost',
     'port'     => '',
     'password' => '',

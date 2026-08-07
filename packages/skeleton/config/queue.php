@@ -3,7 +3,7 @@ declare(strict_types=1);
 if (!defined('ATOMIC_START')) exit;
 
 return [
-    'driver' => 'database',        // database | redis
+    'driver' => 'redis',        // database | redis
     'name'   => 'default',
     'database' => [
         'queues' => [

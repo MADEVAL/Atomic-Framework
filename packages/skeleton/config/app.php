@@ -41,7 +41,7 @@ return [
     'cors' => [
         'headers'     => 'Content-Type,Authorization',
         'origin'      => '*',
-        'credentials' => true,
+        'credentials' => false,
         'expose'      => 'Authorization',
         'ttl'         => 86400,
     ],
