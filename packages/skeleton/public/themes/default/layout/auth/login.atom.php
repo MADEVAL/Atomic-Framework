@@ -12,6 +12,7 @@ get_header();
         <div id="alert" style="display:none;padding:0.75rem 1rem;border-radius:8px;background:#fee;color:#c33;margin-bottom:1rem;font-size:0.9rem;"></div>
 
         <form id="auth-form" method="post" action="/login">
+            <input type="hidden" name="_csrf_token" value="<?php echo get_csrf_token(); ?>">
             <input type="hidden" name="atomic_nonce" value="<?php echo create_nonce('login'); ?>">
 
             <div style="margin-bottom:1rem;">

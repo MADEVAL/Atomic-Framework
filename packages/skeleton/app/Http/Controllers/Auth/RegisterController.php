@@ -41,9 +41,9 @@ class RegisterController extends Controller
             return;
         }
 
-        $result = PasswordPolicy::default()->validate($password);
-        if (!$result->passed()) {
-            $response->send_json_error(implode(' ', $result->violations()), 400);
+        $violations = [];
+        if (!PasswordPolicy::default()->validate($password, $violations)) {
+            $response->send_json_error(implode(' ', $violations), 400);
             return;
         }
 
@@ -64,6 +64,6 @@ class RegisterController extends Controller
 
         Auth::instance()->login_by_id((string)$user->uuid);
 
-        $response->send_json_success(['redirect' => '/dashboard']);
+        $response->send_json_success(['message' => 'If the email is not registered, a verification link has been sent.']);
     }
 }

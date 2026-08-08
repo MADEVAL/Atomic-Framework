@@ -165,7 +165,7 @@ class ConfigParityTest extends TestCase
 
     public function test_mailer_bridge_is_populated(): void
     {
-        $this->assertSame('smtp.example.com', self::$php_data['MAILER']['smtp']['host']);
+        $this->assertSame('127.0.0.1', self::$php_data['MAILER']['smtp']['host']);
         $this->assertSame(587, self::$php_data['MAILER']['smtp']['port']);
         $this->assertSame('tls', self::$php_data['MAILER']['smtp']['scheme']);
         $this->assertSame('no-reply@example.com', self::$php_data['MAILER']['from_mail']);

@@ -50,17 +50,45 @@ class RouteLoader
         $request_type = strtolower(trim($request_type));
 
         $file_names = $this->get_filenames_for($request_type);
+
+        // Error routes are fallbacks: the application must be able to override
+        // framework error pages, so app error files register before framework
+        // error files. Main routes keep the framework -> app priority.
+        $main  = [];
+        $error = [];
+        foreach ($file_names as $file_name) {
+            if (str_ends_with($file_name, '.error.php')) {
+                $error[] = $file_name;
+            } else {
+                $main[] = $file_name;
+            }
+        }
+
         $files = [];
 
-        foreach ($file_names as $file_name) {
+        foreach ($main as $file_name) {
             $path = $this->framework_routes_path . $file_name;
             if (file_exists($path)) {
                 $files[] = $path;
             }
         }
 
-        foreach ($file_names as $file_name) {
+        foreach ($main as $file_name) {
             $path = $this->app_routes_path . $file_name;
+            if (file_exists($path)) {
+                $files[] = $path;
+            }
+        }
+
+        foreach ($error as $file_name) {
+            $path = $this->app_routes_path . $file_name;
+            if (file_exists($path)) {
+                $files[] = $path;
+            }
+        }
+
+        foreach ($error as $file_name) {
+            $path = $this->framework_routes_path . $file_name;
             if (file_exists($path)) {
                 $files[] = $path;
             }

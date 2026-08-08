@@ -145,6 +145,87 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame(['admin', 'support', 'viewer'], $this->f3->get('TELEMETRY_ACCESS_ALLOWED_ROLES'));
     }
 
+    public function test_load_sets_auth_rate_limit_config_from_env(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'AUTH_RATE_LIMIT_MAX_ATTEMPTS=3',
+            'AUTH_RATE_LIMIT_WINDOW_SECONDS=120',
+            'AUTH_RATE_LIMIT_LOCKOUT_SECONDS=600',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $config = $this->f3->get('AUTH_RATE_LIMIT');
+        $this->assertIsArray($config);
+        $this->assertSame(3, $config['max_attempts']);
+        $this->assertSame(120, $config['window_seconds']);
+        $this->assertSame(600, $config['lockout_seconds']);
+    }
+
+    public function test_load_sets_auth_rate_limit_defaults_when_missing(): void
+    {
+        file_put_contents($this->env_file, "CACHE_DRIVER=folder\n");
+
+        $this->loader->load($this->env_file);
+
+        $config = $this->f3->get('AUTH_RATE_LIMIT');
+        $this->assertIsArray($config);
+        $this->assertSame(5, $config['max_attempts']);
+        $this->assertSame(300, $config['window_seconds']);
+        $this->assertSame(900, $config['lockout_seconds']);
+    }
+
+    public function test_php_loader_accepts_database_key_alias(): void
+    {
+        $config_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_php_cfg_' . uniqid() . DIRECTORY_SEPARATOR;
+        mkdir($config_dir);
+        file_put_contents($config_dir . '/database.php', '<?php return ["default" => "mysql", "connections" => ["mysql" => ["driver" => "mysql", "database" => "alias_db", "port" => 3306]]];');
+
+        try {
+            $loader = new class(\Base::instance()) extends PhpConfigLoader {
+                public function set_config_path(string $path): void
+                {
+                    $this->config_path = $path;
+                }
+            };
+            $loader->set_config_path($config_dir);
+            $loader->load();
+
+            $this->assertSame('alias_db', \Base::instance()->get('DB_CONFIG.db'));
+        } finally {
+            @unlink($config_dir . '/database.php');
+            @rmdir($config_dir);
+        }
+    }
+
+    public function test_php_loader_sets_auth_rate_limit_from_config(): void
+    {
+        $config_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_php_cfg_' . uniqid() . DIRECTORY_SEPARATOR;
+        mkdir($config_dir);
+        file_put_contents($config_dir . '/rate_limiter.php', '<?php return ["auth" => ["max_attempts" => 4, "window_seconds" => 150, "lockout_seconds" => 700]];');
+
+        try {
+            $loader = new class(\Base::instance()) extends PhpConfigLoader {
+                public function set_config_path(string $path): void
+                {
+                    $this->config_path = $path;
+                }
+            };
+            $loader->set_config_path($config_dir);
+            $loader->load();
+
+            $config = \Base::instance()->get('AUTH_RATE_LIMIT');
+            $this->assertIsArray($config);
+            $this->assertSame(4, $config['max_attempts']);
+            $this->assertSame(150, $config['window_seconds']);
+            $this->assertSame(700, $config['lockout_seconds']);
+        } finally {
+            @unlink($config_dir . '/rate_limiter.php');
+            @rmdir($config_dir);
+        }
+    }
+
     public function test_loader_reads_access_guards_from_storage(): void
     {
         $store = new ConfigUserStore(ATOMIC_DIR);

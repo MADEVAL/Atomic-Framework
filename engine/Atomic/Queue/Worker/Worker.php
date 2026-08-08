@@ -29,6 +29,7 @@ class Worker
     private const DEFAULT_MEMORY_LIMIT_MB = 128;
     private const MIN_DRAIN_TIMEOUT_SECONDS = 5;
     private const ERROR_BACKOFF_MAX_SECONDS = 30;
+    private const MAX_RETRY_DELAY_SECONDS = 3600;
     private const SHUTDOWN_STAGGER_MICROSECONDS = 100000;
 
     public function __construct(Manager $queue_manager)
@@ -87,6 +88,10 @@ class Worker
 
     public function run(): void
     {
+        if (!function_exists('pcntl_async_signals')) {
+            throw new \RuntimeException('The pcntl extension is required to run queue workers.');
+        }
+
         \pcntl_async_signals(true);
         \pcntl_signal(SIGTERM, [$this, 'handle_signal']);
         \pcntl_signal(SIGINT,  [$this, 'handle_signal']);
@@ -331,7 +336,7 @@ class Worker
                 $this->queue_manager->mark_failed($job, $e);
             } else {
                 Log::channel(LogChannel::QUEUE_WORKER)->debug("Job {$job['uuid']} returned to queue for retry.");
-                $this->queue_manager->release($job, (int)$job['retry_delay']);
+                $this->queue_manager->release($job, $this->retry_delay_for($job));
             }
 
         } finally {
@@ -348,6 +353,15 @@ class Worker
     protected function fork_process(): int
     {
         return \pcntl_fork();
+    }
+
+    protected function retry_delay_for(array $job): int
+    {
+        $base    = max(0, (int)($job['retry_delay'] ?? 0));
+        $attempt = max(1, (int)($job['attempts'] ?? 1));
+        $delay   = $base * (2 ** ($attempt - 1));
+
+        return min($delay, self::MAX_RETRY_DELAY_SECONDS);
     }
 
     protected function wait_pid(int $pid, mixed &$status, int $flags = 0): int

@@ -8,6 +8,12 @@ use Engine\Atomic\RateLimit\RateLimiter;
 return [
     'fail' => RateLimiter::FAIL_OPEN,
 
+    'auth' => [
+        'max_attempts'    => 5,
+        'window_seconds'  => 300,
+        'lockout_seconds' => 900,
+    ],
+
     'policies' => [
         'default' => [
             'strategy' => RateLimiter::STRATEGY_FIXED,

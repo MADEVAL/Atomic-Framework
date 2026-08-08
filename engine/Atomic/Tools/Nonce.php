@@ -24,10 +24,11 @@ class Nonce
         $token = bin2hex(random_bytes(16));
         $key   = $this->nonce_key($action, $token);
         $this->atomic->set($key, [
-            'time' => time(),
-            'ip'   => $this->atomic->get('IP'),
-            'ua'   => $this->atomic->get('AGENT'),
-        ], $ttl);
+            'time'       => time(),
+            'expires_at' => time() + $ttl,
+            'ip'         => $this->atomic->get('IP'),
+            'ua'         => $this->atomic->get('AGENT'),
+        ]);
         return $token;
     }
 
@@ -45,6 +46,10 @@ class Nonce
             empty($data['ip']) ||
             empty($data['ua'])
         ) {
+            return false;
+        }
+        if (!empty($data['expires_at']) && time() >= (int)$data['expires_at']) {
+            $this->atomic->clear($key);
             return false;
         }
         $valid = $data['ip'] === $this->atomic->get('IP')  && $data['ua'] === $this->atomic->get('AGENT');

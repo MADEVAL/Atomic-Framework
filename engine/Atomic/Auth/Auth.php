@@ -56,7 +56,7 @@ class Auth implements LoginInterface
         return $this->service;
     }
 
-    private function register_session_hooks(): void
+    public function register_session_hooks(): void
     {
         if ($this->session_hooks_registered) {
             return;

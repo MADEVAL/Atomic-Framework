@@ -210,7 +210,9 @@ class WebhookHandler
 
         if ($should_mark_fulfilled) {
             $payment->mark_fulfilled();
-            Log::info('Monopay: Payment fulfilled', ['payment_uuid' => $reference]);
+            Log::info('Monopay: Payment fulfilled ' . json_encode([
+                'payment_uuid' => $reference
+            ]));
         }
     }
     

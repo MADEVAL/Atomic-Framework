@@ -160,6 +160,30 @@ class RouteLoaderTest extends TestCase
         $this->assertSame(['events.php'], $this->loader->get_filenames_for('events'));
     }
 
+    public function test_app_error_routes_precede_framework_error_routes(): void
+    {
+        file_put_contents($this->tmpDir . '/framework/web.php', '<?php // fw web');
+        file_put_contents($this->tmpDir . '/app/web.php', '<?php // app web');
+        file_put_contents($this->tmpDir . '/framework/web.error.php', '<?php // fw error');
+        file_put_contents($this->tmpDir . '/app/web.error.php', '<?php // app error');
+
+        $this->loader->configure_paths(
+            $this->tmpDir . '/framework/',
+            $this->tmpDir . '/app/'
+        );
+
+        $files = $this->loader->get_files_for('web');
+
+        // Main routes first (framework -> app), then app error routes so the
+        // application can override framework fallbacks, then framework errors.
+        $this->assertSame([
+            $this->tmpDir . '/framework/web.php',
+            $this->tmpDir . '/app/web.php',
+            $this->tmpDir . '/app/web.error.php',
+            $this->tmpDir . '/framework/web.error.php',
+        ], $files);
+    }
+
     public function test_invalid_request_type(): void
     {
         $this->loader->configure_paths('/fw/', '/app/');

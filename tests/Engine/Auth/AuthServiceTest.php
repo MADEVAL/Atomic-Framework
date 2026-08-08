@@ -65,7 +65,13 @@ class AuthServiceTest extends TestCase
 
     public function test_login_with_secret_returns_null_when_user_not_found(): void
     {
-        $this->app->method('get')->with('IP')->willReturn('1.2.3.4');
+        $this->app->method('get')->willReturnMap([
+            ['IP', '1.2.3.4'],
+            ['AUTH_RATE_LIMIT.max_attempts', 5],
+            ['AUTH_RATE_LIMIT.window_seconds', 300],
+            ['AUTH_RATE_LIMIT.lockout_seconds', 900],
+            ['POST.email', 'a@b.com'],
+        ]);
         $provider = $this->createMock(UserProviderInterface::class);
         $provider->method('find_by_credentials')->willReturn(null);
         $this->logger->expects($this->once())
@@ -88,7 +94,13 @@ class AuthServiceTest extends TestCase
 
     public function test_login_with_secret_returns_null_on_wrong_password(): void
     {
-        $this->app->method('get')->with('IP')->willReturn('1.2.3.4');
+        $this->app->method('get')->willReturnMap([
+            ['IP', '1.2.3.4'],
+            ['AUTH_RATE_LIMIT.max_attempts', 5],
+            ['AUTH_RATE_LIMIT.window_seconds', 300],
+            ['AUTH_RATE_LIMIT.lockout_seconds', 900],
+            ['POST.email', 'a@b.com'],
+        ]);
         $user = $this->createMock(AuthenticatableInterface::class);
         $user->method('get_password_hash')->willReturn(Hash::password('correct'));
 
@@ -832,6 +844,76 @@ class AuthServiceTest extends TestCase
                 return $this->roles;
             }
         };
+    }
+
+    // ── Account lockout (П-6) ─────────────────────────────────────────────────
+
+    private function lockout_app_mock(string $email): void
+    {
+        $this->app->method('get')->willReturnMap([
+            ['IP', '10.0.0.1'],
+            ['AUTH_RATE_LIMIT.max_attempts', 2],
+            ['AUTH_RATE_LIMIT.window_seconds', 300],
+            ['AUTH_RATE_LIMIT.lockout_seconds', 900],
+            ['POST.email', $email],
+        ]);
+    }
+
+    private function lockout_provider(bool $returnUser): UserProviderInterface
+    {
+        $user = $this->createMock(AuthenticatableInterface::class);
+        $user->method('get_password_hash')->willReturn(Hash::password('correct'));
+        $user->method('get_auth_id')->willReturn('aaaaaaaa-bbbb-4ccc-8ddd-ffffffffffff');
+
+        $provider = $this->createMock(UserProviderInterface::class);
+        $provider->method('find_by_credentials')->willReturn($returnUser ? $user : null);
+        return $provider;
+    }
+
+    public function test_login_with_secret_blocks_after_max_attempts(): void
+    {
+        $email = 'blocks_' . bin2hex(random_bytes(3)) . '@example.com';
+        $this->lockout_app_mock($email);
+        $this->service->set_user_provider($this->lockout_provider(true));
+
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong1'));
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong2'));
+
+        // Locked out: even correct credentials are rejected
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'correct'));
+    }
+
+    public function test_login_with_secret_resets_attempts_on_success(): void
+    {
+        $email = 'resets_' . bin2hex(random_bytes(3)) . '@example.com';
+        $this->lockout_app_mock($email);
+        $this->service->set_user_provider($this->lockout_provider(true));
+
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong1'));
+
+        $user = $this->service->login_with_secret(['email' => $email], 'correct');
+        $this->assertNotNull($user, 'A successful login must reset the failure counter.');
+
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong1'));
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong2'));
+
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'correct'));
+    }
+
+    public function test_login_with_secret_never_blocks_when_rate_limit_config_absent(): void
+    {
+        $email = 'noconfig_' . bin2hex(random_bytes(3)) . '@example.com';
+        $this->app->method('get')->willReturnMap([
+            ['IP', '10.0.0.2'],
+            ['POST.email', $email],
+        ]);
+        $this->service->set_user_provider($this->lockout_provider(true));
+
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong1'));
+        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong2'));
+
+        $user = $this->service->login_with_secret(['email' => $email], 'correct');
+        $this->assertNotNull($user, 'Without configuration the defaults (5 attempts) apply and 2 failures must not lock.');
     }
 
 }

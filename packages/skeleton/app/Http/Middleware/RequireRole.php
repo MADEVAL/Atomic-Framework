@@ -34,7 +34,8 @@ class RequireRole implements MiddlewareInterface
             }
         }
 
-        Response::instance()->send_json_error('Forbidden', 403);
+        Response::instance()->send_json_error('Forbidden', 403, [], false);
+        return false;
     }
 
     public function process(mixed $request, callable $next): HttpResponse

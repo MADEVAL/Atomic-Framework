@@ -46,6 +46,44 @@ final class AuthSessionHookRegistrationTest extends TestCase
             'SESSION_STARTED event should be registered after user provider is set'
         );
     }
+
+    public function test_session_started_listener_is_registered_during_register_phase(): void
+    {
+        $container = new \Engine\Atomic\Core\Container();
+        \Engine\Atomic\Core\Container::setGlobal($container);
+
+        try {
+            $probe = new AuthSessionHookProbeProvider();
+
+            $container->instance(\Engine\Atomic\Core\App::class, \Engine\Atomic\Core\App::instance());
+
+            $app = new \Engine\Atomic\Core\Application($container);
+            $app->registerProvider($probe); // boots BEFORE AuthServiceProvider
+            $app->registerProvider(new \Engine\Atomic\Core\Providers\AuthServiceProvider());
+            $app->boot();
+
+            $this->assertTrue(
+                $probe->listenerPresent,
+                'SESSION_STARTED listener must be registered during the register phase so it fires on the first session start.'
+            );
+        } finally {
+            \Engine\Atomic\Core\Container::setGlobal(null);
+        }
+    }
+}
+
+final class AuthSessionHookProbeProvider extends \Engine\Atomic\Core\ServiceProvider
+{
+    public bool $listenerPresent = false;
+
+    public function register(): void
+    {
+    }
+
+    public function boot(): void
+    {
+        $this->listenerPresent = Event::instance()->has('SESSION_STARTED');
+    }
 }
 
 final class TestUserProvider implements UserProviderInterface

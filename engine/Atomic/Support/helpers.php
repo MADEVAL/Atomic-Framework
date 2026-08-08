@@ -124,7 +124,20 @@ function get_error_trace(): string { return AM::instance()->get_format_error_tra
 
 // Nonce functions
 function create_nonce(string $action = '', int $ttl = 3600): string { return AN::instance()->create_nonce($action, $ttl);}
-function verify_nonce(string $token, string $action = ''): bool { return AN::instance()->verify_nonce($token, $action); }  
+function verify_nonce(string $token, string $action = ''): bool { return AN::instance()->verify_nonce($token, $action); }
+
+// CSRF token (session-bound, generated on first use)
+function get_csrf_token(): string {
+    $atomic = \Engine\Atomic\Core\App::instance();
+    $token = $atomic->get('SESSION.csrf_token');
+
+    if (!is_string($token) || $token === '') {
+        $token = bin2hex(random_bytes(32));
+        $atomic->set('SESSION.csrf_token', $token);
+    }
+
+    return $token;
+}
 
 // Response functions
 function send_json(mixed $data, int $status = 200, bool $terminate = true): void{AR::instance()->send_json($data, $status, $terminate);}

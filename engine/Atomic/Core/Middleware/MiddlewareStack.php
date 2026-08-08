@@ -54,7 +54,8 @@ class MiddlewareStack
         foreach ($middleware_names as $name_with_params) {
             $middleware = self::resolve($name_with_params);
             if ($middleware === null) {
-                continue;
+                \Engine\Atomic\Core\Log::error('Unknown middleware alias: ' . $name_with_params . ' (route ' . $pattern . ')');
+                return false;
             }
             if (!$middleware->handle($atomic)) {
                 return false;

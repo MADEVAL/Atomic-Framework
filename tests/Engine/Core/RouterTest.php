@@ -47,6 +47,12 @@ final class RouterTest extends TestCase
         $this->assertSame('web', $this->router->detectRequestType('/login'));
     }
 
+    public function test_detect_request_type_is_case_insensitive(): void
+    {
+        $this->assertSame('api', $this->router->detectRequestType('/API/users'));
+        $this->assertSame('telemetry', $this->router->detectRequestType('/Telemetry'));
+    }
+
     // ── Fluent route definitions ──
 
     public function test_get_creates_get_route(): void

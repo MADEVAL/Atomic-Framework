@@ -34,7 +34,7 @@ final class User extends Model implements AuthenticatableInterface, HasRolesInte
             'nullable' => false,
         ],
         'role' => [
-            'type' => Schema::DT_VARCHAR64,
+            'type' => Schema::DT_VARCHAR128,
             'nullable' => false,
             'default' => 'user',
         ],

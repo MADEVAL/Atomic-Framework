@@ -37,6 +37,8 @@ class PasswordResetController extends Controller
             $token = ID::generate_unique_id();
             $ttl = 3600;
             Transient::set('pwd_reset_' . $token, $user->get_auth_id(), $ttl);
+        } else {
+            Hash::dummy_timing_mitigation();
         }
 
         $response->send_json_success([
@@ -72,9 +74,9 @@ class PasswordResetController extends Controller
             return;
         }
 
-        $result = PasswordPolicy::default()->validate($password);
-        if (!$result->passed()) {
-            $response->send_json_error(implode(' ', $result->violations()), 400);
+        $violations = [];
+        if (!PasswordPolicy::default()->validate($password, $violations)) {
+            $response->send_json_error(implode(' ', $violations), 400);
             return;
         }
 

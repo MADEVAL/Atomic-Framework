@@ -35,6 +35,16 @@ class NonceTest extends TestCase
         $this->assertFalse($this->nonce->verify_nonce('invalid_token', 'login'));
     }
 
+    public function test_expired_nonce_is_rejected(): void
+    {
+        $token = $this->nonce->create_nonce('expired', -1);
+
+        $this->assertFalse(
+            $this->nonce->verify_nonce($token, 'expired'),
+            'A nonce whose TTL has passed must be rejected.'
+        );
+    }
+
     public function test_verify_wrong_action(): void
     {
         $token = $this->nonce->create_nonce('action_a');

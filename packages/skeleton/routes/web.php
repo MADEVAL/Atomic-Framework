@@ -7,16 +7,16 @@ $this->route('GET /', 'App\Http\Controllers\HomeController->index');
 
 // Authentication (split into dedicated controllers)
 $this->route('GET  /login', 'App\Http\Controllers\Auth\LoginController->showForm', ['guest', 'throttle']);
-$this->route('POST /login', 'App\Http\Controllers\Auth\LoginController->login', ['throttle']);
+$this->route('POST /login', 'App\Http\Controllers\Auth\LoginController->login', ['throttle', 'csrf_token']);
 $this->route('GET  /register', 'App\Http\Controllers\Auth\RegisterController->showForm', ['guest', 'throttle']);
-$this->route('POST /register', 'App\Http\Controllers\Auth\RegisterController->register', ['throttle']);
+$this->route('POST /register', 'App\Http\Controllers\Auth\RegisterController->register', ['throttle', 'csrf_token']);
 $this->route('POST /logout', 'App\Http\Controllers\Auth\LogoutController->logout', ['auth', 'csrf_token']);
 
 // Password reset
 $this->route('GET  /password/reset', 'App\Http\Controllers\Auth\PasswordResetController->showRequestForm');
-$this->route('POST /password/reset', 'App\Http\Controllers\Auth\PasswordResetController->sendResetLink');
+$this->route('POST /password/reset', 'App\Http\Controllers\Auth\PasswordResetController->sendResetLink', ['throttle', 'csrf_token']);
 $this->route('GET  /password/reset/@token', 'App\Http\Controllers\Auth\PasswordResetController->showResetForm');
-$this->route('POST /password/reset/@token', 'App\Http\Controllers\Auth\PasswordResetController->reset');
+$this->route('POST /password/reset/@token', 'App\Http\Controllers\Auth\PasswordResetController->reset', ['throttle', 'csrf_token']);
 
 // Email verification
 $this->route('GET  /email/verify', 'App\Http\Controllers\Auth\EmailVerificationController->notice', ['auth']);

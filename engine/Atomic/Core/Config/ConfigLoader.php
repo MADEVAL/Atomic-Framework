@@ -149,7 +149,7 @@ class ConfigLoader {
 
         $this->atomic->set('MAIL', [
             'driver'       => $this->get_env('MAIL_DRIVER', 'smtp'),
-            'host'         => $this->get_env('MAIL_HOST', 'smtp.example.com'),
+            'host'         => $this->get_env('MAIL_HOST', '127.0.0.1'),
             'port'         => $ports['mail'],
             'username'     => $this->get_env('MAIL_USERNAME', ''),
             'password'     => $this->get_env('MAIL_PASSWORD', ''),
@@ -178,6 +178,12 @@ class ConfigLoader {
         $this->atomic->set('RATE_LIMITER', [
             'fail'     => $this->get_env('RATE_LIMITER_FAIL', RateLimiter::FAIL_OPEN),
             'policies' => $this->build_rate_limiter_policies(),
+        ]);
+
+        $this->atomic->set('AUTH_RATE_LIMIT', [
+            'max_attempts'    => (int)$this->get_env('AUTH_RATE_LIMIT_MAX_ATTEMPTS', 5),
+            'window_seconds'  => (int)$this->get_env('AUTH_RATE_LIMIT_WINDOW_SECONDS', 300),
+            'lockout_seconds' => (int)$this->get_env('AUTH_RATE_LIMIT_LOCKOUT_SECONDS', 900),
         ]);
 
         $this->atomic->set('ACCESS', [

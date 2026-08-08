@@ -122,8 +122,6 @@ class PhpConfigLoader {
             'THEME.envname'         => (string)$this->cfg('app', 'theme', 'default'),
             'QUEUE_DRIVER'          => (string)$this->cfg('queue', 'driver', 'redis'),
             'QUEUE_NAME'            => (string)$this->cfg('queue', 'name', 'default'),
-            'TELEGRAM_BOT_TOKEN'    => (string)$this->cfg_nested('tools', 'telegram.bot_token', ''),
-            'TELEGRAM_CHAT_ID'      => (string)$this->cfg_nested('tools', 'telegram.chat_id', ''),
             'UI'                    => $ui_path,
             'TEMP'                  => $this->fix_path($paths['temp'] ?? 'storage/framework/cache/data/'),
             'LOGS'                  => $this->fix_path($paths['logs'] ?? 'storage/logs/'),
@@ -157,7 +155,7 @@ class PhpConfigLoader {
             'driver'                 => (string)($conn['driver'] ?? $default_conn),
             'host'                   => (string)($conn['host'] ?? '127.0.0.1'),
             'port'                   => $ports['db'],
-            'db'                     => (string)($conn['db'] ?? ''),
+            'db'                     => (string)($conn['db'] ?? $conn['database'] ?? ''),
             'username'               => (string)($conn['username'] ?? ''),
             'password'               => (string)($conn['password'] ?? ''),
             'unix_socket'            => (string)($conn['unix_socket'] ?? ''),
@@ -174,6 +172,11 @@ class PhpConfigLoader {
 
         $this->apply_settings_to_hive($this->atomic, $settings);
 
+        // apply_settings_to_hive skips empty values; the env loader stores them
+        // explicitly, so mirror that for the keys whose empty default matters.
+        $this->atomic->set('TELEGRAM_BOT_TOKEN', (string)$this->cfg_nested('tools', 'telegram.bot_token', ''));
+        $this->atomic->set('TELEGRAM_CHAT_ID', (string)$this->cfg_nested('tools', 'telegram.chat_id', ''));
+
         // ── MUTEX ──
         $mutex = $this->cfg('database', 'mutex', []);
         $this->atomic->set('MUTEX', [
@@ -183,7 +186,7 @@ class PhpConfigLoader {
         // ── MAIL ──
         $this->atomic->set('MAIL', [
             'driver'       => (string)($mail['driver'] ?? 'smtp'),
-            'host'         => (string)($mail['host'] ?? 'smtp.example.com'),
+            'host'         => (string)($mail['host'] ?? '127.0.0.1'),
             'port'         => $ports['mail'],
             'username'     => (string)($mail['username'] ?? ''),
             'password'     => (string)($mail['password'] ?? ''),
@@ -235,6 +238,13 @@ class PhpConfigLoader {
         $this->atomic->set('RATE_LIMITER', [
             'fail'     => (string)($rate_limiter['fail'] ?? RateLimiter::FAIL_OPEN),
             'policies' => $resolved_rate_limiter_policies,
+        ]);
+
+        $auth_limit = (array)($rate_limiter['auth'] ?? []);
+        $this->atomic->set('AUTH_RATE_LIMIT', [
+            'max_attempts'    => (int)($auth_limit['max_attempts'] ?? 5),
+            'window_seconds'  => (int)($auth_limit['window_seconds'] ?? 300),
+            'lockout_seconds' => (int)($auth_limit['lockout_seconds'] ?? 900),
         ]);
 
         $this->atomic->set('ACCESS', [

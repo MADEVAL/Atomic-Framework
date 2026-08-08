@@ -17,6 +17,7 @@ final class RateLimitMiddlewareTest extends TestCase
         $atomic->clear(RateLimiter::CONFIG_ROOT);
         $atomic->set('SESSION.user.id', null);
         $atomic->set('SESSION.user_id', null);
+        $atomic->set('SESSION.user_uuid', null);
         $atomic->set('PATTERN', '/');
         $atomic->set('IP', '127.0.0.1');
         unset($_SERVER['REMOTE_ADDR']);
@@ -50,11 +51,12 @@ final class RateLimitMiddlewareTest extends TestCase
         $this->assertSame(2, $store->get('api.api/items.203.0.113.10'));
     }
 
-    public function test_user_key_prefers_nested_session_user_id_then_legacy_session_user_id(): void
+    public function test_user_key_prefers_user_uuid_then_nested_session_user_id_then_legacy(): void
     {
         $store = new MiddlewareRateLimitStore();
         $atomic = \Base::instance();
         $atomic->set('PATTERN', '/account');
+        $atomic->set('SESSION.user_uuid', '11111111-2222-4333-8444-555555555555');
         $atomic->set('SESSION.user.id', 42);
         $atomic->set('SESSION.user_id', 99);
         $atomic->set('RATE_LIMITER.policies.user_policy', [
@@ -65,11 +67,35 @@ final class RateLimitMiddlewareTest extends TestCase
         ]);
 
         $this->check(new RateLimitMiddleware('user_policy'), new RateLimiter($store), $atomic);
+        $this->assertSame(1, $store->get('user_policy.account.11111111-2222-4333-8444-555555555555'));
+
+        $atomic->set('SESSION.user_uuid', null);
+        $this->check(new RateLimitMiddleware('user_policy'), new RateLimiter($store), $atomic);
         $this->assertSame(1, $store->get('user_policy.account.42'));
 
         $atomic->set('SESSION.user.id', null);
         $this->check(new RateLimitMiddleware('user_policy'), new RateLimiter($store), $atomic);
         $this->assertSame(1, $store->get('user_policy.account.99'));
+    }
+
+    public function test_user_key_uses_guest_when_session_has_no_user_at_all(): void
+    {
+        $store = new MiddlewareRateLimitStore();
+        $atomic = \Base::instance();
+        $atomic->set('PATTERN', '/account');
+        $atomic->set('SESSION.user_uuid', null);
+        $atomic->set('SESSION.user.id', null);
+        $atomic->set('SESSION.user_id', null);
+        $atomic->set('RATE_LIMITER.policies.user_policy', [
+            'strategy' => RateLimiter::STRATEGY_FIXED,
+            'key' => RateLimitMiddleware::KEY_USER,
+            'limit' => 10,
+            'window' => 60,
+        ]);
+
+        $this->check(new RateLimitMiddleware('user_policy'), new RateLimiter($store), $atomic);
+
+        $this->assertSame(1, $store->get('user_policy.account.guest'));
     }
 
     public function test_route_key_and_root_path_are_stable(): void

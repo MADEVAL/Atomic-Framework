@@ -51,7 +51,7 @@ final class Router
             $path = trim((string)parse_url($_SERVER['PATH_INFO'] ?? $_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/');
         }
 
-        $firstSegment = explode('/', $path)[0] ?? '';
+        $firstSegment = strtolower(explode('/', $path)[0] ?? '');
 
         return match ($firstSegment) {
             'api' => 'api',

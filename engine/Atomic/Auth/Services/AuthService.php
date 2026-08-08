@@ -18,6 +18,7 @@ use Engine\Atomic\Auth\Interfaces\LoginInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\Core\Hash;
 use Engine\Atomic\Enums\Role;
+use Engine\Atomic\Security\AccountLockout;
 
 class AuthService implements LoginInterface
 {
@@ -97,7 +98,9 @@ class AuthService implements LoginInterface
             throw new \RuntimeException('User provider not configured. Call set_user_provider() first.');
         }
 
-        if ($this->is_login_rate_limited()) {
+        $identifier = $this->login_identifier();
+
+        if ($this->is_login_rate_limited($identifier)) {
             $this->logger->warning('Auth login rate limited', [
                 'ip' => $this->app->get('IP'),
             ]);
@@ -108,7 +111,7 @@ class AuthService implements LoginInterface
         $user = $this->user_provider->find_by_credentials($credentials);
         if (!$user) {
             Hash::verify_password($secret, Hash::dummy_hash_for_timing_mitigation());
-            $this->record_login_failure();
+            $this->record_login_failure($identifier);
             $this->logger->warning('Auth login failed: user not found', [
                 'ip' => $this->app->get('IP'),
                 'credential_keys' => $credential_keys,
@@ -118,7 +121,7 @@ class AuthService implements LoginInterface
 
         $password_hash = $user->get_password_hash();
         if (!$password_hash || !Hash::verify_password($secret, $password_hash)) {
-            $this->record_login_failure();
+            $this->record_login_failure($identifier);
             $this->logger->warning('Auth login failed: invalid secret', [
                 'ip' => $this->app->get('IP'),
                 'credential_keys' => $credential_keys,
@@ -137,6 +140,8 @@ class AuthService implements LoginInterface
             unset($sanitized[$key]);
         }
         ksort($sanitized);
+
+        $this->reset_login_attempts($identifier);
 
         $this->login_by_id($user->get_auth_id(), [
             'auth_provider' => 'password',
@@ -336,27 +341,50 @@ class AuthService implements LoginInterface
         return $this->user_provider->find_by_id($admin_uuid);
     }
 
-    private function is_login_rate_limited(): bool
+    private function is_login_rate_limited(string $identifier): bool
     {
         try {
-            $ip = (string)$this->app->get('IP');
-            $limiter = \Engine\Atomic\RateLimit\RateLimiter::from_config();
-            $key = 'auth_login:' . $ip;
-            $result = $limiter->fixed($key, 5, 60);
-            return !$result->allowed;
+            return $this->lockout()->isLocked($identifier);
         } catch (\Throwable) {
             return false;
         }
     }
 
-    private function record_login_failure(): void
+    private function record_login_failure(string $identifier): void
     {
         try {
-            $ip = (string)$this->app->get('IP');
-            $limiter = \Engine\Atomic\RateLimit\RateLimiter::from_config();
-            $key = 'auth_login_fail:' . $ip;
-            $limiter->fixed($key, 5, 60);
+            $this->lockout()->recordFailedAttempt($identifier);
         } catch (\Throwable) {
         }
+    }
+
+    private function reset_login_attempts(string $identifier): void
+    {
+        try {
+            $this->lockout()->reset($identifier);
+        } catch (\Throwable) {
+        }
+    }
+
+    private function login_identifier(): string
+    {
+        $ip    = (string)$this->app->get('IP');
+        $email = strtolower(trim((string)$this->app->get('POST.email')));
+
+        return $ip . '|' . $email;
+    }
+
+    private function lockout(): AccountLockout
+    {
+        $maxAttempts    = (int)($this->app->get('AUTH_RATE_LIMIT.max_attempts') ?? 5);
+        $windowSeconds  = (int)($this->app->get('AUTH_RATE_LIMIT.window_seconds') ?? 300);
+        $lockoutSeconds = (int)($this->app->get('AUTH_RATE_LIMIT.lockout_seconds') ?? 900);
+
+        return new AccountLockout(
+            \Engine\Atomic\Core\CacheManager::instance()->cascade(),
+            $maxAttempts,
+            $lockoutSeconds,
+            $windowSeconds,
+        );
     }
 }

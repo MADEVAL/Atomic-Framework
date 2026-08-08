@@ -81,7 +81,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
         $path = trim((string)$atomic->get('PATTERN'), '/') ?: self::PATH_ROOT;
         $id = match ($source) {
             self::KEY_IP => (string)($atomic->get('IP') ?: $_SERVER['REMOTE_ADDR'] ?? self::IP_UNKNOWN),
-            self::KEY_USER => (string)($atomic->get('SESSION.user.id') ?: $atomic->get('SESSION.user_id') ?: self::USER_GUEST),
+            self::KEY_USER => (string)($atomic->get('SESSION.user_uuid') ?: $atomic->get('SESSION.user.id') ?: $atomic->get('SESSION.user_id') ?: self::USER_GUEST),
             self::KEY_ROUTE => $path,
             default => throw new \InvalidArgumentException("Unsupported rate limit key source: {$source}"),
         };

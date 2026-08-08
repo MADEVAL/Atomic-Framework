@@ -265,12 +265,12 @@ $build_queue_per_page_url = static function (int $target_per_page) use ($build_q
                                         <!-- Summary (message, file:line) gets rendered by JS if possible; fallback shows raw JSON -->
                                         <div id="exception-<?php echo htmlspecialchars($uuid); ?>" class="w3-margin-top-off">
                                             <!-- Raw JSON if available; JS will try to parse -->
-                                            <pre class="w3-code w3-round atomic-payload-code w3-hide"><code class="json-exception"><?php echo json_encode($job['exception']); ?></code></pre>
+                                            <pre class="w3-code w3-round atomic-payload-code w3-hide"><code class="json-exception"><?php echo json_encode($job['exception'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></code></pre>
 
                                             <!-- Fallback discrete fields for JS to assemble nicely -->
                                             <span class="exception-message w3-hide"><?php echo htmlspecialchars($job['exception']['message'] ?? ''); ?></span>
                                             <span class="exception-file w3-hide"><?php echo htmlspecialchars($job['exception']['file'] ?? ''); ?></span>
-                                            <span class="exception-line w3-hide"><?php echo htmlspecialchars($job['exception']['line'] ?? ''); ?></span>
+                                            <span class="exception-line w3-hide"><?php echo htmlspecialchars((string)($job['exception']['line'] ?? '')); ?></span>
                                             <pre class="exception-trace w3-hide"><code><?php echo htmlspecialchars($job['exception']['trace_string'] ?? ''); ?></code></pre>
                                         </div>
                                     </div>
@@ -294,7 +294,7 @@ $build_queue_per_page_url = static function (int $target_per_page) use ($build_q
                             </div>
                         </div>
                         <div id="payload-<?php echo htmlspecialchars($uuid); ?>" class="w3-margin-top-off">
-                            <pre class="w3-code w3-round atomic-payload-code"><code class="json-payload"><?php echo $job['payload']; ?></code></pre>
+                            <pre class="w3-code w3-round atomic-payload-code"><code class="json-payload"><?php echo htmlspecialchars((string)($job['payload'] ?? '')); ?></code></pre>
                         </div>
                     </div>
                     

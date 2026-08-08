@@ -25,6 +25,7 @@ class Event
     protected array   $failure_callbacks = [];
     protected bool    $without_overlapping = false;
     protected bool    $run_in_maintenance_mode = false;
+    protected array   $environments = [];
     protected int     $expires_at = 1440;
     protected ?int    $exit_code = null;
     protected string  $output = '';
@@ -89,6 +90,12 @@ class Event
         return $this;
     }
 
+    public function environments(array $environments): self
+    {
+        $this->environments = array_map('strtolower', $environments);
+        return $this;
+    }
+
     public function runs_in_maintenance_mode(): bool
     {
         return $this->run_in_maintenance_mode;
@@ -125,6 +132,13 @@ class Event
 
     public function filters_pass(): bool
     {
+        if ($this->environments !== []) {
+            $env = strtolower((string)\Engine\Atomic\Core\App::instance()->get('APP_ENV'));
+            if (!in_array($env, $this->environments, true)) {
+                return false;
+            }
+        }
+
         foreach ($this->filters as $filter) {
             if (!$filter()) {
                 return false;

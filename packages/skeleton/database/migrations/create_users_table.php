@@ -12,7 +12,7 @@ return [
         $db = $atomic->get('DB');
         $schema = new Schema($db);
         $tables = $schema->getTables();
-        $prefix = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX');
+        $prefix = $atomic->get('DB_CONFIG.prefix');
 
         if (!in_array($prefix . 'users', $tables)) {
             $table = $schema->createTable($prefix . 'users');
@@ -36,7 +36,7 @@ return [
         $atomic = App::instance();
         $db = $atomic->get('DB');
         $schema = new Schema($db);
-        $prefix = $atomic->get('DB_CONFIG.ATOMIC_DB_PREFIX');
+        $prefix = $atomic->get('DB_CONFIG.prefix');
 
         $schema->dropTable($prefix . 'users');
         echo "Table '{$prefix}users' dropped." . PHP_EOL;

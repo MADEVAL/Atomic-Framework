@@ -204,6 +204,29 @@ class SchedulerEventTest extends TestCase
         $this->assertFalse($event2->filters_pass());
     }
 
+    public function test_environments_filter_matches_app_env(): void
+    {
+        $atomic = \Engine\Atomic\Core\App::instance();
+        $original = $atomic->get('APP_ENV');
+
+        try {
+            $atomic->set('APP_ENV', 'production');
+
+            $inProd = new Event(function() {});
+            $inProd->environments(['production']);
+            $this->assertTrue($inProd->filters_pass());
+
+            $localOnly = new Event(function() {});
+            $localOnly->environments(['local']);
+            $this->assertFalse($localOnly->filters_pass(), 'Event limited to other environments must not run in production.');
+
+            $anyEnv = new Event(function() {});
+            $this->assertTrue($anyEnv->filters_pass(), 'Events without environment restrictions always run.');
+        } finally {
+            $atomic->set('APP_ENV', $original);
+        }
+    }
+
     public function test_skip_rejects(): void
     {
         $event = new Event(function() {});

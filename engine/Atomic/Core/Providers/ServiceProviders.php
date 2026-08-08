@@ -170,6 +170,9 @@ class AuthServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->container->singleton(Auth::class, fn() => Auth::instance());
+        // Register the SESSION_STARTED listener during the register phase so it
+        // fires on the first session start (SessionServiceProvider::boot runs later).
+        Auth::instance()->register_session_hooks();
     }
 
     public function boot(): void

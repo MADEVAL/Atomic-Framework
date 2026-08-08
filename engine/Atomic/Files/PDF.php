@@ -53,10 +53,10 @@ class PDF
     private function load_font(): void
     {
         $font = \strtolower($this->font_name);
-        $file_to_load = realpath((string)App::instance()->get('FONTS') . $font . '.php');
-        if ($file_to_load === false || !\is_file($file_to_load) || !\is_readable($file_to_load)) throw new \Exception('Font (php array) not found');
-        $ttf_path = realpath((string)App::instance()->get('FONTS') . $font . '.ttf');
-        if ($ttf_path === false || !\is_file($ttf_path) || !\is_readable($ttf_path)) throw new \Exception('Font (ttf) not found');
+        $file_to_load = $this->resolve_font_file($font, '.php');
+        if ($file_to_load === '') throw new \Exception('Font (php array) not found');
+        $ttf_path = $this->resolve_font_file($font, '.ttf');
+        if ($ttf_path === '') throw new \Exception('Font (ttf) not found');
         $this->font_path = $ttf_path;
         $this->font_cash_path = App::instance()->get('FONTS_TEMP') . $font;
         $font_data = include $file_to_load;
@@ -65,14 +65,34 @@ class PDF
         $this->desc = $font_data['desc'];
     }
 
+    private function resolve_font_file(string $font, string $extension): string
+    {
+        $candidates = [
+            (string)App::instance()->get('FONTS') . $font . $extension,
+            defined('ATOMIC_ENGINE') ? ATOMIC_ENGINE . 'Atomic' . DIRECTORY_SEPARATOR . 'Files' . DIRECTORY_SEPARATOR . 'fonts' . DIRECTORY_SEPARATOR . $font . $extension : '',
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate === '') {
+                continue;
+            }
+            $real = realpath($candidate);
+            if ($real !== false && \is_file($real) && \is_readable($real)) {
+                return $real;
+            }
+        }
+
+        return '';
+    }
+
     private function embed_font_binary(): void
     {
         $sanitized_font = basename($this->font_name);
-        $ttf_path = App::instance()->get('FONTS') . $sanitized_font . '.ttf';
+        $ttf_path = $this->resolve_font_file(strtolower($sanitized_font), '.ttf');
         $ttf_binary_path = $this->font_cash_path . '_stream' . self::CACHE_EXTENSION;
         $font_stream = null;
 
-        if (!\file_exists($ttf_path)) {
+        if ($ttf_path === '') {
             throw new \Exception("Font file not found: $ttf_path\n");
         }
         if (\file_exists($ttf_binary_path)) {
