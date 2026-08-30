@@ -29,6 +29,21 @@ final class RateLimiter
         return new self(self::$configured_store);
     }
 
+    /**
+     * Override the store every later from_config() call hands out. Lets an
+     * application swap the driver at boot, and lets tests run without Redis.
+     */
+    public static function use_store(RateLimitStoreInterface $store): void
+    {
+        self::$configured_store = $store;
+    }
+
+    /** Drops the configured store. Intended for tests. */
+    public static function reset(): void
+    {
+        self::$configured_store = null;
+    }
+
     public function store(): RateLimitStoreInterface
     {
         return $this->store;
@@ -70,25 +85,5 @@ final class RateLimiter
     public function release(string $key): void
     {
         $this->store->decrement($key, 1);
-    }
-
-    public function add_quota(string $key, int $tokens, int $ttl = 31536000): int
-    {
-        return $this->store->increment($key, $tokens, $ttl);
-    }
-
-    public function reserve_tokens(string $quota_key, string $reservation_id, int $estimated_tokens, int $ttl = 300): bool
-    {
-        return $this->store->reserve($quota_key, $reservation_id, $estimated_tokens, $ttl);
-    }
-
-    public function settle_tokens(string $quota_key, string $reservation_id, int $actual_tokens): int
-    {
-        return $this->store->settle($quota_key, $reservation_id, $actual_tokens);
-    }
-
-    public function release_tokens(string $quota_key, string $reservation_id): void
-    {
-        $this->store->release($quota_key, $reservation_id);
     }
 }

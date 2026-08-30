@@ -313,18 +313,6 @@ final class MiddlewareRateLimitStore implements RateLimitStoreInterface
 
         return $this->values[$key] <= $limit;
     }
-
-    public function reserve(string $quota_key, string $reservation_key, int $amount, int $ttl): bool
-    {
-        return true;
-    }
-
-    public function settle(string $quota_key, string $reservation_key, int $actual): int
-    {
-        return 0;
-    }
-
-    public function release(string $quota_key, string $reservation_key): void {}
 }
 
 final class ThrowingRateLimitStore implements RateLimitStoreInterface
@@ -337,7 +325,4 @@ final class ThrowingRateLimitStore implements RateLimitStoreInterface
     public function get(string $key): int { throw new \RuntimeException('store failed'); }
     public function ttl(string $key): int { throw new \RuntimeException('store failed'); }
     public function sliding_hit(string $key, int $limit, int $window): bool { throw new \RuntimeException('store failed'); }
-    public function reserve(string $quota_key, string $reservation_key, int $amount, int $ttl): bool { throw new \RuntimeException('store failed'); }
-    public function settle(string $quota_key, string $reservation_key, int $actual): int { throw new \RuntimeException('store failed'); }
-    public function release(string $quota_key, string $reservation_key): void { throw new \RuntimeException('store failed'); }
 }

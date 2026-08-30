@@ -63,6 +63,7 @@ Atomic is organized into modules such as:
 - `plugins.md`
 - `prefly.md`
 - `queue.md`
+- `quota.md`
 - `rate_limit.md`
 - `request.md`
 - `scheduler.md`

@@ -9,10 +9,13 @@ use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Core\Config\ConfigLoader;
 use Engine\Atomic\Core\Config\PhpConfigLoader;
 use Engine\Atomic\Core\ConnectionManager;
+use Engine\Atomic\Quota\QuotaLimiter;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\QuotaPlans;
 use Tests\Support\ReflectionHelper;
 use Tests\Support\TempPath;
 use Tests\Support\TestConfig;
+use Tests\Support\TestQuotaStore;
 
 class ConfigLoaderTest extends TestCase
 {
@@ -490,6 +493,306 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame(10, $db_queues['email']['delay']);
         $this->assertSame(5, $db_queues['email']['max_attempts']);
         $this->assertSame('atomic.queue.', $queue['redis']['prefix']);
+    }
+
+    public function test_build_quota_config(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_OPERATIONS=spam_check,seo_headline',
+            'QUOTA_FREE_CREDITS=500',
+            'QUOTA_FREE_PERIOD=2592000',
+            'QUOTA_FREE_RESERVATION_TTL=300',
+            'QUOTA_FREE_PACING_0_LIMIT=20',
+            'QUOTA_FREE_PACING_0_WINDOW=60',
+            'QUOTA_FREE_OP_SPAM_CHECK_COST=1',
+            'QUOTA_PRO_CREDITS=20000',
+            'QUOTA_PRO_PERIOD=2592000',
+            'QUOTA_PRO_RESERVATION_TTL=300',
+            'QUOTA_PRO_PACING_0_LIMIT=200',
+            'QUOTA_PRO_PACING_0_WINDOW=60',
+            'QUOTA_PRO_PACING_1_LIMIT=2000',
+            'QUOTA_PRO_PACING_1_WINDOW=86400',
+            'QUOTA_PRO_OP_SPAM_CHECK_COST=1',
+            'QUOTA_PRO_OP_SEO_HEADLINE_COST=5',
+            'QUOTA_PRO_OP_SEO_HEADLINE_PACING_0_LIMIT=30',
+            'QUOTA_PRO_OP_SEO_HEADLINE_PACING_0_WINDOW=3600',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $quota = $this->f3->get('QUOTA');
+        $this->assertSame(['spam_check', 'seo_headline'], $quota['operations']);
+        $this->assertSame(500, $quota['quotas']['free']['credits']);
+        $this->assertSame(
+            [['limit' => 20, 'window' => 60]],
+            $quota['quotas']['free']['pacing']
+        );
+        $this->assertSame(['cost' => 1], $quota['quotas']['free']['operations']['spam_check']);
+        $this->assertSame(20000, $quota['quotas']['pro']['credits']);
+        $this->assertSame(
+            [
+                ['limit' => 200, 'window' => 60],
+                ['limit' => 2000, 'window' => 86400],
+            ],
+            $quota['quotas']['pro']['pacing']
+        );
+        $this->assertSame(
+            [
+                'cost' => 5,
+                'pacing' => [['limit' => 30, 'window' => 3600]],
+            ],
+            $quota['quotas']['pro']['operations']['seo_headline']
+        );
+    }
+
+    public function test_build_quota_config_without_operations_stays_empty(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_FREE_CREDITS=500',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $quota = $this->f3->get('QUOTA');
+        $this->assertSame([], $quota['operations']);
+        $this->assertSame([], $quota['quotas']);
+    }
+
+    public function test_quota_operations_csv_is_trimmed(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_OPERATIONS= spam_check , seo_headline ',
+            'QUOTA_FREE_CREDITS=500',
+            'QUOTA_FREE_PERIOD=3600',
+            'QUOTA_FREE_RESERVATION_TTL=300',
+            'QUOTA_FREE_OP_SPAM_CHECK_COST=1',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame(['spam_check', 'seo_headline'], $this->f3->get('QUOTA')['operations']);
+    }
+
+    public function test_quota_tier_names_are_lowercased(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_OPERATIONS=spam_check',
+            'QUOTA_FREE_CREDITS=500',
+            'QUOTA_FREE_PERIOD=3600',
+            'QUOTA_FREE_RESERVATION_TTL=300',
+            'QUOTA_FREE_OP_SPAM_CHECK_COST=1',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertArrayHasKey('free', $this->f3->get('QUOTA')['quotas']);
+        $this->assertSame(500, $this->f3->get('QUOTA')['quotas']['free']['credits']);
+    }
+
+    public function test_quota_operation_names_are_lowercased(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_OPERATIONS=spam_check,seo_headline',
+            'QUOTA_PRO_CREDITS=20000',
+            'QUOTA_PRO_PERIOD=2592000',
+            'QUOTA_PRO_RESERVATION_TTL=300',
+            'QUOTA_PRO_OP_SEO_HEADLINE_COST=5',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertArrayHasKey('seo_headline', $this->f3->get('QUOTA')['quotas']['pro']['operations']);
+        $this->assertSame(5, $this->f3->get('QUOTA')['quotas']['pro']['operations']['seo_headline']['cost']);
+    }
+
+    public function test_quota_fail_mode_is_loaded_from_env(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_FAIL=closed',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame('closed', $this->f3->get('QUOTA')['fail']);
+    }
+
+    public function test_quota_pacing_windows_are_ordered_by_numeric_index(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_OPERATIONS=spam_check',
+            'QUOTA_PRO_CREDITS=20000',
+            'QUOTA_PRO_PERIOD=2592000',
+            'QUOTA_PRO_RESERVATION_TTL=300',
+            'QUOTA_PRO_PACING_1_LIMIT=2000',
+            'QUOTA_PRO_PACING_1_WINDOW=86400',
+            'QUOTA_PRO_PACING_0_LIMIT=200',
+            'QUOTA_PRO_PACING_0_WINDOW=60',
+            'QUOTA_PRO_OP_SPAM_CHECK_COST=1',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame(
+            [
+                ['limit' => 200, 'window' => 60],
+                ['limit' => 2000, 'window' => 86400],
+            ],
+            $this->f3->get('QUOTA')['quotas']['pro']['pacing']
+        );
+    }
+
+    public function test_quota_env_does_not_inherit_missing_keys_from_another_tier(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_OPERATIONS=spam_check',
+            'QUOTA_FREE_CREDITS=500',
+            'QUOTA_FREE_PERIOD=2592000',
+            'QUOTA_FREE_RESERVATION_TTL=300',
+            'QUOTA_FREE_PACING_0_LIMIT=20',
+            'QUOTA_FREE_PACING_0_WINDOW=60',
+            'QUOTA_FREE_OP_SPAM_CHECK_COST=1',
+            'QUOTA_PRO_CREDITS=20000',
+            'QUOTA_PRO_PERIOD=2592000',
+            'QUOTA_PRO_OP_SPAM_CHECK_COST=1',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $pro = $this->f3->get('QUOTA')['quotas']['pro'];
+        $this->assertSame(20000, $pro['credits']);
+        $this->assertNotSame(300, $pro['reservation_ttl']);
+
+        $limiter = new QuotaLimiter(new TestQuotaStore());
+        try {
+            $limiter->plan('pro');
+            $this->fail('Expected plan(pro) to throw when reservation_ttl was not supplied.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertNotEmpty($e->getMessage());
+        } finally {
+            QuotaLimiter::reset();
+        }
+    }
+
+    public function test_quota_docs_hive_is_accepted_by_plan_and_can_reserve(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'QUOTA_OPERATIONS=spam_check,seo_headline',
+            'QUOTA_FREE_CREDITS=500',
+            'QUOTA_FREE_PERIOD=2592000',
+            'QUOTA_FREE_RESERVATION_TTL=300',
+            'QUOTA_FREE_PACING_0_LIMIT=20',
+            'QUOTA_FREE_PACING_0_WINDOW=60',
+            'QUOTA_FREE_OP_SPAM_CHECK_COST=1',
+            'QUOTA_PRO_CREDITS=20000',
+            'QUOTA_PRO_PERIOD=2592000',
+            'QUOTA_PRO_RESERVATION_TTL=300',
+            'QUOTA_PRO_PACING_0_LIMIT=200',
+            'QUOTA_PRO_PACING_0_WINDOW=60',
+            'QUOTA_PRO_PACING_1_LIMIT=2000',
+            'QUOTA_PRO_PACING_1_WINDOW=86400',
+            'QUOTA_PRO_OP_SPAM_CHECK_COST=1',
+            'QUOTA_PRO_OP_SEO_HEADLINE_COST=5',
+            'QUOTA_PRO_OP_SEO_HEADLINE_PACING_0_LIMIT=30',
+            'QUOTA_PRO_OP_SEO_HEADLINE_PACING_0_WINDOW=3600',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $limiter = new QuotaLimiter(new TestQuotaStore());
+        try {
+            $free = $limiter->plan('free');
+            $pro = $limiter->plan('pro');
+            $this->assertSame(500, $free->credits);
+            $this->assertSame(20000, $pro->credits);
+            $this->assertSame(5, $pro->cost('seo_headline'));
+
+            $limiter->quota_set('user:1', $free->credits, 60);
+            $result = $limiter->quota_reserve('user:1', 'a', $free, 'spam_check');
+            $this->assertTrue($result->allowed);
+            $this->assertSame(499, $result->balance);
+        } finally {
+            QuotaLimiter::reset();
+        }
+    }
+
+    public function test_php_quota_docs_example_matches_env_shape_and_is_usable(): void
+    {
+        $config_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_quota_php_' . uniqid() . DIRECTORY_SEPARATOR;
+        mkdir($config_dir);
+        $docs = QuotaPlans::docs_hive();
+        $exported = var_export($docs, true);
+        file_put_contents($config_dir . 'quota.php', "<?php\ndeclare(strict_types=1);\nif (!defined('ATOMIC_START')) exit;\nreturn {$exported};\n");
+        file_put_contents($config_dir . 'cache.php', "<?php\nreturn ['default' => 'folder', 'prefix' => 'atomic.'];\n");
+
+        try {
+            $loader = new class($this->f3) extends PhpConfigLoader {
+                public function set_config_path(string $path): void
+                {
+                    $this->config_path = $path;
+                }
+            };
+            $loader->set_config_path($config_dir);
+            $loader->load();
+
+            $quota = $this->f3->get('QUOTA');
+            $this->assertSame(['spam_check', 'seo_headline'], $quota['operations']);
+            $this->assertSame(500, $quota['quotas']['free']['credits']);
+            $this->assertSame(20000, $quota['quotas']['pro']['credits']);
+            $this->assertSame(
+                [['limit' => 30, 'window' => 3600]],
+                $quota['quotas']['pro']['operations']['seo_headline']['pacing']
+            );
+
+            $limiter = new QuotaLimiter(new TestQuotaStore());
+            $this->assertSame(500, $limiter->plan('free')->credits);
+            $this->assertSame(20000, $limiter->plan('pro')->credits);
+            $limiter->quota_set('user:1', 500, 60);
+            $this->assertTrue($limiter->quota_reserve('user:1', 'a', $limiter->plan('free'), 'spam_check')->allowed);
+            $this->assertSame(499, $limiter->quota_get('user:1'));
+        } finally {
+            QuotaLimiter::reset();
+            foreach (glob($config_dir . '*.php') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($config_dir);
+        }
+    }
+
+    public function test_php_quota_fail_mode_is_loaded(): void
+    {
+        $config_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_quota_fail_' . uniqid() . DIRECTORY_SEPARATOR;
+        mkdir($config_dir);
+        file_put_contents($config_dir . 'quota.php', "<?php\nreturn ['fail' => 'closed', 'operations' => [], 'quotas' => []];\n");
+        file_put_contents($config_dir . 'cache.php', "<?php\nreturn ['default' => 'folder', 'prefix' => 'atomic.'];\n");
+
+        try {
+            $loader = new class($this->f3) extends PhpConfigLoader {
+                public function set_config_path(string $path): void
+                {
+                    $this->config_path = $path;
+                }
+            };
+            $loader->set_config_path($config_dir);
+            $loader->load();
+
+            $this->assertSame('closed', $this->f3->get('QUOTA')['fail']);
+            $this->assertSame([], $this->f3->get('QUOTA')['operations']);
+            $this->assertSame([], $this->f3->get('QUOTA')['quotas']);
+        } finally {
+            foreach (glob($config_dir . '*.php') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($config_dir);
+        }
     }
 
     public function test_env_custom_config_maps_config_prefixed_scalars_only(): void

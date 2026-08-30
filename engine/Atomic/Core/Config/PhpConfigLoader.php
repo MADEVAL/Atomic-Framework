@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Engine\Atomic\Core\Config;
 
 use Engine\Atomic\Auth\ConfigUserStore;
+use Engine\Atomic\Quota\QuotaLimiter;
 use Engine\Atomic\RateLimit\RateLimiter;
 
 if (!defined( 'ATOMIC_START' ) ) exit;
@@ -240,6 +241,13 @@ class PhpConfigLoader {
             'policies' => $resolved_rate_limiter_policies,
         ]);
 
+        $quota = $this->configs['quota'] ?? [];
+        $this->atomic->set('QUOTA', [
+            'fail'       => (string)($quota['fail'] ?? QuotaLimiter::FAIL_OPEN),
+            'operations' => array_values(array_map('strval', (array)($quota['operations'] ?? []))),
+            'quotas'     => (array)($quota['quotas'] ?? []),
+        ]);
+
         $auth_limit = (array)($rate_limiter['auth'] ?? []);
         $this->atomic->set('AUTH_RATE_LIMIT', [
             'max_attempts'    => (int)($auth_limit['max_attempts'] ?? 5),
@@ -380,7 +388,7 @@ class PhpConfigLoader {
         return [
             'app', 'auth', 'cache', 'database', 'filesystems',
             'i18n', 'logging', 'mail', 'middleware', 'queue',
-            'session', 'tools', 'providers', 'rate_limiter'
+            'session', 'tools', 'providers', 'rate_limiter', 'quota'
         ];
     }
 

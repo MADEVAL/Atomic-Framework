@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Engine\RateLimit;
 
 use Engine\Atomic\RateLimit\Drivers\Redis as RedisRateLimitStore;
+use Engine\Atomic\RateLimit\RateLimiter;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\TestConfig;
 use Tests\Support\Wait;
@@ -47,6 +48,8 @@ final class RedisRateLimitStoreTest extends TestCase
 
     protected function tearDown(): void
     {
+        RateLimiter::reset();
+
         if ($this->redis instanceof \Redis && $this->prefix !== '') {
             $keys = $this->redis->keys($this->prefix . 'rate_limit.*');
             if (is_array($keys) && $keys !== []) {
@@ -90,109 +93,10 @@ final class RedisRateLimitStoreTest extends TestCase
         $this->assertTrue(Wait::until(fn (): bool => $store->sliding_hit('sliding:test', 2, 1), 3));
     }
 
-    public function test_token_reservation_settle_release_and_failed_reserve(): void
-    {
-        $store = $this->store();
-
-        $this->assertSame(100, $store->increment('quota:user:1', 100, 60));
-        $this->assertTrue($store->reserve('quota:user:1', 'reservation:1', 40, 60));
-        $this->assertSame(70, $store->settle('quota:user:1', 'reservation:1', 30));
-
-        $this->assertTrue($store->reserve('quota:user:1', 'reservation:2', 50, 60));
-        $store->release('quota:user:1', 'reservation:2');
-        $this->assertSame(70, $store->get('quota:user:1'));
-
-        $this->assertFalse($store->reserve('quota:user:1', 'reservation:3', 80, 60));
-        $this->assertSame(70, $store->get('quota:user:1'));
-    }
-
-    public function test_settling_missing_reservation_does_not_debit_quota(): void
-    {
-        $store = $this->store();
-        $store->increment('quota:user:1', 25, 60);
-
-        $this->assertSame(25, $store->settle('quota:user:1', 'missing', 10));
-        $this->assertSame(25, $store->get('quota:user:1'));
-    }
-
-    public function test_releasing_missing_reservation_does_not_change_quota(): void
-    {
-        $store = $this->store();
-        $store->increment('quota:user:1', 25, 60);
-
-        $store->release('quota:user:1', 'missing');
-
-        $this->assertSame(25, $store->get('quota:user:1'));
-    }
-
-    public function test_invalid_reservation_value_fails_settle_and_release(): void
-    {
-        $store = $this->store();
-        $store->increment('quota:user:1', 25, 60);
-
-        $this->redis()->set($this->prefix . 'rate_limit.reservation:bad-settle', 'invalid');
-        $this->expectRedisError(
-            'invalid reservation key',
-            fn () => $store->settle('quota:user:1', 'reservation:bad-settle', 10)
-        );
-
-        $this->redis()->set($this->prefix . 'rate_limit.reservation:bad-release', 'invalid');
-        $this->expectRedisError(
-            'invalid reservation key',
-            fn () => $store->release('quota:user:1', 'reservation:bad-release')
-        );
-    }
-
-    public function test_duplicate_active_reservation_id_is_rejected_without_double_debiting(): void
-    {
-        $store = $this->store();
-        $store->increment('quota:user:1', 100, 60);
-
-        $this->assertTrue($store->reserve('quota:user:1', 'reservation:1', 40, 60));
-        $this->assertFalse($store->reserve('quota:user:1', 'reservation:1', 20, 60));
-        $this->assertSame(60, $store->get('quota:user:1'));
-
-        $store->release('quota:user:1', 'reservation:1');
-
-        $this->assertSame(100, $store->get('quota:user:1'));
-    }
-
-    public function test_reservation_id_can_be_reused_after_reservation_ttl_expires(): void
-    {
-        $store = $this->store();
-        $store->increment('quota:user:1', 100, 60);
-
-        $this->assertTrue($store->reserve('quota:user:1', 'reservation:1', 40, 1));
-        $this->assertFalse($store->reserve('quota:user:1', 'reservation:1', 10, 1));
-
-        $this->assertTrue(Wait::until(fn (): bool => $store->reserve('quota:user:1', 'reservation:1', 10, 1), 3));
-        $this->assertSame(50, $store->get('quota:user:1'));
-    }
-
     private function store(): RedisRateLimitStore
     {
         self::assertInstanceOf(RedisRateLimitStore::class, $this->store);
 
         return $this->store;
-    }
-
-    private function redis(): \Redis
-    {
-        self::assertInstanceOf(\Redis::class, $this->redis);
-
-        return $this->redis;
-    }
-
-    private function expectRedisError(string $expectedMessage, callable $callback): void
-    {
-        try {
-            $callback();
-        } catch (\Throwable $e) {
-            $message = $e->getMessage() . "\n" . (string)$this->redis()->getLastError();
-            $this->assertStringContainsString($expectedMessage, $message);
-            return;
-        }
-
-        $this->fail("Expected Redis error containing: {$expectedMessage}");
     }
 }

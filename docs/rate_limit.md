@@ -5,7 +5,9 @@ Atomic provides Redis-backed rate limiting under `Engine\Atomic\RateLimit`.
 The system can be used in two ways:
 
 - route middleware for HTTP endpoints
-- direct `RateLimiter` calls for application workflows such as jobs, provider calls, and token quotas
+- direct `RateLimiter` calls for application workflows such as jobs and provider calls
+
+For credit balances and per-subject pacing, see [quota.md](quota.md) (`Engine\Atomic\Quota`).
 
 The route middleware intentionally supports only simple bucket sources: IP, logged-in user, or route. Request-body keys such as email/login credentials are application-specific and should be implemented in the app layer.
 
@@ -14,7 +16,7 @@ The route middleware intentionally supports only simple bucket sources: IP, logg
 `RateLimiter::from_config()` creates a Redis store by default. The store uses `ConnectionManager::instance()->get_redis(true)` and prefixes keys with:
 
 ```text
-{REDIS.prefix or atomic:}rate_limit:
+{REDIS.prefix or atomic.}rate_limit.
 ```
 
 Make sure Redis is configured before enabling route rate limiting in production.
@@ -133,7 +135,7 @@ Each policy supports these fields:
 The middleware builds keys in this format:
 
 ```text
-{policy}:{route-pattern}:{identifier}
+{policy}.{route-pattern}.{identifier}
 ```
 
 The route pattern comes from `PATTERN`; `/` becomes `root`.
@@ -143,7 +145,7 @@ Key sources:
 | Key source | Identifier |
 | --- | --- |
 | `RateLimitMiddleware::KEY_IP` | `IP`, then `$_SERVER['REMOTE_ADDR']`, then `unknown`. |
-| `RateLimitMiddleware::KEY_USER` | `SESSION.user.id`, then `SESSION.user_id`, then `guest`. |
+| `RateLimitMiddleware::KEY_USER` | `SESSION.user_uuid`, then `SESSION.user.id`, then `SESSION.user_id`, then `guest`. |
 | `RateLimitMiddleware::KEY_ROUTE` | The normalized route pattern. |
 
 Because the route pattern is always part of the key, two routes using the same policy and identifier still get separate middleware buckets.
@@ -174,7 +176,7 @@ Use `KEY_USER` only for authenticated endpoints:
 ],
 ```
 
-`KEY_USER` reads `SESSION.user.id`, then `SESSION.user_id`. If neither exists, the identifier is `guest`. That means all unauthenticated visitors share the same `guest` bucket, so one anonymous user can block other anonymous users. Do not use `KEY_USER` on public routes unless that behavior is intentional.
+`KEY_USER` reads `SESSION.user_uuid`, then `SESSION.user.id`, then `SESSION.user_id`. If none exists, the identifier is `guest`. That means all unauthenticated visitors share the same `guest` bucket, so one anonymous user can block other anonymous users. Do not use `KEY_USER` on public routes unless that behavior is intentional.
 
 Use `KEY_ROUTE` for a global endpoint cap:
 
@@ -193,7 +195,7 @@ Unsupported key sources are configuration errors. The middleware does not fall b
 
 ## Responses
 
-Allowed requests continue to the controller and receive these headers when headers have not already been sent:
+Every checked request receives these headers, both allowed and blocked, when headers have not already been sent:
 
 ```text
 X-RateLimit-Limit: 100
@@ -246,6 +248,10 @@ Available methods:
 | `release($key)` | Release a concurrency slot acquired directly. |
 | `store()->clear($key)` | Clear stored state for a key. |
 
+Two static methods swap the store. `RateLimiter::use_store($store)` replaces the store every later `from_config()` call hands out. `RateLimiter::reset()` drops it again. Use them to run tests without Redis, or to install another driver at boot.
+
+Token reservation is not part of `RateLimiter`. Credit balances and reservations live in `Engine\Atomic\Quota`. See [quota.md](quota.md).
+
 When using `acquire()` directly, release the slot yourself:
 
 ```php
@@ -289,37 +295,3 @@ For stronger auth protection, implement app-specific middleware/service logic th
 - credential bucket, e.g. `auth:login:credential:{hash(normalized_email)}`
 
 Do not put passwords, secrets, or tokens into rate-limit keys. Normalize identity fields such as email with `trim()` and lowercase before hashing.
-
-## AI Token Quotas
-
-Use the reservation pattern for AI providers or other metered token systems. Reserve an estimate before the provider call, then settle the reservation with the actual usage.
-
-```php
-use Engine\Atomic\RateLimit\RateLimiter;
-
-$limiter = RateLimiter::from_config();
-$quota_key = 'quota:user:123';
-$reservation_key = 'reservation:request-uuid';
-
-$limiter->add_quota($quota_key, 100000);
-
-if (!$limiter->reserve_tokens($quota_key, $reservation_key, 1200, 300)) {
-    throw new RuntimeException('Token quota exceeded');
-}
-
-try {
-    // Call provider.
-    $remaining = $limiter->settle_tokens($quota_key, $reservation_key, $actual_tokens);
-} catch (Throwable $e) {
-    $limiter->release_tokens($quota_key, $reservation_key);
-    throw $e;
-}
-```
-
-Quota behavior:
-
-- `add_quota($key, $tokens, $ttl)` adds tokens and returns the new balance.
-- `reserve_tokens()` fails if the active reservation id already exists or there is not enough quota.
-- `settle_tokens()` refunds unused reserved tokens or charges overage, clamped at zero.
-- `release_tokens()` refunds the reservation when the provider call is not completed.
-- reservation ids should be unique per provider request.

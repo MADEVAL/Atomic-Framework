@@ -14,7 +14,4 @@ interface RateLimitStoreInterface
     public function get(string $key): int;
     public function ttl(string $key): int;
     public function sliding_hit(string $key, int $limit, int $window): bool;
-    public function reserve(string $quota_key, string $reservation_key, int $amount, int $ttl): bool;
-    public function settle(string $quota_key, string $reservation_key, int $actual): int;
-    public function release(string $quota_key, string $reservation_key): void;
 }

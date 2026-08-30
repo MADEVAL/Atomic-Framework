@@ -43,7 +43,7 @@ class ConfigParityTest extends TestCase
         // ── Arrays / nested ───────────────────────────────────────────────────
         'THEME', 'PORTS', 'WS',
         'DB_CONFIG', 'REDIS', 'MEMCACHED', 'MUTEX', 'MAIL',
-        'MAILER', 'SESSION_CONFIG', 'JAR', 'CORS', 'RATE_LIMITER', 'QUEUE',
+        'MAILER', 'SESSION_CONFIG', 'JAR', 'CORS', 'RATE_LIMITER', 'QUOTA', 'QUEUE',
         'ACCESS', 'i18n', 'OAUTH', 'MONOPAY', 'CONFIG',
     ];
 
@@ -196,6 +196,14 @@ class ConfigParityTest extends TestCase
         $this->assertArrayHasKey('default', self::$php_data['RATE_LIMITER']['policies']);
         $this->assertArrayHasKey('api', self::$php_data['RATE_LIMITER']['policies']);
         $this->assertArrayHasKey('user', self::$php_data['RATE_LIMITER']['policies']);
+    }
+
+    public function test_quota_config_defaults_empty(): void
+    {
+        $this->assertSame([], self::$env_data['QUOTA']['operations']);
+        $this->assertSame([], self::$env_data['QUOTA']['quotas']);
+        $this->assertSame([], self::$php_data['QUOTA']['operations']);
+        $this->assertSame([], self::$php_data['QUOTA']['quotas']);
     }
 
     public function test_queue_has_db_and_redis_drivers(): void

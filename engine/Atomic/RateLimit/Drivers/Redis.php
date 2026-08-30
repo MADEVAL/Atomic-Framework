@@ -77,21 +77,6 @@ final class Redis implements RateLimitStoreInterface
         return (bool)$this->eval_script('sliding_hit', [$this->key($key), (string)$now, (string)$window, (string)$limit, uniqid('', true)], 1);
     }
 
-    public function reserve(string $quota_key, string $reservation_key, int $amount, int $ttl): bool
-    {
-        return (bool)$this->eval_script('reserve', [$this->key($quota_key), $this->key($reservation_key), $amount, $ttl], 2);
-    }
-
-    public function settle(string $quota_key, string $reservation_key, int $actual): int
-    {
-        return (int)$this->eval_script('settle', [$this->key($quota_key), $this->key($reservation_key), $actual], 2);
-    }
-
-    public function release(string $quota_key, string $reservation_key): void
-    {
-        $this->eval_script('release', [$this->key($quota_key), $this->key($reservation_key)], 2);
-    }
-
     /**
      * @param array<int, mixed> $arguments
      * @return mixed

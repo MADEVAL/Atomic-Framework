@@ -5,6 +5,7 @@ namespace Engine\Atomic\Core\Config;
 use Engine\Atomic\Auth\ConfigUserStore;
 use Engine\Atomic\Cache\FatFreeCacheBridge;
 use Engine\Atomic\Core\CacheManager;
+use Engine\Atomic\Quota\QuotaLimiter;
 use Engine\Atomic\RateLimit\RateLimiter;
 
 if (!defined( 'ATOMIC_START' ) ) exit; 
@@ -178,6 +179,13 @@ class ConfigLoader {
         $this->atomic->set('RATE_LIMITER', [
             'fail'     => $this->get_env('RATE_LIMITER_FAIL', RateLimiter::FAIL_OPEN),
             'policies' => $this->build_rate_limiter_policies(),
+        ]);
+
+        $quota = $this->build_quota_config();
+        $this->atomic->set('QUOTA', [
+            'fail'       => $this->get_env('QUOTA_FAIL', QuotaLimiter::FAIL_OPEN),
+            'operations' => $quota['operations'],
+            'quotas'     => $quota['quotas'],
         ]);
 
         $this->atomic->set('AUTH_RATE_LIMIT', [
@@ -392,6 +400,86 @@ class ConfigLoader {
         }
 
         return $policies;
+    }
+
+    /**
+     * @return array{operations: list<string>, quotas: array<string, array<string, mixed>>}
+     */
+    protected function build_quota_config(): array
+    {
+        $operations = array_values(array_filter(
+            array_map('trim', explode(',', (string)$this->get_env('QUOTA_OPERATIONS', ''))),
+            static fn(string $operation): bool => $operation !== ''
+        ));
+
+        if ($operations === []) {
+            return ['operations' => [], 'quotas' => []];
+        }
+
+        $tiers = [];
+        foreach (array_keys($this->env) as $key) {
+            if (preg_match('/^QUOTA_([A-Z0-9_]+?)_(CREDITS|PERIOD|RESERVATION_TTL)$/', $key, $m)) {
+                $tiers[strtolower($m[1])] = true;
+            }
+        }
+
+        $quotas = [];
+        foreach (array_keys($tiers) as $tier) {
+            $prefix = 'QUOTA_' . strtoupper($tier) . '_';
+            $quotas[$tier] = [
+                'credits'         => (int)$this->get_env($prefix . 'CREDITS'),
+                'period'          => (int)$this->get_env($prefix . 'PERIOD'),
+                'reservation_ttl' => (int)$this->get_env($prefix . 'RESERVATION_TTL'),
+                'pacing'          => $this->build_quota_pacing($prefix . 'PACING_'),
+                'operations'      => $this->build_quota_operations($prefix . 'OP_'),
+            ];
+        }
+
+        return ['operations' => $operations, 'quotas' => $quotas];
+    }
+
+    /**
+     * @return list<array{limit: int, window: int}>
+     */
+    protected function build_quota_pacing(string $prefix): array
+    {
+        $windows = [];
+        foreach ($this->env as $key => $value) {
+            if (!preg_match('/^' . preg_quote($prefix, '/') . '(\d+)_LIMIT$/', $key, $m)) {
+                continue;
+            }
+
+            $index = $m[1];
+            $windows[(int)$index] = [
+                'limit'  => (int)$value,
+                'window' => (int)$this->get_env($prefix . $index . '_WINDOW'),
+            ];
+        }
+
+        ksort($windows);
+
+        return array_values($windows);
+    }
+
+    /**
+     * @return array<string, array{cost: int, pacing?: list<array{limit: int, window: int}>}>
+     */
+    protected function build_quota_operations(string $prefix): array
+    {
+        $operations = [];
+        foreach ($this->env as $key => $value) {
+            if (!preg_match('/^' . preg_quote($prefix, '/') . '([A-Z0-9_]+?)_COST$/', $key, $m)) {
+                continue;
+            }
+
+            $name = strtolower($m[1]);
+            $operation_prefix = $prefix . $m[1] . '_';
+            $pacing = $this->build_quota_pacing($operation_prefix . 'PACING_');
+            $operations[$name] = ['cost' => (int)$value]
+                + ($pacing !== [] ? ['pacing' => $pacing] : []);
+        }
+
+        return $operations;
     }
 
     private function build_custom_config(): array
