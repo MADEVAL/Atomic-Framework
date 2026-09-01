@@ -24,7 +24,15 @@ $frameworkPath = ATOMIC_VENDOR . 'globus-studio' . DIRECTORY_SEPARATOR . 'atomic
 if (!is_dir($frameworkPath)) {
     $frameworkPath = ATOMIC_VENDOR . 'atomic' . DIRECTORY_SEPARATOR . 'framework' . DIRECTORY_SEPARATOR;
 }
-define('ATOMIC_FRAMEWORK', realpath($frameworkPath) . DIRECTORY_SEPARATOR);
+$monorepoFrameworkPath = ATOMIC_DIR . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR;
+if (!is_dir($frameworkPath) && is_dir($monorepoFrameworkPath . 'engine' . DIRECTORY_SEPARATOR . 'Atomic')) {
+    $frameworkPath = $monorepoFrameworkPath;
+}
+$resolvedFrameworkPath = realpath($frameworkPath);
+if ($resolvedFrameworkPath === false) {
+    throw new RuntimeException('Unable to resolve the Atomic Framework path.');
+}
+define('ATOMIC_FRAMEWORK', $resolvedFrameworkPath . DIRECTORY_SEPARATOR);
 define('ATOMIC_ENGINE', ATOMIC_FRAMEWORK . 'engine' . DIRECTORY_SEPARATOR);
 define('ATOMIC_SUPPORT', ATOMIC_FRAMEWORK . 'engine' . DIRECTORY_SEPARATOR . 'Atomic' . DIRECTORY_SEPARATOR . 'Support' . DIRECTORY_SEPARATOR);
 define('ATOMIC_UPLOADS', ATOMIC_DIR . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR);
