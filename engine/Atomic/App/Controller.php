@@ -17,7 +17,7 @@ abstract class Controller
         $this->atomic = App::atomic();
     }
 
-    public function beforeroute(\Base $atomic): void
+    public function beforeroute(\Base $atomic): bool
     {
         $this->atomic = $atomic ?: App::atomic();
         $this->atomic->set('__current_controller', $this);
@@ -26,8 +26,10 @@ abstract class Controller
         Theme::instance();
 
         if (!MiddlewareStack::run_for_route($this->atomic)) {
-            throw new \Engine\Atomic\Exceptions\HttpException('Middleware blocked', 403);
+            return false;
         }
+
+        return true;
     }
 
     public function afterroute(\Base $atomic): void

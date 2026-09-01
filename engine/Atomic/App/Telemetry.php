@@ -30,11 +30,15 @@ class Telemetry extends Controller
         }
     }
 
-    public function beforeroute(\Base $atomic): void
+    public function beforeroute(\Base $atomic): bool
     {
-        parent::beforeroute($atomic);
+        if (!parent::beforeroute($atomic)) {
+            return false;
+        }
 
         Redactor::init_from_hive($atomic);
+
+        return true;
     }
 
     public function queue(\Base $atomic, array $params = [], ?string $alias = null): void
