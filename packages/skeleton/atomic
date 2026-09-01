@@ -5,6 +5,6 @@ declare(strict_types=1);
 define('ATOMIC_START', microtime(true));
 define('ATOMIC_ROOT', __DIR__);
 
-require ATOMIC_ROOT . '/bootstrap/app.php';
+$app = require ATOMIC_ROOT . '/bootstrap/app.php';
 
-exit(\Engine\Atomic\Core\App::instance()->handle_command($argv));
+exit($app->handle_command($argv));

@@ -14,7 +14,7 @@ final class ConfigSchemaCoverageTest extends TestCase
 {
     private function bootstrapSource(): string
     {
-        return (string)file_get_contents(ATOMIC_DIR . DIRECTORY_SEPARATOR . 'packages' . DIRECTORY_SEPARATOR . 'skeleton' . DIRECTORY_SEPARATOR . 'bootstrap' . DIRECTORY_SEPARATOR . 'app.php');
+        return (string)file_get_contents(ATOMIC_DIR . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . 'Atomic' . DIRECTORY_SEPARATOR . 'Core' . DIRECTORY_SEPARATOR . 'Bootstrap.php');
     }
 
     /** @return array<int, array{0: string, 1: string}> key → env value */
@@ -40,7 +40,7 @@ final class ConfigSchemaCoverageTest extends TestCase
             }
         }
 
-        $this->assertSame([], $missing, 'Keys missing ConfigSchema definitions in bootstrap/app.php');
+        $this->assertSame([], $missing, 'Keys missing ConfigSchema definitions in Core/Bootstrap.php');
     }
 
     public function test_schema_defaults_match_env_example_values(): void
