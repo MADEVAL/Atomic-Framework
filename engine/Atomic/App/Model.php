@@ -20,38 +20,6 @@ abstract class Model extends Cortex
 	protected array $last_err_vars = [];
 	private static array $inherited_field_conf_cache = [];
 
-	private function merge_field_conf_from_class_traits(\ReflectionClass $classRef, array &$merged): void {
-		$seen = [];
-		foreach ($classRef->getTraits() as $traitRef) {
-			$this->merge_field_conf_from_trait($traitRef, $merged, $seen);
-		}
-	}
-
-	private function merge_field_conf_from_trait(
-		\ReflectionClass $traitRef,
-		array &$merged,
-		array &$seen,
-	): void {
-		$name = $traitRef->getName();
-		if (isset($seen[$name])) {
-			return;
-		}
-		$seen[$name] = true;
-		foreach ($traitRef->getTraits() as $nested) {
-			$this->merge_field_conf_from_trait($nested, $merged, $seen);
-		}
-		if ($traitRef->hasProperty('fieldConf')) {
-			$prop = $traitRef->getProperty('fieldConf');
-			if ($prop->getDeclaringClass()->getName() === $name) {
-				$defaults = $traitRef->getDefaultProperties();
-				$conf = $defaults['fieldConf'] ?? null;
-				if (is_array($conf) && !empty($conf)) {
-					$merged = array_replace_recursive($merged, $conf);
-				}
-			}
-		}
-	}
-
 	private function collect_inherited_field_conf(): array {
 		if (isset(self::$inherited_field_conf_cache[static::class])) {
 			return self::$inherited_field_conf_cache[static::class];
@@ -63,7 +31,6 @@ abstract class Model extends Cortex
 		$merged = [];
 		foreach ($chain as $class_name) {
 			$ref = new \ReflectionClass($class_name);
-			$this->merge_field_conf_from_class_traits($ref, $merged);
 			if ($ref->hasProperty('fieldConf')) {
 				$prop = $ref->getProperty('fieldConf');
 				if ($prop->getDeclaringClass()->getName() === $class_name) {
