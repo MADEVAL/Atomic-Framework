@@ -4,6 +4,10 @@ if (!defined('ATOMIC_START')) exit;
 
 return [
 
+    'providers' => [
+        App\Providers\ApplicationServiceProvider::class,
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Core Plugins

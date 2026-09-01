@@ -92,32 +92,13 @@ composer require globus-studio/atomic-framework
 
 ## Application lifecycle
 
-The bootstrap chain in `bootstrap/app.php` initializes the app via a fluent interface. **Order matters** — hooks fire at specific points:
+The application bootstrap is a thin adapter around the framework. Application-specific hooks and events belong in an application service provider. **Order matters** — framework lifecycle hooks fire at specific points:
 
 ```php
-$application = App::instance($atomic);
-
-\App\Event\Application::instance()->init();
-\App\Hook\Application::instance()->init();
-
-$application
-    ->config_loaded($loader)
-    ->register_logger()
-    ->register_exception_handler()
-    ->prefly()
-    ->register_locales()
-    ->register_locale_hrefs()
-    ->register_unload_handler()
-    ->register_middleware()
-    ->core_ready()
-    ->register_core_plugins()
-    ->register_plugins()
-    ->register_routes()
-    ->init_session()
-    ->open_connections()
-    ->register_user_provider()
-    ->app_bootstrapped();
+return \Engine\Atomic\Core\Bootstrap::boot();
 ```
+
+The framework loads providers listed in `config/providers.php`. Their `register()` methods run before the framework lifecycle, allowing application hooks and events to be registered without putting application behavior in `bootstrap/app.php`.
 
 ---
 

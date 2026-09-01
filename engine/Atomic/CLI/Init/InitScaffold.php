@@ -12,8 +12,7 @@ trait InitScaffold
     private function create_skeleton_directories(string $root): int
     {
         $dirs = [
-            'app/Event',
-            'app/Hook',
+            'app/Providers',
             'app/Http/Controllers',
             'app/Http/Middleware',
             'app/Models',
@@ -86,12 +85,8 @@ trait InitScaffold
             "<?php\ndeclare(strict_types=1);\nif (!defined('ATOMIC_START')) exit;\n\n// Application CLI routes\n"
         );
         $stubs += $this->write_stub_if_missing(
-            $root . '/app/Event/Application.php',
-            "<?php\ndeclare(strict_types=1);\nnamespace App\\Event;\n\nclass Application {\n    use \\Engine\\Atomic\\Core\\Traits\\Singleton;\n    public function init(): void {}\n}\n"
-        );
-        $stubs += $this->write_stub_if_missing(
-            $root . '/app/Hook/Application.php',
-            "<?php\ndeclare(strict_types=1);\nnamespace App\\Hook;\n\nclass Application {\n    use \\Engine\\Atomic\\Core\\Traits\\Singleton;\n    public function init(): void {}\n}\n"
+            $root . '/app/Providers/ApplicationServiceProvider.php',
+            "<?php\ndeclare(strict_types=1);\nnamespace App\\Providers;\n\nuse Engine\\Atomic\\Core\\ServiceProvider;\n\nfinal class ApplicationServiceProvider extends ServiceProvider {}\n"
         );
         return $stubs;
     }

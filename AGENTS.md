@@ -56,11 +56,10 @@ git push origin main --tags
 
 ## Bootstrap chain (skeleton canonical order)
 
-The skeleton `packages/skeleton/bootstrap/app.php` is the authoritative reference. Order matters — hooks fire at specific points:
+The framework `Engine\Atomic\Core\Bootstrap` owns the lifecycle. The skeleton `packages/skeleton/bootstrap/app.php` only delegates to it. Application-specific hooks and events are registered by providers listed in `config/providers.php`:
 
 ```
-\App\Event\Application::init()
-\App\Hook\Application::init()
+application service provider register()
 config_loaded → register_logger → register_exception_handler → prefly
 → register_locales → register_locale_hrefs → register_unload_handler
 → register_middleware → core_ready → register_core_plugins

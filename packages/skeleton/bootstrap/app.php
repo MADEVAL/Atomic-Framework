@@ -21,11 +21,4 @@ if (is_dir($skeleton_app_dir)) {
 }
 unset($skeleton_app_dir, $autoloader);
 
-return \Engine\Atomic\Core\Bootstrap::boot(static function (): void {
-    if (class_exists('App\\Event\\Application')) {
-        \App\Event\Application::init();
-    }
-    if (class_exists('App\\Hook\\Application')) {
-        \App\Hook\Application::init();
-    }
-});
+return \Engine\Atomic\Core\Bootstrap::boot();

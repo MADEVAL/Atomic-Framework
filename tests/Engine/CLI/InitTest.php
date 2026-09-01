@@ -112,7 +112,7 @@ class InitTest extends TestCase
         $this->cli->exposeCreateDirs($this->tmp_dir);
 
         foreach ([
-            'app/Event', 'app/Hook', 'app/Http/Controllers', 'app/Http/Middleware',
+            'app/Providers', 'app/Http/Controllers', 'app/Http/Middleware',
             'app/Models', 'bootstrap', 'config', 'database/migrations', 'database/seeds',
             'plugins', 'public/themes/default', 'public/uploads',
             'resources/views', 'routes',
@@ -151,7 +151,7 @@ class InitTest extends TestCase
 
         foreach ([
             'routes/web.php', 'routes/api.php', 'routes/cli.php',
-            'app/Event/Application.php', 'app/Hook/Application.php',
+            'app/Providers/ApplicationServiceProvider.php',
         ] as $stub) {
             $this->assertFileExists(
                 $this->tmp_dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $stub),
@@ -166,7 +166,7 @@ class InitTest extends TestCase
 
         $count = $this->cli->exposeCreateStubs($this->tmp_dir);
 
-        $this->assertSame(5, $count);
+        $this->assertSame(4, $count);
     }
 
     public function test_create_stubs_does_not_overwrite_existing(): void
@@ -176,7 +176,7 @@ class InitTest extends TestCase
 
         $count = $this->cli->exposeCreateStubs($this->tmp_dir);
 
-        $this->assertSame(4, $count, 'Existing stub must be skipped');
+        $this->assertSame(3, $count, 'Existing stub must be skipped');
         $this->assertStringContainsString(
             '// custom',
             file_get_contents($this->tmp_dir . '/routes/web.php')

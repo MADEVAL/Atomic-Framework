@@ -43,5 +43,16 @@ final class BootstrapTest extends TestCase
         $this->assertStringContainsString('Bootstrap::boot', $source);
         $this->assertStringNotContainsString('ConfigSchema::', $source);
         $this->assertStringNotContainsString('registerProvider', $source);
+        $this->assertStringContainsString('Bootstrap::boot();', $source);
+        $this->assertStringNotContainsString('initialize_application', $source);
+    }
+
+    public function test_skeleton_registers_application_provider(): void
+    {
+        $providers = require ATOMIC_CONFIG . 'providers.php';
+
+        $this->assertSame([
+            'App\\Providers\\ApplicationServiceProvider',
+        ], $providers['providers']);
     }
 }

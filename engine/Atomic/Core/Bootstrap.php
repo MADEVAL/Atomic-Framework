@@ -30,7 +30,7 @@ use Engine\Atomic\Core\Providers\UnloadServiceProvider;
 
 final class Bootstrap
 {
-    public static function boot(?callable $initialize_application = null): App
+    public static function boot(): App
     {
         self::register_config_schema();
         self::load_helpers();
@@ -47,12 +47,9 @@ final class Bootstrap
         $container->instance(\Base::class, $atomic);
         $container->instance(App::class, $application);
 
-        if ($initialize_application !== null) {
-            $initialize_application();
-        }
-
         $runtime = new Application($container);
         self::register_core_providers($runtime);
+        self::register_application_providers($runtime);
         $runtime->boot();
 
         return $application;
@@ -225,5 +222,26 @@ final class Bootstrap
             ->registerProvider(new DatabaseServiceProvider())
             ->registerProvider(new AuthServiceProvider())
             ->registerProvider(new AppBootstrappedServiceProvider());
+    }
+
+    private static function register_application_providers(Application $runtime): void
+    {
+        $providers_file = ATOMIC_CONFIG . 'providers.php';
+        $resolved_providers_file = realpath($providers_file);
+
+        if ($resolved_providers_file === false || !is_file($resolved_providers_file) || !is_readable($resolved_providers_file)) {
+            return;
+        }
+
+        $config = require $resolved_providers_file;
+        $providers = is_array($config) ? (array)($config['providers'] ?? []) : [];
+
+        foreach ($providers as $provider) {
+            if (!is_string($provider) || !is_a($provider, ServiceProvider::class, true)) {
+                throw new \RuntimeException('Invalid application service provider: ' . (is_string($provider) ? $provider : get_debug_type($provider)));
+            }
+
+            $runtime->registerProvider(new $provider());
+        }
     }
 }
