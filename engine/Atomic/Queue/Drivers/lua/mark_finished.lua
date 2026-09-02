@@ -8,6 +8,7 @@
 -- ARGV[3]: timestamp
 -- ARGV[4]: exception_json (empty string when not failed)
 -- ARGV[5]: ttl (in seconds)
+-- ARGV[6]: expected worker PID
 
 local registry_key = KEYS[1]
 local running_idx_key = KEYS[2]
@@ -19,6 +20,7 @@ local is_failed = tonumber(ARGV[2]) == 1
 local timestamp = tonumber(ARGV[3])
 local exception_json = ARGV[4]
 local config_ttl = tonumber(ARGV[5])
+local expected_pid = tostring(ARGV[6] or '')
 
 if ARGV[2] == nil then
     error('missing required argument: is_failed')
@@ -31,6 +33,9 @@ if exception_json == nil then
 end
 if config_ttl == nil then
     error('missing or invalid required argument: ttl')
+end
+if expected_pid == '' then
+    error('missing required argument: expected worker PID')
 end
 
 local CLEANUP_THRESHOLD = 1000
@@ -59,6 +64,21 @@ end
 local pid = redis.call('HGET', registry_key, 'pid')
 if pid == false or pid == nil then
     error('missing required job field: pid')
+end
+if tostring(pid) ~= expected_pid then
+    return 0
+end
+
+local state = redis.call('HGET', registry_key, 'state')
+if state ~= 'running' and (not is_failed or state ~= 'cancel_requested') then
+    return 0
+end
+
+if not is_failed then
+    local available_at = tonumber(require_field('available_at'))
+    if timestamp >= available_at then
+        return 0
+    end
 end
 local created_at = require_number_field('created_at')
 local registry_suffix = 'registry.' .. uuid

@@ -8,10 +8,12 @@ use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
+use Engine\Atomic\Queue\Monitor\Monitor;
 use Engine\Atomic\Queue\Tests\TestJob as QueueTestHandler;
 use Engine\Atomic\Telemetry\Queue\EventType;
 use PHPUnit\Framework\TestCase;
 use Tests\Engine\Queue\Support\QueueDriverTestHarness;
+use Tests\Engine\Queue\Support\QueueLeaseTestJob;
 use Tests\Engine\Queue\Support\WorkerProcessHarness;
 
 /**
@@ -81,6 +83,58 @@ final class WorkerIntegrationTest extends TestCase
         $this->wait_for_lifecycle_events('redis', $telemetry, $queue, $job['uuid']);
 
         $this->workers->stopAll();
+    }
+
+    public function test_redis_monitor_terminates_expired_lease_and_marks_job_failed(): void
+    {
+        [$queue] = $this->configure_redis_queues(['worker_e2e_timeout'], ['timeout' => 1, 'max_attempts' => 1]);
+        $manager = new Manager($queue);
+        $this->assertTrue($manager->push(
+            [QueueTestHandler::class, 'timeout'],
+            ['params' => [], 'smth' => 'redis-timeout']
+        ));
+
+        $this->workers->startWorker($queue);
+        $telemetry = new TelemetryManager();
+        $this->wait_for_state_count($telemetry, $queue, State::RUNNING->value, 1, 5.0);
+
+        $monitor = $this->start_monitor($queue);
+        try {
+            $this->wait_for_state_count($telemetry, $queue, State::FAILED->value, 1, 15.0);
+            $this->assertSame(0, $this->state_count($telemetry, $queue, State::RUNNING->value));
+            $this->assertSame(0, $this->state_count($telemetry, $queue, State::PENDING->value));
+        } finally {
+            $this->stop_process($monitor);
+        }
+    }
+
+    public function test_redis_worker_renews_lease_and_monitor_does_not_kill_it(): void
+    {
+        [$queue] = $this->configure_redis_queues(['worker_e2e_lease'], ['timeout' => 3, 'max_attempts' => 1]);
+        $manager = new Manager($queue);
+        $this->assertTrue($manager->push(
+            [QueueLeaseTestJob::class, 'renew_lease'],
+            [
+                'marker_dir' => $this->workers->markerDir(),
+                'id' => 'redis-lease',
+                'seconds' => 7.0,
+            ]
+        ));
+
+        $this->workers->startWorker($queue);
+        $telemetry = new TelemetryManager();
+        $this->wait_for_state_count($telemetry, $queue, State::RUNNING->value, 1, 5.0);
+
+        $monitor = $this->start_monitor($queue);
+        try {
+            $this->wait_for_state_count($telemetry, $queue, State::COMPLETED->value, 1, 15.0);
+            $this->assertSame(1, $this->workers->markerCount('success'));
+            $this->assertSame(0, $this->state_count($telemetry, $queue, State::FAILED->value));
+            $this->assertSame(0, $this->state_count($telemetry, $queue, State::PENDING->value));
+            $this->assertSame(0, $this->state_count($telemetry, $queue, State::RUNNING->value));
+        } finally {
+            $this->stop_process($monitor);
+        }
     }
 
     public function test_db_worker_consumes_one_job_and_records_lifecycle(): void
@@ -325,6 +379,47 @@ final class WorkerIntegrationTest extends TestCase
         if (!\extension_loaded('pcntl') || !\extension_loaded('posix')) {
             $this->markTestSkipped('pcntl and posix extensions are required for worker integration tests.');
         }
+    }
+
+    private function start_monitor(string $queue): int
+    {
+        $pid = \pcntl_fork();
+        if ($pid === -1) {
+            $this->fail('Unable to fork queue monitor.');
+        }
+
+        if ($pid === 0) {
+            ConnectionManager::instance()->close();
+            (new Monitor($queue))->run();
+            exit(0);
+        }
+
+        return $pid;
+    }
+
+    private function stop_process(int $pid): void
+    {
+        if ($pid <= 0) {
+            return;
+        }
+
+        if (@\posix_kill($pid, 0)) {
+            @\posix_kill($pid, SIGTERM);
+        }
+
+        $deadline = \microtime(true) + 8.0;
+        do {
+            $result = \pcntl_waitpid($pid, $status, WNOHANG);
+            if ($result === $pid || $result === -1) {
+                return;
+            }
+            \usleep(50_000);
+        } while (\microtime(true) < $deadline);
+
+        if (@\posix_kill($pid, 0)) {
+            @\posix_kill($pid, SIGKILL);
+        }
+        @\pcntl_waitpid($pid, $status, 0);
     }
 
     private function configure_redis_queues(array $queues, array $overrides = []): array

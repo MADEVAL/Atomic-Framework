@@ -258,6 +258,12 @@ class Monitor
                 continue;
             }
 
+            if (!$this->queue_manager->exists_in_jobs_table($uuid, $pid)) {
+                Log::channel(LogChannel::QUEUE_MONITOR)->debug("[QueueMonitor] Job with UUID {$uuid} is no longer owned by PID {$pid}; removing stale kill request.");
+                unset($this->unkillable_pids[$uuid], $this->kill_attempts[$uuid]);
+                continue;
+            }
+
             if (!$this->process_manager->is_our_process($pid, $job)) {
                 Log::channel(LogChannel::QUEUE_MONITOR)->warning("[QueueMonitor] Process $pid no longer belongs to our monitor, removing from unkillable list");
                 unset($this->unkillable_pids[$uuid], $this->kill_attempts[$uuid]);

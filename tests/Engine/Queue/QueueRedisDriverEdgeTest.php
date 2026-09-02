@@ -111,6 +111,8 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
             $uuid
         ));
         $job = $manager->pop_batch()[0];
+        $job['pid'] = \getmypid();
+        $this->assertTrue($manager->set_pid($job));
 
         $this->assertTrue($manager->cancel($uuid));
         $this->assertTrue($manager->mark_completed($job));

@@ -64,6 +64,7 @@ The manager also exposes these runtime methods:
 - `pop_batch()`
 - `process_job(array $job)`
 - `release(array $job, int $delay)`
+- `renew_lease(?int $duration = null)`
 - `mark_failed(array $job, \Throwable $exception)`
 - `mark_completed(array $job)`
 - `cancel(string $uuid)` Redis only
@@ -72,6 +73,37 @@ The manager also exposes these runtime methods:
 - `retry()`
 - `retry_by_uuid(string $uuid)`
 - `delete_job(string $uuid)`
+
+### Job leases
+
+`timeout` is the initial lease duration for a running job. A long-running
+handler must renew its lease before it expires:
+
+```php
+use Engine\Atomic\Queue\Managers\Manager;
+
+$queue = new Manager();
+
+foreach ($batches as $batch) {
+    $this->process_batch($batch);
+
+    if (!$queue->renew_lease()) {
+        throw new RuntimeException('Queue lease was lost. Stop and let the job retry.');
+    }
+}
+```
+
+Pass a positive number to renew with a different duration:
+
+```php
+$queue->renew_lease(60);
+```
+
+Lease renewal is ownership-checked and fails after the lease expires. The
+monitor treats an expired lease as a stuck job, sends `SIGTERM`, and escalates
+to `SIGKILL` when the worker does not exit. The worker alarm is not used.
+Queue processing is at-least-once: handlers should use idempotency keys or
+checkpoints when duplicate execution would matter.
 
 Queue telemetry is emitted automatically through `TelemetryManager` when jobs are created, fetched, retried, completed, failed, recovered, cancellation-requested, or cancelled.
 

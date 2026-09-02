@@ -31,6 +31,7 @@ class Redis implements Base, Management, Telemetry
     private const LUA_LOAD_ACTIVE_MONITOR = 'load_active_monitor';
     private const LUA_LOAD_STUCK = 'load_stuck';
     private const LUA_RELEASE = 'release';
+    private const LUA_RENEW_LEASE = 'renew_lease';
     private const LUA_MARK_FINISHED = 'mark_finished';
     private const LUA_CANCEL = 'cancel';
     private const LUA_MARK_CANCEL_REQUESTED = 'mark_cancel_requested';
@@ -338,6 +339,37 @@ class Redis implements Base, Management, Telemetry
         }
     }
 
+    public function renew_lease(array $job, int $duration): bool
+    {
+        $uuid = $job['uuid'] ?? null;
+        $queue = $job['queue'] ?? null;
+        $pid = $job['pid'] ?? null;
+        if (!\is_string($uuid) || $uuid === '' || !\is_string($queue) || $queue === '' || !\is_int($pid) || $pid <= 0 || $duration <= 0) {
+            return false;
+        }
+
+        $prefix = $this->get_prefix();
+        try {
+            $result = $this->eval_lua(
+                self::LUA_RENEW_LEASE,
+                [
+                    $prefix . 'registry.' . $uuid,
+                    $prefix . $queue . '.idx.running',
+                    $uuid,
+                    (string)$pid,
+                    (string)\time(),
+                    (string)$duration,
+                ],
+                2
+            );
+
+            return (bool)$result;
+        } catch (\Throwable $th) {
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error renewing lease for job {$uuid}: " . $th->getMessage());
+            return false;
+        }
+    }
+
     private function mark_finished(array $job, bool $failed): bool 
     {
         $redis = $this->connection_manager->get_redis(true);
@@ -370,7 +402,8 @@ class Redis implements Base, Management, Telemetry
                     (int)$failed,
                     $timestamp,
                     $exception_json,
-                    (int)$ttl
+                    (int)$ttl,
+                    (string)($job['pid'] ?? '')
                 ],
                 5
             );

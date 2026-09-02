@@ -193,6 +193,32 @@ class DB implements Base, Management, Telemetry
         }
     }
 
+    public function renew_lease(array $job, int $duration): bool
+    {
+        $uuid = $job['uuid'] ?? null;
+        $pid = $job['pid'] ?? null;
+        if (!\is_string($uuid) || $uuid === '' || !\is_int($pid) || $pid <= 0 || $duration <= 0) {
+            return false;
+        }
+
+        list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
+        $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
+        $now = \time();
+        $available_at = $now + $duration;
+
+        try {
+            $updated = (int)$sql->exec(
+                'UPDATE `' . $table . '` SET available_at = ? WHERE uuid = ? AND pid = ? AND available_at > ? LIMIT 1',
+                [$available_at, $uuid, $pid, $now]
+            );
+
+            return $updated === 1;
+        } catch (\Throwable $th) {
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error renewing lease for job {$uuid}: " . $th->getMessage());
+            return false;
+        }
+    }
+
     public function mark_failed(array $job, \Throwable $exception): bool
     {
         $uuid = $job['uuid'] ?? null;
@@ -261,7 +287,7 @@ class DB implements Base, Management, Telemetry
 
         try {
             $sql->begin();
-            if (!$this->delete_claimed_job($sql, $jobs_table, $job)) {
+            if (!$this->delete_claimed_job($sql, $jobs_table, $job, true)) {
                 $sql->rollback();
                 Log::channel(LogChannel::QUEUE_WORKER)->warning("Skipping mark_completed for job {$uuid}: ownership mismatch or job already moved.");
                 return false;
@@ -362,7 +388,7 @@ class DB implements Base, Management, Telemetry
         }
     }
 
-    private function delete_claimed_job(\DB\SQL $sql, string $table, array $job): bool
+    private function delete_claimed_job(\DB\SQL $sql, string $table, array $job, bool $require_active_lease = false): bool
     {
         $uuid = $job['uuid'] ?? null;
         if (!\is_string($uuid) || $uuid === '') {
@@ -379,6 +405,11 @@ class DB implements Base, Management, Telemetry
                 $query .= ' AND pid = ?';
                 $params[] = (int)$job['pid'];
             }
+        }
+
+        if ($require_active_lease) {
+            $query .= ' AND available_at > ?';
+            $params[] = \time();
         }
 
         $query .= ' LIMIT 1';

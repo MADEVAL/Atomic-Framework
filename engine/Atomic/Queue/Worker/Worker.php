@@ -223,7 +223,6 @@ class Worker
         \pcntl_signal(SIGINT,  $graceful_shutdown);
         \pcntl_signal(SIGUSR1, $cancel_job);
         \pcntl_signal(SIGCHLD, SIG_DFL);
-        \pcntl_signal(SIGALRM, SIG_IGN);
 
         $this->queue_manager->open_all_connections();
 
@@ -284,17 +283,7 @@ class Worker
 
         $atomic = App::instance();
 
-        $timed_out = false;
-        \pcntl_signal(SIGALRM, function () use (&$timed_out): void {
-            $timed_out = true;
-        });
-        \pcntl_alarm((int)$job['timeout']);
-
         try {
-            if ($timed_out) {
-                throw new \RuntimeException("Job {$job['uuid']} timed out after {$job['timeout']}s");
-            }
-
             if ($this->job_cancelled_by_signal) {
                 throw new JobCancelledException('Job cancellation requested');
             }
@@ -304,7 +293,10 @@ class Worker
             $atomic->set('ATOMIC_QUEUE_CURRENT_NAME', $job['queue']);
 
             $this->queue_manager->process_job($job);
-            $this->queue_manager->mark_completed($job);
+            if (!$this->queue_manager->mark_completed($job)) {
+                Log::channel(LogChannel::QUEUE_WORKER)->warning("Job {$job['uuid']} finished after its lease or ownership was lost; leaving recovery to the queue monitor.");
+                return;
+            }
             Log::channel(LogChannel::QUEUE_WORKER)->debug("Job {$job['uuid']} processed successfully by worker #$worker_id.");
 
         } catch (JobCancelledException $e) {
@@ -315,10 +307,6 @@ class Worker
                 $this->queue_manager->mark_cancelled($job, $e->getMessage());
                 Log::channel(LogChannel::QUEUE_WORKER)->info("Job {$job['uuid']} cancelled after cancel request.");
                 return;
-            }
-            if ($timed_out) {
-                $this->queue_manager->close_all_connections();
-                $this->queue_manager->open_all_connections();
             }
 
             $error_data = [
@@ -340,8 +328,6 @@ class Worker
             }
 
         } finally {
-            \pcntl_alarm(0);
-            \pcntl_signal(SIGALRM, SIG_IGN);
             $this->job_cancelled_by_signal = false;
 
             $atomic->set('ATOMIC_QUEUE_CURRENT_UUID', null);

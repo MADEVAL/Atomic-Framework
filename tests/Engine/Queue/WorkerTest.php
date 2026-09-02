@@ -48,7 +48,6 @@ final class WorkerTest extends TestCase
 
     protected function tearDown(): void
     {
-        \pcntl_alarm(0);
         foreach ($this->originalState as $key => $value) {
             App::instance()->set($key, $value);
         }
@@ -58,6 +57,21 @@ final class WorkerTest extends TestCase
     public function test_successful_job_is_marked_completed_and_context_is_cleared(): void
     {
         $manager = new WorkerFakeManager();
+        $job = $this->job();
+
+        $this->processSingleJob($manager, $job);
+
+        $this->assertSame([$job['uuid']], $manager->processed);
+        $this->assertSame([$job['uuid']], $manager->completed);
+        $this->assertSame([], $manager->failed);
+        $this->assertSame([], $manager->released);
+        $this->assertQueueContextCleared();
+    }
+
+    public function test_job_finished_after_lease_loss_is_not_failed_or_released_by_worker(): void
+    {
+        $manager = new WorkerFakeManager();
+        $manager->completedResult = false;
         $job = $this->job();
 
         $this->processSingleJob($manager, $job);
@@ -301,7 +315,7 @@ final class WorkerTest extends TestCase
 
     private function requireWorkerSignalSupport(): void
     {
-        foreach (['pcntl_signal', 'pcntl_alarm'] as $fn) {
+        foreach (['pcntl_signal'] as $fn) {
             if (!\function_exists($fn)) {
                 $this->markTestSkipped("Worker test requires {$fn}().");
             }
@@ -421,6 +435,7 @@ final class WorkerProcessFake extends Worker
 final class WorkerFakeManager extends Manager
 {
     public bool $setPidResult = true;
+    public bool $completedResult = true;
     public bool $supportsCancel = false;
     public bool $cancelRequested = false;
     public array $processed = [];
@@ -454,7 +469,7 @@ final class WorkerFakeManager extends Manager
     public function mark_completed(array $job): bool
     {
         $this->completed[] = $job['uuid'];
-        return true;
+        return $this->completedResult;
     }
 
     public function mark_failed(array $job, \Throwable $exception): bool

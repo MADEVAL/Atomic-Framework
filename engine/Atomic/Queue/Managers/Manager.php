@@ -236,6 +236,31 @@ class Manager
         return $release_res;
     }
 
+    public function renew_lease(?int $duration = null): bool
+    {
+        $atomic = App::instance();
+        $uuid = $atomic->get('ATOMIC_QUEUE_CURRENT_UUID');
+        if (!\is_string($uuid) || $uuid === '') {
+            return false;
+        }
+
+        $duration ??= (int)($this->config_current['timeout'] ?? 0);
+        if ($duration <= 0) {
+            throw new \InvalidArgumentException('Lease duration must be a positive integer.');
+        }
+
+        $queue = $atomic->get('ATOMIC_QUEUE_CURRENT_NAME');
+        if (!\is_string($queue) || $queue === '') {
+            $queue = $this->queue;
+        }
+
+        return $this->driver->renew_lease([
+            'uuid' => $uuid,
+            'queue' => $queue,
+            'pid' => \getmypid(),
+        ], $duration);
+    }
+
     public function mark_failed(array $job, \Throwable $exception): bool {
         $mark_failed_res = $this->driver->mark_failed($job, $exception);
 

@@ -88,6 +88,48 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
         $this->assertTrue($manager->mark_completed($job));
     }
 
+    public function test_mark_completed_rejects_an_expired_lease(): void
+    {
+        $manager = new Manager();
+        $uuid = $this->new_uuid();
+        $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'expired'], [], $uuid));
+
+        $job = $manager->pop_batch()[0];
+        $job['pid'] = \getmypid();
+        $this->assertTrue($manager->set_pid($job));
+
+        $sql = App::instance()->get('DB');
+        $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
+        $sql->exec('UPDATE `' . $table . '` SET available_at = ? WHERE uuid = ?', [\time() - 1, $uuid]);
+
+        $this->assertFalse($manager->mark_completed($job));
+        $this->assertSame([$uuid], \array_column($manager->load_stuck_jobs([], $manager->get_queue()), 'uuid'));
+    }
+
+    public function test_renew_lease_extends_only_the_active_owned_job(): void
+    {
+        $manager = new Manager();
+        $driver = $this->manager_driver($manager);
+        $uuid = $this->new_uuid();
+        $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'renew'], [], $uuid));
+
+        $job = $manager->pop_batch()[0];
+        $job['pid'] = \getmypid();
+        $this->assertTrue($manager->set_pid($job));
+
+        $sql = App::instance()->get('DB');
+        $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
+        $before = (int)$sql->exec('SELECT available_at FROM `' . $table . '` WHERE uuid = ?', [$uuid])[0]['available_at'];
+
+        $this->assertTrue($driver->renew_lease($job, 60));
+        $after = (int)$sql->exec('SELECT available_at FROM `' . $table . '` WHERE uuid = ?', [$uuid])[0]['available_at'];
+        $this->assertGreaterThan($before, $after);
+
+        $stale = $job;
+        $stale['pid']++;
+        $this->assertFalse($driver->renew_lease($stale, 60));
+    }
+
     public function test_uuid_search_finds_active_failed_and_completed_without_cancel_column(): void
     {
         $manager = new Manager();

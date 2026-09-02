@@ -283,14 +283,14 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $completed = $this->key('idx.completed');
         $pidMap = $this->prefix . 'meta.pid_map';
 
-        $this->putRegistry($uuid, ['state' => 'running', 'pid' => '444', 'created_at' => '2000']);
+        $this->putRegistry($uuid, ['state' => 'running', 'pid' => '444', 'created_at' => '2000', 'available_at' => (string)(\time() + 60)]);
         $this->redis->zAdd($running, 123, $uuid);
         $this->redis->hSet($pidMap, '444', $uuid);
 
         $result = $this->evalLua(
             'mark_finished',
             [$this->registryKey($uuid), $running, $this->key('idx.cancel_requested'), $completed, $pidMap],
-            [$uuid, 0, \time(), '', 60]
+            [$uuid, 0, \time(), '', 60, '444']
         );
 
         $this->assertSame(1, (int)$result);
@@ -312,14 +312,14 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
             $this->redis->zAdd($completed, $i, 'stale-' . $i);
         }
 
-        $this->putRegistry($uuid, ['state' => 'running', 'pid' => '444', 'created_at' => '2000']);
+        $this->putRegistry($uuid, ['state' => 'running', 'pid' => '444', 'created_at' => '2000', 'available_at' => (string)(\time() + 60)]);
         $this->redis->zAdd($running, 123, $uuid);
         $this->redis->hSet($pidMap, '444', $uuid);
 
         $result = $this->evalLua(
             'mark_finished',
             [$this->registryKey($uuid), $running, $this->key('idx.cancel_requested'), $completed, $pidMap],
-            [$uuid, 0, \time(), '', 60]
+            [$uuid, 0, \time(), '', 60, '444']
         );
 
         $this->assertSame(1, (int)$result);
@@ -329,6 +329,63 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->assertFalse($this->redis->hGet($pidMap, '444'));
         $this->assertFalse($this->redis->zScore($completed, 'stale-0'));
         $this->assertFalse($this->redis->zScore($completed, 'stale-99'));
+    }
+
+    public function test_mark_finished_rejects_completed_job_after_lease_expiry(): void
+    {
+        $uuid = $this->new_uuid();
+        $running = $this->key('idx.running');
+        $completed = $this->key('idx.completed');
+        $pidMap = $this->prefix . 'meta.pid_map';
+
+        $this->putRegistry($uuid, [
+            'state' => 'running',
+            'pid' => '444',
+            'available_at' => (string)(\time() - 1),
+        ]);
+        $this->redis->zAdd($running, (\time() - 1) * 1000, $uuid);
+        $this->redis->hSet($pidMap, '444', $uuid);
+
+        $result = $this->evalLua(
+            'mark_finished',
+            [$this->registryKey($uuid), $running, $this->key('idx.cancel_requested'), $completed, $pidMap],
+            [$uuid, 0, \time(), '', 60, '444']
+        );
+
+        $this->assertSame(0, (int)$result);
+        $this->assertSame('running', $this->redis->hGet($this->registryKey($uuid), 'state'));
+        $this->assertNotFalse($this->redis->zScore($running, $uuid));
+        $this->assertSame($uuid, $this->redis->hGet($pidMap, '444'));
+    }
+
+    public function test_renew_lease_extends_only_the_active_owned_job(): void
+    {
+        $uuid = $this->new_uuid();
+        $now = \time();
+        $running = $this->key('idx.running');
+        $this->putRegistry($uuid, [
+            'state' => 'running',
+            'pid' => '444',
+            'available_at' => (string)($now + 10),
+        ]);
+        $this->redis->zAdd($running, ($now + 10) * 1000, $uuid);
+
+        $result = $this->evalLua(
+            'renew_lease',
+            [$this->registryKey($uuid), $running],
+            [$uuid, '444', $now, 60]
+        );
+
+        $this->assertSame(1, (int)$result);
+        $renewedAt = (int)$this->redis->hGet($this->registryKey($uuid), 'available_at');
+        $this->assertSame($now + 60, $renewedAt);
+        $this->assertSame((float)(($now + 60) * 1000), $this->redis->zScore($running, $uuid));
+
+        $this->assertSame(0, (int)$this->evalLua(
+            'renew_lease',
+            [$this->registryKey($uuid), $running],
+            [$uuid, '999', $now, 60]
+        ));
     }
 
     public function test_load_batch_fails_on_malformed_numeric_job_fields(): void
