@@ -19,7 +19,7 @@ trait DB
         }
 
         try {
-            $conditions = ['available_at < ? AND pid != ?', \time(), null];
+            $conditions = ['available_at < ? AND pid IS NOT NULL', \time()];
             
             if ($queue !== '*' && !empty($queue)) {
                 $conditions[0] .= " AND queue = ?";
@@ -58,7 +58,7 @@ trait DB
         }
 
         try {
-            $conditions = ['available_at > ? AND pid != ?', \time(), null];
+            $conditions = ['available_at > ? AND pid IS NOT NULL AND process_start_ticks IS NOT NULL AND process_start_ticks <> 0', \time()];
             
             if ($queue !== '*' && !empty($queue)) {
                 $conditions[0] .= " AND queue = ?";
@@ -103,7 +103,7 @@ trait DB
         }
     }
 
-    public function exists_in_jobs_table(string $uuid, int $pid): bool
+    public function exists_in_jobs_table(string $uuid, int $pid, ?int $process_start_ticks = null): bool
     {
         $sql = $this->connection_manager->get_db();
         if (!$this->jobs_mapper) {
@@ -111,7 +111,14 @@ trait DB
         }
 
         try {
-            $this->jobs_mapper->load(['uuid = ? AND pid = ?', $uuid, $pid]);
+            $conditions = 'uuid = ? AND pid = ?';
+            $params = [$uuid, $pid];
+            if ($process_start_ticks !== null) {
+                $conditions .= ' AND process_start_ticks = ?';
+                $params[] = $process_start_ticks;
+            }
+
+            $this->jobs_mapper->load([$conditions, ...$params]);
             return !$this->jobs_mapper->dry();
         } catch (\Exception $e) {
             Log::channel(LogChannel::QUEUE_MONITOR)->error("Error checking if job exists in jobs table: " . $e->getMessage());

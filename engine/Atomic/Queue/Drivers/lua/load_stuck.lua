@@ -1,7 +1,7 @@
 -- KEYS[1]: {queue}.idx.running key
 -- ARGV[1]: prefix
 -- ARGV[2]: now (timestamp)
--- ARGV[3]: exclude_pids_json
+-- ARGV[3]: exclude_uuids_json
 
 local running_idx_key = KEYS[1]
 local prefix = ARGV[1]
@@ -15,8 +15,8 @@ end
 local exclude_set = {}
 if exclude_json and exclude_json ~= '' then
     local exclude = cjson.decode(exclude_json)
-    for _, pid in ipairs(exclude) do
-        exclude_set[tostring(pid)] = true
+    for _, uuid in ipairs(exclude) do
+        exclude_set[tostring(uuid)] = true
     end
 end
 
@@ -39,10 +39,8 @@ for _, uuid in ipairs(uuids) do
     end
     
     local include = true
-    if job.pid and job.pid ~= '' then
-        if exclude_set[job.pid] then
-            include = false
-        end
+    if exclude_set[uuid] then
+        include = false
     end
     
     if include then

@@ -89,7 +89,7 @@ class Monitor
         
         $this->process_probe->usleep(self::DOUBLE_CHECK_DELAY_US);
         
-        if (!$this->queue_manager->exists_in_jobs_table($uuid, $pid)) {
+        if (!$this->queue_manager->exists_in_jobs_table($uuid, $pid, $this->process_start_ticks($job))) {
             Log::channel(LogChannel::QUEUE_MONITOR)->debug("[QueueMonitor] Job with UUID {$uuid} no longer exists with PID {$pid} after double-check. Skipping - likely already completed.");
             return false;
         }
@@ -162,7 +162,7 @@ class Monitor
 
     public function check_stuck_jobs(): void 
     {
-        $exclude_uuids = array_map(fn($job) => $job['uuid'], $this->unkillable_pids);
+        $exclude_uuids = \array_values(\array_map(fn($job) => $job['uuid'], $this->unkillable_pids));
         $stuck_jobs = $this->queue_manager->load_stuck_jobs($exclude_uuids, '*');
         
         if (empty($stuck_jobs)) {
@@ -258,7 +258,7 @@ class Monitor
                 continue;
             }
 
-            if (!$this->queue_manager->exists_in_jobs_table($uuid, $pid)) {
+            if (!$this->queue_manager->exists_in_jobs_table($uuid, $pid, $this->process_start_ticks($job))) {
                 Log::channel(LogChannel::QUEUE_MONITOR)->debug("[QueueMonitor] Job with UUID {$uuid} is no longer owned by PID {$pid}; removing stale kill request.");
                 unset($this->unkillable_pids[$uuid], $this->kill_attempts[$uuid]);
                 continue;
@@ -329,5 +329,11 @@ class Monitor
                 $this->queue_manager->handle_incomplete_job($job);
             }
         }
+    }
+
+    private function process_start_ticks(array $job): ?int
+    {
+        $ticks = $job['process_start_ticks'] ?? null;
+        return \is_numeric($ticks) && (int)$ticks > 0 ? (int)$ticks : null;
     }
 }

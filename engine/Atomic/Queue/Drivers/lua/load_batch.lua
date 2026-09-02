@@ -109,7 +109,9 @@
             'state', 'running',
             'attempts', tostring(job.attempts),
             'available_at', tostring(job.available_at),
-            'updated_at', tostring(job.updated_at)
+            'updated_at', tostring(job.updated_at),
+            'pid', '-1',
+            'process_start_ticks', ''
         )
 
         redis.call('ZREM', pending_idx_key, candidate.uuid)

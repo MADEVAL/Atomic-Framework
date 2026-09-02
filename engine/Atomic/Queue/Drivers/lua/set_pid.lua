@@ -22,6 +22,15 @@ if redis.call('EXISTS', registry_key) == 0 then
     error('missing job registry: ' .. registry_key)
 end
 
+if redis.call('HGET', registry_key, 'state') ~= 'running' then
+    return 0
+end
+
+local stored_pid = redis.call('HGET', registry_key, 'pid')
+if stored_pid == false or tostring(stored_pid) ~= '-1' then
+    return 0
+end
+
 local time_result = redis.call('TIME')
 local current_time = tostring(time_result[1])
 

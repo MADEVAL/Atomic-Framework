@@ -123,14 +123,24 @@ trait Redis {
         }
     }
 
-    public function exists_in_jobs_table(string $uuid, int $pid): bool
+    public function exists_in_jobs_table(string $uuid, int $pid, ?int $process_start_ticks = null): bool
     {
         $redis = $this->connection_manager->get_redis();
         $prefix = $this->get_prefix();
 
         try {
-            $stored_pid = $redis->hGet($prefix . 'registry.' . $uuid, 'pid');
-            return $stored_pid !== false && (int)$stored_pid === $pid;
+            $registry_key = $prefix . 'registry.' . $uuid;
+            $stored_pid = $redis->hGet($registry_key, 'pid');
+            if ($stored_pid === false || (int)$stored_pid !== $pid) {
+                return false;
+            }
+
+            if ($process_start_ticks === null) {
+                return true;
+            }
+
+            $stored_ticks = $redis->hGet($registry_key, 'process_start_ticks');
+            return $stored_ticks !== false && (int)$stored_ticks === $process_start_ticks;
         } catch (\Exception $e) {
             Log::channel(LogChannel::QUEUE_MONITOR)->error("Error checking if job exists in Redis registry: " . $e->getMessage());
             return false;

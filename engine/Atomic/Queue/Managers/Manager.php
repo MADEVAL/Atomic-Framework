@@ -244,14 +244,15 @@ class Manager
             return false;
         }
 
-        $duration ??= (int)($this->config_current['timeout'] ?? 0);
-        if ($duration <= 0) {
-            throw new \InvalidArgumentException('Lease duration must be a positive integer.');
-        }
-
         $queue = $atomic->get('ATOMIC_QUEUE_CURRENT_NAME');
         if (!\is_string($queue) || $queue === '') {
             $queue = $this->queue;
+        }
+
+        $driver = $atomic->get('QUEUE_DRIVER');
+        $duration ??= (int)$atomic->get("QUEUE.{$driver}.queues.{$queue}.timeout", 0);
+        if ($duration <= 0) {
+            throw new \InvalidArgumentException('Lease duration must be a positive integer.');
         }
 
         return $this->driver->renew_lease([
@@ -441,8 +442,8 @@ class Manager
         return $this->driver->load_active_jobs($queue);
     }
 
-    public function exists_in_jobs_table(string $uuid, int $pid): bool {
-        return $this->driver->exists_in_jobs_table($uuid, $pid);
+    public function exists_in_jobs_table(string $uuid, int $pid, ?int $process_start_ticks = null): bool {
+        return $this->driver->exists_in_jobs_table($uuid, $pid, $process_start_ticks);
     }
 
     public function close_all_connections(): void {
