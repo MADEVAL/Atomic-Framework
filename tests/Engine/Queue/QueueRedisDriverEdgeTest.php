@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Engine\Queue;
 
+use Engine\Atomic\Core\App;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
 use Engine\Atomic\Queue\Tests\TestJob as QueueTestHandler;
@@ -80,6 +81,61 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $this->assertFalse($manager->release($stale, 0));
         $this->assertFalse($this->redis->zScore($this->prefix . $manager->get_queue() . '.idx.pending', $uuid));
         $this->assertNotFalse($this->redis->zScore($this->prefix . $manager->get_queue() . '.idx.running', $uuid));
+    }
+
+    public function test_monitor_ownership_check_rejects_pid_reuse_with_different_process_start_ticks(): void
+    {
+        $manager = new Manager();
+        $driver = $this->manager_driver($manager);
+        $uuid = $this->new_uuid();
+
+        $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'pid-reuse'], [], $uuid));
+        $job = $manager->pop_batch()[0];
+        $job['pid'] = \getmypid();
+        $this->assertTrue($manager->set_pid($job));
+
+        $active = $driver->find_by_uuid($uuid);
+        $this->assertIsArray($active);
+        $ticks = (int)$active['process_start_ticks'];
+
+        $this->assertTrue($manager->exists_in_jobs_table($uuid, (int)$active['pid'], $ticks));
+        $this->assertFalse($manager->exists_in_jobs_table($uuid, (int)$active['pid'], $ticks + 1));
+    }
+
+    public function test_default_lease_duration_uses_the_running_jobs_queue(): void
+    {
+        $atomic = App::instance();
+        $defaultQueue = $this->queue;
+        $runningQueue = $this->new_queue_name();
+        $config = (array)$atomic->get('QUEUE');
+        $config['redis']['queues'][$defaultQueue]['timeout'] = 1;
+        $config['redis']['queues'][$runningQueue] = \array_merge(
+            $config['redis']['queues'][$defaultQueue],
+            ['timeout' => 7]
+        );
+        $atomic->set('QUEUE', $config);
+
+        $manager = new Manager($runningQueue);
+        $uuid = $this->new_uuid();
+        $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => [], 'smth' => 'lease-queue'], [], $uuid));
+        $job = $manager->pop_batch()[0];
+        $job['pid'] = \getmypid();
+        $this->assertTrue($manager->set_pid($job));
+
+        $now = \time();
+        $registry = $this->prefix . 'registry.' . $uuid;
+        $this->redis->hSet($registry, 'available_at', (string)($now + 5));
+        $this->redis->zAdd($this->prefix . $runningQueue . '.idx.running', ($now + 5) * 1000, $uuid);
+        $atomic->set('ATOMIC_QUEUE_CURRENT_UUID', $uuid);
+        $atomic->set('ATOMIC_QUEUE_CURRENT_NAME', $runningQueue);
+
+        try {
+            $this->assertTrue((new Manager())->renew_lease());
+            $this->assertGreaterThanOrEqual($now + 7, (int)$this->redis->hGet($registry, 'available_at'));
+        } finally {
+            $atomic->clear('ATOMIC_QUEUE_CURRENT_UUID');
+            $atomic->clear('ATOMIC_QUEUE_CURRENT_NAME');
+        }
     }
 
     public function test_script_flush_is_recovered_for_eval_lua_paths(): void
@@ -172,7 +228,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
 
         $stuck = $manager->load_stuck_jobs([], $queue);
         $this->assertSame([$uuid], \array_column($stuck, 'uuid'));
-        $this->assertSame([], $manager->load_stuck_jobs([(string)\getmypid()], $queue));
+        $this->assertSame([], $manager->load_stuck_jobs([$uuid], $queue));
 
         $manager->handle_incomplete_job($stuck[0]);
         $this->assertFalse($this->redis->zScore($this->prefix . $queue . '.idx.cancel_requested', $uuid));

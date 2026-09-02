@@ -7,10 +7,13 @@ use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Managers\Manager;
+use Engine\Atomic\Queue\Managers\ProcessManager;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
 use Engine\Atomic\Queue\Monitor\Monitor;
 use Engine\Atomic\Queue\Tests\TestJob as QueueTestHandler;
 use Engine\Atomic\Telemetry\Queue\EventType;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
 use Tests\Engine\Queue\Support\QueueDriverTestHarness;
 use Tests\Engine\Queue\Support\QueueLeaseTestJob;
@@ -19,6 +22,8 @@ use Tests\Engine\Queue\Support\WorkerProcessHarness;
 /**
  * @group worker-integration
  */
+#[RunTestsInSeparateProcesses]
+#[PreserveGlobalState(false)]
 final class WorkerIntegrationTest extends TestCase
 {
     use QueueDriverTestHarness;
@@ -50,8 +55,10 @@ final class WorkerIntegrationTest extends TestCase
         }
 
         if ($this->redis && $this->redis_prefix) {
-            $this->cleanup_redis_prefix($this->redis, $this->redis_prefix);
-            $this->redis->close();
+            ConnectionManager::instance()->close_redis();
+            $cleanupRedis = ConnectionManager::instance()->get_redis();
+            $this->cleanup_redis_prefix($cleanupRedis, $this->redis_prefix);
+            $cleanupRedis->close();
         }
         $this->redis = null;
         $this->redis_prefix = null;
@@ -108,6 +115,30 @@ final class WorkerIntegrationTest extends TestCase
         }
     }
 
+    public function test_redis_monitor_retries_expired_lease_before_exhausting_attempts(): void
+    {
+        [$queue] = $this->configure_redis_queues(['worker_e2e_timeout_retry'], ['timeout' => 1, 'max_attempts' => 2]);
+        $manager = new Manager($queue);
+        $this->assertTrue($manager->push(
+            [QueueTestHandler::class, 'timeout'],
+            ['params' => [], 'smth' => 'redis-timeout-retry']
+        ));
+
+        $this->workers->startWorker($queue);
+        $telemetry = new TelemetryManager();
+        $this->wait_for_state_count($telemetry, $queue, State::RUNNING->value, 1, 5.0);
+
+        $monitor = $this->start_monitor($queue);
+        try {
+            $this->wait_for_state_count($telemetry, $queue, State::FAILED->value, 1, 25.0);
+            $failed = $telemetry->fetch_failed_jobs($queue);
+            $job = \array_values($failed['items'])[0];
+            $this->assertSame(2, (int)$job['attempts']);
+        } finally {
+            $this->stop_process($monitor);
+        }
+    }
+
     public function test_redis_worker_renews_lease_and_monitor_does_not_kill_it(): void
     {
         [$queue] = $this->configure_redis_queues(['worker_e2e_lease'], ['timeout' => 3, 'max_attempts' => 1]);
@@ -132,6 +163,73 @@ final class WorkerIntegrationTest extends TestCase
             $this->assertSame(0, $this->state_count($telemetry, $queue, State::FAILED->value));
             $this->assertSame(0, $this->state_count($telemetry, $queue, State::PENDING->value));
             $this->assertSame(0, $this->state_count($telemetry, $queue, State::RUNNING->value));
+        } finally {
+            $this->stop_process($monitor);
+        }
+    }
+
+    public function test_redis_worker_and_monitor_cover_normal_retry_timeout_lease_and_concurrency(): void
+    {
+        [$queue] = $this->configure_redis_queues(
+            ['worker_e2e_full_lifecycle'],
+            ['worker_cnt' => 4, 'timeout' => 3, 'max_attempts' => 2]
+        );
+        $manager = new Manager($queue);
+        $leaseUuid = $this->new_uuid();
+
+        $this->assertTrue($manager->push(
+            [QueueLeaseTestJob::class, 'renew_lease'],
+            ['marker_dir' => $this->workers->markerDir(), 'id' => 'full-lease', 'seconds' => 7.0],
+            [],
+            $leaseUuid
+        ));
+        $this->assertTrue($manager->push(
+            [QueueTestHandler::class, 'timeout'],
+            ['params' => [], 'smth' => 'full-timeout'],
+            ['timeout' => 1, 'max_attempts' => 2]
+        ));
+        $this->push_handler_job_with_manager($manager, 'fail_once_then_success', 'full-retry');
+        $this->push_handler_job_with_manager($manager, 'record_success', 'full-normal', ['queue' => $queue]);
+        for ($i = 0; $i < 20; $i++) {
+            $this->push_handler_job_with_manager($manager, 'record_success', 'full-race-' . $i, ['queue' => $queue]);
+        }
+
+        $this->workers->startWorker($queue);
+        $driver = $this->manager_driver($manager);
+        $leaseJob = $this->workers->waitUntil(
+            static function () use ($driver, $leaseUuid): mixed {
+                $job = $driver->find_by_uuid($leaseUuid);
+                return ($job['state'] ?? '') === State::RUNNING->value && (int)($job['pid'] ?? 0) > 0 ? $job : false;
+            },
+            5.0,
+            'Lease-renewing job did not start.'
+        );
+        $ticks = (new ProcessManager())->get_process_start_ticks((int)$leaseJob['pid']);
+        $this->assertIsInt($ticks);
+        $this->assertSame($ticks, (int)$leaseJob['process_start_ticks']);
+
+        $monitor = $this->start_monitor($queue);
+        $telemetry = new TelemetryManager();
+        try {
+            $this->wait_for_state_count($telemetry, $queue, State::COMPLETED->value, 23, 25.0);
+            $this->wait_for_state_count($telemetry, $queue, State::FAILED->value, 1, 25.0);
+
+            $ids = $this->workers->uniqueMarkerIds('success');
+            $this->assertCount(23, $ids);
+            $this->assertSame(23, $this->workers->markerCount('success'));
+            $this->assertSame(0, $this->state_count($telemetry, $queue, State::PENDING->value));
+            $this->assertSame(0, $this->state_count($telemetry, $queue, State::RUNNING->value));
+
+            $retryRows = \array_values(\array_filter(
+                $this->workers->markerRows('success'),
+                static fn (array $row): bool => ($row['id'] ?? '') === 'full-retry'
+            ));
+            $this->assertCount(1, $retryRows);
+            $this->assertSame(2, (int)$retryRows[0]['attempt']);
+
+            $failed = \array_values($telemetry->fetch_failed_jobs($queue)['items']);
+            $this->assertCount(1, $failed);
+            $this->assertSame(2, (int)$failed[0]['attempts']);
         } finally {
             $this->stop_process($monitor);
         }
@@ -376,8 +474,14 @@ final class WorkerIntegrationTest extends TestCase
 
     private function require_worker_integration_support(): void
     {
-        if (!\extension_loaded('pcntl') || !\extension_loaded('posix')) {
-            $this->markTestSkipped('pcntl and posix extensions are required for worker integration tests.');
+        foreach (['pcntl_fork', 'pcntl_waitpid', 'pcntl_signal', 'pcntl_async_signals', 'posix_kill'] as $function) {
+            if (!\function_exists($function)) {
+                $this->markTestSkipped("{$function}() is required for worker integration tests.");
+            }
+        }
+
+        if (!\is_dir('/proc') || !\is_readable('/proc')) {
+            $this->markTestSkipped('Readable /proc is required for worker integration tests.');
         }
     }
 

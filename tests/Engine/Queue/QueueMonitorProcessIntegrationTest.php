@@ -295,6 +295,18 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
         $this->assertSame([], $manager->handled);
     }
 
+    public function test_stuck_job_exclusion_uses_job_uuids(): void
+    {
+        $job = MonitorFakeManager::job(['pid' => 42]);
+        $manager = new MonitorFakeManager();
+        $monitor = new Monitor(null, $manager, new MonitorFakeProcessManager(), new MonitorFakeProbe());
+        $this->setMonitorProperty($monitor, 'unkillable_pids', [$job['uuid'] => $job]);
+
+        $monitor->check_stuck_jobs();
+
+        $this->assertSame([[$job['uuid']]], $manager->stuckExcludes);
+    }
+
     private function requireProcessIntegrationSupport(): void
     {
         $this->requireSignalSupport();
@@ -382,6 +394,12 @@ final class QueueMonitorProcessIntegrationTest extends TestCase
         return $property->getValue($monitor);
     }
 
+    private function setMonitorProperty(Monitor $monitor, string $propertyName, mixed $value): void
+    {
+        $property = new \ReflectionProperty(Monitor::class, $propertyName);
+        $property->setValue($monitor, $value);
+    }
+
     private function monitorShutdown(): bool
     {
         $property = new \ReflectionProperty(Monitor::class, 'shutdown');
@@ -420,6 +438,7 @@ final class MonitorFakeManager extends Manager
 {
     public array $handled = [];
     public array $failed = [];
+    public array $stuckExcludes = [];
     public int $closeCalls = 0;
 
     public function __construct(
@@ -444,6 +463,7 @@ final class MonitorFakeManager extends Manager
 
     public function load_stuck_jobs(array $exclude, string $queue = '*'): array
     {
+        $this->stuckExcludes = [$exclude];
         return \array_values(\array_filter(
             $this->stuck,
             static fn (array $job): bool => !\in_array($job['uuid'], $exclude, true)
@@ -455,7 +475,7 @@ final class MonitorFakeManager extends Manager
         return $this->activeJobs;
     }
 
-    public function exists_in_jobs_table(string $uuid, int $pid): bool
+    public function exists_in_jobs_table(string $uuid, int $pid, ?int $processStartTicks = null): bool
     {
         return $this->exists;
     }

@@ -90,6 +90,39 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->assertNotFalse($this->redis->zScore($this->key('idx.pending'), $first));
     }
 
+    public function test_load_batch_marks_claimed_job_with_pid_placeholder_until_worker_owns_it(): void
+    {
+        $uuid = $this->new_uuid();
+        $now = \time();
+        $this->pushWithLua($uuid, $now, 5);
+
+        $loaded = $this->evalLua(
+            'load_batch',
+            [$this->key('idx.pending'), $this->key('idx.running')],
+            [$this->prefix, $now, 1]
+        );
+
+        $this->assertCount(1, $loaded);
+        $this->assertSame('-1', $this->redis->hGet($this->registryKey($uuid), 'pid'));
+    }
+
+    public function test_set_pid_does_not_resurrect_a_job_released_before_pid_assignment(): void
+    {
+        $uuid = $this->new_uuid();
+        $this->putRegistry($uuid, ['state' => 'pending', 'pid' => '']);
+        $this->redis->zAdd($this->key('idx.pending'), 1, $uuid);
+
+        $result = $this->evalLua(
+            'set_pid',
+            [$this->registryKey($uuid), $this->prefix . 'meta.pid_map'],
+            [$uuid, '555', '123456']
+        );
+
+        $this->assertSame(0, (int)$result);
+        $this->assertSame('', $this->redis->hGet($this->registryKey($uuid), 'pid'));
+        $this->assertFalse($this->redis->hGet($this->prefix . 'meta.pid_map', '555'));
+    }
+
     public function test_load_batch_scans_past_limit_to_prefer_higher_priority_jobs(): void
     {
         $now = \time();
@@ -134,7 +167,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         );
     }
 
-    public function test_load_stuck_excludes_matching_pids(): void
+    public function test_load_stuck_excludes_matching_uuids(): void
     {
         $included = $this->new_uuid();
         $excluded = $this->new_uuid();
@@ -143,7 +176,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->redis->zAdd($this->key('idx.running'), (\time() - 5) * 1000, $included);
         $this->redis->zAdd($this->key('idx.running'), (\time() - 5) * 1000, $excluded);
 
-        $result = $this->evalLua('load_stuck', [$this->key('idx.running')], [$this->prefix, \time(), \json_encode(['888'], JSON_THROW_ON_ERROR)]);
+        $result = $this->evalLua('load_stuck', [$this->key('idx.running')], [$this->prefix, \time(), \json_encode([$excluded], JSON_THROW_ON_ERROR)]);
 
         $this->assertSame([$included], \array_map(
             static fn (string $json): string => \json_decode($json, true, 512, JSON_THROW_ON_ERROR)['uuid'],
@@ -358,6 +391,27 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->assertSame($uuid, $this->redis->hGet($pidMap, '444'));
     }
 
+    public function test_mark_finished_rejects_success_at_the_lease_expiry_boundary(): void
+    {
+        $uuid = $this->new_uuid();
+        $now = \time();
+        $this->putRegistry($uuid, [
+            'state' => 'running',
+            'pid' => '444',
+            'available_at' => (string)$now,
+        ]);
+        $this->redis->zAdd($this->key('idx.running'), $now * 1000, $uuid);
+
+        $result = $this->evalLua(
+            'mark_finished',
+            [$this->registryKey($uuid), $this->key('idx.running'), $this->key('idx.cancel_requested'), $this->key('idx.completed'), $this->prefix . 'meta.pid_map'],
+            [$uuid, 0, $now, '', 60, '444']
+        );
+
+        $this->assertSame(0, (int)$result);
+        $this->assertSame('running', $this->redis->hGet($this->registryKey($uuid), 'state'));
+    }
+
     public function test_renew_lease_extends_only_the_active_owned_job(): void
     {
         $uuid = $this->new_uuid();
@@ -385,6 +439,35 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
             'renew_lease',
             [$this->registryKey($uuid), $running],
             [$uuid, '999', $now, 60]
+        ));
+    }
+
+    public function test_renew_lease_rejects_expired_and_cancel_requested_jobs(): void
+    {
+        $now = \time();
+        $expired = $this->new_uuid();
+        $cancelled = $this->new_uuid();
+
+        $this->putRegistry($expired, [
+            'state' => 'running',
+            'pid' => '444',
+            'available_at' => (string)($now - 1),
+        ]);
+        $this->putRegistry($cancelled, [
+            'state' => 'cancel_requested',
+            'pid' => '444',
+            'available_at' => (string)($now + 10),
+        ]);
+
+        $this->assertSame(0, (int)$this->evalLua(
+            'renew_lease',
+            [$this->registryKey($expired), $this->key('idx.running')],
+            [$expired, '444', $now, 60]
+        ));
+        $this->assertSame(0, (int)$this->evalLua(
+            'renew_lease',
+            [$this->registryKey($cancelled), $this->key('idx.running')],
+            [$cancelled, '444', $now, 60]
         ));
     }
 

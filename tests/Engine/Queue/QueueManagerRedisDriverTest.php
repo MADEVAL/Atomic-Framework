@@ -14,7 +14,22 @@ final class QueueManagerRedisDriverTest extends QueueRedisTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        if (\function_exists('pcntl_signal') && \defined('SIGUSR1')) {
+            \pcntl_signal(SIGUSR1, static function (): void {
+            });
+            if (\function_exists('pcntl_async_signals')) {
+                \pcntl_async_signals(true);
+            }
+        }
         QueueTestHandler::reset();
+    }
+
+    protected function tearDown(): void
+    {
+        if (\function_exists('pcntl_async_signals')) {
+            \pcntl_async_signals(false);
+        }
+        parent::tearDown();
     }
 
     public function test_redis_driver_queue_flow(): void
