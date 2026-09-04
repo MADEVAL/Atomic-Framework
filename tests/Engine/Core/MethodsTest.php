@@ -37,6 +37,25 @@ class MethodsTest extends TestCase
         $this->assertSame('https://test.example.com/', Methods::instance()->get_public_url());
     }
 
+    public function test_get_public_url_returns_empty_string_when_domain_is_unset(): void
+    {
+        $f3 = \Base::instance();
+        $original = $f3->get('DOMAIN');
+        $f3->clear('DOMAIN');
+        Methods::reset();
+
+        try {
+            $this->assertSame('', Methods::instance()->get_public_url());
+        } finally {
+            if ($original === null) {
+                $f3->clear('DOMAIN');
+            } else {
+                $f3->set('DOMAIN', $original);
+            }
+            Methods::reset();
+        }
+    }
+
     public function test_get_encoding_default(): void
     {
         $enc = $this->m->get_encoding();

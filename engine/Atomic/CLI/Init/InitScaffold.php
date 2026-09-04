@@ -112,11 +112,7 @@ trait InitScaffold
 
     private function generate_encryption_key(): string
     {
-        if (!function_exists('sodium_crypto_secretbox_keygen')) {
-            return '';
-        }
-
-        return base64_encode(sodium_crypto_secretbox_keygen());
+        return base64_encode(random_bytes(32));
     }
 
     private function write_stub_if_missing(string $path, string $content): int

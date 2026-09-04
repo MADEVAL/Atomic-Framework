@@ -26,7 +26,7 @@ class Methods {
 
     public function get_public_url(): string 
     {
-        return $this->atomic->get('DOMAIN');
+        return (string)($this->atomic->get('DOMAIN') ?? '');
     }
 
     public function get_user_language(): string 

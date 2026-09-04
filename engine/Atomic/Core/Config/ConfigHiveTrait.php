@@ -58,6 +58,9 @@ trait ConfigHiveTrait
         if ($domain === '') {
             return;
         }
+        if (preg_match('#^https?://#i', $domain) !== 1) {
+            $domain = 'http://' . $domain;
+        }
         $domain = rtrim($domain, '/') . '/';
         $atomic->set('DOMAIN', $domain);
         $parsed = parse_url($domain);

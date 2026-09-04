@@ -93,12 +93,7 @@ trait Init
         $this->output->writeln();
         $this->output->writeln("  Next:");
         $this->output->writeln("    1. Point your server to public/.");
-        if ($this->config_mode() === 'env') {
-            $this->output->writeln("    2. Open .env and set your domain.");
-        } else {
-            $this->output->writeln("    2. Open config/app.php and set your domain.");
-        }
-        $this->output->writeln('    3. Scheduler: create a system cron task:');
+        $this->output->writeln('    2. Scheduler: create a system cron task:');
         $this->output->writeln('         * * * * * cd /path/to/this/project && php atomic schedule/run');
         $this->output->writeln();
     }

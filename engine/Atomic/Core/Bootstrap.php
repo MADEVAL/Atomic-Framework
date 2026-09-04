@@ -41,6 +41,7 @@ final class Bootstrap
 
         $atomic = \Base::instance();
         self::load_configuration($atomic);
+        self::validate_configuration($atomic);
 
         $application = App::instance($atomic);
 
@@ -76,7 +77,7 @@ final class Bootstrap
         ConfigSchema::string('I18N_SESSION')->default('lang');
         ConfigSchema::bool('DEBUG_MODE')->default(false);
         ConfigSchema::string('DEBUG_LEVEL')->default('error');
-        ConfigSchema::string('DOMAIN')->default('localhost:8000');
+        ConfigSchema::string('DOMAIN')->required();
         ConfigSchema::string('DB_DRIVER')->default('mysql');
         ConfigSchema::string('DB_HOST')->default('127.0.0.1');
         ConfigSchema::string('DB_PORT')->default('3306');
@@ -201,6 +202,29 @@ final class Bootstrap
         }
 
         ConfigLoader::init($atomic, ATOMIC_ENV);
+    }
+
+    private static function validate_configuration(\Base $atomic): void
+    {
+        $validator = new BootstrapConfigurationValidator();
+        $configuration = $validator->configuration_from_base($atomic);
+
+        if (PHP_SAPI === 'cli') {
+            $argv = isset($_SERVER['argv']) && is_array($_SERVER['argv']) ? $_SERVER['argv'] : [];
+            $errors = $validator->validate_cli($configuration, $validator->command_from_argv($argv));
+            if ($errors !== []) {
+                BootstrapConfigurationErrorRenderer::render_cli($errors);
+                exit(1);
+            }
+            return;
+        }
+
+        $errors = $validator->validate_web($configuration);
+        if ($errors !== []) {
+            $debug = filter_var($atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN);
+            BootstrapConfigurationErrorRenderer::render_web($errors, $debug);
+            exit(1);
+        }
     }
 
     private static function register_core_providers(Application $runtime): void

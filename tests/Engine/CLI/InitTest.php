@@ -11,6 +11,9 @@ class InitTest extends TestCase
 {
     private string $tmp_dir;
     private object $cli;
+    private Input $input;
+    private mixed $stdin;
+    private mixed $stderr;
 
     protected function setUp(): void
     {
@@ -20,10 +23,13 @@ class InitTest extends TestCase
         // Memory streams: non-TTY stdin → is_interactive() = false (no prompts issued)
         $stdout = fopen('php://memory', 'r+');
         $stderr = fopen('php://memory', 'r+');
-        $stdin  = fopen('php://memory', 'r');
+        $stdin  = fopen('php://memory', 'r+');
 
         $output = new Output($stdout, $stderr);
         $input  = new Input($output, $stdin);
+        $this->input = $input;
+        $this->stdin = $stdin;
+        $this->stderr = $stderr;
 
         $this->cli = new class($output, $input) {
             use \Engine\Atomic\CLI\Init {
@@ -40,6 +46,8 @@ class InitTest extends TestCase
                 are_keys_valid               as public exposeAreKeysValid;
                 find_key_mismatches          as public exposeFindMismatches;
                 synchronize_application_keys as public exposeSyncKeys;
+                initialize_config_source     as public exposeInitializeConfigSource;
+                configure_basic_env          as public exposeConfigureBasicEnv;
             }
 
             protected Output $output;
@@ -208,19 +216,14 @@ class InitTest extends TestCase
 
     // ── generate_encryption_key ─────────────────────────────────────────────────
 
-    public function test_generate_enc_key_returns_valid_base64_sodium_key(): void
+    public function test_generate_enc_key_returns_valid_base64_key_without_requiring_sodium(): void
     {
         $key = $this->cli->exposeGenEncKey();
-
-        if (!function_exists('sodium_crypto_secretbox_keygen')) {
-            $this->assertSame('', $key, 'Empty string expected without sodium');
-            return;
-        }
 
         $this->assertNotEmpty($key);
         $decoded = base64_decode($key, true);
         $this->assertNotFalse($decoded, 'Must be valid base64');
-        $this->assertSame(SODIUM_CRYPTO_SECRETBOX_KEYBYTES, strlen($decoded));
+        $this->assertSame(32, strlen($decoded));
     }
 
     // ── are_keys_valid ──────────────────────────────────────────────────────────
@@ -442,6 +445,47 @@ class InitTest extends TestCase
 
         // File content unchanged - regex found no keys to replace
         $this->assertSame($content, file_get_contents($dir . DIRECTORY_SEPARATOR . 'app.php'));
+    }
+
+    public function test_basic_configuration_persists_default_domain_to_env(): void
+    {
+        $this->make_env_example(['APP_NAME' => 'Atomic', 'DOMAIN' => '']);
+        $this->cli->exposeInitializeConfigSource($this->tmp_dir, 'env');
+
+        $this->cli->exposeConfigureBasicEnv('');
+
+        $content = (string)file_get_contents($this->tmp_dir . DIRECTORY_SEPARATOR . '.env');
+        $this->assertStringContainsString('DOMAIN=localhost:8000', $content);
+    }
+
+    public function test_basic_configuration_persists_default_domain_to_php_config(): void
+    {
+        $this->make_php_config(['name' => 'Atomic', 'domain' => '']);
+        $this->cli->exposeInitializeConfigSource($this->tmp_dir, 'php');
+
+        $this->cli->exposeConfigureBasicEnv('');
+
+        $content = (string)file_get_contents($this->tmp_dir . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'app.php');
+        $this->assertStringContainsString("'domain' => 'localhost:8000'", $content);
+    }
+
+    public function test_basic_configuration_reprompts_until_domain_is_valid(): void
+    {
+        $this->make_env_example(['APP_NAME' => 'Atomic', 'DOMAIN' => '']);
+        $this->cli->exposeInitializeConfigSource($this->tmp_dir, 'env');
+        fwrite($this->stdin, "https://example.com/admin\nhttps://example.com\n");
+        rewind($this->stdin);
+
+        $interactive = new \ReflectionProperty(Input::class, 'interactive');
+        $interactive->setValue($this->input, true);
+
+        $this->cli->exposeConfigureBasicEnv('');
+
+        $content = (string)file_get_contents($this->tmp_dir . DIRECTORY_SEPARATOR . '.env');
+        $this->assertStringContainsString('DOMAIN=https://example.com', $content);
+
+        rewind($this->stderr);
+        $this->assertStringContainsString('Enter a host with an optional port', (string)stream_get_contents($this->stderr));
     }
 
     // ── synchronize_application_keys ────────────────────────────────────────────

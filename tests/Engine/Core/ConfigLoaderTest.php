@@ -134,6 +134,29 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame('custom_', $db_config['prefix']);
     }
 
+    public function test_load_normalizes_bare_domain_to_http_origin(): void
+    {
+        file_put_contents($this->env_file, "DOMAIN=localhost:8000\nCACHE_DRIVER=folder\n");
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame('http://localhost:8000/', $this->f3->get('DOMAIN'));
+        $this->assertSame('localhost', $this->f3->get('HOST'));
+        $this->assertSame('http', $this->f3->get('SCHEME'));
+        $this->assertSame(8000, $this->f3->get('PORT'));
+    }
+
+    public function test_load_preserves_explicit_https_domain_origin(): void
+    {
+        file_put_contents($this->env_file, "DOMAIN=https://example.com\nCACHE_DRIVER=folder\n");
+
+        $this->loader->load($this->env_file);
+
+        $this->assertSame('https://example.com/', $this->f3->get('DOMAIN'));
+        $this->assertSame('https', $this->f3->get('SCHEME'));
+        $this->assertSame(443, $this->f3->get('PORT'));
+    }
+
     public function test_load_sets_telemetry_access_roles_from_env(): void
     {
         file_put_contents($this->env_file, implode("\n", [

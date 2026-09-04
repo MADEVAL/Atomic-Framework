@@ -7,6 +7,7 @@ if (!defined('ATOMIC_START')) exit;
 use DB\SQL;
 use Engine\Atomic\CLI\Style;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\BootstrapConfigurationValidator;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Migrations as CoreMigrations;
 
@@ -119,6 +120,27 @@ trait InitInstaller
         $app_name = $this->read_config_value('APP_NAME', 'Atomic');
         $this->set_config_value('APP_NAME', $app_name);
         $this->set_config_value('MAIL_FROM_NAME', $this->read_config_value('MAIL_FROM_NAME', $app_name));
+
+        $validator = new BootstrapConfigurationValidator();
+        $default_domain = $this->read_config_value('DOMAIN', 'localhost:8000');
+        if (!$validator->is_valid_domain($default_domain)) {
+            $default_domain = 'localhost:8000';
+        }
+
+        if (!$this->input->is_interactive()) {
+            $this->set_config_value('DOMAIN', $default_domain);
+            return;
+        }
+
+        while (true) {
+            $domain = $this->ask('Public domain', $default_domain);
+            if ($validator->is_valid_domain($domain)) {
+                $this->set_config_value('DOMAIN', $domain);
+                break;
+            }
+
+            $this->output->err('  ' . Style::warning_label() . ' Enter a host with an optional port, or an HTTP(S) origin without a path.');
+        }
     }
 
     private function choose_config_source(): string
@@ -253,6 +275,7 @@ trait InitInstaller
             'APP_NAME'            => ['app',      ['name']],
             'APP_KEY'             => ['app',      ['key']],
             'APP_ENCRYPTION_KEY'  => ['app',      ['encryption_key']],
+            'DOMAIN'               => ['app',      ['domain']],
             'MAIL_FROM_NAME'      => ['app',      ['name']],
             'DB_DRIVER'           => ['database', ['connections', 'mysql', 'driver']],
             'DB_HOST'             => ['database', ['connections', 'mysql', 'host']],

@@ -31,6 +31,8 @@ final class BootstrapTest extends TestCase
         $this->assertSame(300, $defaults['AUTH_RATE_LIMIT_WINDOW_SECONDS']);
         $this->assertTrue(ConfigSchema::has('APP_KEY'));
         $this->assertArrayNotHasKey('APP_KEY', $defaults);
+        $this->assertTrue(ConfigSchema::definitions()['DOMAIN']->isRequired());
+        $this->assertArrayNotHasKey('DOMAIN', $defaults);
     }
 
     public function test_application_bootstrap_is_only_a_skeleton_adapter(): void
