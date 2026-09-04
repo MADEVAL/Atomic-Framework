@@ -64,6 +64,26 @@ class Output
         $this->err('  ' . Style::error_label() . ' ' . $message);
     }
 
+    public function usage(string $command): void
+    {
+        $this->err(Style::bold('Usage:') . ' ' . Style::cyan('php atomic ' . CommandCatalog::display($command), true));
+    }
+
+    /** @param list<string> $items */
+    public function error_list(string $title, array $items): void
+    {
+        $this->err('  ' . Style::bold($title));
+        foreach ($items as $item) {
+            $this->err('    ' . Style::cyan($item));
+        }
+    }
+
+    public function error_hint(string $label, string $value): void
+    {
+        $this->err('  ' . Style::bold($label . ':'));
+        $this->err('    ' . Style::cyan($value));
+    }
+
     public function warning(string $message): void
     {
         $this->writeln('  ' . Style::warning_label() . ' ' . $message);

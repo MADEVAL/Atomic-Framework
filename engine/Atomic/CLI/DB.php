@@ -28,7 +28,7 @@ trait DB {
     public function truncate_table() {
         $args = $this->get_cli_args();
         if (count($args) < 1) {
-            $this->output->err('Usage: db/truncate <table_name>');
+            $this->output->usage('db/truncate');
             return;
         }
         $table_name = $args[0];

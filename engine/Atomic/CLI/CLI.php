@@ -6,6 +6,8 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\CLI\Console\Input;
 use Engine\Atomic\CLI\Console\Output;
+use Engine\Atomic\CLI\Console\CommandSuggester;
+use Engine\Atomic\CLI\Console\CommandCatalog;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 
@@ -30,42 +32,104 @@ class CLI {
         $this->input  = new Input($this->output);
     }
 
-    public function help(): void {
+    public function help(?string $topic = null): void {
+        $groups = CommandCatalog::topics();
+
+        if ($topic !== null) {
+            $topic = strtolower(trim($topic));
+            if (!isset($groups[$topic])) {
+                $this->output->failure("Unknown help topic '{$topic}'.");
+                $this->output->err('');
+                $this->output->error_list('Available topics:', array_keys($groups));
+                return;
+            }
+
+            $this->output->writeln('Atomic Help: ' . $groups[$topic]['title']);
+            $this->output->writeln('Usage: php atomic help ' . $topic);
+            $this->output->writeln();
+            $this->output->section($groups[$topic]['title'] . ' Commands');
+            $this->write_help_commands(
+                $groups[$topic]['commands'],
+                $this->help_command_width([$groups[$topic]])
+            );
+            return;
+        }
+
         $this->output->writeln('Atomic Help');
-        $this->output->writeln('  init               - Initialize new project (dirs, .env, keys)');
-        $this->output->writeln('  init/key           - Regenerate APP_UUID, APP_KEY, APP_ENCRYPTION_KEY');
-        $this->output->writeln('  init/guide         - Print the full manual setup guide (no interaction)');
-        $this->output->writeln('  logs/rotate        - Delete php error log files beyond the most recent 10');
-        $this->output->writeln('  plugin/make <name> - Create a user plugin scaffold');
-        $this->output->writeln('  plugin/deps install [plugin] - Install enabled plugin Composer dependencies');
-        $this->output->writeln('  access/user/create <guard> <username> [roles] - Create config auth user');
-        $this->output->writeln('  access/user/reset <guard> <username>          - Reset config auth user secret');
-        $this->output->writeln('  access/user/list                              - List config auth users');
-        $this->output->writeln('  help               - View this help');
-        $this->output->writeln('  migrations/init    - Create/verify the migrations tracking table');
-        $this->output->writeln('  migrations/migrate - Run database migrations');
-        $this->output->writeln('  cache/invalidate   - Invalidate cache by advancing generation');
-        $this->output->writeln('  cache/clear        - Physically delete cache files/keys where supported');
-        $this->output->writeln('  cache/prune        - Remove expired/corrupt cache entries where supported');
-        $this->output->writeln('  version            - View versions F3, PHP and Atomic');
-        $this->output->writeln('  routes             - View routes list');
-        $this->output->writeln('  classes            - View classes list');
-        $this->output->writeln('  custom-hive        - View custom HIVE');
-        $this->output->writeln('  queue/db           - Create tables for queues');
-        $this->output->writeln('  queue/worker       - Run queue worker');
-        $this->output->writeln('  queue/monitor      - Run queue monitor');
-        $this->output->writeln('  queue/test <type> [queue] - Queue test jobs: success, failed, timeout, cancel_requested, all');
-        $this->output->writeln('  queue/retry [<job_uuid>|<queue_name>] - Retry failed tasks (optional UUID or queue name)');
-        $this->output->writeln('  queue/cancel       - Request cancellation for a job by UUID');
-        $this->output->writeln('  queue/delete       - Delete a job by UUID');
-        $this->output->writeln('  queue/telemetry/db - Create table for queue telemetry');
-        $this->output->writeln('  schedule/run       - Run all due scheduled tasks');
-        $this->output->writeln('  schedule/work      - Run scheduler daemon');
-        $this->output->writeln('  schedule/list      - List all scheduled tasks');
-        $this->output->writeln('  schedule/test      - Test scheduler configuration');
-        $this->output->writeln('  schedule/help      - Show scheduler help');
-        $this->output->writeln('  file/csv2pdf       - Convert CSV to PDF');
-        $this->output->writeln('  file/xls2pdf       - Convert XLS to PDF');
+        $this->output->writeln('Usage: php atomic ' . CommandCatalog::display('help'));
+        $this->output->writeln();
+
+        $command_width = $this->help_command_width($groups);
+        foreach ($groups as $group) {
+            $this->output->section($group['title']);
+            $this->write_help_commands($group['commands'], $command_width);
+            $this->output->writeln();
+        }
+    }
+
+    public function report_unknown_command(string $raw_command, string $command): void
+    {
+        $this->output->failure("Unknown command '{$raw_command}'.");
+        $this->output->err('');
+
+        $suggestions = (new CommandSuggester())->suggest(
+            $command,
+            $this->registered_cli_commands()
+        );
+        if ($suggestions !== []) {
+            $commands = array_map(
+                static fn(string $suggestion): string => 'php atomic ' . CommandCatalog::display($suggestion),
+                $suggestions
+            );
+            $this->output->error_list('Did you mean?', $commands);
+            $this->output->err('');
+        }
+
+        $this->output->error_hint('Help', 'php atomic help');
+    }
+
+    /** @return list<string> */
+    private function registered_cli_commands(): array
+    {
+        $routes = $this->atomic->get('ROUTES');
+        if (!is_array($routes)) {
+            return [];
+        }
+
+        $commands = [];
+        foreach (array_keys($routes) as $route) {
+            if (!is_string($route) || str_contains($route, '@') || str_contains($route, '[')) {
+                continue;
+            }
+
+            $commands[] = ltrim($route, '/');
+        }
+
+        return array_values(array_unique($commands));
+    }
+
+    /**
+     * @param array<string, array{title: string, commands: list<array{name: string, arguments: string, description: string}>}> $groups
+     */
+    private function help_command_width(array $groups): int
+    {
+        $width = 0;
+        foreach ($groups as $group) {
+            foreach ($group['commands'] as $command) {
+                $width = max($width, strlen(CommandCatalog::display($command['name'])));
+            }
+        }
+
+        return $width;
+    }
+
+    /** @param list<array{name: string, arguments: string, description: string}> $commands */
+    private function write_help_commands(array $commands, int $command_width): void
+    {
+        foreach ($commands as $command) {
+            $label = CommandCatalog::display($command['name']);
+            $this->output->writeln('  ' . str_pad($label, $command_width) . ' - ' . $command['description']);
+        }
     }
 
     public function version(): void {

@@ -327,8 +327,19 @@ class App {
         }
     
         $this->atomic->set('PATH', $command);
+        if (!$this->is_registered_cli_command($command)) {
+            $cli->report_unknown_command($raw_command, $command);
+            return 1;
+        }
+
         $this->atomic->run();
         return 0;
+    }
+
+    protected function is_registered_cli_command(string $command): bool
+    {
+        $routes = $this->atomic->get('ROUTES');
+        return is_array($routes) && array_key_exists($command, $routes);
     }
 
     // in base route($pattern,$handler,$ttl=0,$kbps=0)

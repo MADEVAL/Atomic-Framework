@@ -300,6 +300,11 @@ final class QueueCliOutputFake
     {
         $this->errors[] = $message;
     }
+
+    public function usage(string $command): void
+    {
+        $this->errors[] = 'Usage: php atomic ' . \Engine\Atomic\CLI\Console\CommandCatalog::display($command);
+    }
 }
 
 final class QueueCliFakeManager extends Manager

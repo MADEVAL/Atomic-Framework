@@ -12,6 +12,18 @@ php atomic help
 
 This prints the list of available framework commands, including init, access, queue, schedule, file, and other system helpers.
 
+Help is grouped by topic. To inspect one topic in detail, pass it after `help`:
+
+```bash
+php atomic help queue
+php atomic help migrations
+php atomic help scheduler
+```
+
+Available topics include `project`, `plugins`, `authentication`, `migrations`, `cache`, `system`, `queue`, `scheduler`, and `files`.
+
+If a command is not recognized, Atomic reports it as a CLI error, suggests close matches when possible, and points back to `php atomic help`. Unknown commands exit with status `1`.
+
 ### Plugin scaffold
 
 ```bash

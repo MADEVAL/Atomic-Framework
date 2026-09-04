@@ -65,7 +65,7 @@ trait Queue {
         $queue_name = $args[1] ?? null;
 
         if ($type === '') {
-            $this->output->err('Usage: php atomic queue/test <success|failed|timeout|cancel_requested|cancelled|all> [queue_name]');
+            $this->output->usage('queue/test');
             return;
         }
 
@@ -190,7 +190,7 @@ trait Queue {
     public function queue_worker() {
         $args = $this->get_cli_args();
         if (!isset($args[0]) || empty($args[0])) {
-            $this->output->err('Usage: php atomic queue/worker <queue_name>');
+            $this->output->usage('queue/worker');
             return;
         }
         $queue_name = $args[0];
@@ -486,7 +486,7 @@ trait Queue {
     {
         $args = $this->get_cli_args();
         if (!isset($args[0]) || empty($args[0])) {
-            $this->output->err('Usage: php atomic queue/cancel <job_uuid>');
+            $this->output->usage('queue/cancel');
             return;
         }
 
@@ -512,7 +512,7 @@ trait Queue {
     {
         $args = $this->get_cli_args();
         if (!isset($args[0]) || empty($args[0])) {
-            $this->output->err('Usage: php atomic queue/delete <job_uuid>');
+            $this->output->usage('queue/delete');
             return;
         }
         $uuid = $args[0];

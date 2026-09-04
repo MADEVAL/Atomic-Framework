@@ -17,7 +17,7 @@ trait Access
 
         $raw_username = trim((string)($positionals[1] ?? ''));
         if ($raw_username === '') {
-            $this->output->err('Usage: access/user/create <guard> <username> [roles] [--role=role] [--secret=secret] [--force]');
+            $this->output->usage('access/user/create');
             return;
         }
 
@@ -53,7 +53,7 @@ trait Access
 
         $raw_username = trim((string)($positionals[1] ?? ''));
         if ($raw_username === '') {
-            $this->output->err('Usage: access/user/reset <guard> <username> [--secret=secret]');
+            $this->output->usage('access/user/reset');
             return;
         }
 

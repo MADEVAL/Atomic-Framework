@@ -19,6 +19,13 @@ class AppTest extends TestCase
         $this->app = App::instance();
     }
 
+    public function test_handle_command_returns_failure_for_unknown_command(): void
+    {
+        $this->app->atomic()->set('ROUTES', ['/help' => 'handler']);
+
+        $this->assertSame(1, $this->app->handle_command(['atomic', 'what']));
+    }
+
     public function test_detect_request_type_returns_web_by_default(): void
     {
         $this->app->atomic()->set('PATH', '/dashboard');

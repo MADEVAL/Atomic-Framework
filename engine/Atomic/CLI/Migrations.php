@@ -20,7 +20,7 @@ trait Migrations {
     public function migrations_create() {
         $args = $this->get_cli_args();
         if (!isset($args[0])) {
-            $this->output->writeln('Usage: ' . Style::bold('migrations/create <name>'));
+            $this->output->usage('migrations/create');
             return;
         }
         (new AM($this->output))->create($args[0]);
@@ -29,10 +29,7 @@ trait Migrations {
     public function migrations_rollback() {
         $args = $this->get_cli_args();
         if (isset($args[0]) && (!is_numeric($args[0]) && $args[0] != 'batch')) {
-            $this->output->writeln(Style::bold('Usage:'));
-            $this->output->writeln('  ' . Style::bold('migrations/rollback') . '         - to rollback the last migration');
-            $this->output->writeln('  ' . Style::bold('migrations/rollback <steps>') . ' - to rollback a specific number of migrations');
-            $this->output->writeln('  ' . Style::bold('migrations/rollback batch') . '   - to rollback the last batch of migrations');
+            $this->output->usage('migrations/rollback');
             return;
         }
         (new AM($this->output))->rollback($args[0] ?? null);
@@ -41,7 +38,7 @@ trait Migrations {
     public function migrations_migrate() {
         $args = $this->get_cli_args();
         if (isset($args[0]) && !is_numeric($args[0])) {
-            $this->output->writeln('Usage: ' . Style::bold('migrations/migrate [steps]') . ' or ' . Style::bold('migrations/migrate') . ' to apply all migrations');
+            $this->output->usage('migrations/migrate');
             return;
         }
         (new AM($this->output))->migrate($args[0] ?? null);
@@ -54,7 +51,7 @@ trait Migrations {
     public function migrations_publish() {
         $args = $this->get_cli_args();
         if (!isset($args[0])) {
-            $this->output->writeln('Usage: ' . Style::bold('migrations/publish <plugin-name>'));
+            $this->output->usage('migrations/publish');
             $this->output->writeln('  ' . Style::bold('Publishes all migrations from the specified plugin.'));
             return;
         }

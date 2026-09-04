@@ -74,7 +74,8 @@ class System extends Controller
 
     public function help(): void
     {
-        $this->cli()->help();
+        $cli = $this->cli();
+        $cli->help($cli->get_cli_args()[0] ?? null);
     }
 
     public function cache_clear(): void

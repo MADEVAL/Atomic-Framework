@@ -14,7 +14,7 @@ trait Plugin
         $name = trim((string)($args[0] ?? ''));
 
         if ($name === '') {
-            $this->output->err('Usage: php atomic plugin/make <PluginName>');
+            $this->output->usage('plugin/make');
             return;
         }
 
@@ -66,7 +66,7 @@ trait Plugin
         $requested_plugin = trim((string)($args[1] ?? ''));
 
         if ($subcommand !== 'install') {
-            $this->output->err('Usage: php atomic plugin/deps install [PluginName]');
+            $this->output->usage('plugin/deps');
             exit(1);
             return;
         }
