@@ -206,11 +206,12 @@ final class I18n
             return $this->domains[$k];
         }
 
-        $theme = Theme::instance()->get_theme_name(); 
+        $theme = Theme::instance()->get_theme_name();
         $hash  = $this->app->hash('i18n|'.$theme.'|'.$domain.'|'.$lang);
 
-        $cache = $this->cache();
-        if (($this->ttl > 0) && $cache !== null && $cache->exists($hash, $lex)) {
+        // Only resolve the store when a TTL is configured.
+        $cache = $this->ttl > 0 ? $this->cache() : null;
+        if ($cache !== null && $cache->exists($hash, $lex)) {
             return $this->domains[$k] = (array)$lex;
         }
 

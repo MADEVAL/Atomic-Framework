@@ -4,14 +4,17 @@ declare(strict_types=1);
 namespace Tests\Engine\Lang;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Lang\I18n;
 use Engine\Atomic\Theme\Theme;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
 
 class I18nCacheTest extends TestCase
 {
     private string $root = '';
+    private mixed $old_cache_config = null;
 
     protected function setUp(): void
     {
@@ -60,6 +63,42 @@ class I18nCacheTest extends TestCase
         $this->resetI18n();
 
         $this->assertSame('Hello', I18n::instance()->t('hello', [], 'default', 'en'));
+    }
+
+    public function test_domain_with_zero_ttl_does_not_resolve_cache_store(): void
+    {
+        file_put_contents($this->root . '/locales/en/default.php', "<?php\nreturn ['hello' => 'Hello'];\n");
+
+        $app = App::instance();
+        $this->old_cache_config = $app->get('CACHE_CONFIG');
+        $app->set('CACHE_CONFIG', [
+            'default' => 'folder',
+            'path'    => $this->root . '/cache',
+            'prefix'  => 'atomic.',
+        ]);
+        $app->set('i18n', [
+            'languages' => ['en'],
+            'default'   => 'en',
+            'url_mode'  => 'none',
+            'ttl'       => 0,
+            'cookie'    => 'lang',
+            'session'   => 'lang',
+        ]);
+        Theme::reset();
+        $this->resetI18n();
+        ReflectionHelper::set(CacheManager::instance(), 'store', null);
+
+        try {
+            $this->assertSame('Hello', I18n::instance()->t('hello', [], 'default', 'en'));
+
+            $this->assertNull(
+                ReflectionHelper::get(CacheManager::instance(), 'store'),
+                'With i18n ttl=0 the locale loader must not open the cache store.'
+            );
+        } finally {
+            $app->set('CACHE_CONFIG', $this->old_cache_config);
+            $this->old_cache_config = null;
+        }
     }
 
     private function resetI18n(): void
