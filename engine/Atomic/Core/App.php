@@ -205,6 +205,10 @@ class App {
     }
 
     public function register_schedule(): self {
+        // Cron entries are only needed by the CLI scheduler.
+        if (PHP_SAPI !== 'cli') {
+            return $this;
+        }
         $schedule_file = ATOMIC_APP_ROUTES . 'schedule.php';
         $resolved = realpath($schedule_file);
         if ($resolved !== false && is_file($resolved) && is_readable($resolved)) {
@@ -630,7 +634,8 @@ class App {
             $providers_config = ATOMIC_CONFIG . 'providers.php';
             $resolved_providers_config = realpath($providers_config);
             if ($resolved_providers_config !== false && is_file($resolved_providers_config) && is_readable($resolved_providers_config)) {
-                $providers = require $resolved_providers_config;
+                // Already required during boot; require_once avoids a second parse.
+                $providers = require_once $resolved_providers_config;
                 $provider_class = $providers['user_provider'] ?? null;
             }
         }
