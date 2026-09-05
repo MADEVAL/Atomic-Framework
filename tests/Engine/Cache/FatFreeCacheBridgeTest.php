@@ -955,4 +955,56 @@ class FatFreeCacheBridgeTest extends TestCase
         $this->assertSame($native->reset(), $bridge->reset());
         $this->assertSame($native->get($key . '.reset'), $bridge->get($key . '.reset'));
     }
+
+    public function test_config_load_keeps_cache_store_lazy_until_first_use(): void
+    {
+        $this->cache_dir = TempPath::make_dir('atomic_f3_bridge_lazy_boot_');
+        $this->loadEnv([
+            'CACHE_DRIVER=folder',
+            'CACHE_PATH=' . $this->cache_dir,
+        ]);
+
+        // Store must stay unresolved until first use.
+        $cache = \Cache::instance();
+        $this->assertInstanceOf(FatFreeCacheBridge::class, $cache);
+        $this->assertNull(ReflectionHelper::get(CacheManager::instance(), 'store'));
+
+        $cache->set('bridge.lazy.key', 'lazy-value', 60);
+        $this->assertNotNull(ReflectionHelper::get(CacheManager::instance(), 'store'));
+        $this->assertSame('lazy-value', $cache->get('bridge.lazy.key'));
+    }
+
+    public function test_bridge_hive_var_lookup_on_unresolved_store_stays_lazy(): void
+    {
+        $this->cache_dir = TempPath::make_dir('atomic_f3_bridge_lazy_var_');
+        $this->loadEnv([
+            'CACHE_DRIVER=folder',
+            'CACHE_PATH=' . $this->cache_dir,
+        ]);
+
+        $cache = \Cache::instance();
+        $this->assertNull(ReflectionHelper::get(CacheManager::instance(), 'store'));
+
+        // Unset-hive-key lookups must not force the store open.
+        $this->assertFalse($cache->exists($this->f3->hash('UNSET_HIVE_KEY') . '.var'));
+        $this->assertNull(ReflectionHelper::get(CacheManager::instance(), 'store'));
+        $this->assertFalse($cache->get($this->f3->hash('UNSET_HIVE_KEY') . '.var'));
+        $this->assertNull(ReflectionHelper::get(CacheManager::instance(), 'store'));
+    }
+
+    public function test_bridge_non_var_lookup_on_unresolved_store_resolves_it(): void
+    {
+        $this->cache_dir = TempPath::make_dir('atomic_f3_bridge_lazy_url_');
+        $this->loadEnv([
+            'CACHE_DRIVER=folder',
+            'CACHE_PATH=' . $this->cache_dir,
+        ]);
+
+        $cache = \Cache::instance();
+        $this->assertNull(ReflectionHelper::get(CacheManager::instance(), 'store'));
+
+        // Route-cache lookups ("<hash>.url") must still resolve the store.
+        $this->assertFalse($cache->exists($this->f3->hash('GET /never-cached') . '.url'));
+        $this->assertNotNull(ReflectionHelper::get(CacheManager::instance(), 'store'));
+    }
 }
