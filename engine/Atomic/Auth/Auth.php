@@ -63,10 +63,11 @@ class Auth implements LoginInterface
         }
         $this->session_hooks_registered = true;
 
-        $service = $this->service();
-        Hook::instance()->add_action('SESSION_STARTED', function () use ($service): void {
-            $service->validate_auth_session();
-        }, 10, 0);
+        /*
+         * Building the service stack eagerly here cost ~2-3 ms per boot for
+         * requests that never start a session; defer to first SESSION_STARTED.
+         */
+        Hook::instance()->add_action('SESSION_STARTED', fn() => $this->service()->validate_auth_session(), 10, 0);
     }
 
     public function set_user_provider(UserProviderInterface $provider): self
