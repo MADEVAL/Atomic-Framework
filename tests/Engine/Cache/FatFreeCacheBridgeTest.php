@@ -1007,4 +1007,46 @@ class FatFreeCacheBridgeTest extends TestCase
         $this->assertFalse($cache->exists($this->f3->hash('GET /never-cached') . '.url'));
         $this->assertNotNull(ReflectionHelper::get(CacheManager::instance(), 'store'));
     }
+
+    public function test_bridge_hive_var_lookup_resolves_store_when_f3_hive_ttl_enabled(): void
+    {
+        $this->cache_dir = TempPath::make_dir('atomic_f3_bridge_hive_ttl_');
+        $this->loadEnv([
+            'CACHE_DRIVER=folder',
+            'CACHE_PATH=' . $this->cache_dir,
+            'CACHE_F3_HIVE_TTL=true',
+        ]);
+
+        $cache = \Cache::instance();
+        $hash = $this->f3->hash('MYPLUGIN_HIVE_TTL_KEY') . '.var';
+        $this->assertTrue($cache->set($hash, 'persisted', 60));
+
+        // A fresh bridge models the next request: store unresolved, yet the
+        // opt-in flag makes the "<hash>.var" lookup resolve the store and
+        // return the value persisted by a previous request.
+        $fresh = new FatFreeCacheBridge();
+        $fresh->load(CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL);
+        $this->assertSame('persisted', $fresh->get($hash));
+        $exists_val = null;
+        $this->assertIsArray($fresh->exists($hash, $exists_val));
+        $this->assertSame('persisted', $exists_val);
+    }
+
+    public function test_bridge_hive_var_lookup_stays_lazy_by_default(): void
+    {
+        $this->cache_dir = TempPath::make_dir('atomic_f3_bridge_hive_ttl_off_');
+        $this->loadEnv([
+            'CACHE_DRIVER=folder',
+            'CACHE_PATH=' . $this->cache_dir,
+        ]);
+
+        $cache = \Cache::instance();
+        $hash = $this->f3->hash('MYPLUGIN_HIVE_TTL_KEY') . '.var';
+        $this->assertTrue($cache->set($hash, 'persisted', 60));
+
+        $fresh = new FatFreeCacheBridge();
+        $fresh->load(CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL);
+        $this->assertFalse($fresh->get($hash));
+        $this->assertFalse($fresh->exists($hash));
+    }
 }

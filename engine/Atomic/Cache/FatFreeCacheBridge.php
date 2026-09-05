@@ -11,6 +11,7 @@ class FatFreeCacheBridge extends \Cache
 {
     private bool $enabled = false;
     private ?CacheStoreInterface $store = null;
+    private ?bool $hive_ttl_enabled = null;
 
     public static function install(): self
     {
@@ -27,7 +28,7 @@ class FatFreeCacheBridge extends \Cache
         }
 
         $key = (string)$key;
-        if ($this->store === null && str_ends_with($key, '.var')) {
+        if ($this->store === null && str_ends_with($key, '.var') && !$this->hive_ttl_lookup_allowed()) {
             // F3 falls back to cache lookups for unset hive keys ("<hash>.var").
             // Nothing can be persisted yet in this request, so return false
             // without opening the store; route-cache ".url" lookups still do.
@@ -57,7 +58,7 @@ class FatFreeCacheBridge extends \Cache
         }
 
         $key = (string)$key;
-        if ($this->store === null && str_ends_with($key, '.var')) {
+        if ($this->store === null && str_ends_with($key, '.var') && !$this->hive_ttl_lookup_allowed()) {
             // Same rationale as exists().
             return false;
         }
@@ -113,6 +114,7 @@ class FatFreeCacheBridge extends \Cache
         $this->dsn = is_string($dsn) ? trim($dsn) : (bool)$dsn;
         $this->enabled = $this->dsn === CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL;
         $this->store = null;
+        $this->hive_ttl_enabled = null;
 
         return $this->enabled ? $this->dsn : false;
     }
@@ -120,6 +122,22 @@ class FatFreeCacheBridge extends \Cache
     private function store(): CacheStoreInterface
     {
         return $this->store ??= CacheManager::instance()->store();
+    }
+
+    /**
+     * Whether F3 hive TTL persistence is opted in (CACHE_F3_HIVE_TTL). Read
+     * from the hive array directly: Base::get() on an unset key would
+     * re-enter this bridge while the store is unresolved.
+     */
+    private function hive_ttl_lookup_allowed(): bool
+    {
+        if ($this->hive_ttl_enabled === null) {
+            $hive = \Base::instance()->hive();
+            $config = $hive['CACHE_CONFIG'] ?? null;
+            $this->hive_ttl_enabled = is_array($config) && !empty($config['f3_hive_ttl']);
+        }
+
+        return $this->hive_ttl_enabled;
     }
 
     public function __construct($dsn = false)

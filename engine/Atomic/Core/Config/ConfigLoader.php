@@ -110,6 +110,8 @@ class ConfigLoader {
             'default' => $cache_driver,
             'path'    => $cache_path,
             'prefix'  => $cache_prefix,
+            // Opt-in to F3 hive TTL persistence; see FatFreeCacheBridge.
+            'f3_hive_ttl' => filter_var($this->get_env('CACHE_F3_HIVE_TTL', false), FILTER_VALIDATE_BOOLEAN),
         ]);
 
         $this->atomic->set('MIGRATIONS_BUNDLED', $this->fix_path($this->get_env('MIGRATIONS', 'database/migrations/') . 'atomic/'));

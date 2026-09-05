@@ -108,6 +108,8 @@ class PhpConfigLoader {
                 'default' => $cache_driver,
                 'path'    => $cache_path,
                 'prefix'  => $cache_prefix,
+                // Opt-in to F3 hive TTL persistence, mirroring ConfigLoader.
+                'f3_hive_ttl' => (bool)$this->cfg('cache', 'f3_hive_ttl', false),
             ],
             'CACHE_PREFIX'          => $cache_prefix,
             'DOMAIN'                => (string)$this->cfg('app', 'domain', ''),
