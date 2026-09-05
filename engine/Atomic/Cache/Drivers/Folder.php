@@ -8,9 +8,10 @@ use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\Cache\Helpers\Payload;
+use Engine\Atomic\Cache\Interfaces\WritableProbeCacheStoreInterface;
 use Engine\Atomic\Core\Filesystem;
 
-class Folder implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
+class Folder implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface, WritableProbeCacheStoreInterface
 {
     private const ENTRY_PREFIX = 'entry';
     private const META_FILE = 'namespace.meta';
@@ -42,6 +43,16 @@ class Folder implements CacheStoreInterface, PrunableCacheStoreInterface, Purgea
     {
         $namespace = rtrim(trim($namespace), '.');
         return $namespace !== '' ? $namespace : 'atomic';
+    }
+
+    public function can_write(): bool
+    {
+        // Stat-level probe; ensure_dir also recovers a namespace dir removed out-of-band.
+        if (!$this->filesystem->ensure_dir($this->path, 0775, true)) {
+            return false;
+        }
+
+        return is_writable($this->path);
     }
 
     private function hash(string $value): string

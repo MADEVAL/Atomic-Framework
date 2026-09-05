@@ -5,6 +5,7 @@ namespace Tests\Engine\Core;
 
 use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\WritableProbeCacheStoreInterface;
 use Engine\Atomic\Cache\Drivers\Folder;
 use Engine\Atomic\Cache\Drivers\Redis;
 use Engine\Atomic\Core\ID;
@@ -271,5 +272,74 @@ class CacheManagerTest extends TestCase
             ]);
 
         $this->assertSame($healthy, $manager->cascade());
+    }
+
+    public function test_health_check_uses_cheap_writability_probe_when_supported(): void
+    {
+        $probe = $this->createMock(WritableProbeCacheStoreInterface::class);
+        $probe->expects($this->once())
+            ->method('can_write')
+            ->willReturn(true);
+        $probe->expects($this->never())->method('set');
+        $probe->expects($this->never())->method('get');
+        $probe->expects($this->never())->method('clear');
+
+        $this->assertTrue(ReflectionHelper::invoke($this->manager, 'health_check', [$probe]));
+    }
+
+    public function test_health_check_fails_when_writability_probe_fails(): void
+    {
+        $probe = $this->createMock(WritableProbeCacheStoreInterface::class);
+        $probe->expects($this->once())
+            ->method('can_write')
+            ->willReturn(false);
+        $probe->expects($this->never())->method('set');
+
+        $this->assertFalse(ReflectionHelper::invoke($this->manager, 'health_check', [$probe]));
+    }
+
+    public function test_cascade_falls_back_to_next_driver_when_folder_probe_fails(): void
+    {
+        $broken = new UnwritableFolderProbeStub($this->temp_path . '/broken', 'atomic.');
+
+        $healthy = $this->createMock(CacheStoreInterface::class);
+        $healthy->expects($this->once())
+            ->method('set')
+            ->with('_atomic_healthcheck', '1', 3)
+            ->willReturn(true);
+        $healthy->expects($this->once())
+            ->method('get')
+            ->with('_atomic_healthcheck')
+            ->willReturn('1');
+        $healthy->expects($this->once())
+            ->method('clear')
+            ->with('_atomic_healthcheck')
+            ->willReturn(true);
+
+        $manager = $this->getMockBuilder(CacheManager::class)
+            ->onlyMethods(['cascade_drivers', 'driver'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $manager->expects($this->once())
+            ->method('cascade_drivers')
+            ->willReturn([self::DRIVER_FOLDER, self::DRIVER_REDIS]);
+
+        $manager->expects($this->exactly(2))
+            ->method('driver')
+            ->willReturnMap([
+                [self::DRIVER_FOLDER, $broken],
+                [self::DRIVER_REDIS, $healthy],
+            ]);
+
+        $this->assertSame($healthy, $manager->cascade());
+    }
+}
+
+class UnwritableFolderProbeStub extends Folder
+{
+    public function can_write(): bool
+    {
+        return false;
     }
 }

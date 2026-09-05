@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Cache\Drivers\DB;
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
+use Engine\Atomic\Cache\Interfaces\WritableProbeCacheStoreInterface;
 use Engine\Atomic\Cache\Drivers\Folder;
 use Engine\Atomic\Cache\Drivers\Memcached;
 use Engine\Atomic\Cache\Drivers\Redis as RedisCache;
@@ -138,6 +139,23 @@ class CacheManager
 
     private function health_check(CacheStoreInterface $cache): bool
     {
+        /*
+         * A failing can_write() behaves exactly like a failed generic probe:
+         * the cascade falls through to the next driver.
+         */
+        if ($cache instanceof WritableProbeCacheStoreInterface) {
+            try {
+                if ($cache->can_write()) {
+                    return true;
+                }
+                Log::warning('Cache health check failed: store is not writable.');
+                return false;
+            } catch (\Throwable $e) {
+                Log::warning('Cache health check failed: ' . $e->getMessage());
+                return false;
+            }
+        }
+
         $test_key = '_atomic_healthcheck';
 
         try {
