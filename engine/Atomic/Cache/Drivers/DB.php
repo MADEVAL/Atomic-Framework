@@ -8,7 +8,7 @@ use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PrunableCacheStoreInterface;
 use Engine\Atomic\Cache\Interfaces\PurgeableCacheStoreInterface;
 use Engine\Atomic\Cache\Helpers\Payload;
-use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use DB\SQL;
 
 class DB implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableCacheStoreInterface
@@ -42,7 +42,7 @@ class DB implements CacheStoreInterface, PrunableCacheStoreInterface, PurgeableC
 
     private function transaction(string $context, callable $callback): mixed
     {
-        $db = $this->db ?? App::instance()->get('DB');
+        $db = $this->db ?? ConnectionManager::instance()->get_db(false);
         if (!$db instanceof SQL) {
             throw new \RuntimeException($context . ': DB connection is not configured.');
         }

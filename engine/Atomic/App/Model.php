@@ -6,6 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 use DB\Cortex;
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Validator\PreValidation\NullableEmptyToNullTrait;
 use Engine\Atomic\Validator\Validator;
 
@@ -63,6 +64,8 @@ abstract class Model extends Cortex
 				$this->table = $prefix . $this->table;
 			}
 		}
+		// Cortex sets 'DB' in its constructor; open lazily on first use.
+		ConnectionManager::instance()->get_db(false);
 		parent::__construct();
 		$saveHandler = function(self $self): bool {
 			$self->before_validate();

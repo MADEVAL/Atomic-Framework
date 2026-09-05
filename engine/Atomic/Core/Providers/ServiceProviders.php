@@ -169,9 +169,11 @@ class SessionServiceProvider extends ServiceProvider
 
 class DatabaseServiceProvider extends ServiceProvider
 {
+    /**
+     * MySQL opens lazily on first consumer; call open_connections() to pre-open.
+     */
     public function boot(): void
     {
-        $this->container->get(App::class)->open_connections();
     }
 }
 
