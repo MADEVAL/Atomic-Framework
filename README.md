@@ -381,6 +381,7 @@ Detection priority: URL prefix → GET parameter → Cookie → Session → `Acc
 ```bash
 php atomic init                  # Scaffold project structure
 php atomic init/key              # Generate application keys
+php atomic health                # Check configuration and runtime requirements
 php atomic version               # Display framework version
 php atomic routes                # List all registered routes
 

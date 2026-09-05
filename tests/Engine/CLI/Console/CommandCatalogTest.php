@@ -20,4 +20,11 @@ final class CommandCatalogTest extends TestCase
         $this->assertSame('queue/cancel <job_uuid>', CommandCatalog::display('queue/cancel'));
     }
 
+    public function test_health_command_is_listed_in_system_help(): void
+    {
+        $labels = array_column(CommandCatalog::topics()['system']['commands'], 'name');
+
+        $this->assertContains('health', $labels);
+    }
+
 }

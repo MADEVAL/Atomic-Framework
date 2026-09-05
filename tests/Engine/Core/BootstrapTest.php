@@ -57,4 +57,31 @@ final class BootstrapTest extends TestCase
             'App\\Providers\\ApplicationServiceProvider',
         ], $providers['providers']);
     }
+
+    public function test_health_endpoint_only_intercepts_get_requests_on_the_exact_path(): void
+    {
+        $atomic = \Base::instance();
+        $original_path = $atomic->get('PATH');
+        $original_verb = $atomic->get('VERB');
+        $method = new \ReflectionMethod(Bootstrap::class, 'is_health_request');
+
+        try {
+            $atomic->set('VERB', 'GET');
+            $atomic->set('PATH', '/health');
+            $this->assertTrue($method->invoke(null, $atomic));
+
+            $atomic->set('PATH', '/index.php/health/');
+            $this->assertTrue($method->invoke(null, $atomic));
+
+            $atomic->set('VERB', 'POST');
+            $this->assertFalse($method->invoke(null, $atomic));
+
+            $atomic->set('VERB', 'GET');
+            $atomic->set('PATH', '/api/health');
+            $this->assertFalse($method->invoke(null, $atomic));
+        } finally {
+            $atomic->set('PATH', $original_path);
+            $atomic->set('VERB', $original_verb);
+        }
+    }
 }

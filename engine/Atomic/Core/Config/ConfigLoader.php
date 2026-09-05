@@ -3,8 +3,6 @@ declare(strict_types=1);
 namespace Engine\Atomic\Core\Config;
 
 use Engine\Atomic\Auth\ConfigUserStore;
-use Engine\Atomic\Cache\FatFreeCacheBridge;
-use Engine\Atomic\Core\CacheManager;
 use Engine\Atomic\Quota\QuotaLimiter;
 use Engine\Atomic\RateLimit\RateLimiter;
 
@@ -21,7 +19,7 @@ class ConfigLoader {
         (new self($atomic))->load($env_file);
     }
 
-    public function __construct(\Base $atomic) {
+    public function __construct(\Base $atomic, private readonly bool $initialize_cache = true) {
         $this->atomic = $atomic;
     }
 
@@ -240,12 +238,7 @@ class ConfigLoader {
         $tz = $this->atomic->get('TZ');
         if ($tz) @date_default_timezone_set($tz);
 
-        $cache_bridge = \Engine\Atomic\Cache\FatFreeCacheBridge::install();
-        $cache_config = $this->atomic->get('CACHE_CONFIG');
-        $f3_cache = $this->build_f3_cache_setting(is_array($cache_config) ? $cache_config : []);
-        $this->atomic->set('CACHE', $f3_cache);
-        CacheManager::instance()->resolve();
-        $cache_bridge->load($f3_cache);
+        $this->configure_cache($this->atomic, $this->initialize_cache);
 
         $this->sync_domain_to_hive($this->atomic, ['DOMAIN' => $this->atomic->get('DOMAIN')]);
     }

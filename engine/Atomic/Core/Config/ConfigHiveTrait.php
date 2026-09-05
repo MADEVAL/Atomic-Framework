@@ -15,10 +15,8 @@ trait ConfigHiveTrait
         return CacheManager::supports_driver($driver) ? CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL : false;
     }
 
-    protected function apply_settings_to_hive(\Base $atomic, array $settings): void
+    protected function apply_settings_to_hive(\Base $atomic, array $settings, bool $initialize_cache = true): void
     {
-        $cache_bridge = FatFreeCacheBridge::install();
-
         foreach ($settings as $key => $value) {
             if ($key === 'TZ' && $value) {
                 @date_default_timezone_set($value);
@@ -28,13 +26,24 @@ trait ConfigHiveTrait
             }
         }
 
-        $cache_config = $settings['CACHE_CONFIG'] ?? $atomic->get('CACHE_CONFIG');
+        $this->configure_cache($atomic, $initialize_cache);
+
+        $this->sync_domain_to_hive($atomic, $settings);
+    }
+
+    private function configure_cache(\Base $atomic, bool $initialize_cache): void
+    {
+        $cache_bridge = FatFreeCacheBridge::install();
+        if (!$initialize_cache) {
+            $atomic->set('CACHE', false);
+            return;
+        }
+
+        $cache_config = $atomic->get('CACHE_CONFIG');
         $f3_cache = $this->build_f3_cache_setting(is_array($cache_config) ? $cache_config : []);
         $atomic->set('CACHE', $f3_cache);
         CacheManager::instance()->resolve();
         $cache_bridge->load($f3_cache);
-
-        $this->sync_domain_to_hive($atomic, $settings);
     }
 
     protected function apply_mail_settings_to_hive(\Base $atomic, array $mail): void

@@ -16,7 +16,7 @@ class PhpConfigLoader {
     protected string $config_path;
     protected array $configs = [];
 
-    public function __construct(\Base $atomic) {
+    public function __construct(\Base $atomic, private readonly bool $initialize_cache = true) {
         $this->atomic = $atomic;
         $this->config_path = ATOMIC_CONFIG;
     }
@@ -171,7 +171,7 @@ class PhpConfigLoader {
         // ── MEMCACHED ──
         $this->atomic->set('MEMCACHED', $memcached_config);
 
-        $this->apply_settings_to_hive($this->atomic, $settings);
+        $this->apply_settings_to_hive($this->atomic, $settings, $this->initialize_cache);
 
         // apply_settings_to_hive skips empty values; the env loader stores them
         // explicitly, so mirror that for the keys whose empty default matters.

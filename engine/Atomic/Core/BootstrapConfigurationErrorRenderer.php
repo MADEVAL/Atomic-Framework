@@ -21,7 +21,8 @@ final class BootstrapConfigurationErrorRenderer
             );
             $details = '<p>Fix the following settings before starting the application:</p><ul>'
                 . implode('', $items)
-                . '</ul><p><code>php atomic init</code> can create or repair the application configuration.</p>';
+                . '</ul><p>Run <code>php atomic health</code> for a complete diagnosis. '
+                . '<code>php atomic init</code> can create or repair the application configuration.</p>';
         } else {
             $details = '<p>The application is not configured correctly. Please contact the administrator.</p>';
         }
@@ -49,7 +50,8 @@ final class BootstrapConfigurationErrorRenderer
             $lines[] = ' - ' . $error;
         }
 
-        $lines[] = 'Run: php atomic init';
+        $lines[] = 'Diagnose: php atomic health';
+        $lines[] = 'Repair: php atomic init';
         return implode(PHP_EOL, $lines) . PHP_EOL;
     }
 

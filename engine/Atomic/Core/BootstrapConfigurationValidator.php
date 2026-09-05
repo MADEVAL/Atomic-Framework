@@ -14,6 +14,7 @@ final class BootstrapConfigurationValidator
         '',
         '/init',
         '/init/key',
+        '/health',
         '/help',
         '/version',
     ];

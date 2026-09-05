@@ -129,31 +129,8 @@ class ConnectionManager
             }
         }
 
-        $cfg = $this->get_db_config($name);
-        $username = $cfg['username'];
-        $password = $cfg['password'];
-        $host = $cfg['host'];
-        $db = $cfg['db'];
-        $charset = $cfg['charset'];
-        $collation = $cfg['collation'];
-
-        $dsn = "mysql:host=" . $this->sanitize_dsn_value($host) . ";dbname=" . $this->sanitize_dsn_value($db);
-        if (!empty($charset)) {
-            $dsn .= ";charset={$charset}";
-        }
-        if (!empty($cfg['unix_socket'])) {
-            $dsn .= ";unix_socket={$cfg['unix_socket']}";
-        } elseif (!empty($cfg['port'])) {
-            $dsn .= ";port=" . (int)$cfg['port'];
-        }
-
-        $options = [];
-        if (defined('Pdo\\Mysql::ATTR_INIT_COMMAND')) {
-            $options[\Pdo\Mysql::ATTR_INIT_COMMAND] = "SET NAMES '{$charset}' COLLATE '{$collation}'";
-        }
-
         try {
-            $this->mysql_connections[$name] = new \DB\SQL($dsn, $username, $password, $options);
+            $this->mysql_connections[$name] = $this->create_mysql($this->get_db_config($name));
             $this->mysql_last_used_at[$name] = $this->now();
             $reconnected = true;
             return [$this->mysql_connections[$name], $reconnected];
@@ -346,6 +323,111 @@ class ConnectionManager
             throw new \RuntimeException('Memcached connection failed');
         }
         return $memcached;
+    }
+
+    public function probe_mysql(array $config): bool
+    {
+        if (!extension_loaded('pdo_mysql')) {
+            return false;
+        }
+
+        return $this->probe_safely(function () use ($config): bool {
+            $sql = $this->create_mysql($config, [\PDO::ATTR_TIMEOUT => 2]);
+            $result = $sql->exec('SELECT 1');
+
+            return is_array($result)
+                && isset($result[0]['1'])
+                && (int)$result[0]['1'] === 1;
+        });
+    }
+
+    private function create_mysql(array $config, array $options = []): SQL
+    {
+        $host = (string)$this->require_config_value($config, 'host', 'DB_CONFIG');
+        $port = (int)$this->require_config_value($config, 'port', 'DB_CONFIG');
+        $db = (string)$this->require_config_value($config, 'db', 'DB_CONFIG');
+        $username = (string)$this->require_config_value($config, 'username', 'DB_CONFIG');
+        $password = (string)$this->require_config_value($config, 'password', 'DB_CONFIG');
+        $charset = (string)$this->require_config_value($config, 'charset', 'DB_CONFIG');
+        $collation = (string)$this->require_config_value($config, 'collation', 'DB_CONFIG');
+
+        $dsn = 'mysql:host=' . $this->sanitize_dsn_value($host)
+            . ';dbname=' . $this->sanitize_dsn_value($db);
+        if ($charset !== '') {
+            $dsn .= ';charset=' . $this->sanitize_dsn_value($charset);
+        }
+        if (!empty($config['unix_socket'])) {
+            $dsn .= ';unix_socket=' . $this->sanitize_dsn_value((string)$config['unix_socket']);
+        } elseif ($port > 0) {
+            $dsn .= ';port=' . $port;
+        }
+
+        if (defined('Pdo\\Mysql::ATTR_INIT_COMMAND')) {
+            $options[\Pdo\Mysql::ATTR_INIT_COMMAND] = "SET NAMES '{$charset}' COLLATE '{$collation}'";
+        }
+
+        return new SQL($dsn, $username, $password, $options);
+    }
+
+    public function probe_redis(array $config): bool
+    {
+        if (!extension_loaded('redis') || !class_exists(\Redis::class)) {
+            return false;
+        }
+
+        return $this->probe_safely(function () use ($config): bool {
+            $redis = null;
+            try {
+                $redis = $this->create_redis($config);
+                return $this->redis_can_read($redis);
+            } finally {
+                if ($redis instanceof \Redis) {
+                    try {
+                        $redis->close();
+                    } catch (\Throwable) {
+                        // The connection was never opened or has already closed.
+                    }
+                }
+            }
+        });
+    }
+
+    public function probe_memcached(array $config): bool
+    {
+        if (!extension_loaded('memcached') || !class_exists(\Memcached::class)) {
+            return false;
+        }
+
+        return $this->probe_safely(function () use ($config): bool {
+            $memcached = null;
+            try {
+                $memcached = $this->create_memcached($config);
+                return $this->memcached_can_read($memcached);
+            } finally {
+                if ($memcached instanceof \Memcached) {
+                    try {
+                        $memcached->quit();
+                    } catch (\Throwable) {
+                        // The connection was never opened or has already closed.
+                    }
+                }
+            }
+        });
+    }
+
+    private function probe_safely(callable $probe): bool
+    {
+        // Extension warnings must not reach F3's terminating error handler.
+        set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+            throw new \ErrorException($message, 0, $severity, $file, $line);
+        });
+        try {
+            return $probe();
+        } catch (\Throwable) {
+            return false;
+        } finally {
+            restore_error_handler();
+        }
     }
 
     public function close_sql(string $name = 'default'): void

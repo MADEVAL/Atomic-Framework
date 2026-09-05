@@ -11,6 +11,8 @@ if (!defined('ATOMIC_START')) {
 use Engine\Atomic\Core\Config\ConfigLoader;
 use Engine\Atomic\Core\Config\ConfigSchema;
 use Engine\Atomic\Core\Config\PhpConfigLoader;
+use Engine\Atomic\Core\Health\HealthCheck;
+use Engine\Atomic\Core\Health\HealthCheckRenderer;
 use Engine\Atomic\Core\Providers\AppBootstrappedServiceProvider;
 use Engine\Atomic\Core\Providers\AuthServiceProvider;
 use Engine\Atomic\Core\Providers\ConfigServiceProvider;
@@ -40,6 +42,13 @@ final class Bootstrap
         Container::setGlobal($container);
 
         $atomic = \Base::instance();
+        $validator = new BootstrapConfigurationValidator();
+        $health = PHP_SAPI === 'cli'
+            ? $validator->command_from_argv((array)($_SERVER['argv'] ?? [])) === '/health'
+            : self::is_health_request($atomic);
+        if ($health) {
+            self::run_health_check($atomic);
+        }
         self::load_configuration($atomic);
         self::validate_configuration($atomic);
 
@@ -194,14 +203,58 @@ final class Bootstrap
         require_once ATOMIC_SUPPORT . 'helpers.php';
     }
 
-    private static function load_configuration(\Base $atomic): void
+    private static function load_configuration(\Base $atomic, bool $initialize_cache = true): void
     {
         if (ATOMIC_LOADER === 'php') {
-            (new PhpConfigLoader($atomic))->load();
+            (new PhpConfigLoader($atomic, $initialize_cache))->load();
             return;
         }
 
-        ConfigLoader::init($atomic, ATOMIC_ENV);
+        (new ConfigLoader($atomic, $initialize_cache))->load(ATOMIC_ENV);
+    }
+
+    private static function run_health_check(\Base $atomic): never
+    {
+        // F3's normal warning handler can render an error and exit before a
+        // diagnostic report is produced. Keep failures inside this boundary.
+        set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+            if (!(error_reporting() & $severity)) {
+                return false;
+            }
+            throw new \ErrorException($message, 0, $severity, $file, $line);
+        });
+        try {
+            self::load_configuration($atomic, false);
+            $report = HealthCheck::inspect($atomic);
+        } catch (\Throwable $exception) {
+            $message = PHP_SAPI === 'cli'
+                ? sprintf(
+                    '%s: %s [%s:%d]',
+                    $exception::class,
+                    $exception->getMessage(),
+                    $exception->getFile(),
+                    $exception->getLine(),
+                )
+                : 'Configuration or diagnostic initialization failed.';
+            $report = [
+                'healthy' => false,
+                'required' => [[
+                    'name' => 'Configuration source', 'status' => 'fail',
+                    'message' => $message,
+                    'suggestion' => 'Check configuration file readability, PHP syntax, and setting types. Remaining checks could not complete.',
+                ]],
+                'recommended' => [], 'optional' => [],
+            ];
+        } finally {
+            restore_error_handler();
+        }
+
+        if (PHP_SAPI === 'cli') {
+            HealthCheckRenderer::render_cli($report);
+            exit($report['healthy'] ? 0 : 1);
+        }
+        HealthCheckRenderer::render_web($report);
+        exit;
     }
 
     private static function validate_configuration(\Base $atomic): void
@@ -211,7 +264,8 @@ final class Bootstrap
 
         if (PHP_SAPI === 'cli') {
             $argv = isset($_SERVER['argv']) && is_array($_SERVER['argv']) ? $_SERVER['argv'] : [];
-            $errors = $validator->validate_cli($configuration, $validator->command_from_argv($argv));
+            $command = $validator->command_from_argv($argv);
+            $errors = $validator->validate_cli($configuration, $command);
             if ($errors !== []) {
                 BootstrapConfigurationErrorRenderer::render_cli($errors);
                 exit(1);
@@ -225,6 +279,18 @@ final class Bootstrap
             BootstrapConfigurationErrorRenderer::render_web($errors, $debug);
             exit(1);
         }
+    }
+
+    private static function is_health_request(\Base $atomic): bool
+    {
+        if (strtoupper((string)($atomic->get('VERB') ?? '')) !== 'GET') {
+            return false;
+        }
+
+        $path = parse_url((string)($atomic->get('PATH') ?? ''), PHP_URL_PATH);
+        $path = '/' . trim(is_string($path) ? $path : '', '/');
+
+        return $path === '/health' || $path === '/index.php/health';
     }
 
     private static function register_core_providers(Application $runtime): void

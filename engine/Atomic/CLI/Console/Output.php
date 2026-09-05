@@ -89,6 +89,28 @@ class Output
         $this->writeln('  ' . Style::warning_label() . ' ' . $message);
     }
 
+    public function check(string $status, string $name, string $message): void
+    {
+        $label = match (strtolower($status)) {
+            'ok' => Style::green('[OK]', true),
+            'warn' => Style::yellow('[WARN]', true),
+            'fail' => Style::red('[FAIL]', true),
+            'skip' => Style::cyan('[SKIP]', true),
+            default => Style::bold('[' . strtoupper($status) . ']'),
+        };
+
+        $this->writeln('  ' . $label . ' ' . Style::cyan($name, true) . ' - ' . $message);
+    }
+
+    public function health_status(bool $healthy): void
+    {
+        $status = $healthy
+            ? Style::green('HEALTHY', true)
+            : Style::red('UNHEALTHY', true);
+
+        $this->writeln('Status: ' . $status);
+    }
+
     public static function plain(string $output): string
     {
         return preg_replace('/\033\[[0-9;]*m/', '', $output) ?? $output;

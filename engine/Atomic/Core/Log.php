@@ -165,7 +165,7 @@ class Log
         ];
     }
 
-    protected static function resolve_dated_path(string $path): string
+    public static function resolve_dated_path(string $path): string
     {
         $date = date('Y-m-d');
         $info = pathinfo($path);

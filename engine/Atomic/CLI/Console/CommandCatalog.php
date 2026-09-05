@@ -33,6 +33,7 @@ final class CommandCatalog
         'cache/clear' => ['topic' => 'cache', 'arguments' => '', 'description' => 'Physically delete cache files/keys where supported', 'visible' => true],
         'cache/prune' => ['topic' => 'cache', 'arguments' => '', 'description' => 'Remove expired/corrupt cache entries where supported', 'visible' => true],
         'help' => ['topic' => 'system', 'arguments' => '[topic]', 'description' => 'View this help (or help <topic>)', 'visible' => true],
+        'health' => ['topic' => 'system', 'arguments' => '', 'description' => 'Check application health and configuration', 'visible' => true],
         'version' => ['topic' => 'system', 'arguments' => '', 'description' => 'View versions F3, PHP and Atomic', 'visible' => true],
         'routes' => ['topic' => 'system', 'arguments' => '', 'description' => 'View routes list', 'visible' => true],
         'classes' => ['topic' => 'system', 'arguments' => '', 'description' => 'View classes list', 'visible' => true],

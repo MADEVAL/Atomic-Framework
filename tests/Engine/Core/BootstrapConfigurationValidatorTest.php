@@ -104,6 +104,7 @@ final class BootstrapConfigurationValidatorTest extends TestCase
             'init key' => ['/init/key'],
             'help' => ['/help'],
             'version' => ['/version'],
+            'health' => ['/health'],
         ];
     }
 
@@ -140,6 +141,7 @@ final class BootstrapConfigurationValidatorTest extends TestCase
         $this->assertStringContainsString('Application configuration error', $page);
         $this->assertStringContainsString('DOMAIN &lt;invalid&gt;', $page);
         $this->assertStringNotContainsString('DOMAIN <invalid>', $page);
+        $this->assertStringContainsString('php atomic health', $page);
     }
 
     public function test_production_web_error_page_hides_configuration_details(): void
