@@ -26,7 +26,15 @@ class FatFreeCacheBridge extends \Cache
             return false;
         }
 
-        return $this->store->exists((string)$key, $val);
+        $key = (string)$key;
+        if ($this->store === null && str_ends_with($key, '.var')) {
+            // F3 falls back to cache lookups for unset hive keys ("<hash>.var").
+            // Nothing can be persisted yet in this request, so return false
+            // without opening the store; route-cache ".url" lookups still do.
+            return false;
+        }
+
+        return $this->store()->exists($key, $val);
     }
 
     public function set($key, $val, $ttl = 0): bool
@@ -36,9 +44,10 @@ class FatFreeCacheBridge extends \Cache
         }
 
         $key = (string)$key;
-        $cached = $this->store->exists($key);
+        $store = $this->store();
+        $cached = $store->exists($key);
 
-        return $this->store->set($key, $val, $cached !== false ? (int)$cached[1] : (int)$ttl);
+        return $store->set($key, $val, $cached !== false ? (int)$cached[1] : (int)$ttl);
     }
 
     public function get($key): mixed
@@ -47,7 +56,13 @@ class FatFreeCacheBridge extends \Cache
             return false;
         }
 
-        return $this->store->get((string)$key);
+        $key = (string)$key;
+        if ($this->store === null && str_ends_with($key, '.var')) {
+            // Same rationale as exists().
+            return false;
+        }
+
+        return $this->store()->get($key);
     }
 
     public function clear($key): ?bool
@@ -56,7 +71,7 @@ class FatFreeCacheBridge extends \Cache
             return null;
         }
 
-        return $this->store->clear((string)$key);
+        return $this->store()->clear((string)$key);
     }
 
     public function reset($suffix = null, $ttl = 0): bool
@@ -81,7 +96,7 @@ class FatFreeCacheBridge extends \Cache
             return true;
         }
 
-        return $this->store->reset();
+        return $this->store()->reset();
     }
 
     public function load($dsn, $seed = null): bool|string
@@ -92,16 +107,19 @@ class FatFreeCacheBridge extends \Cache
          * not let that runtime argument change the configured application cache
          * namespace. This bridge only enables for Atomic's sentinel value; any
          * native F3 DSN such as "folder=..." or "redis=..." disables the bridge
-         * instead of being interpreted or redirected. When enabled, the bridge
-         * resolves one Atomic store for this cache instance from CacheManager's
-         * configured driver first, where CACHE_PREFIX is applied by the selected
-         * Atomic adapter.
+         * instead of being interpreted or redirected. The Atomic store resolves
+         * lazily on the first cache operation.
          */
         $this->dsn = is_string($dsn) ? trim($dsn) : (bool)$dsn;
         $this->enabled = $this->dsn === CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL;
-        $this->store = $this->enabled ? CacheManager::instance()->store() : null;
+        $this->store = null;
 
         return $this->enabled ? $this->dsn : false;
+    }
+
+    private function store(): CacheStoreInterface
+    {
+        return $this->store ??= CacheManager::instance()->store();
     }
 
     public function __construct($dsn = false)

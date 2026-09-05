@@ -42,7 +42,7 @@ trait ConfigHiveTrait
         $cache_config = $atomic->get('CACHE_CONFIG');
         $f3_cache = $this->build_f3_cache_setting(is_array($cache_config) ? $cache_config : []);
         $atomic->set('CACHE', $f3_cache);
-        CacheManager::instance()->resolve();
+        // Store resolves lazily on first cache use.
         $cache_bridge->load($f3_cache);
     }
 

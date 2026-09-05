@@ -24,9 +24,11 @@ class Redactor
 
     public static function init_from_hive(\Base $atomic): void
     {
-        $home = (string)$atomic->get('HOME');
+        // Read hive directly: Base::get() on an unset key would open the cache store.
+        $hive = $atomic->hive();
+        $home = (string)($hive['HOME'] ?? '');
         if ($home === '') {
-            $root = rtrim((string)$atomic->get('ROOT'), '/\\');
+            $root = rtrim((string)($hive['ROOT'] ?? ''), '/\\');
             if ($root !== '') {
                 $home = dirname($root);
             }
