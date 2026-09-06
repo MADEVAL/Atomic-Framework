@@ -30,22 +30,56 @@ class App {
     protected array $extra_route_files = [];
     protected array $loaded_app_route_types = [];
     protected bool $server_start_hook_fired = false;
+    private ?int $cli_exit_code = null;
+    private readonly Container $container;
+    private readonly Output $output;
      
-    public function __construct(\Base $atomic) {
+    public function __construct(
+        \Base $atomic,
+        ?Container $container = null,
+        ?Output $output = null,
+    ) {
         $this->atomic = $atomic;
+        $this->container = $container ?? Container::global_or_create();
+        $this->output = $output ?? $this->container->resolve_class(Output::class);
+    }
+
+    public function reset_cli_exit_code(): void
+    {
+        $this->cli_exit_code = null;
+    }
+
+    public function set_cli_exit_code(int $code): void
+    {
+        if ($code < 0) {
+            throw new \InvalidArgumentException('CLI exit code must not be negative.');
+        }
+        if ($this->cli_exit_code !== null) {
+            throw new \LogicException('CLI exit code has already been assigned and cannot be overwritten.');
+        }
+
+        $this->cli_exit_code = $code;
+    }
+
+    public function get_cli_exit_code(): int
+    {
+        return $this->cli_exit_code ?? 0;
     }
 
     public static function instance(?\Base $atomic = null): self {
         if (!self::$instance) {
-            $globalContainer = Container::global();
-            if ($globalContainer !== null && $globalContainer->has(self::class)) {
+            $globalContainer = Container::global_or_create();
+            if ($globalContainer->has(self::class)) {
                 self::$instance = $globalContainer->get(self::class);
                 return self::$instance;
             }
             if (!$atomic) {
                 $atomic = \Base::instance();
             }
-            self::$instance = new self($atomic);
+            self::$instance = $globalContainer->make(self::class, [
+                'atomic' => $atomic,
+                'container' => $globalContainer,
+            ]);
         }
         return self::$instance;
     }
@@ -76,11 +110,10 @@ class App {
             $msg = 'Prefly checks did not pass: ' . implode(', ', $failed);
 
             if (php_sapi_name() === 'cli') {
-                $out = new Output();
-                $out->writeln();
-                $out->writeln('[Atomic] System Error');
-                $out->writeln(str_repeat('-', 40));
-                $out->writeln(implode("\n", array_map(fn($f) => " - Missing: $f", $failed)));
+                $this->output->writeln();
+                $this->output->writeln('[Atomic] System Error');
+                $this->output->writeln(str_repeat('-', 40));
+                $this->output->writeln(implode("\n", array_map(fn($f) => " - Missing: $f", $failed)));
             } else {
                 http_response_code(500);
                 echo '<!DOCTYPE html><html><head><title>System Error | Atomic</title>';
@@ -312,28 +345,33 @@ class App {
 
     public function handle_command(array $argv): int {
         $this->atomic->CLI = true;
-        
-        if (count($argv) < 2) {
-            (new Output())->writeln('Usage: atomic <command> [options]');
-            return 0;
-        }
-    
-        $raw_command = strtolower(trim($argv[1]));
-        $command = '/' . ltrim(str_replace(':', '/', $raw_command), '/');
-    
-        $cli = new CLI();
-        if ($cli->check_root_warning($raw_command, $command)) {
-            return 1;
-        }
-    
-        $this->atomic->set('PATH', $command);
-        if (!$this->is_registered_cli_command($command)) {
-            $cli->report_unknown_command($raw_command, $command);
-            return 1;
-        }
+        $this->reset_cli_exit_code();
 
-        $this->atomic->run();
-        return 0;
+        try {
+            if (count($argv) < 2) {
+                $this->output->root_usage();
+                return 0;
+            }
+
+            $raw_command = strtolower(trim($argv[1]));
+            $command = '/' . ltrim(str_replace(':', '/', $raw_command), '/');
+
+            $cli = $this->container->resolve_class(CLI::class);
+            if ($cli->check_root_warning($raw_command, $command)) {
+                return 1;
+            }
+
+            $this->atomic->set('PATH', $command);
+            if (!$this->is_registered_cli_command($command)) {
+                $cli->report_unknown_command($raw_command, $command);
+                return 1;
+            }
+
+            $this->atomic->run();
+            return $this->get_cli_exit_code();
+        } finally {
+            $this->reset_cli_exit_code();
+        }
     }
 
     protected function is_registered_cli_command(string $command): bool
@@ -607,7 +645,7 @@ class App {
             return $this;
         }
 
-        $provider = new $provider_class();
+        $provider = $this->container->resolve_class($provider_class);
 
         if (!($provider instanceof UserProviderInterface)) {
             Log::error("User provider {$provider_class} must implement UserProviderInterface.");
@@ -616,5 +654,5 @@ class App {
         Auth::instance()->set_user_provider($provider);
         return $this;
     }
-}
 
+}

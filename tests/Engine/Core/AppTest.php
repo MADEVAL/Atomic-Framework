@@ -4,7 +4,11 @@ declare(strict_types=1);
 namespace Tests\Engine\Core;
 
 use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Container;
 use Engine\Atomic\Core\Middleware\MiddlewareStack;
+use Engine\Atomic\CLI\Console\Output;
+use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
+use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
 use Engine\Atomic\Hook\ApplicationHook;
 use Engine\Atomic\Hook\Hook;
 use PHPUnit\Framework\TestCase;
@@ -17,6 +21,22 @@ class AppTest extends TestCase
     protected function setUp(): void
     {
         $this->app = App::instance();
+        $this->app->reset_cli_exit_code();
+    }
+
+    public function test_cli_exit_code_defaults_to_success(): void
+    {
+        $this->assertSame(0, $this->app->get_cli_exit_code());
+    }
+
+    public function test_cli_exit_code_cannot_be_overwritten(): void
+    {
+        $this->app->set_cli_exit_code(1);
+
+        $this->assertSame(1, $this->app->get_cli_exit_code());
+
+        $this->expectException(\LogicException::class);
+        $this->app->set_cli_exit_code(2);
     }
 
     public function test_handle_command_returns_failure_for_unknown_command(): void
@@ -24,6 +44,42 @@ class AppTest extends TestCase
         $this->app->atomic()->set('ROUTES', ['/help' => 'handler']);
 
         $this->assertSame(1, $this->app->handle_command(['atomic', 'what']));
+    }
+
+    public function test_register_user_provider_resolves_constructor_dependencies_from_container(): void
+    {
+        $container = Container::global();
+        self::assertNotNull($container);
+
+        $dependency = new InjectableUserProviderDependency();
+        $container->instance(InjectableUserProviderDependency::class, $dependency);
+
+        $app = new App(
+            \Base::instance(),
+            $container,
+            new Output(fopen('php://memory', 'w'), fopen('php://memory', 'w')),
+        );
+        $app->register_user_provider(InjectableUserProvider::class);
+
+        self::assertInstanceOf(InjectableUserProvider::class, InjectableUserProvider::$last_instance);
+        self::assertSame($dependency, InjectableUserProvider::$last_instance->dependency);
+    }
+
+    public function test_output_is_resolved_from_container(): void
+    {
+        $container = Container::global();
+        self::assertNotNull($container);
+
+        $stdout = fopen('php://memory', 'w+');
+        $stderr = fopen('php://memory', 'w+');
+        $output = new Output($stdout, $stderr);
+        $container->instance(Output::class, $output);
+
+        $app = new App(\Base::instance(), $container);
+        $app->handle_command(['atomic']);
+
+        rewind($stderr);
+        self::assertSame("Usage: php atomic <command> [options]" . PHP_EOL, stream_get_contents($stderr));
     }
 
     public function test_detect_request_type_returns_web_by_default(): void
@@ -203,5 +259,29 @@ class AppTest extends TestCase
         $after = count(xdebug_get_headers());
 
         $this->assertSame($before, $after, 'No new headers when SECURITY_HEADERS.ENABLED=false');
+    }
+}
+
+final class InjectableUserProviderDependency
+{
+}
+
+final class InjectableUserProvider implements UserProviderInterface
+{
+    public static ?self $last_instance = null;
+
+    public function __construct(public InjectableUserProviderDependency $dependency)
+    {
+        self::$last_instance = $this;
+    }
+
+    public function find_by_credentials(array $credentials): ?AuthenticatableInterface
+    {
+        return null;
+    }
+
+    public function find_by_id(string $auth_id): ?AuthenticatableInterface
+    {
+        return null;
     }
 }

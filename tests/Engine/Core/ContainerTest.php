@@ -115,6 +115,24 @@ final class ContainerTest extends TestCase
         $this->assertInstanceOf(\SplStack::class, $obj->stack);
     }
 
+    public function test_resolve_class_prefers_registered_instance(): void
+    {
+        $instance = new \ArrayObject();
+        $this->container->instance(\ArrayObject::class, $instance);
+
+        $this->assertSame($instance, $this->container->resolve_class(\ArrayObject::class));
+    }
+
+    public function test_resolve_class_autowires_unregistered_class(): void
+    {
+        $this->container->singleton(\SplStack::class, \SplStack::class);
+
+        $resolved = $this->container->resolve_class(ContainerTest_HasDeps::class);
+
+        $this->assertInstanceOf(ContainerTest_HasDeps::class, $resolved);
+        $this->assertInstanceOf(\SplStack::class, $resolved->stack);
+    }
+
     public function test_make_throws_for_unresolvable_param(): void
     {
         $this->expectException(\RuntimeException::class);

@@ -36,6 +36,11 @@ final class Container implements ContainerInterface
         return self::$global;
     }
 
+    public static function global_or_create(): self
+    {
+        return self::$global ??= new self();
+    }
+
     public static function setGlobal(?self $container): void
     {
         self::$global = $container;
@@ -125,6 +130,13 @@ final class Container implements ContainerInterface
         $args = $this->resolveParameters($class, $constructor, $params);
 
         return new $class(...$args);
+    }
+
+    public function resolve_class(string $class): object
+    {
+        return $this->has($class)
+            ? $this->get($class)
+            : $this->make($class);
     }
 
     /**
