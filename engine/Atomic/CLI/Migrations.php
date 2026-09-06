@@ -5,6 +5,7 @@ namespace Engine\Atomic\CLI;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\Migrations as AM;
+use Engine\Atomic\Core\Migrations\FrameworkMigrationGroups;
 
 trait Migrations {
 
@@ -50,6 +51,11 @@ trait Migrations {
 
     public function migrations_publish() {
         $args = $this->get_cli_args();
+        if (isset($args[0]) && strtolower($args[0]) === FrameworkMigrationGroups::FRAMEWORK) {
+            (new AM($this->output))->publish_from_framework();
+            return;
+        }
+
         if (!isset($args[0])) {
             $this->output->usage('migrations/publish');
             $this->output->writeln('  ' . Style::bold('Publishes all migrations from the specified plugin.'));

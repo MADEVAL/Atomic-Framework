@@ -8,6 +8,7 @@ use DB\Cortex\Schema\Schema;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Migrations;
+use Engine\Atomic\Core\Migrations\FrameworkMigrationGroups;
 
 trait DB {
     public function get_tables()
@@ -63,17 +64,17 @@ trait DB {
 
     public function db_sessions() {
         $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_CORE') . 'atomic_create_session_table');
+        (new Migrations($this->output))->publish_framework(FrameworkMigrationGroups::SESSIONS_MIGRATION);
     }
     
     public function db_storage() {
         $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_CORE') . 'atomic_create_storage_tables');
+        (new Migrations($this->output))->publish_framework(FrameworkMigrationGroups::STORAGE_MIGRATION);
     }
     
     public function db_mutex() {
         $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_CORE') . 'atomic_create_mutex_table');
+        (new Migrations($this->output))->publish_framework(FrameworkMigrationGroups::MUTEX_MIGRATION);
     }
 
     public function db_users() {

@@ -213,13 +213,13 @@ trait QueueDriverTestHarness
 
     protected function migrate_queue_tables_up(): void
     {
-        $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/atomic_create_queue_tables.php';
+        $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/initial/atomic_create_queue_tables.php';
         $migration['up']();
     }
 
     protected function migrate_queue_tables_down(): void
     {
-        $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/atomic_create_queue_tables.php';
+        $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/initial/atomic_create_queue_tables.php';
         $migration['down']();
     }
 }

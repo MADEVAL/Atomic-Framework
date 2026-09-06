@@ -196,7 +196,7 @@ trait SessionDriverTestHarness
 
     protected function migrate_session_table_up(): void
     {
-        $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/atomic_create_session_table.php';
+        $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/initial/atomic_create_session_table.php';
         \ob_start();
         try {
             $migration['up']();
@@ -212,7 +212,7 @@ trait SessionDriverTestHarness
             return;
         }
 
-        $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/atomic_create_session_table.php';
+        $migration = require ATOMIC_ENGINE . 'Atomic/Core/Database/Migrations/initial/atomic_create_session_table.php';
         \ob_start();
         try {
             $migration['down']();

@@ -16,8 +16,7 @@ return [
         $schema = new Schema($db);
         $prefix = $atomic->get('DB_CONFIG.prefix');
 
-        try {
-            $tables = $schema->getTables();
+        $tables = $schema->getTables();
 
             // --- jobs table ---
             $jobsTable = $prefix . 'jobs';
@@ -95,9 +94,6 @@ return [
                 $table->build();
                 $out->writeln("Table '{$telemetryTable}' created successfully.");
             }
-        } catch (\Throwable $e) {
-            $out->err('Failed to create queue tables: ' . $e->getMessage());
-        }
     },
 
     'down' => function () {
@@ -107,8 +103,7 @@ return [
         $schema = new Schema($db);
         $prefix = $atomic->get('DB_CONFIG.prefix');
 
-        try {
-            $tables = $schema->getTables();
+        $tables = $schema->getTables();
 
             foreach (['jobs', 'jobs_failed', 'jobs_completed', 'telemetry'] as $name) {
                 $tableName = $prefix . $name;
@@ -119,8 +114,5 @@ return [
                     $out->writeln("Table '{$tableName}' does not exist. Skipping drop.");
                 }
             }
-        } catch (\Throwable $e) {
-            $out->err('Error during drop: ' . $e->getMessage());
-        }
     }
 ];

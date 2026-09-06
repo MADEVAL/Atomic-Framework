@@ -12,6 +12,7 @@ use Engine\Atomic\App\Plugin;
 use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Filesystem;
+use Engine\Atomic\Core\Migrations\FrameworkMigrationGroups;
 
 class Migrations 
 {
@@ -146,6 +147,52 @@ class Migrations
         $this->outln(Style::success_label() . ' ' . Style::bold((string)$published) . ' migration(s) processed for plugin ' . Style::bold($plugin->get_plugin_name()) . ' and dependencies.');
     }
 
+    public function publish_framework(string $migration_name): void
+    {
+        $atomic = App::instance();
+        $groups = new FrameworkMigrationGroups();
+        $core = rtrim((string) $atomic->get('MIGRATIONS_CORE'), '/\\');
+        $located = $groups->locate_initial($core, $migration_name);
+
+        if ($located === null) {
+            $this->errln(
+                Style::error_label() . ' '
+                . Style::bold("Framework migration '{$migration_name}' was not found in the initial migrations directory.")
+            );
+            return;
+        }
+
+        $this->publish(substr($located['path'], 0, -4));
+    }
+
+    public function publish_from_framework(): void
+    {
+        $atomic = App::instance();
+        $groups = new FrameworkMigrationGroups();
+        $core = rtrim((string) $atomic->get('MIGRATIONS_CORE'), '/\\');
+
+        if (! is_dir($core)) {
+            $this->errln(
+                Style::error_label() . ' Framework migrations directory not found: '
+                . Style::bold($core)
+            );
+            return;
+        }
+
+        $published = 0;
+        foreach ($groups->update_inventory($core) as $item) {
+            $this->out('Publishing ' . Style::bold($item['migration']) . '... ');
+            $this->publish(substr($item['path'], 0, -4), $item['migration']);
+            $published++;
+        }
+
+        $this->outln();
+        $this->outln(
+            Style::success_label() . ' '
+            . Style::bold((string) $published)
+            . ' migration(s) processed for framework.'
+        );
+    }
     private function publish_plugin_migrations(PluginManager $manager, Plugin $plugin, array &$processed, array $stack, int &$published): bool
     {
         $plugin_name = $plugin->get_plugin_name();
@@ -207,8 +254,8 @@ class Migrations
         return true;
     }
 
-    public function publish(string $source_path): void {
-        $name = basename($source_path, '.php');
+    public function publish(string $source_path, ?string $published_name = null): void {
+        $name = $published_name ?? basename($source_path, '.php');
         $atomic = App::instance();
         $migrations_dir = $atomic->get('MIGRATIONS');
         if (!is_dir($migrations_dir)) {
