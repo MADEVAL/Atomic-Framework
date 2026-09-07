@@ -430,15 +430,42 @@ class PluginManager
         }
     }
 
+    /** @return list<Plugin> */
+    public function ordered_enabled_plugins(): array
+    {
+        $roots = [];
+        foreach ($this->plugins as $name => $plugin) {
+            if ($plugin instanceof Plugin && $plugin->is_enabled()) {
+                $roots[] = $name;
+            }
+        }
+        return array_values($this->order_plugins($this->plugins, true, $roots));
+    }
+
+    /** @return list<Plugin> */
+    public function dependency_order_for(Plugin $plugin): array
+    {
+        if (!$plugin->is_enabled()) {
+            throw new \RuntimeException("Plugin '{$plugin->get_plugin_name()}' is disabled.");
+        }
+        return array_values($this->order_plugins($this->plugins, true, [$plugin->get_plugin_name()]));
+    }
+
     protected function ordered_plugins(array $plugins): array
+    {
+        return $this->order_plugins($plugins, false);
+    }
+
+    /** @param list<string>|null $roots */
+    private function order_plugins(array $plugins, bool $strict, ?array $roots = null): array
     {
         $visiting = [];
         $visited = [];
         $skipped = [];
         $ordered = [];
 
-        foreach (array_keys($plugins) as $name) {
-            $this->order_plugin($name, $plugins, [], $visiting, $visited, $skipped, $ordered);
+        foreach ($roots ?? array_keys($plugins) as $name) {
+            $this->order_plugin($name, $plugins, [], $visiting, $visited, $skipped, $ordered, $strict);
         }
 
         return $ordered;
@@ -451,7 +478,8 @@ class PluginManager
         array &$visiting,
         array &$visited,
         array &$skipped,
-        array &$ordered
+        array &$ordered,
+        bool $strict,
     ): bool {
         if (isset($visited[$name])) return true;
         if (isset($skipped[$name])) return false;
@@ -459,6 +487,11 @@ class PluginManager
         if (isset($visiting[$name])) {
             $cycle_start = array_search($name, $stack, true);
             $cycle = $cycle_start === false ? [$name] : array_slice($stack, $cycle_start);
+            if ($strict) {
+                throw new \RuntimeException(
+                    'Plugin dependency cycle detected: ' . implode(' -> ', array_merge($cycle, [$name]))
+                );
+            }
             foreach ($cycle as $cycle_name) {
                 $skipped[$cycle_name] = true;
             }
@@ -467,7 +500,12 @@ class PluginManager
         }
 
         $plugin = $plugins[$name] ?? null;
-        if (!$plugin instanceof Plugin) return false;
+        if (!$plugin instanceof Plugin) {
+            if ($strict) {
+                throw new \RuntimeException("Plugin '{$name}' is not registered.");
+            }
+            return false;
+        }
 
         $visiting[$name] = true;
         $stack[] = $name;
@@ -476,6 +514,9 @@ class PluginManager
             try {
                 $dependency = $this->resolve_dependency($plugin, $dependency_class);
             } catch (\Throwable $e) {
+                if ($strict) {
+                    throw $e;
+                }
                 Log::error("Plugin {$name} dependency failed: " . $e->getMessage());
                 unset($visiting[$name]);
                 $skipped[$name] = true;
@@ -484,12 +525,23 @@ class PluginManager
 
             $dependency_name = $dependency->get_plugin_name();
             if (!isset($plugins[$dependency_name])) {
+                if ($strict) {
+                    throw new \RuntimeException(
+                        "Plugin {$name} requires {$dependency_class}, but it is not registered."
+                    );
+                }
                 unset($visiting[$name]);
                 $skipped[$name] = true;
                 return false;
             }
 
-            if (!$this->order_plugin($dependency_name, $plugins, $stack, $visiting, $visited, $skipped, $ordered)) {
+            if ($strict && !$dependency->is_enabled()) {
+                throw new \RuntimeException(
+                    "Plugin {$name} requires '{$dependency_name}', but it is disabled."
+                );
+            }
+
+            if (!$this->order_plugin($dependency_name, $plugins, $stack, $visiting, $visited, $skipped, $ordered, $strict)) {
                 unset($visiting[$name]);
                 $skipped[$name] = true;
                 return false;

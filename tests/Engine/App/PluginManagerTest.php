@@ -605,6 +605,35 @@ class PluginManagerTest extends TestCase
         ], OrderedRootPlugin::$events);
     }
 
+    public function test_ordered_enabled_plugins_returns_dependency_order(): void
+    {
+        $this->manager->register(new OrderedLeafPlugin());
+        $this->manager->register(new OrderedMiddlePlugin());
+        $this->manager->register(new OrderedRootPlugin());
+
+        $this->assertSame(
+            ['ordered-root', 'ordered-middle', 'ordered-leaf'],
+            array_map(
+                static fn(Plugin $plugin): string => $plugin->get_plugin_name(),
+                $this->manager->ordered_enabled_plugins(),
+            ),
+        );
+    }
+
+    public function test_dependency_order_for_returns_only_the_requested_dependency_tree(): void
+    {
+        $this->manager->register(new TestPlugin());
+        $this->manager->register(new DependentPlugin());
+
+        $this->assertSame(
+            ['test-plugin', 'dependent-plugin'],
+            array_map(
+                static fn(Plugin $plugin): string => $plugin->get_plugin_name(),
+                $this->manager->dependency_order_for($this->manager->get('dependent-plugin')),
+            ),
+        );
+    }
+
     public function test_boot_all_runs_dependencies_before_dependents(): void
     {
         $this->manager->register(new OrderedLeafPlugin());

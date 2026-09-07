@@ -45,7 +45,7 @@ class MigrationCatalog
         $migrations = $this->resolve_framework_copies($framework, $app);
 
         $plugin_sources = [];
-        foreach ($this->ordered_enabled_plugins() as $plugin) {
+        foreach ($this->plugins->ordered_enabled_plugins() as $plugin) {
             $path = $plugin->get_migrations_path();
             if ($path === null || !is_dir($path)) {
                 continue;
@@ -66,11 +66,12 @@ class MigrationCatalog
         $migrations = $this->without_unmodified_published_copies($migrations);
         $seen = [];
         foreach ($migrations as $migration) {
-            $identity = $migration['source'] . "\0" . $migration['migration'];
-            if (isset($seen[$identity])) {
+            $source = $migration['source'];
+            $name = $migration['migration'];
+            if (isset($seen[$source][$name])) {
                 throw new \RuntimeException("Duplicate migration identity '{$migration['source']}:{$migration['migration']}'.");
             }
-            $seen[$identity] = true;
+            $seen[$source][$name] = true;
         }
         return $migrations;
     }
@@ -79,43 +80,6 @@ class MigrationCatalog
     public function modified_published_copies(): array
     {
         return $this->modified_published_copies;
-    }
-
-    /** @return list<Plugin> */
-    public function ordered_enabled_plugins(): array
-    {
-        $ordered = [];
-        $visiting = [];
-        $visited = [];
-        $visit = function (Plugin $plugin) use (&$visit, &$ordered, &$visiting, &$visited): void {
-            $name = $plugin->get_plugin_name();
-            if (isset($visited[$name]) || !$plugin->is_enabled()) {
-                return;
-            }
-            if (isset($visiting[$name])) {
-                throw new \RuntimeException("Plugin migration dependency cycle detected at '{$name}'.");
-            }
-            $visiting[$name] = true;
-            foreach ($plugin->get_dependencies() as $dependency_class) {
-                $dependency = $this->plugins->resolve_dependency($plugin, $dependency_class);
-                if (!$dependency->is_enabled()) {
-                    throw new \RuntimeException(
-                        "Plugin '{$name}' migration dependency '{$dependency->get_plugin_name()}' is disabled."
-                    );
-                }
-                $visit($dependency);
-            }
-            unset($visiting[$name]);
-            $visited[$name] = true;
-            $ordered[] = $plugin;
-        };
-
-        foreach ($this->plugins->all() as $plugin) {
-            if ($plugin instanceof Plugin && $plugin->is_enabled()) {
-                $visit($plugin);
-            }
-        }
-        return $ordered;
     }
 
     /**

@@ -128,7 +128,7 @@ class MigrationPublisher
         $published = 0;
         $skipped = 0;
         $processed = [];
-        if (!$this->publish_plugin_migrations($this->plugins, $plugin, $processed, [], $published, $skipped)) {
+        if (!$this->publish_plugin_migrations($this->plugins, $plugin, $processed, $published, $skipped)) {
             return;
         }
         $this->output->writeln();
@@ -148,7 +148,6 @@ class MigrationPublisher
         PluginManager $manager,
         Plugin $plugin,
         array &$processed,
-        array $stack,
         int &$published,
         int &$skipped = 0,
     ): bool {
@@ -156,53 +155,37 @@ class MigrationPublisher
         if (isset($processed[$plugin_name])) {
             return true;
         }
-        if (in_array($plugin_name, $stack, true)) {
-            $stack[] = $plugin_name;
-            $this->output->err(
-                Style::error_label() . ' ' . Style::bold('Plugin migration dependency cycle detected:')
-                . ' ' . implode(' -> ', $stack)
-            );
+        try {
+            $ordered = $manager->dependency_order_for($plugin);
+        } catch (\Throwable $e) {
+            $this->output->err(Style::error_label() . ' ' . Style::bold($e->getMessage()));
             return false;
         }
 
-        $stack[] = $plugin_name;
-        foreach ($plugin->get_dependencies() as $dependency_class) {
-            try {
-                $dependency = $manager->resolve_dependency($plugin, $dependency_class);
-            } catch (\RuntimeException $e) {
-                $this->output->err(Style::error_label() . ' ' . Style::bold($e->getMessage()));
-                return false;
+        foreach ($ordered as $candidate) {
+            $candidate_name = $candidate->get_plugin_name();
+            if (isset($processed[$candidate_name])) {
+                continue;
             }
-            if (!$dependency->is_enabled()) {
-                $this->output->err(
-                    Style::error_label() . ' '
-                    . Style::bold("Plugin '{$plugin_name}' requires '{$dependency_class}', but it is disabled.")
+            $path = $candidate->get_migrations_path();
+            if ($path !== null) {
+                $files = array_filter(
+                    glob($path . DIRECTORY_SEPARATOR . '*.php') ?: [],
+                    static fn(string $file): bool => basename($file) !== 'index.php'
                 );
-                return false;
-            }
-            if (!$this->publish_plugin_migrations($manager, $dependency, $processed, $stack, $published, $skipped)) {
-                return false;
-            }
-        }
-
-        $path = $plugin->get_migrations_path();
-        if ($path !== null) {
-            $files = array_filter(
-                glob($path . DIRECTORY_SEPARATOR . '*.php') ?: [],
-                static fn(string $file): bool => basename($file) !== 'index.php'
-            );
-            sort($files);
-            foreach ($files as $file) {
-                $this->output->write('Publishing ' . Style::bold(basename($file, '.php')) . '... ');
-                $result = $this->copy_published_source($file);
-                if ($result === true) {
-                    $published++;
-                } elseif ($result === false) {
-                    $skipped++;
+                sort($files);
+                foreach ($files as $file) {
+                    $this->output->write('Publishing ' . Style::bold(basename($file, '.php')) . '... ');
+                    $result = $this->copy_published_source($file);
+                    if ($result === true) {
+                        $published++;
+                    } elseif ($result === false) {
+                        $skipped++;
+                    }
                 }
             }
+            $processed[$candidate_name] = true;
         }
-        $processed[$plugin_name] = true;
         return true;
     }
 
