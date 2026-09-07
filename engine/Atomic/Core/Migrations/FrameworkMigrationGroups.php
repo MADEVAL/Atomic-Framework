@@ -8,6 +8,7 @@ if (!defined('ATOMIC_START')) exit;
 class FrameworkMigrationGroups
 {
     public const FRAMEWORK = 'framework';
+    public const APP = 'app';
 
     public const INITIAL = 'initial';
     public const UPDATES = 'updates';
@@ -113,27 +114,27 @@ class FrameworkMigrationGroups
     }
 
     /**
-     * @return array{group: string, path: string}|null
+     * @return array{group: string, migration: string, path: string, version?: int}|null
      */
     private function locate(string $core, string $directory, string $migration_name): ?array
     {
         $name = basename($migration_name, '.php');
         foreach ($this->inventory($core, $directory) as $item) {
             if ($item['migration'] === $name) {
-                return ['group' => $item['group'], 'path' => $item['path']];
+                return $item;
             }
         }
 
         return null;
     }
 
-    /** @return array{group: string, path: string}|null */
+    /** @return array{group: string, migration: string, path: string}|null */
     public function locate_initial(string $core, string $migration_name): ?array
     {
         return $this->locate($core, self::INITIAL, $migration_name);
     }
 
-    /** @return array{group: string, path: string}|null */
+    /** @return array{group: string, migration: string, path: string, version: int}|null */
     public function locate_update(string $core, string $migration_name): ?array
     {
         return $this->locate($core, self::UPDATES, $migration_name);
