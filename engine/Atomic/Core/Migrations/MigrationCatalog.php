@@ -107,6 +107,7 @@ class MigrationCatalog
                 $copy['framework_checksum'] = $owner['checksum'];
                 $copy['framework_path'] = $owner['path'];
                 $copy['origin_migration'] = $owner['migration'];
+                $copy['migration'] = $owner['migration'];
                 $published_owners[$owner['migration']] = true;
             }
             foreach ($rows as $row) {

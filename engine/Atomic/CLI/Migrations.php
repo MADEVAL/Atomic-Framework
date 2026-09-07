@@ -5,12 +5,17 @@ namespace Engine\Atomic\CLI;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use Engine\Atomic\Core\Migrations as AM;
-use Engine\Atomic\Core\Migrations\FrameworkMigrationGroups;
+use Engine\Atomic\Core\App;
+use Engine\Atomic\Core\Container;
+use Engine\Atomic\Core\Migrations\MigrationsFactory;
 
 trait Migrations {
 
     public function migrations_init(): void {
-        if (!(new AM($this->output))->db()) {
+        $migrations = $this->run_migration_command(function (AM $migrations): void {
+            $migrations->db();
+        });
+        if (!$migrations->was_successful()) {
             $this->output->writeln(Style::error_label() . ' Could not initialize migrations table. Check DB credentials and connectivity.');
             return;
         }
@@ -24,7 +29,7 @@ trait Migrations {
             $this->output->usage('migrations/create');
             return;
         }
-        (new AM($this->output))->create($args[0]);
+        $this->migration_manager()->create($args[0]);
     }
 
     public function migrations_rollback() {
@@ -33,7 +38,9 @@ trait Migrations {
             $this->output->usage('migrations/rollback');
             return;
         }
-        (new AM($this->output))->rollback($args[0] ?? null);
+        $this->run_migration_command(function (AM $migrations) use ($args): void {
+            $migrations->rollback($args[0] ?? null);
+        });
     }
 
     public function migrations_migrate() {
@@ -42,25 +49,78 @@ trait Migrations {
             $this->output->usage('migrations/migrate');
             return;
         }
-        (new AM($this->output))->migrate($args[0] ?? null);
+        $this->run_migration_command(function (AM $migrations) use ($args): void {
+            $migrations->migrate(isset($args[0]) ? (int)$args[0] : null);
+        });
     }
 
     public function migrations_status() {
-        (new AM($this->output))->status();
+        $this->run_migration_command(function (AM $migrations): void {
+            $migrations->status();
+        });
+    }
+
+    public function migrations_upgrade(): void {
+        $args = $this->get_cli_args();
+        $invalid = array_filter($args, static fn(string $arg): bool => $arg !== '--dry-run');
+        if ($invalid !== []) {
+            $this->output->usage('migrations/upgrade');
+            return;
+        }
+        $this->run_migration_command(function (AM $migrations) use ($args): void {
+            $migrations->upgrade(in_array('--dry-run', $args, true));
+        });
+    }
+
+
+    private function run_migration_command(callable $operation): AM
+    {
+        $migrations = $this->migration_manager();
+
+        try {
+            $operation($migrations);
+        } catch (\Throwable $e) {
+            App::instance()->set_cli_exit_code(1);
+            throw $e;
+        }
+
+        if (!$migrations->was_successful()) {
+            App::instance()->set_cli_exit_code(1);
+        }
+
+        return $migrations;
     }
 
     public function migrations_publish() {
         $args = $this->get_cli_args();
-        if (isset($args[0]) && strtolower($args[0]) === FrameworkMigrationGroups::FRAMEWORK) {
-            (new AM($this->output))->publish_from_framework();
-            return;
+        $positional = [];
+        foreach ($args as $arg) {
+            if (str_starts_with($arg, '-')) {
+                $this->output->usage('migrations/publish');
+                return;
+            }
+            $positional[] = $arg;
         }
-
-        if (!isset($args[0])) {
+        if (!isset($positional[0])) {
             $this->output->usage('migrations/publish');
-            $this->output->writeln('  ' . Style::bold('Publishes all migrations from the specified plugin.'));
+            $this->output->writeln('  ' . Style::bold('Publishes framework updates or migrations from the specified plugin.'));
             return;
         }
-        (new AM($this->output))->publish_from_plugin($args[0]);
+        $migrations = $this->migration_manager();
+        if (strtolower($positional[0]) === 'framework') {
+            $migrations->publish_from_framework();
+            return;
+        }
+        $migrations->publish_from_plugin($positional[0]);
+    }
+
+    protected function migration_manager(): AM
+    {
+        $container = Container::global();
+        if ($container === null) {
+            throw new \RuntimeException('The application container is not available.');
+        }
+        $input = isset($this->input) ? $this->input : null;
+        return $container->get(MigrationsFactory::class)->create($this->output, $input);
     }
 }

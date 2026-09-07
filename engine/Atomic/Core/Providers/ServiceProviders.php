@@ -15,6 +15,8 @@ use Engine\Atomic\Hook\Hook;
 use Engine\Atomic\Event\Event;
 use Engine\Atomic\Auth\Auth;
 use Engine\Atomic\App\PluginManager;
+use Engine\Atomic\Core\Filesystem;
+use Engine\Atomic\Core\Migrations\MigrationsFactory;
 
 class ConfigServiceProvider extends ServiceProvider
 {
@@ -109,6 +111,16 @@ class CorePluginServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->container->singleton(PluginManager::class, fn() => PluginManager::instance());
+        $this->container->singleton(Filesystem::class, fn() => Filesystem::instance());
+        $this->container->singleton(
+            MigrationsFactory::class,
+            fn(Container $container) => new MigrationsFactory(
+                $container->get(App::class),
+                $container->get(ConnectionManager::class),
+                $container->get(PluginManager::class),
+                $container->get(Filesystem::class),
+            ),
+        );
     }
 
     public function boot(): void

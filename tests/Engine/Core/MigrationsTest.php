@@ -8,7 +8,11 @@ use Engine\Atomic\App\PluginManager;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
+use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Migrations;
+use Engine\Atomic\Core\Migrations\MigrationLedger;
+use Engine\Atomic\Core\Migrations\MigrationPublisher;
+use Engine\Atomic\Core\Migrations\MigrationsFactory;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\ReflectionHelper;
 use Tests\Support\StreamCapture;
@@ -151,7 +155,7 @@ class MigrationsTest extends TestCase
         App::instance()->set('DB_CONFIG', $config);
         App::instance()->set('DB', new \DB\SQL($dsn, $username, $password));
         ConnectionManager::instance()->close_sql();
-        $this->migrations = new Migrations($this->output);
+        $this->migrations = $this->make_migrations();
     }
 
     private function connect_pdo_with_fallback(
@@ -242,12 +246,6 @@ class MigrationsTest extends TestCase
         file_put_contents($this->migrations_dir . $file, $content);
     }
 
-    /** Invoke a private method via reflection (supports by-ref args) */
-    private function invoke_method(object $object, string $name, array $args = []): mixed
-    {
-        return ReflectionHelper::invoke($object, $name, $args);
-    }
-
     /**
      * Create a Migrations instance, optionally with db() mocked to return true.
      * When $fake_db is true, the mock also overrides create() to do a simple
@@ -257,11 +255,19 @@ class MigrationsTest extends TestCase
     private function create_migrations_mock(bool $fake_db): Migrations
     {
         if (!$fake_db) {
-            return new Migrations($this->output);
+            return $this->make_migrations();
         }
 
+        $instance = $this->make_migrations();
+        $reflection = new \ReflectionClass($instance);
+        $constructor_args = array_map(
+            static fn(\ReflectionParameter $parameter): mixed => $reflection
+                ->getProperty($parameter->getName())
+                ->getValue($instance),
+            $reflection->getConstructor()->getParameters(),
+        );
         $mock = $this->getMockBuilder(Migrations::class)
-            ->setConstructorArgs([$this->output])
+            ->setConstructorArgs($constructor_args)
             ->onlyMethods(['db', 'create'])
             ->getMock();
 
@@ -273,13 +279,42 @@ class MigrationsTest extends TestCase
                 if (!is_dir($dir)) {
                     mkdir($dir, 0777, true);
                 }
-                $ts = $this->invoke_method(new Migrations($this->output), 'next_migration_timestamp', [$dir]);
+                $ts = ReflectionHelper::invoke($this->migration_publisher(), 'next_migration_timestamp', [$dir]);
                 $file = $dir . $ts . '_' . $name . '.php';
                 file_put_contents($file, $template ?: '<?php // stub');
             }
         );
 
         return $mock;
+    }
+
+    private function make_migrations(): Migrations
+    {
+        return (new MigrationsFactory(
+            App::instance(),
+            ConnectionManager::instance(),
+            PluginManager::instance(),
+            Filesystem::instance(),
+        ))->create($this->output);
+    }
+
+    public function test_migrate_rejects_negative_steps_without_running_migrations(): void
+    {
+        $this->migrations->migrate(-1);
+
+        $this->assertFalse($this->migrations->was_successful());
+        $this->assertStringContainsString('cannot be negative', strtolower($this->stderr()));
+    }
+
+    private function migration_publisher(): MigrationPublisher
+    {
+        return new MigrationPublisher(
+            App::instance(),
+            PluginManager::instance(),
+            Filesystem::instance(),
+            new MigrationLedger(App::instance(), ConnectionManager::instance()),
+            $this->output,
+        );
     }
 
     // ── find_plugin ────────────────────────────────────────────
@@ -290,7 +325,7 @@ class MigrationsTest extends TestCase
         $plugin = new MigrationsTestPlugin('my-plugin');
         $manager->register($plugin);
 
-        $result = $this->invoke_method($this->migrations, 'find_plugin', [$manager, 'my-plugin']);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'find_plugin', [$manager, 'my-plugin']);
         $this->assertSame($plugin, $result);
     }
 
@@ -300,14 +335,14 @@ class MigrationsTest extends TestCase
         $plugin = new MigrationsTestPlugin('My-Plugin');
         $manager->register($plugin);
 
-        $result = $this->invoke_method($this->migrations, 'find_plugin', [$manager, 'my-plugin']);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'find_plugin', [$manager, 'my-plugin']);
         $this->assertSame($plugin, $result);
     }
 
     public function test_find_plugin_not_found(): void
     {
         $manager = $this->resetPluginManager();
-        $result = $this->invoke_method($this->migrations, 'find_plugin', [$manager, 'nonexistent']);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'find_plugin', [$manager, 'nonexistent']);
         $this->assertNull($result);
     }
 
@@ -315,7 +350,7 @@ class MigrationsTest extends TestCase
 
     public function test_next_migration_timestamp_no_existing_files(): void
     {
-        $ts = $this->invoke_method($this->migrations, 'next_migration_timestamp', [$this->migrations_dir]);
+        $ts = ReflectionHelper::invoke($this->migration_publisher(), 'next_migration_timestamp', [$this->migrations_dir]);
         $this->assertMatchesRegularExpression('/^\d{14}$/', $ts);
         $this->assertSame(date('YmdHis'), $ts);
     }
@@ -325,7 +360,7 @@ class MigrationsTest extends TestCase
         $now = date('YmdHis');
         touch($this->migrations_dir . $now . '_test.php');
 
-        $ts = $this->invoke_method($this->migrations, 'next_migration_timestamp', [$this->migrations_dir]);
+        $ts = ReflectionHelper::invoke($this->migration_publisher(), 'next_migration_timestamp', [$this->migrations_dir]);
         $this->assertMatchesRegularExpression('/^\d{14}$/', $ts);
 
         $expected = \DateTimeImmutable::createFromFormat('YmdHis', $now)->modify('+1 second')->format('YmdHis');
@@ -340,7 +375,7 @@ class MigrationsTest extends TestCase
         touch($this->migrations_dir . $now . '_a.php');
         touch($this->migrations_dir . $plus_one . '_b.php');
 
-        $ts = $this->invoke_method($this->migrations, 'next_migration_timestamp', [$this->migrations_dir]);
+        $ts = ReflectionHelper::invoke($this->migration_publisher(), 'next_migration_timestamp', [$this->migrations_dir]);
         $this->assertSame(
             \DateTimeImmutable::createFromFormat('YmdHis', $now)->modify('+2 seconds')->format('YmdHis'),
             $ts
@@ -352,11 +387,11 @@ class MigrationsTest extends TestCase
         $past = \DateTimeImmutable::createFromFormat('YmdHis', date('YmdHis'))->modify('-10 seconds')->format('YmdHis');
         touch($this->migrations_dir . $past . '_old.php');
 
-        $ts = $this->invoke_method($this->migrations, 'next_migration_timestamp', [$this->migrations_dir]);
+        $ts = ReflectionHelper::invoke($this->migration_publisher(), 'next_migration_timestamp', [$this->migrations_dir]);
         $this->assertSame(date('YmdHis'), $ts);
     }
 
-    // ── publish_plugin_migrations (private) ────────────────────
+    // ── MigrationPublisher ─────────────────────────────────────
 
     /** @return Migrations  A mock that can actually publish files without DB */
     private function publishable_migrations(): Migrations
@@ -367,7 +402,7 @@ class MigrationsTest extends TestCase
     public function test_publish_plugin_migrations_no_dependencies(): void
     {
         $manager = $this->resetPluginManager();
-        $migrations = $this->publishable_migrations();
+        $publisher = $this->migration_publisher();
 
         $plugin_migrations_dir = $this->tmp_dir . 'plugin_migrations' . DIRECTORY_SEPARATOR;
         mkdir($plugin_migrations_dir, 0755, true);
@@ -378,7 +413,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = [];
-        $result = $this->invoke_method($migrations, 'publish_plugin_migrations', [$manager, $plugin, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($publisher, 'publish_plugin_migrations', [$manager, $plugin, &$processed, &$published]);
 
         $this->assertTrue($result);
         $this->assertSame(1, $published);
@@ -391,7 +426,7 @@ class MigrationsTest extends TestCase
     public function test_publish_plugin_migrations_with_dependencies(): void
     {
         $manager = $this->resetPluginManager();
-        $migrations = $this->publishable_migrations();
+        $publisher = $this->migration_publisher();
 
         $dep_migrations_dir = $this->tmp_dir . 'dep_migrations' . DIRECTORY_SEPARATOR;
         mkdir($dep_migrations_dir, 0755, true);
@@ -409,7 +444,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = [];
-        $result = $this->invoke_method($migrations, 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($publisher, 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, &$published]);
 
         $this->assertTrue($result);
         $this->assertSame(2, $published);
@@ -437,7 +472,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = [];
-        $result = $this->invoke_method($this->migrations, 'publish_plugin_migrations', [$manager, $plugin_a, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'publish_plugin_migrations', [$manager, $plugin_a, &$processed, &$published]);
 
         $this->assertFalse($result);
         $this->assertStringContainsString('cycle', $this->stderr());
@@ -460,7 +495,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = [];
-        $result = $this->invoke_method($this->migrations, 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, &$published]);
 
         $this->assertFalse($result);
         $this->assertStringContainsString('disabled', $this->stderr());
@@ -479,7 +514,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = [];
-        $result = $this->invoke_method($this->migrations, 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, &$published]);
 
         $this->assertFalse($result);
         $this->assertStringContainsString('not registered', $this->stderr());
@@ -493,7 +528,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = [];
-        $result = $this->invoke_method($this->migrations, 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, &$published]);
 
         $this->assertFalse($result);
         $this->assertStringContainsString('requires missing plugin class', $this->stderr());
@@ -507,7 +542,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = [];
-        $result = $this->invoke_method($this->migrations, 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'publish_plugin_migrations', [$manager, $main_plugin, &$processed, &$published]);
 
         $this->assertFalse($result);
         $this->assertStringContainsString('must extend', $this->stderr());
@@ -521,7 +556,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = [];
-        $result = $this->invoke_method($this->migrations, 'publish_plugin_migrations', [$manager, $plugin, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($this->migration_publisher(), 'publish_plugin_migrations', [$manager, $plugin, &$processed, &$published]);
 
         $this->assertTrue($result);
         $this->assertSame(0, $published);
@@ -530,7 +565,7 @@ class MigrationsTest extends TestCase
     public function test_publish_plugin_migrations_already_processed_skips(): void
     {
         $manager = $this->resetPluginManager();
-        $migrations = $this->publishable_migrations();
+        $publisher = $this->migration_publisher();
 
         $plugin_migrations_dir = $this->tmp_dir . 'skip_migrations' . DIRECTORY_SEPARATOR;
         mkdir($plugin_migrations_dir, 0755, true);
@@ -541,7 +576,7 @@ class MigrationsTest extends TestCase
 
         $published = 0;
         $processed = ['skip-plugin' => true];
-        $result = $this->invoke_method($migrations, 'publish_plugin_migrations', [$manager, $plugin, &$processed, [], &$published]);
+        $result = ReflectionHelper::invoke($publisher, 'publish_plugin_migrations', [$manager, $plugin, &$processed, &$published]);
 
         $this->assertTrue($result);
         $this->assertSame(0, $published);
@@ -565,7 +600,7 @@ class MigrationsTest extends TestCase
 
         $this->migrations->publish_from_plugin('pfp-plugin');
 
-        $this->assertStringContainsString('1 migration(s) processed', $this->stdout());
+        $this->assertStringContainsString('1 migration(s) published', $this->stdout());
     }
 
     public function test_publish_from_plugin_not_found(): void
@@ -575,6 +610,27 @@ class MigrationsTest extends TestCase
         $this->migrations->publish_from_plugin('nonexistent');
 
         $this->assertStringContainsString('not found', $this->stderr());
+    }
+
+    public function test_publish_from_framework_ignores_ungrouped_root_files(): void
+    {
+        $framework_migrations_dir = $this->tmp_dir . 'framework_migrations' . DIRECTORY_SEPARATOR;
+        mkdir($framework_migrations_dir, 0755, true);
+        file_put_contents($framework_migrations_dir . 'framework_first.php', '<?php return [];');
+        file_put_contents($framework_migrations_dir . 'framework_second.php', '<?php return [];');
+
+        $original_framework_dir = App::instance()->get('MIGRATIONS_CORE');
+        App::instance()->set('MIGRATIONS_CORE', $framework_migrations_dir);
+
+        try {
+            $this->migration_publisher()->publish_from_framework();
+        } finally {
+            App::instance()->set('MIGRATIONS_CORE', $original_framework_dir);
+        }
+
+        $published_files = glob($this->migrations_dir . '*_framework_*.php');
+        $this->assertSame([], $published_files);
+        $this->assertStringContainsString('0 migration(s) published for framework', $this->stdout());
     }
 
     public function test_publish_from_plugin_with_dependencies(): void
@@ -598,7 +654,7 @@ class MigrationsTest extends TestCase
 
         $this->migrations->publish_from_plugin('pfp-main');
 
-        $this->assertStringContainsString('2 migration(s) processed', $this->stdout());
+        $this->assertStringContainsString('2 migration(s) published', $this->stdout());
         $this->assertStringContainsString('and dependencies', $this->stdout());
     }
 
@@ -614,6 +670,41 @@ class MigrationsTest extends TestCase
 
         $expected = \DateTimeImmutable::createFromFormat('YmdHis', $now)->modify('+1 second')->format('YmdHis');
         $this->assertFileExists($this->migrations_dir . $expected . '_new_migration.php');
+    }
+
+    public function test_publisher_create_reports_all_unapplied_migrations(): void
+    {
+        file_put_contents($this->migrations_dir . '20250101000000_pending.php', '<?php return [];');
+        $framework_dir = $this->tmp_dir . 'framework_migrations' . DIRECTORY_SEPARATOR;
+        mkdir($framework_dir . 'initial', 0755, true);
+        $framework_file = $framework_dir . 'initial' . DIRECTORY_SEPARATOR . 'framework_pending.php';
+        file_put_contents($framework_file, '<?php return [];');
+        copy($framework_file, $this->migrations_dir . '20250101000001_framework_pending.php');
+        $original_framework_dir = App::instance()->get('MIGRATIONS_CORE');
+        App::instance()->set('MIGRATIONS_CORE', $framework_dir);
+
+        $ledger = $this->getMockBuilder(MigrationLedger::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['count', 'rows'])
+            ->getMock();
+        $ledger->method('count')->willReturn(5);
+        $ledger->method('rows')->willReturn([]);
+
+        $publisher = new MigrationPublisher(
+            App::instance(),
+            PluginManager::instance(),
+            Filesystem::instance(),
+            $ledger,
+            $this->output,
+        );
+
+        try {
+            $publisher->create('new_migration', '<?php // created');
+        } finally {
+            App::instance()->set('MIGRATIONS_CORE', $original_framework_dir);
+        }
+
+        $this->assertStringContainsString('2 unapplied migrations', $this->stderr());
     }
 
     /**
@@ -644,7 +735,8 @@ class MigrationsTest extends TestCase
 
         $this->migrations->migrate(1);
         $this->assertSame(['up_one'], $this->log_events());
-        $this->assertSame(['20250101000000_create_lifecycle_log'], array_column($this->migration_rows(), 'migration'));
+        $first_rows = $this->migration_rows();
+        $this->assertSame(['20250101000000_create_lifecycle_log'], array_column($first_rows, 'migration'));
 
         $this->migrations->status();
         $this->assertStringContainsString('20250101000000_create_lifecycle_log', $this->stdout());
@@ -657,6 +749,7 @@ class MigrationsTest extends TestCase
             ['20250101000000_create_lifecycle_log', '20250101000001_insert_lifecycle_log'],
             array_column($rows, 'migration')
         );
+        $this->assertNotSame($first_rows[0]['batch_uuid'], $rows[1]['batch_uuid']);
         $this->assertSame(['up_one', 'up_two'], $this->log_events());
 
         $this->migrations->rollback('batch');
@@ -698,11 +791,40 @@ class MigrationsTest extends TestCase
         $this->migrations->migrate();
         $this->assertSame(['20250101000000_create_failure_log'], array_column($this->migration_rows(), 'migration'));
         $this->assertStringContainsString('returned failure', $this->stderr());
+        $this->assertFalse($this->migrations->was_successful());
 
         unlink($this->migrations_dir . '20250101000001_returns_false.php');
         $this->migrations->migrate(1);
         $this->assertSame(['20250101000000_create_failure_log'], array_column($this->migration_rows(), 'migration'));
         $this->assertStringContainsString('Invalid migration structure', $this->stderr());
+    }
+
+    public function test_partial_migration_failure_leaves_database_change_unrecorded_against_mysql(): void
+    {
+        $this->boot_mysql_migrations();
+
+        $log_table = $this->quote_identifier($this->db_prefix . 'migration_failure_log');
+        $migration = <<<'PHP'
+        <?php
+        return [
+            'up' => function () {
+                $db = \Engine\Atomic\Core\ConnectionManager::instance()->get_db();
+                $db->exec("CREATE TABLE __MIGRATION_FAILURE_TABLE__ (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, event VARCHAR(32) NOT NULL) ENGINE=InnoDB");
+                return false;
+            },
+            'down' => fn () => true,
+        ];
+        PHP;
+        file_put_contents(
+            $this->migrations_dir . '20250101000000_partial_failure.php',
+            str_replace('__MIGRATION_FAILURE_TABLE__', $log_table, $migration),
+        );
+
+        $this->migrations->migrate();
+
+        $this->assertFalse($this->migrations->was_successful());
+        $this->assertTrue($this->table_exists($this->db_prefix . 'migration_failure_log'));
+        $this->assertSame([], $this->migration_rows());
     }
 
     public function test_rollback_numeric_pops_latest_migration_only_against_mysql(): void
@@ -729,6 +851,111 @@ class MigrationsTest extends TestCase
 
         $this->assertSame(['20250101000000_create_lifecycle_log'], array_column($this->migration_rows(), 'migration'));
         $this->assertSame(['up_one', 'up_two', 'down_two'], $this->log_events());
+    }
+
+    public function test_failed_rollback_keeps_the_migration_record_against_mysql(): void
+    {
+        $this->boot_mysql_migrations();
+
+        $log_table = $this->quote_identifier($this->db_prefix . 'migration_failure_log');
+        $migration = <<<'PHP'
+        <?php
+        return [
+            'up' => function () {
+                $db = \Engine\Atomic\Core\ConnectionManager::instance()->get_db();
+                $db->exec("CREATE TABLE __MIGRATION_FAILURE_TABLE__ (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, event VARCHAR(32) NOT NULL) ENGINE=InnoDB");
+            },
+            'down' => function () {
+                $db = \Engine\Atomic\Core\ConnectionManager::instance()->get_db();
+                $db->exec("INSERT INTO __MIGRATION_FAILURE_TABLE__ (event) VALUES ('down_attempt')");
+                return false;
+            },
+        ];
+        PHP;
+        file_put_contents(
+            $this->migrations_dir . '20250101000000_failed_rollback.php',
+            str_replace('__MIGRATION_FAILURE_TABLE__', $log_table, $migration),
+        );
+
+        $this->migrations->migrate();
+        $this->migrations->rollback(1);
+
+        $this->assertFalse($this->migrations->was_successful());
+        $this->assertSame(['20250101000000_failed_rollback'], array_column($this->migration_rows(), 'migration'));
+        $events = $this->pdo->query(
+            'SELECT event FROM ' . $log_table . ' ORDER BY id ASC'
+        )->fetchAll(\PDO::FETCH_COLUMN);
+        $this->assertSame(['down_attempt'], $events);
+    }
+
+    public function test_rollback_preflights_missing_files_before_running_any_down_against_mysql(): void
+    {
+        $this->boot_mysql_migrations();
+
+        $log_table = $this->quote_identifier($this->db_prefix . 'migration_lifecycle_log');
+        $first = $this->migrations_dir . '20250101000000_create_lifecycle_log.php';
+        $this->write_lifecycle_migration(
+            basename($first),
+            [
+                "CREATE TABLE {$log_table} (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, event VARCHAR(32) NOT NULL) ENGINE=InnoDB",
+                "INSERT INTO {$log_table} (event) VALUES ('up_one')",
+            ],
+            ["INSERT INTO {$log_table} (event) VALUES ('down_one')", "DROP TABLE IF EXISTS {$log_table}"]
+        );
+        $this->write_lifecycle_migration(
+            '20250101000001_insert_lifecycle_log.php',
+            ["INSERT INTO {$log_table} (event) VALUES ('up_two')"],
+            ["INSERT INTO {$log_table} (event) VALUES ('down_two')"]
+        );
+
+        $this->migrations->migrate();
+        unlink($first);
+        $this->migrations->rollback(2);
+
+        $this->assertFalse($this->migrations->was_successful());
+        $this->assertCount(2, $this->migration_rows());
+        $this->assertSame(['up_one', 'up_two'], $this->log_events());
+        $this->assertStringContainsString('unavailable', strtolower($this->stderr()));
+    }
+
+    public function test_partial_batch_rollback_reports_failure_without_repairing_previous_work_against_mysql(): void
+    {
+        $this->boot_mysql_migrations();
+
+        $log_table = $this->quote_identifier($this->db_prefix . 'migration_lifecycle_log');
+        $first = <<<'PHP'
+        <?php
+        return [
+            'up' => function () {
+                $db = \Engine\Atomic\Core\ConnectionManager::instance()->get_db();
+                $db->exec("CREATE TABLE __MIGRATION_LOG_TABLE__ (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, event VARCHAR(32) NOT NULL) ENGINE=InnoDB");
+                $db->exec("INSERT INTO __MIGRATION_LOG_TABLE__ (event) VALUES ('up_one')");
+            },
+            'down' => function () {
+                $db = \Engine\Atomic\Core\ConnectionManager::instance()->get_db();
+                $db->exec("INSERT INTO __MIGRATION_LOG_TABLE__ (event) VALUES ('down_one')");
+                return false;
+            },
+        ];
+        PHP;
+        file_put_contents(
+            $this->migrations_dir . '20250101000000_failed_lifecycle_rollback.php',
+            str_replace('__MIGRATION_LOG_TABLE__', $log_table, $first),
+        );
+        $this->write_lifecycle_migration(
+            '20250101000001_successful_lifecycle_rollback.php',
+            ["INSERT INTO {$log_table} (event) VALUES ('up_two')"],
+            ["INSERT INTO {$log_table} (event) VALUES ('down_two')"]
+        );
+
+        $this->migrations->migrate();
+        $this->migrations->rollback(2);
+
+        $this->assertFalse($this->migrations->was_successful());
+        $rows = $this->migration_rows();
+        $this->assertSame(['20250101000000_failed_lifecycle_rollback'], array_column($rows, 'migration'));
+        $this->assertSame(['up_one', 'up_two', 'down_two', 'down_one'], $this->log_events());
+        $this->assertStringContainsString('error rolling back migrations', strtolower($this->stderr()));
     }
 
     // ── publish ─────────────────────────────────────────────────
@@ -781,7 +1008,7 @@ class MigrationsTest extends TestCase
         $file = $this->migrations_dir . '20250101000000_safe.php';
         file_put_contents($file, '<?php return [];');
 
-        $resolved = $this->invoke_method($this->migrations, 'resolve_migration_file', [$this->migrations_dir, '20250101000000_safe']);
+        $resolved = ReflectionHelper::invoke($this->migration_publisher(), 'resolve_migration_file', [$this->migrations_dir, '20250101000000_safe']);
 
         $this->assertSame(realpath($file), $resolved);
     }
@@ -791,6 +1018,6 @@ class MigrationsTest extends TestCase
         file_put_contents($this->tmp_dir . 'outside.php', '<?php return [];');
 
         $this->expectException(\RuntimeException::class);
-        $this->invoke_method($this->migrations, 'resolve_migration_file', [$this->migrations_dir, '../outside']);
+        ReflectionHelper::invoke($this->migration_publisher(), 'resolve_migration_file', [$this->migrations_dir, '../outside']);
     }
 }

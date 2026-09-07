@@ -4,7 +4,8 @@ namespace Engine\Atomic\Plugins\Monopay;
 
 use Engine\Atomic\App\Plugin;
 use Engine\Atomic\Core\Log;
-use Engine\Atomic\Core\Migrations;
+use Engine\Atomic\Core\Container;
+use Engine\Atomic\Core\Migrations\MigrationsFactory;
 use Engine\Atomic\Enums\Currency;
 use Engine\Atomic\Plugins\Monopay\Api;
 use Engine\Atomic\Plugins\Monopay\Order;
@@ -37,7 +38,11 @@ class Monopay extends Plugin
 
     public function publish_migrations(): void
     {
-        (new Migrations())->publish_from_plugin($this->get_name());
+        $container = Container::global();
+        if ($container === null) {
+            throw new \RuntimeException('The application container is not available.');
+        }
+        $container->get(MigrationsFactory::class)->create()->publish_from_plugin($this->get_name());
     }
 
     public function register(): void

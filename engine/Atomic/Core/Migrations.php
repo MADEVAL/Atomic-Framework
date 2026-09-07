@@ -1,36 +1,326 @@
 <?php
 declare(strict_types=1);
+
 namespace Engine\Atomic\Core;
 
-if (!defined( 'ATOMIC_START' ) ) exit;
+if (!defined('ATOMIC_START')) exit;
 
-use DB\Cortex;
-use DB\Cortex\Schema\Schema;
-use Engine\Atomic\CLI\Style;
 use Engine\Atomic\CLI\Console\Output;
-use Engine\Atomic\App\Plugin;
-use Engine\Atomic\App\PluginManager;
-use Engine\Atomic\Core\ConnectionManager;
-use Engine\Atomic\Core\Filesystem;
-use Engine\Atomic\Core\Migrations\FrameworkMigrationGroups;
+use Engine\Atomic\CLI\Console\Input;
+use Engine\Atomic\CLI\Style;
+use Engine\Atomic\Core\Migrations\LegacyMigrationAdopter;
+use Engine\Atomic\Core\Migrations\MigrationCatalog;
+use Engine\Atomic\Core\Migrations\MigrationExecutor;
+use Engine\Atomic\Core\Migrations\MigrationHistory;
+use Engine\Atomic\Core\Migrations\MigrationLedger;
+use Engine\Atomic\Core\Migrations\MigrationPublisher;
 
-class Migrations 
+class Migrations
 {
-    private readonly Output $output;
+    private bool $successful = true;
 
-    public function __construct(?Output $output = null)
+    public function __construct(
+        private readonly Output $output,
+        private readonly MigrationCatalog $catalog,
+        private readonly MigrationLedger $ledger,
+        private readonly MigrationHistory $history,
+        private readonly LegacyMigrationAdopter $adopter,
+        private readonly MigrationExecutor $executor,
+        private readonly MigrationPublisher $publisher,
+        private readonly ?Input $input = null,
+    ) {}
+
+    public function was_successful(): bool
     {
-        $this->output = $output ?? new Output();
+        return $this->successful;
     }
 
-    private function out(string $message): void
+    public function db(): bool
     {
-        $this->output->write($message);
+        $this->successful = true;
+        try {
+            if ($this->ledger->ensure()) {
+                return true;
+            }
+            $this->successful = false;
+            $this->errln(Style::error_label() . ' ' . Style::bold('Database is not ready.'));
+        } catch (\Throwable $e) {
+            $this->successful = false;
+            $this->errln(Style::error_label() . ' ' . Style::bold('Error creating migrations table:') . ' ' . $e->getMessage());
+        }
+        return false;
+    }
+
+    public function create(string $name, string $template = ''): void
+    {
+        $this->successful = true;
+        if (!$this->db()) {
+            return;
+        }
+        try {
+            $this->publisher->create($name, $template);
+        } catch (\Throwable $e) {
+            $this->successful = false;
+            $this->errln(Style::error_label() . ' ' . $e->getMessage());
+        }
+    }
+
+    public function publish_from_plugin(string $plugin_name): void
+    {
+        $this->publisher->publish_from_plugin($plugin_name);
+    }
+
+    public function publish_from_framework(bool $all = false): void
+    {
+        $this->publisher->publish_from_framework($all);
+    }
+
+    public function publish_framework(string $migration_name): void
+    {
+        $this->publisher->publish_framework($migration_name);
+    }
+
+    public function publish(string $source_path): void
+    {
+        $this->publisher->publish($source_path);
+    }
+
+    public function migrate(?int $steps = null): void
+    {
+        $this->successful = true;
+        if ($steps !== null && $steps < 0) {
+            $this->successful = false;
+            $this->errln(Style::error_label() . ' ' . Style::bold('Migration steps cannot be negative.'));
+            return;
+        }
+        if (!$this->db()) {
+            return;
+        }
+        $this->warn_if_legacy_mode();
+        try {
+            $this->ledger->synchronized(function () use ($steps): void {
+                $migrations = $this->catalog->discover();
+                $rows = $this->ledger->rows();
+                if (!$this->confirm_applied_checksum_mismatches($this->history->find_checksum_mismatches($migrations, $rows))) {
+                    $this->successful = false;
+                    return;
+                }
+
+                $pending = array_values(array_filter(
+                    $migrations,
+                    fn(array $migration): bool => $this->history->find_applied_row($migration, $rows, $migrations) === null
+                ));
+                if ($pending === []) {
+                    $this->outln(Style::success_label() . ' ' . Style::bold('No new migrations to apply.'));
+                    return;
+                }
+                if ($steps !== null) {
+                    $pending = array_slice($pending, 0, max(0, $steps));
+                }
+                if (!$this->confirm_framework_checksum_mismatches($pending)) {
+                    $this->successful = false;
+                    return;
+                }
+                if (!$this->confirm_modified_published_copies($pending)) {
+                    $this->successful = false;
+                    return;
+                }
+
+                $batch_uuid = $this->executor->batch_id();
+                foreach ($pending as $migration) {
+                    $this->executor->up($migration);
+                    $this->ledger->record($migration, $batch_uuid);
+                    $this->outln(
+                        Style::success_label() . ' '
+                        . Style::bold("Migration '{$migration['source']}:{$migration['migration']}'")
+                        . ' applied successfully.'
+                    );
+                }
+            });
+        } catch (\Throwable $e) {
+            $this->successful = false;
+            $this->errln(Style::error_label() . ' ' . Style::bold('Error applying migrations:') . ' ' . $e->getMessage());
+        }
+    }
+
+    public function rollback(int|string|null $mode = null): void
+    {
+        $this->successful = true;
+        if (!$this->db()) {
+            return;
+        }
+        $this->warn_if_legacy_mode();
+        $mode = $mode === null ? 1 : (is_numeric($mode) ? (int)$mode : $mode);
+
+        try {
+            $this->ledger->synchronized(function () use ($mode): void {
+                $migrations = $this->catalog->discover();
+                if (is_int($mode)) {
+                    $count = $mode;
+                } else {
+                    $latest = $this->ledger->latest();
+                    if ($latest === null) {
+                        $this->no_migrations_to_pop();
+                        return;
+                    }
+                    $count = $this->ledger->count_batch((string)$latest->batch_uuid);
+                }
+
+                $rows = $this->ledger->rows([], ['order' => 'id DESC', 'limit' => $count]);
+                if ($rows === []) {
+                    $this->no_migrations_to_pop();
+                    return;
+                }
+                $resolved = [];
+                $mismatches = [];
+                foreach ($rows as $row) {
+                    $migration = $this->history->resolve_applied_migration($row, $migrations);
+                    if ($migration === null) {
+                        throw new \RuntimeException(
+                            "Migration file for '{$row->migration}' is unavailable from source '"
+                            . (($row->source ?? null) ?: 'legacy') . "'."
+                        );
+                    }
+                    $resolved[] = ['row' => $row, 'migration' => $migration];
+                    if (!$this->history->checksum_matches($row, $migration)) {
+                        $mismatches[] = ['row' => $row, 'migration' => $migration];
+                    }
+                }
+                if (!$this->confirm_applied_checksum_mismatches($mismatches)) {
+                    $this->successful = false;
+                    return;
+                }
+                foreach ($resolved as $item) {
+                    $row = $item['row'];
+                    $migration = $item['migration'];
+                    $this->executor->down($migration);
+                    $this->ledger->erase((int)$row->id);
+                    $this->outln(
+                        Style::success_label() . ' '
+                        . Style::bold("Migration '{$migration['source']}:{$migration['migration']}'")
+                        . ' popped back successfully.'
+                    );
+                }
+            });
+        } catch (\Throwable $e) {
+            $this->successful = false;
+            $this->errln(Style::error_label() . ' ' . Style::bold('Error rolling back migrations:') . ' ' . $e->getMessage());
+        }
+    }
+
+    public function status(): void
+    {
+        $this->successful = true;
+        if (!$this->db()) {
+            return;
+        }
+        $this->warn_if_legacy_mode();
+        $migrations = $this->catalog->discover();
+        $rows = $this->ledger->rows();
+
+        $this->outln();
+        $this->outln(Style::bold('Migration List:'));
+        $reported = [];
+        foreach ($migrations as $migration) {
+            $row = $this->history->find_applied_row($migration, $rows, $migrations);
+            $integrity = 'not applied';
+            if ($row !== null) {
+                $reported[(int)$row->id] = true;
+                $stored = (string)($row->checksum ?? '');
+                $aliased = (string)($row->source ?? '') !== '' && (
+                    (string)$row->source !== $migration['source']
+                    || (string)$row->migration !== $migration['migration']
+                );
+                $integrity = $aliased
+                    ? 'legacy published alias'
+                    : ($stored === '' ? 'legacy/unverified' : (hash_equals($stored, $migration['checksum']) ? 'verified' : 'modified'));
+            }
+            $this->print_status($migration['source'], $migration['migration'], $row, $integrity);
+        }
+        foreach ($rows as $row) {
+            if (!isset($reported[(int)$row->id])) {
+                $integrity = (string)($row->checksum ?? '') === '' ? 'legacy/unverified' : 'file unavailable';
+                $this->print_status((string)($row->source ?? '') ?: 'legacy', (string)$row->migration, $row, $integrity);
+            }
+        }
+    }
+
+    public function upgrade(bool $dry_run = false): bool
+    {
+        $this->successful = true;
+        if (!$this->db()) {
+            return false;
+        }
+        try {
+            return $this->ledger->synchronized(function () use ($dry_run): bool {
+                $migrations = $this->catalog->discover();
+                $rows = $this->ledger->rows();
+                $legacy_count = count(array_filter(
+                    $rows,
+                    static fn(object $row): bool => (string)($row->source ?? '') === ''
+                        || (string)($row->checksum ?? '') === '',
+                ));
+                $pending_count = count(array_filter(
+                    $migrations,
+                    fn(array $migration): bool => $this->history->find_applied_row($migration, $rows, $migrations) === null,
+                ));
+                $legacy_schema_columns = $this->ledger->legacy_schema_columns();
+
+                $this->print_upgrade_summary(
+                    $legacy_count,
+                    $pending_count,
+                    $legacy_schema_columns,
+                    $dry_run,
+                );
+                $upgraded = $this->adopter->upgrade($migrations, $rows, $dry_run);
+                if ($upgraded && !$dry_run) {
+                    $this->ledger->finalize_schema();
+                    $this->outln(
+                        Style::success_label() . ' '
+                        . Style::bold('Migration history upgraded; source and checksum columns are now NOT NULL.')
+                    );
+                } elseif ($upgraded) {
+                    $this->outln(Style::bold('No database changes were made during this dry run.'));
+                    if ($legacy_schema_columns !== []) {
+                        $this->output->warning_box(
+                            Style::yellow('Dry run complete - upgrade is still required', true),
+                            [
+                                'The migration history remains in legacy mode.',
+                                Style::bold('Run: php atomic migrations/upgrade'),
+                            ],
+                        );
+                    }
+                }
+                return $upgraded;
+            });
+        } catch (\Throwable $e) {
+            $this->successful = false;
+            $this->errln(Style::error_label() . ' ' . Style::bold('Migration history upgrade failed:') . ' ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function print_status(string $source, string $name, ?object $row, string $integrity): void
+    {
+        $status = $row === null ? 'pending' : 'applied';
+        $label = $row === null ? Style::warning_label() : Style::success_label();
+        $this->outln(Style::bold('Source:') . ' ' . Style::bold($source));
+        $this->outln(Style::bold('File:') . ' ' . Style::bold($name));
+        $this->outln('  ' . Style::bold('Status:') . ' ' . $label . ' ' . Style::bold($status));
+        $this->outln('  ' . Style::bold('Integrity:') . ' ' . Style::bold($integrity));
+        $this->outln('  ' . Style::bold('Batch UUID:') . ' ' . Style::bold((string)($row->batch_uuid ?? '-')));
+        $this->outln('  ' . Style::bold('Applied At:') . ' ' . Style::bold((string)($row->applied_at ?? '-')));
+        $this->outln();
+    }
+
+    private function no_migrations_to_pop(): void
+    {
+        $this->errln(Style::warning_label() . ' ' . Style::bold('No migrations found to pop.'));
     }
 
     private function outln(string $message = ''): void
     {
-        $this->out($message . PHP_EOL);
+        $this->output->writeln($message);
     }
 
     private function errln(string $message): void
@@ -38,458 +328,169 @@ class Migrations
         $this->output->err($message);
     }
 
-    public function db(): bool {
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db(false);
-        if (!$db) {
-            $this->errln(Style::error_label() . ' ' . Style::bold('Database is not ready.'));
-            return false;
+    private function warn_if_legacy_mode(): void
+    {
+        if (!$this->ledger->is_legacy_mode()) {
+            return;
         }
-        $schema = new Schema($db);
-        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
 
-        try {
-            $tables = $schema->getTables();
-            if (is_array($tables) && in_array($migrations_table, $tables)) {
-                return true;
-            }
-    
-            $table = $schema->createTable($migrations_table);
-            $table->addColumn('migration')->type_varchar(255)->nullable(false);
-            $table->addColumn('batch_uuid')->type_varchar(36)->nullable(false);
-            $table->addColumn('applied_at')->type_timestamp(true)->nullable(false);
-            $table->build();
-        } catch (\Throwable $e) {
-            $this->errln(Style::error_label() . ' ' . Style::bold('Error creating migrations table:') . ' ' . $e->getMessage());
+        $this->output->warning_box(Style::yellow('Migration history is in legacy mode', true), [
+            'The migration ledger still uses the legacy nullable schema.',
+            Style::bold('Preview: php atomic migrations/upgrade --dry-run'),
+            Style::bold('Apply:   php atomic migrations/upgrade'),
+        ]);
+    }
+
+    /** @param list<string> $legacy_schema_columns */
+    private function print_upgrade_summary(
+        int $legacy_count,
+        int $pending_count,
+        array $legacy_schema_columns,
+        bool $dry_run,
+    ): void
+    {
+        $this->output->writeln();
+        $this->output->section($dry_run ? 'Migration upgrade preview' : 'Migration upgrade');
+        $this->output->writeln(str_repeat('-', 28));
+        $this->output->field(
+            'Legacy records to adopt',
+            $legacy_count > 0 ? Style::yellow((string)$legacy_count, true) : '0',
+        );
+        $this->output->field(
+            'Pending migrations remaining',
+            $pending_count > 0 ? Style::yellow((string)$pending_count, true) : '0',
+        );
+        $this->output->field('Migrations executed by upgrade', '0');
+        $this->output->field(
+            'Columns still nullable',
+            $legacy_schema_columns === []
+                ? 'none'
+                : Style::yellow(implode(', ', $legacy_schema_columns), true),
+        );
+        $this->output->field(
+            'Upgrade required',
+            ($legacy_count > 0 || $legacy_schema_columns !== [])
+                ? Style::yellow('YES', true)
+                : Style::green('NO', true),
+        );
+        $this->output->field(
+            'Schema finalization',
+            $legacy_schema_columns === []
+                ? Style::green('complete', true)
+                : Style::yellow('source/checksum -> NOT NULL', true),
+        );
+        $this->output->field(
+            'Database changes',
+            $dry_run
+                ? 'none (dry run)'
+                : Style::yellow('adoption and schema finalization', true),
+        );
+        if ($dry_run) {
+            $this->output->field('Next', Style::bold('php atomic migrations/upgrade'));
+            $this->output->field('Then', Style::bold('php atomic migrations/migrate'));
+        }
+        $this->output->writeln();
+    }
+
+    /** @param list<array{source: string, migration: string, path: string, checksum: string}> $pending */
+    private function confirm_modified_published_copies(array $pending): bool
+    {
+        $pending_ids = [];
+        foreach ($pending as $migration) {
+            $pending_ids[$migration['source']][$migration['migration']] = true;
+        }
+
+        $conflicts = array_values(array_filter(
+            $this->catalog->modified_published_copies(),
+            static fn(array $conflict): bool => isset(
+                $pending_ids[$conflict['application']['source']][$conflict['application']['migration']]
+            ) || isset(
+                $pending_ids[$conflict['owner']['source']][$conflict['owner']['migration']]
+            ),
+        ));
+        if ($conflicts === []) {
+            return true;
+        }
+
+        $this->errln(Style::warning_label() . ' ' . Style::bold('Modified published migration detected.'));
+        foreach ($conflicts as $conflict) {
+            $application = $conflict['application'];
+            $owner = $conflict['owner'];
+            $this->errln(
+                "Application migration '{$application['migration']}' matches the name of "
+                . "'{$owner['source']}:{$owner['migration']}', but its contents differ."
+            );
+            $this->errln('  Application file: ' . $application['path']);
+            $this->errln('  Owner file: ' . $owner['path']);
+            $this->errln('  Application checksum: ' . $application['checksum']);
+            $this->errln('  Owner checksum: ' . $owner['checksum']);
+        }
+        $this->errln('The application file may be a modified copy of the owner migration.');
+
+        return $this->confirm_with_warning('Continue with these migrations despite the mismatch?');
+    }
+
+    /** @param list<array{row: object, migration: array}> $mismatches */
+    private function confirm_applied_checksum_mismatches(array $mismatches): bool
+    {
+        if ($mismatches === []) {
+            return true;
+        }
+
+        $this->output->warning_box(Style::yellow('Migration checksum mismatch detected', true));
+        foreach ($mismatches as $mismatch) {
+            $row = $mismatch['row'];
+            $migration = $mismatch['migration'];
+            $this->errln("Migration '{$migration['source']}:{$migration['migration']}' was changed after it was applied.");
+            $this->errln('  File: ' . $migration['path']);
+            $this->errln('  Recorded checksum: ' . (string)($row->checksum ?? ''));
+            $this->errln('  Current checksum:  ' . $migration['checksum']);
+        }
+        $this->errln('The current file will be used if you continue.');
+
+        return $this->confirm_with_warning('Continue despite the checksum mismatch?');
+    }
+
+    /** @param list<array> $pending */
+    private function confirm_framework_checksum_mismatches(array $pending): bool
+    {
+        $mismatches = array_values(array_filter(
+            $pending,
+            static fn(array $migration): bool => isset($migration['framework_checksum'])
+                && !hash_equals($migration['framework_checksum'], $migration['checksum']),
+        ));
+        if ($mismatches === []) {
+            return true;
+        }
+
+        $this->output->warning_box(Style::yellow('Published framework migration differs from its source', true));
+        foreach ($mismatches as $migration) {
+            $this->errln("Migration '{$migration['migration']}' has a checksum mismatch.");
+            $this->errln('  Published file: ' . $migration['path']);
+            $this->errln('  Framework source: ' . ($migration['framework_path'] ?? '(unavailable)'));
+            $this->errln('  Framework checksum: ' . $migration['framework_checksum']);
+            $this->errln('  Published checksum: ' . $migration['checksum']);
+        }
+        $this->errln('The published file will be executed if you continue.');
+
+        return $this->confirm_with_warning('Continue despite the checksum mismatch?');
+    }
+
+    private function confirm_with_warning(string $question): bool
+    {
+        if ($this->input === null || !$this->input->is_interactive()) {
+            $this->errln(Style::error_label() . ' Migration aborted: confirmation requires interactive input.');
             return false;
         }
+
+        $this->output->prompt($question . ' [y/N]: ');
+        $answer = strtolower($this->input->read_line());
+        if ($answer !== 'y' && $answer !== 'yes') {
+            $this->errln(Style::error_label() . ' Aborted.');
+            return false;
+        }
+
         return true;
     }
 
-    public function create(string $name, string $template = ''): void {
-        if (!$this->db()) {
-            return;
-        }
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
-        $mapper = new Cortex($db, $migrations_table);
-
-        if ($name !== preg_replace('/[^a-zA-Z0-9_]/', '', $name)) {
-            $this->errln(Style::warning_label() . ' ' . Style::bold('Migration name contains invalid characters.') . ' Only numbers and letters are allowed.');
-            return;
-        }
-        $migrations_dir = $atomic->get('MIGRATIONS');
-        if (!is_dir($migrations_dir)) {
-            Filesystem::instance()->make_dir($migrations_dir, 0777, true);
-        }
-        $timestamp = $this->next_migration_timestamp($migrations_dir);
-        $file_name = $timestamp . '_' . $name . '.php';
-        $file_path = $migrations_dir . $file_name;
-
-        $migration_files = array_filter(
-            glob($migrations_dir . '*.php'),
-            fn($f) => basename($f) !== 'index.php'
-        );
-        if (empty($template)) {
-            $template = <<<PHP
-            <?php
-            use Engine\Atomic\Core\App;
-            use Engine\Atomic\Core\ConnectionManager;
-            use DB\Cortex\Schema\Schema;
-
-            return [
-                'up' => function () {
-                    \$atomic = App::instance();
-                    \$db = ConnectionManager::instance()->get_db();
-                    \$schema = new Schema(\$db);
-                },
-
-                'down' => function () {
-                    \$atomic = App::instance();
-                    \$db = ConnectionManager::instance()->get_db();
-                    \$schema = new Schema(\$db);
-                }
-            ];
-            PHP;
-        }
-
-        $files_cnt = count($migration_files);
-        $applied_cnt = $mapper->count(null, null, 0);
-        if ($applied_cnt < $files_cnt) {
-            $this->errln(Style::warning_label() . ' ' . Style::bold((string)($files_cnt - $applied_cnt)) . ' unapplied migrations. Please run ' . Style::cyan('migrations/status', true) . ' to view them.');
-        }
-
-        Filesystem::instance()->write($file_path, $template, false);
-        $this->outln(Style::success_label() . ' ' . Style::bold("Migration '{$file_name}'") . ' created successfully at ' . Style::bold($file_path) . '.');
-    }
-
-    public function publish_from_plugin(string $plugin_name): void {
-        $manager = PluginManager::instance();
-        $plugin = $this->find_plugin($manager, $plugin_name);
-
-        if ($plugin === null) {
-            $this->errln(Style::error_label() . ' ' . Style::bold("Plugin '{$plugin_name}' not found.") . ' Available plugins:');
-            foreach ($manager->all() as $name => $p) {
-                $has_migrations = $p->get_migrations_path() !== null ? '(has migrations)' : '';
-                $this->outln('  - ' . Style::bold($name) . ($has_migrations !== '' ? ' ' . Style::cyan($has_migrations, true) : ''));
-            }
-            return;
-        }
-
-        $published = 0;
-        $processed = [];
-        if (!$this->publish_plugin_migrations($manager, $plugin, $processed, [], $published)) {
-            return;
-        }
-
-        $this->outln();
-        $this->outln(Style::success_label() . ' ' . Style::bold((string)$published) . ' migration(s) processed for plugin ' . Style::bold($plugin->get_plugin_name()) . ' and dependencies.');
-    }
-
-    public function publish_framework(string $migration_name): void
-    {
-        $atomic = App::instance();
-        $groups = new FrameworkMigrationGroups();
-        $core = rtrim((string) $atomic->get('MIGRATIONS_CORE'), '/\\');
-        $located = $groups->locate_initial($core, $migration_name);
-
-        if ($located === null) {
-            $this->errln(
-                Style::error_label() . ' '
-                . Style::bold("Framework migration '{$migration_name}' was not found in the initial migrations directory.")
-            );
-            return;
-        }
-
-        $this->publish(substr($located['path'], 0, -4));
-    }
-
-    public function publish_from_framework(): void
-    {
-        $atomic = App::instance();
-        $groups = new FrameworkMigrationGroups();
-        $core = rtrim((string) $atomic->get('MIGRATIONS_CORE'), '/\\');
-
-        if (! is_dir($core)) {
-            $this->errln(
-                Style::error_label() . ' Framework migrations directory not found: '
-                . Style::bold($core)
-            );
-            return;
-        }
-
-        $published = 0;
-        foreach ($groups->update_inventory($core) as $item) {
-            $this->out('Publishing ' . Style::bold($item['migration']) . '... ');
-            $this->publish(substr($item['path'], 0, -4), $item['migration']);
-            $published++;
-        }
-
-        $this->outln();
-        $this->outln(
-            Style::success_label() . ' '
-            . Style::bold((string) $published)
-            . ' migration(s) processed for framework.'
-        );
-    }
-    private function publish_plugin_migrations(PluginManager $manager, Plugin $plugin, array &$processed, array $stack, int &$published): bool
-    {
-        $plugin_name = $plugin->get_plugin_name();
-
-        if (isset($processed[$plugin_name])) {
-            return true;
-        }
-
-        if (in_array($plugin_name, $stack, true)) {
-            $stack[] = $plugin_name;
-            $this->errln(Style::error_label() . ' ' . Style::bold('Plugin migration dependency cycle detected:') . ' ' . implode(' -> ', $stack));
-            return false;
-        }
-
-        $stack[] = $plugin_name;
-        foreach ($plugin->get_dependencies() as $dependency_class) {
-            try {
-                $dependency = $manager->resolve_dependency($plugin, $dependency_class);
-            } catch (\RuntimeException $e) {
-                $this->errln(Style::error_label() . ' ' . Style::bold($e->getMessage()));
-                return false;
-            }
-
-            if (!$dependency->is_enabled()) {
-                $this->errln(Style::error_label() . ' ' . Style::bold("Plugin '{$plugin_name}' requires '{$dependency_class}', but it is disabled."));
-                return false;
-            }
-
-            if (!$this->publish_plugin_migrations($manager, $dependency, $processed, $stack, $published)) {
-                return false;
-            }
-        }
-
-        $migrations_path = $plugin->get_migrations_path();
-        if ($migrations_path === null) {
-            $processed[$plugin_name] = true;
-            return true;
-        }
-
-        $files = array_filter(
-            glob($migrations_path . DIRECTORY_SEPARATOR . '*.php'),
-            fn($f) => basename($f) !== 'index.php'
-        );
-
-        if (empty($files)) {
-            $processed[$plugin_name] = true;
-            return true;
-        }
-
-        sort($files);
-        foreach ($files as $file) {
-            $name = basename($file, '.php');
-            $this->out('Publishing ' . Style::bold($name) . '... ');
-            $this->publish(substr($file, 0, -4));
-            $published++;
-        }
-
-        $processed[$plugin_name] = true;
-        return true;
-    }
-
-    public function publish(string $source_path, ?string $published_name = null): void {
-        $name = $published_name ?? basename($source_path, '.php');
-        $atomic = App::instance();
-        $migrations_dir = $atomic->get('MIGRATIONS');
-        if (!is_dir($migrations_dir)) {
-            Filesystem::instance()->make_dir($migrations_dir, 0777, true);
-        }
-
-        $migration_files = array_filter(
-            glob($migrations_dir . '*.php'),
-            fn($f) => basename($f) !== 'index.php'
-        );
-        foreach ($migration_files as $file) {
-            $basename = basename($file, '.php');
-            if (preg_match('/^\d{14}_(.+)$/', $basename, $matches)) {
-                $migration_name = $matches[1];
-                if ($migration_name === $name) {
-                    $this->errln(Style::warning_label() . ' ' . Style::bold("Migration '{$name}'") . ' already exists as ' . Style::bold($basename . '.php') . '. Skipping publish.');
-                    return;
-                }
-            }
-        }
-
-        $source_path .= '.php';
-        if (!file_exists($source_path)) {
-            $this->errln(Style::error_label() . ' ' . Style::bold('Source migration file') . ' ' . Style::bold($source_path) . ' does not exist. Cannot publish.');
-            return;
-        }
-        $content = Filesystem::instance()->read($source_path);
-        $this->create($name, $content);
-    }
-
-    public function migrate(?int $steps = null): void {
-        if (!$this->db()) {
-            return;
-        }
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
-        $mapper = new Cortex($db, $migrations_table);
-
-        $migrations_dir = $atomic->get('MIGRATIONS');
-        $migration_files = array_filter(
-            glob($migrations_dir . '*.php'),
-            fn($f) => basename($f) !== 'index.php'
-        );
-
-        $applied = [];
-        $rows = $mapper->find() ?: [];
-        foreach ($rows as $row) {
-            $applied[] = $row->migration;
-        }
-
-        $unloaded = [];
-        foreach ($migration_files as $file) {
-            $basename = basename($file, '.php');
-            if (preg_match('/^(\d{14})_/', $basename, $matches)) {
-                $timestamp = $matches[1];
-                    if (!in_array($basename, $applied)) {
-                    $unloaded[$timestamp] = $basename;
-                }
-            }
-        }
-        if (empty($unloaded)) {
-            $this->outln(Style::success_label() . ' ' . Style::bold('No new migrations to apply.'));
-            return;
-        }
-        ksort($unloaded);
-
-        $batch_uuid = ID::uuid_v4();
-        $to_apply_cnt = $steps !== null ? min($steps, count($unloaded)) : count($unloaded);
-        $to_apply = array_slice($unloaded, 0, $to_apply_cnt, true);
-        $applied = [];
-        try {
-            foreach ($to_apply as $timestamp => $file_name) {
-                $file_path = $this->resolve_migration_file($migrations_dir, $file_name);
-                $migration = include $file_path;
-                if (isset($migration['up']) && is_callable($migration['up'])) {
-                    $result = $migration['up']();
-                    if ($result === false) {
-                        throw new \RuntimeException("Migration '{$file_name}' returned failure.");
-                    }
-                    $this->outln(Style::success_label() . ' ' . Style::bold("Migration '{$file_name}'") . ' applied successfully.');
-                } else throw new \Exception("Invalid migration structure in $file_path.");
-                $mapper->reset();
-                    $mapper->migration = basename($file_name, '.php');
-                $mapper->batch_uuid = $batch_uuid;
-                $mapper->save();
-                $applied[] = $file_name;
-            }
-        } catch (\Throwable $e) {
-            $this->errln(Style::error_label() . ' ' . Style::bold("Error applying migration '{$file_name}':") . ' ' . $e->getMessage());
-            return;
-        }
-    }
-
-    public function rollback(int|string|null $mode = null): void {
-        if (!$this->db()) {
-            return;
-        }
-        if ($mode === null) {
-            $mode = 1;
-        } elseif (is_numeric($mode)) {
-            $mode = (int)$mode;
-        }
-
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
-        $mapper = new Cortex($db, $migrations_table);
-
-        try {
-            if (is_int($mode)) {
-                $to_pop = $mapper->find([], ['order' => 'id DESC', 'limit' => $mode]) ?: [];
-                if (empty($to_pop)) {
-                    $this->errln(Style::warning_label() . ' ' . Style::bold('No migrations found to pop.'));
-                    return;
-                }
-                foreach ($to_pop as $migration) {
-                    $migration_file = $this->resolve_migration_file((string)$atomic->get('MIGRATIONS'), (string)$migration->migration);
-                    $migration_content = include $migration_file;
-                    if (isset($migration_content['down']) && is_callable($migration_content['down'])) {
-                        $migration_content['down']();
-                        $mapper->erase(['id = ?', $migration->id]);
-                        $this->outln(Style::success_label() . ' ' . Style::bold("Migration '{$migration->migration}'") . ' popped back successfully.');
-                    } else throw new \Exception("Invalid migration structure in $migration_file.");
-                }
-            } else {
-                $count = 1;
-                $latest = $mapper->findone([], ['order' => 'id DESC']);
-                if ($latest) {
-                    $batch_uuid = $latest->batch_uuid;
-                    $count = $mapper->count(['batch_uuid = ?', $batch_uuid], null, 0);
-                } else {
-                    $this->errln(Style::warning_label() . ' ' . Style::bold('No migrations found to pop.'));
-                    return;
-                }
-                $this->rollback($count);
-            }
-        } catch (\Throwable $e) {
-            $this->errln(Style::error_label() . ' ' . Style::bold('Error rolling back migrations:') . ' ' . $e->getMessage());
-            return;
-        }
-    }
-
-    public function status(): void {
-        if (!$this->db()) {
-            return;
-        }
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $migrations_table = $atomic->get('DB_CONFIG.prefix') . 'migrations';
-        $mapper = new Cortex($db, $migrations_table);
-
-        $migrations_dir = $atomic->get('MIGRATIONS');
-        $migration_files = array_filter(
-            glob($migrations_dir . '*.php'),
-            fn($f) => basename($f) !== 'index.php'
-        );
-        $db_migrations = [];
-        $rows = $mapper->find() ?: [];
-        foreach ($rows as $row) {
-            $db_migrations[$row->migration] = [
-                'batch_uuid' => $row->batch_uuid,
-                'applied_at' => $row->applied_at
-            ];
-        }
-
-        $this->outln();
-        $this->outln(Style::bold('Migration List:'));
-        foreach ($migration_files as $file) {
-            $basename = basename($file, '.php');
-            $status = isset($db_migrations[$basename]) ? 'applied' : 'pending';
-            $batch_uuid = $db_migrations[$basename]['batch_uuid'] ?? '-';
-            $applied_at = $db_migrations[$basename]['applied_at'] ?? '-';
-            $status_label = $status === 'applied' ? Style::success_label() : Style::warning_label();
-            $this->outln(Style::bold('File:') . ' ' . Style::bold($basename));
-            $this->outln('  ' . Style::bold('Status:') . ' ' . $status_label . ' ' . Style::bold($status));
-            $this->outln('  ' . Style::bold('Batch UUID:') . ' ' . Style::bold((string)$batch_uuid));
-            $this->outln('  ' . Style::bold('Applied At:') . ' ' . Style::bold((string)$applied_at));
-            $this->outln();
-        }
-    }
-
-    private function resolve_migration_file(string $migrations_dir, string $migration_name): string
-    {
-        $base_dir = realpath($migrations_dir);
-        if ($base_dir === false || !is_dir($base_dir)) {
-            throw new \RuntimeException("Migrations directory not found: {$migrations_dir}");
-        }
-
-        $candidate = $base_dir . DIRECTORY_SEPARATOR . $migration_name . '.php';
-        $resolved = realpath($candidate);
-        if ($resolved === false || !is_file($resolved) || !is_readable($resolved)) {
-            throw new \RuntimeException("Migration file not found or unreadable: {$candidate}");
-        }
-
-        if (!str_starts_with($resolved, $base_dir . DIRECTORY_SEPARATOR)) {
-            throw new \RuntimeException("Migration file escapes migrations directory: {$migration_name}");
-        }
-
-        return $resolved;
-    }
-
-    private function find_plugin(PluginManager $manager, string $plugin_name): ?Plugin
-    {
-        $plugin = $manager->get($plugin_name);
-        if ($plugin !== null) {
-            return $plugin;
-        }
-
-        foreach ($manager->all() as $name => $plugin) {
-            if (strtolower($name) === strtolower($plugin_name)) {
-                return $plugin;
-            }
-        }
-
-        return null;
-    }
-
-    private function next_migration_timestamp(string $migrations_dir): string
-    {
-        $timestamp = date('YmdHis');
-        $migration_files = array_filter(
-            glob($migrations_dir . '*.php') ?: [],
-            fn($f) => basename($f) !== 'index.php'
-        );
-
-        foreach ($migration_files as $file) {
-            $basename = basename($file, '.php');
-            if (preg_match('/^(\d{14})_/', $basename, $matches) && $matches[1] >= $timestamp) {
-                $date = \DateTimeImmutable::createFromFormat('YmdHis', $matches[1]);
-                $timestamp = $date->modify('+1 second')->format('YmdHis');
-            }
-        }
-
-        return $timestamp;
-    }
 }
