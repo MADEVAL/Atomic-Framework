@@ -146,6 +146,12 @@ class Migrations
     public function rollback(int|string|null $mode = null): void
     {
         $this->successful = true;
+        if ($mode !== null && $mode !== 'batch'
+            && (!preg_match('/^[1-9][0-9]*$/', (string)$mode))) {
+            $this->successful = false;
+            $this->errln(Style::error_label() . ' Incorrect usage: rollback requires a positive integer or batch.');
+            return;
+        }
         if (!$this->db()) {
             return;
         }
@@ -248,13 +254,13 @@ class Migrations
     public function upgrade(bool $dry_run = false): bool
     {
         $this->successful = true;
-        if (!$this->db()) {
+        if (!$dry_run && !$this->db()) {
             return false;
         }
         try {
             return $this->ledger->synchronized(function () use ($dry_run): bool {
-                $migrations = $this->catalog->discover();
-                $rows = $this->ledger->rows();
+                $rows = $dry_run ? $this->ledger->preview_rows() : $this->ledger->rows();
+                $migrations = $this->catalog->discover($rows);
                 $legacy_count = count(array_filter(
                     $rows,
                     static fn(object $row): bool => (string)($row->source ?? '') === ''
@@ -272,6 +278,26 @@ class Migrations
                     $legacy_schema_columns,
                     $dry_run,
                 );
+                if ($dry_run) {
+                    foreach ($this->ledger->schema_upgrade_plan() as $change) {
+                        $this->outln('Would: ' . $change);
+                    }
+                }
+                $legacy = array_values(array_filter($migrations, function (array $migration) use ($rows): bool {
+                    foreach ($rows as $row) {
+                        if (((string)($row->source ?? '') === '' || (string)($row->checksum ?? '') === '')
+                            && ((string)$row->migration === $migration['migration']
+                                || $this->history->published_name_matches((string)$row->migration, $migration['migration']))) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }));
+                if (!$this->confirm_modified_published_copies($legacy, $dry_run, true)
+                    || !$this->confirm_framework_checksum_mismatches($legacy, $dry_run, true)) {
+                    $this->successful = false;
+                    return false;
+                }
                 $upgraded = $this->adopter->upgrade($migrations, $rows, $dry_run);
                 if ($upgraded && !$dry_run) {
                     $this->ledger->finalize_schema();
@@ -393,7 +419,7 @@ class Migrations
     }
 
     /** @param list<array{source: string, migration: string, path: string, checksum: string}> $pending */
-    private function confirm_modified_published_copies(array $pending): bool
+    private function confirm_modified_published_copies(array $pending, bool $dry_run = false, bool $adopting = false): bool
     {
         $pending_ids = [];
         foreach ($pending as $migration) {
@@ -426,8 +452,18 @@ class Migrations
             $this->errln('  Owner checksum: ' . $owner['checksum']);
         }
         $this->errln('The application file may be a modified copy of the owner migration.');
+        if ($adopting) {
+            $this->errln('Upgrade will adopt plugin ownership and the owner checksum. Later rollback uses the plugin original when available. No migration runs during upgrade.');
+        }
 
-        return $this->confirm_with_warning('Continue with these migrations despite the mismatch?');
+        if ($dry_run) {
+            $this->errln('Applying this upgrade will require confirmation of the checksum mismatch.');
+            return true;
+        }
+
+        return $this->confirm_with_warning($adopting
+            ? 'Adopt this history despite the checksum mismatch?'
+            : 'Continue with these migrations despite the mismatch?');
     }
 
     /** @param list<array{row: object, migration: array}> $mismatches */
@@ -452,7 +488,7 @@ class Migrations
     }
 
     /** @param list<array> $pending */
-    private function confirm_framework_checksum_mismatches(array $pending): bool
+    private function confirm_framework_checksum_mismatches(array $pending, bool $dry_run = false, bool $adopting = false): bool
     {
         $mismatches = array_values(array_filter(
             $pending,
@@ -471,7 +507,14 @@ class Migrations
             $this->errln('  Framework checksum: ' . $migration['framework_checksum']);
             $this->errln('  Published checksum: ' . $migration['checksum']);
         }
-        $this->errln('The published file will be executed if you continue.');
+        $this->errln($adopting
+            ? 'Upgrade will record the framework owner checksum. Later operations check the published file against it. No migration runs during upgrade.'
+            : 'The published file will be executed if you continue.');
+
+        if ($dry_run) {
+            $this->errln('Applying this upgrade will require confirmation of the checksum mismatch.');
+            return true;
+        }
 
         return $this->confirm_with_warning('Continue despite the checksum mismatch?');
     }

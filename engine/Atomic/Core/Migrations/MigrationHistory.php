@@ -92,15 +92,10 @@ class MigrationHistory
     {
         $mismatches = [];
         foreach ($rows as $row) {
-            if ((string)($row->checksum ?? '') === '') {
-                continue;
-            }
             $migration = $this->resolve_applied_migration($row, $migrations);
             if ($migration === null) {
-                if (in_array((string)($row->source ?? ''), [FrameworkMigrationGroups::FRAMEWORK, FrameworkMigrationGroups::APP], true)) {
-                    throw new \RuntimeException("Migration file for '{$row->source}:{$row->migration}' is unavailable.");
-                }
-                continue;
+                $source = (string)($row->source ?? '') ?: 'legacy';
+                throw new \RuntimeException("Migration file for '{$source}:{$row->migration}' is unavailable. Restore the original file or its published application copy and rerun the command.");
             }
             if (!$this->checksum_matches($row, $migration)) {
                 $mismatches[] = ['row' => $row, 'migration' => $migration];

@@ -70,6 +70,44 @@ class MigrationLedger
         return new Cortex($this->connection(), $this->table());
     }
 
+    public function exists(): bool
+    {
+        return in_array($this->table(), (array)(new Schema($this->connection()))->getTables(), true);
+    }
+
+    /** Read legacy history without creating or altering its schema. */
+    public function preview_rows(): array
+    {
+        if (!$this->exists()) {
+            return [];
+        }
+        return array_map(static fn(array $row): object => (object)$row,
+            (array)$this->connection()->exec('SELECT * FROM ' . $this->quoted_table() . ' ORDER BY id'));
+    }
+
+    /** @return list<string> Schema work proposed by a read-only upgrade preview. */
+    public function schema_upgrade_plan(): array
+    {
+        if (!$this->exists()) {
+            return ['Create migration ledger with source/checksum columns and a unique source/migration index.'];
+        }
+        $db = $this->connection();
+        $columns = $this->table_columns($db);
+        $plan = [];
+        foreach (['source', 'checksum'] as $column) {
+            if (!isset($columns[$column])) {
+                $plan[] = "Add nullable {$column} column.";
+            }
+        }
+        if (!$this->has_identity_index($db)) {
+            $plan[] = 'Add unique source/migration index.';
+        }
+        if ($this->legacy_schema_columns() !== []) {
+            $plan[] = 'Finalize source/checksum as NOT NULL after successful adoption.';
+        }
+        return $plan;
+    }
+
     public function rows(array $filter = [], array $options = []): array
     {
         return $this->normalize_rows($this->mapper()->find($filter, $options));
@@ -99,6 +137,9 @@ class MigrationLedger
     /** @return list<string> */
     public function legacy_schema_columns(): array
     {
+        if (!$this->exists()) {
+            return ['source', 'checksum'];
+        }
         $columns = $this->table_columns($this->connection());
         $legacy = [];
         foreach (['source', 'checksum'] as $column) {

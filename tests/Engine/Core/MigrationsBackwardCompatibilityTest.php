@@ -221,9 +221,8 @@ final class MigrationsBackwardCompatibilityTest extends TestCase
 
         $this->assertTrue($this->migrations->upgrade(true));
 
-        $rows = $this->ledger_rows();
-        $this->assertNull($rows[0]['source']);
-        $this->assertNull($rows[0]['checksum']);
+        $this->assertArrayNotHasKey('source', $this->ledger_columns());
+        $this->assertArrayNotHasKey('checksum', $this->ledger_columns());
         $this->assertStringContainsString('Would adopt', $this->stdout());
         $this->assertStringContainsString('Migration upgrade preview', $this->stdout());
         $this->assertStringContainsString('Legacy records to adopt: 1', $this->stdout());

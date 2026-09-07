@@ -23,8 +23,16 @@ class MigrationCatalog
     ) {}
 
     /** @return array<int, array{source: string, migration: string, path: string, checksum: string}> */
-    public function discover(): array
+    public function discover(?array $rows = null): array
     {
+        if ($rows === null) {
+            try {
+                $rows = $this->ledger?->rows() ?? [];
+            } catch (\Throwable) {
+                // Publishers also discover files before a ledger exists.
+                $rows = [];
+            }
+        }
         $this->modified_published_copies = [];
         $migrations = [];
         $framework = [];
@@ -42,7 +50,7 @@ class MigrationCatalog
             $app = $this->discover_directory('app', $app_dir, true);
         }
 
-        $migrations = $this->resolve_framework_copies($framework, $app);
+        $migrations = $this->resolve_framework_copies($framework, $app, $rows);
 
         $plugin_sources = [];
         foreach ($this->plugins->ordered_enabled_plugins() as $plugin) {
@@ -63,6 +71,7 @@ class MigrationCatalog
             $migrations = array_merge($migrations, $this->discover_directory($source, $path, false));
         }
 
+        $migrations = $this->resolve_missing_plugin_copies($migrations, $rows);
         $migrations = $this->without_unmodified_published_copies($migrations);
         $seen = [];
         foreach ($migrations as $migration) {
@@ -86,15 +95,8 @@ class MigrationCatalog
      * Published files remain the executable files. The framework checksum is
      * only a reference for first execution; applied files use ledger checksums.
      */
-    private function resolve_framework_copies(array $framework, array $app): array
+    private function resolve_framework_copies(array $framework, array $app, array $rows): array
     {
-        $rows = [];
-        try {
-            $rows = $this->ledger?->rows() ?? [];
-        } catch (\Throwable) {
-            // Discovery remains usable before the ledger table exists.
-        }
-        $published_owners = [];
         foreach ($app as &$copy) {
             foreach ($framework as $owner) {
                 if (!$this->history->published_name_matches($copy['migration'], $owner['migration'])) {
@@ -108,7 +110,6 @@ class MigrationCatalog
                 $copy['framework_path'] = $owner['path'];
                 $copy['origin_migration'] = $owner['migration'];
                 $copy['migration'] = $owner['migration'];
-                $published_owners[$owner['migration']] = true;
             }
             foreach ($rows as $row) {
                 $source = (string)($row->source ?? '');
@@ -130,13 +131,51 @@ class MigrationCatalog
         }
         unset($copy);
 
-        // Initial migrations run from their published copies. Versioned updates
-        // remain separate, in the numeric order supplied by the inventory.
-        $updates = array_values(array_filter($framework, static fn(array $migration): bool =>
-            $migration['group'] === FrameworkMigrationGroups::UPDATES
-            && !isset($published_owners[$migration['migration']])
-        ));
+        // Substitute published files in the numeric inventory, rather than
+        // letting publication timestamps move an update ahead of prerequisites.
+        $updates = [];
+        foreach ($framework as $owner) {
+            if ($owner['group'] !== FrameworkMigrationGroups::UPDATES) {
+                continue;
+            }
+            $update = $owner;
+            foreach ($app as $key => $copy) {
+                if (($copy['origin_migration'] ?? null) === $owner['migration']) {
+                    $update = $copy;
+                    unset($app[$key]);
+                    break;
+                }
+            }
+            $updates[] = $update;
+        }
         return array_merge($app, $updates);
+    }
+
+    private function resolve_missing_plugin_copies(array $migrations, array $rows): array
+    {
+        foreach ($rows as $row) {
+            $source = (string)($row->source ?? '');
+            if (!str_starts_with($source, 'plugin:')
+                || $this->history->resolve_sourced_migration($source, (string)$row->migration, $migrations) !== null) {
+                continue;
+            }
+            $copies = [];
+            foreach ($migrations as $key => $candidate) {
+                if ($candidate['source'] === 'app'
+                    && $this->history->published_name_matches($candidate['migration'], (string)$row->migration)) {
+                    $copies[] = $key;
+                }
+            }
+            if (count($copies) > 1) {
+                throw new \RuntimeException("Ambiguous published copies for '{$source}:{$row->migration}'. Restore the original migration file.");
+            }
+            if ($copies !== []) {
+                $key = $copies[0];
+                $migrations[$key]['source'] = $source;
+                $migrations[$key]['migration'] = (string)$row->migration;
+            }
+        }
+        return $migrations;
     }
 
     private function without_unmodified_published_copies(array $migrations): array

@@ -153,7 +153,7 @@ final class FrameworkMigrationGroupsTest extends TestCase
         $migrations = $this->catalog()->discover();
 
         $this->assertSame(
-            ['20260101000000_atomic_create_storage_tables', 'atomic_add_status', 'atomic_add_scope'],
+            ['atomic_create_storage_tables', 'atomic_add_status', 'atomic_add_scope'],
             array_column($migrations, 'migration'),
         );
         $this->assertSame(['framework', 'framework', 'framework'], array_column($migrations, 'source'));
