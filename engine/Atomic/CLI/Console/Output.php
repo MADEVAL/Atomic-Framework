@@ -51,7 +51,7 @@ class Output
 
     public function field(string $label, string|int|float|bool|null $value): void
     {
-        $this->writeln('  ' . Style::cyan($label . ':', true) . ' ' . $this->string_value($value));
+        $this->writeln('  ' . $label . ': ' . $this->string_value($value));
     }
 
     public function success(string $message): void
@@ -67,6 +67,11 @@ class Output
     public function usage(string $command): void
     {
         $this->err(Style::bold('Usage:') . ' ' . Style::cyan('php atomic ' . CommandCatalog::display($command), true));
+    }
+
+    public function root_usage(): void
+    {
+        $this->err(Style::bold('Usage:') . ' ' . Style::cyan('php atomic <command> [options]', true));
     }
 
     /** @param list<string> $items */
