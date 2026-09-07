@@ -7,8 +7,6 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use DB\Cortex;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
-use Engine\Atomic\Core\Migrations;
-use Engine\Atomic\Core\Migrations\FrameworkMigrationGroups;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Tests\TestJob;
@@ -55,8 +53,7 @@ trait Queue {
     }
 
     public function db_queue() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish_framework(FrameworkMigrationGroups::QUEUE_MIGRATION);
+        $this->migration_manager()->publish_framework('atomic_create_queue_tables');
     }
 
     public function queue_test(): void

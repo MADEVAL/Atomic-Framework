@@ -9,7 +9,6 @@ use Engine\Atomic\CLI\Style;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\BootstrapConfigurationValidator;
 use Engine\Atomic\Core\ConnectionManager;
-use Engine\Atomic\Core\Migrations as CoreMigrations;
 
 trait InitInstaller
 {
@@ -479,7 +478,7 @@ trait InitInstaller
 
     private function initialize_migration_database(): bool
     {
-        $migrations = new CoreMigrations($this->output);
+        $migrations = $this->migration_manager();
         if (!$migrations->db()) {
             $this->output->err('  ' . Style::error_label() . " Could not initialize migration database.");
             return false;
@@ -527,7 +526,7 @@ trait InitInstaller
         if ($queued > 0) {
             $this->output->writeln();
             if ($run) {
-                $migrations = new CoreMigrations($this->output);
+                $migrations = $this->migration_manager();
                 $migrations->migrate();
                 $this->output->writeln('  ' . Style::success_label() . " {$queued} backend migration(s) applied.");
             } else {

@@ -5,7 +5,6 @@ namespace Engine\Atomic\CLI\Init;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\CLI\Style;
-use Engine\Atomic\Core\Migrations;
 
 trait InitScaffold
 {
@@ -104,8 +103,7 @@ trait InitScaffold
 
         $this->db_users();
 
-        $migrations = new Migrations($this->output);
-        $migrations->migrate();
+        $this->migration_manager()->migrate();
 
         $this->output->writeln('  ' . Style::success_label() . " Users migration executed.");
     }

@@ -7,7 +7,6 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Hash;
 use Engine\Atomic\Auth\ConfigUserStore;
-use Engine\Atomic\Core\Migrations as CoreMigrations;
 use Engine\Atomic\CLI\Init\InitInstaller;
 use Engine\Atomic\CLI\Init\InitScaffold;
 
@@ -64,7 +63,7 @@ trait Init
         if ($db_config !== null) {
             $this->boot_database($db_config);
             if ($this->initialize_migration_database()) {
-                (new CoreMigrations($this->output))->migrate();
+                $this->migration_manager()->migrate();
                 $this->output->writeln();
                 $db_migrated = true;
             }
