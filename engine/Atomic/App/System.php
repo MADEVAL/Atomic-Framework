@@ -223,6 +223,10 @@ class System extends Controller
         $this->cli()->migrations_status();
     }
 
+    public function migrations_upgrade(): void {
+        $this->cli()->migrations_upgrade();
+    }
+
     public function migrations_publish(): void {
         $this->cli()->migrations_publish();
     }

@@ -48,6 +48,7 @@ $this->route('GET /migrations/init [cli]', 'Engine\Atomic\App\System->migrations
 $this->route('GET /migrations/migrate [cli]', 'Engine\Atomic\App\System->migrations_migrate');
 $this->route('GET /migrations/rollback [cli]', 'Engine\Atomic\App\System->migrations_rollback');
 $this->route('GET /migrations/status [cli]', 'Engine\Atomic\App\System->migrations_status');
+$this->route('GET /migrations/upgrade [cli]', 'Engine\Atomic\App\System->migrations_upgrade');
 $this->route('GET /migrations/publish [cli]', 'Engine\Atomic\App\System->migrations_publish');
 
 $this->route('GET /file/csv2pdf [cli]', 'Engine\Atomic\App\System->file_csv2_pdf');

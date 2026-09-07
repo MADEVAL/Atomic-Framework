@@ -138,11 +138,23 @@ abstract class Plugin
 
     /**
      * Return the path to the plugin's migrations directory, or null if none.
-     * Used by `php atomic migrations/publish <plugin-name>` to auto-discover migrations.
+     * Migrations are executed directly from this directory by the shared runner.
      */
     public function get_migrations_path(): ?string
     {
         $path = $this->path . DIRECTORY_SEPARATOR . 'Migrations';
         return is_dir($path) ? $path : null;
+    }
+
+    /**
+     * Stable identity used by the source-aware migration ledger.
+     * Plugins distributed as Composer packages should override this method with
+     * their Composer package name so display-name changes do not alter history.
+     */
+    public function get_migration_source(): string
+    {
+        $name = strtolower(trim($this->get_plugin_name()));
+        $name = preg_replace('/[^a-z0-9._\/-]+/', '-', $name) ?? $name;
+        return 'plugin:' . trim($name, '-');
     }
 }

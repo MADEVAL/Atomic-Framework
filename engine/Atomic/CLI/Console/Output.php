@@ -89,6 +89,23 @@ class Output
         $this->writeln('  ' . Style::warning_label() . ' ' . $message);
     }
 
+    /** @param list<string> $lines */
+    public function warning_box(string $title, array $lines = []): void
+    {
+        $content = array_merge([$title], $lines);
+        $width = max(array_map(
+            static fn(string $line): int => self::display_width($line),
+            $content,
+        ));
+        $border = '+' . str_repeat('-', $width + 2) . '+';
+
+        $this->err(Style::yellow($border, true));
+        foreach ($content as $line) {
+            $this->err(self::bordered_line($line, $width));
+        }
+        $this->err(Style::yellow($border, true));
+    }
+
     public function check(string $status, string $name, string $message): void
     {
         $label = match (strtolower($status)) {
@@ -120,6 +137,20 @@ class Output
     {
         fwrite($stream, $message);
         fflush($stream);
+    }
+
+    private static function bordered_line(string $line, int $width): string
+    {
+        $offset = max(0, $width - self::display_width($line));
+        return Style::yellow('|', true) . ' '
+            . $line . str_repeat(' ', $offset) . ' '
+            . Style::yellow('|', true);
+    }
+
+    private static function display_width(string $value): int
+    {
+        $plain = self::plain($value);
+        return function_exists('mb_strwidth') ? mb_strwidth($plain, 'UTF-8') : strlen($plain);
     }
 
     private function string_value(string|int|float|bool|null $value): string

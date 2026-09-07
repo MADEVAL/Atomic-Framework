@@ -7,8 +7,6 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use DB\Cortex\Schema\Schema;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
-use Engine\Atomic\Core\Migrations;
-use Engine\Atomic\Core\Migrations\FrameworkMigrationGroups;
 
 trait DB {
     public function get_tables()
@@ -63,27 +61,24 @@ trait DB {
     }
 
     public function db_sessions() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish_framework(FrameworkMigrationGroups::SESSIONS_MIGRATION);
+        $this->migration_manager()->publish_framework('atomic_create_session_table');
     }
     
     public function db_storage() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish_framework(FrameworkMigrationGroups::STORAGE_MIGRATION);
+        $this->migration_manager()->publish_framework('atomic_create_storage_tables');
     }
     
     public function db_mutex() {
-        $atomic = App::instance();
-        (new Migrations($this->output))->publish_framework(FrameworkMigrationGroups::MUTEX_MIGRATION);
+        $this->migration_manager()->publish_framework('atomic_create_mutex_table');
     }
 
     public function db_users() {
         $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_user_tables');
+        $this->migration_manager()->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_user_tables');
     }
 
     public function db_pages() {
         $atomic = App::instance();
-        (new Migrations($this->output))->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_page_tables');
+        $this->migration_manager()->publish($atomic->get('MIGRATIONS_BUNDLED') . 'atomic_create_page_tables');
     }
 }
