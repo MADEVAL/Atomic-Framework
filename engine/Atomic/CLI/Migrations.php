@@ -29,7 +29,9 @@ trait Migrations {
             $this->output->usage('migrations/create');
             return;
         }
-        $this->migration_manager()->create($args[0]);
+        $this->run_migration_command(function (AM $migrations) use ($args): void {
+            $migrations->create($args[0]);
+        });
     }
 
     public function migrations_rollback() {
@@ -45,8 +47,9 @@ trait Migrations {
 
     public function migrations_migrate() {
         $args = $this->get_cli_args();
-        if (isset($args[0]) && !is_numeric($args[0])) {
+        if (isset($args[0]) && !preg_match('/^[0-9]+$/D', $args[0])) {
             $this->output->usage('migrations/migrate');
+            App::instance()->set_cli_exit_code(1);
             return;
         }
         $this->run_migration_command(function (AM $migrations) use ($args): void {
@@ -106,12 +109,13 @@ trait Migrations {
             $this->output->writeln('  ' . Style::bold('Publishes framework updates or migrations from the specified plugin.'));
             return;
         }
-        $migrations = $this->migration_manager();
         if (strtolower($positional[0]) === 'framework') {
-            $migrations->publish_from_framework();
+            $this->migration_manager()->publish_from_framework();
             return;
         }
-        $migrations->publish_from_plugin($positional[0]);
+        $this->run_migration_command(function (AM $migrations) use ($positional): void {
+            $migrations->publish_from_plugin($positional[0]);
+        });
     }
 
     protected function migration_manager(): AM

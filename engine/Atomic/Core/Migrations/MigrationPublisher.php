@@ -113,7 +113,7 @@ class MigrationPublisher
         }
     }
 
-    public function publish_from_plugin(string $plugin_name): void
+    public function publish_from_plugin(string $plugin_name): bool
     {
         $plugin = $this->find_plugin($this->plugins, $plugin_name);
         if ($plugin === null) {
@@ -122,14 +122,14 @@ class MigrationPublisher
                 $suffix = $candidate->get_migrations_path() !== null ? ' ' . Style::cyan('(has migrations)', true) : '';
                 $this->output->writeln('  - ' . Style::bold($name) . $suffix);
             }
-            return;
+            return false;
         }
 
         $published = 0;
         $skipped = 0;
         $processed = [];
         if (!$this->publish_plugin_migrations($this->plugins, $plugin, $processed, $published, $skipped)) {
-            return;
+            return false;
         }
         $this->output->writeln();
         $this->output->writeln(
@@ -142,6 +142,8 @@ class MigrationPublisher
                 . ' migration(s) already published; skipped.'
             );
         }
+
+        return true;
     }
 
     private function publish_plugin_migrations(

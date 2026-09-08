@@ -67,7 +67,7 @@ class Migrations
 
     public function publish_from_plugin(string $plugin_name): void
     {
-        $this->publisher->publish_from_plugin($plugin_name);
+        $this->successful = $this->publisher->publish_from_plugin($plugin_name);
     }
 
     public function publish_from_framework(bool $all = false): void

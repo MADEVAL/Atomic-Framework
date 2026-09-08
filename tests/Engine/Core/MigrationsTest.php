@@ -600,6 +600,7 @@ class MigrationsTest extends TestCase
 
         $this->migrations->publish_from_plugin('pfp-plugin');
 
+        $this->assertTrue($this->migrations->was_successful());
         $this->assertStringContainsString('1 migration(s) published', $this->stdout());
     }
 
@@ -609,6 +610,7 @@ class MigrationsTest extends TestCase
 
         $this->migrations->publish_from_plugin('nonexistent');
 
+        $this->assertFalse($this->migrations->was_successful());
         $this->assertStringContainsString('not found', $this->stderr());
     }
 

@@ -85,4 +85,109 @@ final class MigrationsTest extends TestCase
 
         $cli->migrations_publish();
     }
+
+    public function test_migrations_create_reports_failure_from_manager(): void
+    {
+        $migrations = $this->createMock(CoreMigrations::class);
+        $migrations->expects($this->once())
+            ->method('create')
+            ->with('offline_template');
+        $migrations->method('was_successful')->willReturn(false);
+
+        $cli = new class(new Output(StreamCapture::memory('w+b'), StreamCapture::memory('w+b')), $migrations) {
+            use \Engine\Atomic\CLI\Migrations;
+
+            protected Output $output;
+
+            public function __construct(
+                Output $output,
+                private readonly CoreMigrations $migrations,
+            ) {
+                $this->output = $output;
+            }
+
+            public function get_cli_args(): array
+            {
+                return ['offline_template'];
+            }
+
+            protected function migration_manager(): CoreMigrations
+            {
+                return $this->migrations;
+            }
+        };
+
+        $cli->migrations_create();
+
+        $this->assertSame(1, App::instance()->get_cli_exit_code());
+    }
+
+    public function test_migrations_migrate_rejects_fractional_steps_before_running(): void
+    {
+        $migrations = $this->createMock(CoreMigrations::class);
+        $migrations->expects($this->never())->method('migrate');
+
+        $cli = new class(new Output(StreamCapture::memory('w+b'), StreamCapture::memory('w+b')), $migrations) {
+            use \Engine\Atomic\CLI\Migrations;
+
+            protected Output $output;
+
+            public function __construct(
+                Output $output,
+                private readonly CoreMigrations $migrations,
+            ) {
+                $this->output = $output;
+            }
+
+            public function get_cli_args(): array
+            {
+                return ['1.5'];
+            }
+
+            protected function migration_manager(): CoreMigrations
+            {
+                return $this->migrations;
+            }
+        };
+
+        $cli->migrations_migrate();
+
+        $this->assertSame(1, App::instance()->get_cli_exit_code());
+    }
+
+    public function test_migrations_publish_reports_plugin_failure_from_manager(): void
+    {
+        $migrations = $this->createMock(CoreMigrations::class);
+        $migrations->expects($this->once())
+            ->method('publish_from_plugin')
+            ->with('missing');
+        $migrations->method('was_successful')->willReturn(false);
+
+        $cli = new class(new Output(StreamCapture::memory('w+b'), StreamCapture::memory('w+b')), $migrations) {
+            use \Engine\Atomic\CLI\Migrations;
+
+            protected Output $output;
+
+            public function __construct(
+                Output $output,
+                private readonly CoreMigrations $migrations,
+            ) {
+                $this->output = $output;
+            }
+
+            public function get_cli_args(): array
+            {
+                return ['missing'];
+            }
+
+            protected function migration_manager(): CoreMigrations
+            {
+                return $this->migrations;
+            }
+        };
+
+        $cli->migrations_publish();
+
+        $this->assertSame(1, App::instance()->get_cli_exit_code());
+    }
 }
