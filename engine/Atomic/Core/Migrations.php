@@ -227,7 +227,8 @@ class Migrations
         $this->outln();
         $this->outln(Style::bold('Migration List:'));
         $reported = [];
-        foreach ($migrations as $migration) {
+        $entries = [];
+        foreach ($migrations as $catalog_index => $migration) {
             $row = $this->history->find_applied_row($migration, $rows, $migrations);
             $integrity = 'not applied';
             if ($row !== null) {
@@ -241,13 +242,51 @@ class Migrations
                     ? 'legacy published alias'
                     : ($stored === '' ? 'legacy/unverified' : (hash_equals($stored, $migration['checksum']) ? 'verified' : 'modified'));
             }
-            $this->print_status($migration['source'], $migration['migration'], $row, $integrity);
+            $entries[] = [
+                'source' => $migration['source'],
+                'name' => $migration['migration'],
+                'path' => $migration['path'],
+                'row' => $row,
+                'integrity' => $integrity,
+                'catalog_index' => $catalog_index,
+            ];
         }
-        foreach ($rows as $row) {
+
+        foreach ($rows as $row_index => $row) {
             if (!isset($reported[(int)$row->id])) {
                 $integrity = (string)($row->checksum ?? '') === '' ? 'legacy/unverified' : 'file unavailable';
-                $this->print_status((string)($row->source ?? '') ?: 'legacy', (string)$row->migration, $row, $integrity);
+                $entries[] = [
+                    'source' => (string)($row->source ?? '') ?: 'legacy',
+                    'name' => (string)$row->migration,
+                    'path' => null,
+                    'row' => $row,
+                    'integrity' => $integrity,
+                    'catalog_index' => count($migrations) + $row_index,
+                ];
             }
+        }
+
+        usort($entries, static function (array $left, array $right): int {
+            $left_applied = $left['row'] !== null;
+            $right_applied = $right['row'] !== null;
+
+            if ($left_applied !== $right_applied) {
+                return $left_applied ? -1 : 1;
+            }
+
+            if ($left_applied) {
+                $by_ledger_order = ((int)($left['row']->id ?? PHP_INT_MAX))
+                    <=> ((int)($right['row']->id ?? PHP_INT_MAX));
+                if ($by_ledger_order !== 0) {
+                    return $by_ledger_order;
+                }
+            }
+
+            return $left['catalog_index'] <=> $right['catalog_index'];
+        });
+
+        foreach ($entries as $entry) {
+            $this->print_status($entry['source'], $entry['name'], $entry['path'], $entry['row'], $entry['integrity']);
         }
     }
 
@@ -326,12 +365,13 @@ class Migrations
         }
     }
 
-    private function print_status(string $source, string $name, ?object $row, string $integrity): void
+    private function print_status(string $source, string $name, ?string $path, ?object $row, string $integrity): void
     {
         $status = $row === null ? 'pending' : 'applied';
         $label = $row === null ? Style::warning_label() : Style::success_label();
         $this->outln(Style::bold('Source:') . ' ' . Style::bold($source));
-        $this->outln(Style::bold('File:') . ' ' . Style::bold($name));
+        $this->outln(Style::bold('Migration:') . ' ' . Style::bold($name));
+        $this->outln(Style::bold('File:') . ' ' . Style::bold($path === null ? '(unavailable)' : basename($path)));
         $this->outln('  ' . Style::bold('Status:') . ' ' . $label . ' ' . Style::bold($status));
         $this->outln('  ' . Style::bold('Integrity:') . ' ' . Style::bold($integrity));
         $this->outln('  ' . Style::bold('Batch UUID:') . ' ' . Style::bold((string)($row->batch_uuid ?? '-')));

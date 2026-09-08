@@ -763,6 +763,70 @@ class MigrationsTest extends TestCase
         $this->assertSame([], $this->migration_rows());
     }
 
+    public function test_status_places_applied_migrations_before_pending_migrations(): void
+    {
+        $this->boot_mysql_migrations();
+
+        $original_framework_dir = App::instance()->get('MIGRATIONS_CORE');
+        $framework_dir = $this->tmp_dir . 'framework' . DIRECTORY_SEPARATOR;
+        mkdir($framework_dir . 'initial', 0755, true);
+        mkdir($framework_dir . 'updates', 0755, true);
+
+        $initial_name = 'atomic_create_session_table.php';
+        $initial_contents = <<<'PHP'
+<?php
+return [
+    'up' => fn () => true,
+    'down' => fn () => true,
+];
+PHP;
+        $published_initial = $this->migrations_dir . '20250101000000_' . $initial_name;
+        file_put_contents($framework_dir . 'initial' . DIRECTORY_SEPARATOR . $initial_name, $initial_contents);
+        file_put_contents($published_initial, $initial_contents);
+
+        $update_contents = <<<'PHP'
+<?php
+return [
+    'up' => fn () => true,
+    'down' => fn () => true,
+];
+PHP;
+        file_put_contents($framework_dir . 'updates' . DIRECTORY_SEPARATOR . '0001_fake_update.php', $update_contents);
+        file_put_contents($this->migrations_dir . '20250101000001_fake_update.php', $update_contents);
+
+        App::instance()->set('MIGRATIONS_CORE', $framework_dir);
+
+        try {
+            $this->assertTrue($this->migrations->db());
+            $checksum = hash('sha256', str_replace(["\r\n", "\r"], "\n", $update_contents));
+            $table = $this->quote_identifier($this->db_prefix . 'migrations');
+            $statement = $this->pdo->prepare(
+                'INSERT INTO ' . $table . ' (source, migration, checksum, batch_uuid, applied_at) '
+                . 'VALUES (?, ?, ?, ?, ?)'
+            );
+            $statement->execute([
+                'framework',
+                'fake_update',
+                $checksum,
+                '11111111-1111-4111-8111-111111111111',
+                '2025-01-01 00:00:00',
+            ]);
+
+            $this->migrations->status();
+            $output = $this->stdout();
+            $pending_position = strpos($output, 'Migration: atomic_create_session_table');
+            $applied_position = strpos($output, 'Migration: fake_update');
+
+            $this->assertNotFalse($pending_position);
+            $this->assertNotFalse($applied_position);
+            $this->assertLessThan($pending_position, $applied_position);
+            $this->assertStringContainsString('File: 20250101000000_atomic_create_session_table.php', $output);
+            $this->assertStringContainsString('File: 20250101000001_fake_update.php', $output);
+        } finally {
+            App::instance()->set('MIGRATIONS_CORE', $original_framework_dir);
+        }
+    }
+
     public function test_migration_failures_are_reported_and_not_recorded_against_mysql(): void
     {
         $this->boot_mysql_migrations();
