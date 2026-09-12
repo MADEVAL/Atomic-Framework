@@ -67,7 +67,13 @@ class MigrationLedger
 
     public function mapper(): Cortex
     {
-        return new Cortex($this->connection(), $this->table());
+        $db = $this->connection();
+        $table = $this->table();
+        // Ledger DDL can change columns between commands or within this process.
+        // Refresh Cortex's table schema from uncached SQL; it overrides the
+        // persistent F3 schema cache when Cortex initializes its mapper.
+        Cortex::$schema_cache[$table . '_' . $db->uuid()] = $db->schema($table, null, 0);
+        return new Cortex($db, $table);
     }
 
     public function exists(): bool

@@ -11,6 +11,12 @@ use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Filesystem;
 use Engine\Atomic\Core\Migrations;
 use Engine\Atomic\Core\Migrations\MigrationsFactory;
+use Engine\Atomic\Core\Migrations\MigrationLedger;
+use Engine\Atomic\Cache\Drivers\Folder;
+use Engine\Atomic\Cache\FatFreeCacheBridge;
+use Engine\Atomic\Core\CacheManager;
+use DB\Cortex;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\ReflectionHelper;
 use Tests\Support\StreamCapture;
@@ -112,6 +118,78 @@ final class MigrationsLegacyUpgradeStressTest extends TestCase
     }
 
     // ── 1 ─────────────────────────────────────────────────────────────────
+
+    public static function legacy_schema_cache_modes(): array
+    {
+        return ['same process' => [false], 'persistent cache only' => [true]];
+    }
+
+    #[DataProvider('legacy_schema_cache_modes')]
+    public function test_upgrade_with_cached_legacy_schema_preserves_history_and_refreshes_status(bool $new_process): void
+    {
+        $base = \Base::instance();
+        $original_cache = $base->get('CACHE');
+        $original_bridge = \Registry::exists(\Cache::class) ? \Registry::get(\Cache::class) : null;
+        $original_schema_cache = Cortex::$schema_cache;
+        $cache = FatFreeCacheBridge::install();
+        try {
+            $base->set('CACHE', CacheManager::FAT_FREE_CACHE_BRIDGE_SENTINEL);
+            $store = new Folder($this->tmp_dir . 'cache', 'ledger-regression');
+            ReflectionHelper::set($cache, 'store', $store);
+            $store->set('unrelated-application-value', 'preserve', 60);
+
+            $this->write_migration($this->app_migrations_dir, '20240101000000_legacy_posts', $this->legacy_posts_migration_body());
+            $this->create_user_table(['existing data']);
+            $this->create_legacy_ledger(['20240101000000_legacy_posts']);
+            $db = ConnectionManager::instance()->get_db();
+            $table = $this->db_prefix . 'migrations';
+            // A normal legacy ORM read populates both schema caches.
+            $legacy_mapper = new Cortex($db, $table);
+            self::assertSame(['id', 'migration', 'batch_uuid', 'applied_at'], $legacy_mapper->fields());
+            $legacy_row = $legacy_mapper->findone()->cast();
+            if ($new_process) {
+                unset(Cortex::$schema_cache[$table . '_' . $db->uuid()]);
+            }
+
+            self::assertTrue($this->migrations->upgrade(), $this->stderr());
+            $rows = $this->ledger_rows();
+            self::assertCount(1, $rows);
+            foreach (['id', 'migration', 'batch_uuid', 'applied_at'] as $field) {
+                self::assertSame((string)$legacy_row[$field], (string)$rows[0][$field]);
+            }
+            self::assertSame('app', $rows[0]['source']);
+            self::assertSame('NO', $this->ledger_columns()['source']['Null']);
+            self::assertSame('NO', $this->ledger_columns()['checksum']['Null']);
+
+            $ledger = new MigrationLedger(App::instance(), ConnectionManager::instance());
+            self::assertSame($rows[0]['checksum'], $ledger->latest()->checksum);
+            // A retry must work even when no DDL is needed and only the old
+            // persistent schema cache survives into the next process.
+            unset(Cortex::$schema_cache[$table . '_' . $db->uuid()]);
+            self::assertTrue($this->migrations->upgrade(), $this->stderr());
+            $this->stdout();
+            $this->migrations->status();
+            $status = $this->stdout();
+            self::assertStringContainsString('Integrity: verified', $status);
+            self::assertStringNotContainsString('legacy/unverified', $status);
+
+            // Exercise a subsequent ledger write without waiting for expiry.
+            $this->write_migration($this->app_migrations_dir, '20240101000001_pending', $this->noop_migration_body());
+            $this->migrations->migrate();
+            self::assertTrue($this->migrations->was_successful(), $this->stderr());
+            self::assertCount(2, $this->ledger_rows());
+            self::assertSame(['existing data'], $this->user_titles());
+            self::assertSame('preserve', $store->get('unrelated-application-value'));
+        } finally {
+            Cortex::$schema_cache = $original_schema_cache;
+            $base->set('CACHE', $original_cache);
+            if ($original_bridge !== null) {
+                \Registry::set(\Cache::class, $original_bridge);
+            } else {
+                \Registry::clear(\Cache::class);
+            }
+        }
+    }
 
     public function test_legacy_install_upgrade_preserves_user_data_and_marks_history_verified(): void
     {
