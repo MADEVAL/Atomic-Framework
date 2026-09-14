@@ -59,6 +59,8 @@ For legacy application migrations without recorded checksums, adoption establish
 
 Migration, rollback and upgrade use a database advisory lock. Execution stops on the first failure. A failed `up()` is not recorded, and a failed `down()` retains its history row. MySQL schema changes may already have committed when a migration or history write fails; inspect and resolve that state before retrying.
 
+Migration authors must make `up()` and `down()` safe to retry (idempotent), including after partial execution. Check existing tables, columns and data before changing them. Migration effects and the subsequent history write are not one atomic operation: if the effects succeed but recording history fails, the next attempt can execute the callback again. The framework cannot infer how to repair application-specific partial changes; that responsibility belongs to the migration author.
+
 ### Migration file shape
 
 Generated files are stored under the configured `MIGRATIONS` directory and use this structure:

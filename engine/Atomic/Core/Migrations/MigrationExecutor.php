@@ -9,6 +9,11 @@ use Engine\Atomic\Core\ID;
 
 class MigrationExecutor
 {
+    private const DIRECTION_UP = 'up';
+    private const DIRECTION_DOWN = 'down';
+    private const OPERATION_MIGRATION = 'Migration';
+    private const OPERATION_ROLLBACK = 'Rollback';
+
     public function batch_id(): string
     {
         return ID::uuid_v4();
@@ -16,12 +21,12 @@ class MigrationExecutor
 
     public function up(array $migration): void
     {
-        $this->execute($migration, 'up', 'Migration');
+        $this->execute($migration, self::DIRECTION_UP, self::OPERATION_MIGRATION);
     }
 
     public function down(array $migration): void
     {
-        $this->execute($migration, 'down', 'Rollback');
+        $this->execute($migration, self::DIRECTION_DOWN, self::OPERATION_ROLLBACK);
     }
 
     private function execute(array $migration, string $direction, string $operation): void
