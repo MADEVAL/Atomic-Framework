@@ -324,7 +324,7 @@ final class Bootstrap
             return;
         }
 
-        $config = require_once $resolved_providers_file;
+        $config = require $resolved_providers_file;
         $providers = is_array($config) ? (array)($config['providers'] ?? []) : [];
 
         foreach ($providers as $provider) {

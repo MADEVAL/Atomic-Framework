@@ -28,6 +28,7 @@ class Auth implements LoginInterface
     private function __construct() {}
 
     private ?AuthService $service = null;
+    private ?UserProviderInterface $configured_provider = null;
     private bool $session_hooks_registered = false;
 
     private function service(): AuthService
@@ -52,6 +53,10 @@ class Auth implements LoginInterface
                 new PhpSessionAdapter(),
                 new SessionManagerAdapter(),
             );
+
+            if ($this->configured_provider !== null) {
+                $this->service->set_user_provider($this->configured_provider);
+            }
         }
         return $this->service;
     }
@@ -72,14 +77,20 @@ class Auth implements LoginInterface
 
     public function set_user_provider(UserProviderInterface $provider): self
     {
-        $this->service()->set_user_provider($provider);
+        $this->configured_provider = $provider;
+
+        if ($this->service !== null) {
+            $this->service->set_user_provider($provider);
+        }
+
         $this->register_session_hooks();
         return $this;
     }
 
     public function has_user_provider(): bool
     {
-        return $this->service()->has_user_provider();
+        return $this->configured_provider !== null
+            || ($this->service !== null && $this->service->has_user_provider());
     }
 
     public function login_by_id(string $auth_id, array $context = []): void

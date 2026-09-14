@@ -634,9 +634,10 @@ class App {
             $providers_config = ATOMIC_CONFIG . 'providers.php';
             $resolved_providers_config = realpath($providers_config);
             if ($resolved_providers_config !== false && is_file($resolved_providers_config) && is_readable($resolved_providers_config)) {
-                // Already required during boot; require_once avoids a second parse.
-                $providers = require_once $resolved_providers_config;
-                $provider_class = $providers['user_provider'] ?? null;
+                $providers = require $resolved_providers_config;
+                $provider_class = is_array($providers)
+                    ? ($providers['user_provider'] ?? null)
+                    : null;
             }
         }
 
