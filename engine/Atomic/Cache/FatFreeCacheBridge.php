@@ -28,10 +28,9 @@ class FatFreeCacheBridge extends \Cache
         }
 
         $key = (string)$key;
-        if ($this->store === null && str_ends_with($key, '.var') && !$this->hive_ttl_lookup_allowed()) {
+        if (str_ends_with($key, '.var') && !$this->hive_ttl_lookup_allowed()) {
             // F3 falls back to cache lookups for unset hive keys ("<hash>.var").
-            // Nothing can be persisted yet in this request, so return false
-            // without opening the store; route-cache ".url" lookups still do.
+            // The explicit flag disables cross-request hive TTL fallback reads.
             return false;
         }
 
@@ -58,7 +57,7 @@ class FatFreeCacheBridge extends \Cache
         }
 
         $key = (string)$key;
-        if ($this->store === null && str_ends_with($key, '.var') && !$this->hive_ttl_lookup_allowed()) {
+        if (str_ends_with($key, '.var') && !$this->hive_ttl_lookup_allowed()) {
             // Same rationale as exists().
             return false;
         }
@@ -125,7 +124,8 @@ class FatFreeCacheBridge extends \Cache
     }
 
     /**
-     * Whether F3 hive TTL persistence is opted in (CACHE_F3_HIVE_TTL). Read
+     * Whether F3 hive TTL fallback reads are enabled (CACHE_F3_HIVE_TTL).
+     * The configured default remains enabled for F3 compatibility. Read
      * from the hive array directly: Base::get() on an unset key would
      * re-enter this bridge while the store is unresolved.
      */
@@ -134,7 +134,9 @@ class FatFreeCacheBridge extends \Cache
         if ($this->hive_ttl_enabled === null) {
             $hive = \Base::instance()->hive();
             $config = $hive['CACHE_CONFIG'] ?? null;
-            $this->hive_ttl_enabled = is_array($config) && !empty($config['f3_hive_ttl']);
+            $this->hive_ttl_enabled = is_array($config)
+                ? (bool)($config['f3_hive_ttl'] ?? true)
+                : false;
         }
 
         return $this->hive_ttl_enabled;

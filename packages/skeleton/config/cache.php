@@ -10,6 +10,6 @@ return [
     'port'     => '',
     'password' => '',
     'login'    => '',
-    // Opt in to F3's cross-request hive TTL persistence (Base::set($k,$v,$ttl)).
-    'f3_hive_ttl' => false,
+    // Preserve F3's cross-request hive TTL fallback; set false to disable it.
+    'f3_hive_ttl' => true,
 ];

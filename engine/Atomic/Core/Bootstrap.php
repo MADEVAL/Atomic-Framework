@@ -103,7 +103,7 @@ final class Bootstrap
         ConfigSchema::string('CACHE_LOGIN')->default('');
         ConfigSchema::string('CACHE_PREFIX')->default('atomic.');
         ConfigSchema::int('CACHE_TTL')->default(3600);
-        ConfigSchema::bool('CACHE_F3_HIVE_TTL')->default(false);
+        ConfigSchema::bool('CACHE_F3_HIVE_TTL')->default(true);
         ConfigSchema::string('SESSION_DRIVER')->default('db');
         ConfigSchema::int('SESSION_LIFETIME')->default(259200);
         ConfigSchema::string('SESSION_COOKIE')->default('Atomic_Session');
