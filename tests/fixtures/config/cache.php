@@ -7,4 +7,5 @@ return [
     'default'  => 'folder',
     'path'     => 'storage/framework/cache/',
     'prefix'   => 'atomic.',
+    'f3_hive_ttl' => true,
 ];

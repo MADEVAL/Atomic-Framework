@@ -163,6 +163,12 @@ class ConfigParityTest extends TestCase
         $this->assertSame('atomic.',       self::$php_data['REDIS']['prefix']);
     }
 
+    public function test_f3_hive_ttl_is_enabled_in_both_loader_fixtures(): void
+    {
+        $this->assertSame(true, self::$env_data['CACHE_CONFIG']['f3_hive_ttl']);
+        $this->assertSame(true, self::$php_data['CACHE_CONFIG']['f3_hive_ttl']);
+    }
+
     public function test_mailer_bridge_is_populated(): void
     {
         $this->assertSame('127.0.0.1', self::$php_data['MAILER']['smtp']['host']);
