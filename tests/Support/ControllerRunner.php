@@ -61,6 +61,18 @@ $db->exec(
         UNIQUE KEY `uq_users_email` (`email`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
 );
+$db->exec(
+    "CREATE TABLE IF NOT EXISTS `{$prefix}sessions` (
+        `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        `session_id` VARCHAR(256) NOT NULL,
+        `data` TEXT NULL,
+        `ip` VARCHAR(128) NULL,
+        `agent` VARCHAR(512) NULL,
+        `stamp` INT NULL,
+        PRIMARY KEY (`id`),
+        INDEX `idx_sessions_session_id` (`session_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
 
 $seedUser = static function (string $email) use ($db, $prefix): void {
     $db->exec(
