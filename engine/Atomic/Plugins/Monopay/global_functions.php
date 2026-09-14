@@ -1,10 +1,11 @@
 <?php
 declare(strict_types=1);
-if (!defined('ATOMIC_START')) exit;
 
 namespace {
     use Engine\Atomic\Plugins\Monopay\Monopay;
     use Engine\Atomic\Plugins\Monopay\Order;
+
+    if (!defined('ATOMIC_START')) exit;
 
     if (!function_exists('monopay')) {
         function monopay(): ?Monopay
@@ -68,4 +69,3 @@ namespace {
         }
     }
 }
-
