@@ -57,13 +57,19 @@ class Redis implements SessionHandlerInterface
 
             $this->data = $decoded;
             
-            $stored_ip = $this->data['ip'] ?? '';
-            $stored_agent = $this->data['agent'] ?? '';
+            $stored_ip = (string)($this->data['ip'] ?? '');
+            $stored_agent = (string)($this->data['agent'] ?? '');
             
             if ($stored_ip !== $this->_ip || $stored_agent !== $this->_agent) {
                 $fw = \Base::instance();
+                $metadata = [
+                    'stored_ip' => $stored_ip,
+                    'current_ip' => $this->_ip,
+                    'stored_agent' => $stored_agent,
+                    'current_agent' => $this->_agent,
+                ];
                 if (!isset($this->onsuspect) ||
-                    $fw->call($this->onsuspect, [$this, $id]) === false) {
+                    $fw->call($this->onsuspect, [$this, $id, $metadata]) === false) {
                     //NB: `session_destroy` can't be called at that stage (`session_start` not completed)
                     $this->destroy($id);
                     $this->close();
@@ -202,17 +208,21 @@ class Redis implements SessionHandlerInterface
         }
         \register_shutdown_function('session_commit');
         $fw = \Base::instance();
-        $headers = $fw->HEADERS;
+        $headers = (array)$fw->get('HEADERS');
         $this->_csrf = $fw->hash(
             $fw->SEED .
             \bin2hex(\random_bytes(16))
         );
-        if ($key)
-            $fw->$key = $this->_csrf;
-        $this->_agent = isset($headers['User-Agent']) ? (string)$headers['User-Agent'] : '';
+        $this->_agent = (string)($headers['User-Agent'] ?? '');
         if (\strlen($this->_agent) > 512) {
             $this->_agent = \substr($this->_agent, 0, 512);
         }
-        $this->_ip = (string)$fw->IP;
+        $this->_ip = (string)$fw->get('IP');
+
+        // Assigning SESSION.* starts the session and invokes read(), so all
+        // request metadata must be initialized before publishing the token.
+        if ($key) {
+            $fw->set($key, $this->_csrf);
+        }
     }
 }

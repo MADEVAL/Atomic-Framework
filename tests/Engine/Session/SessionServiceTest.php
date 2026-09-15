@@ -131,6 +131,32 @@ class SessionServiceTest extends TestCase
         $this->assertTrue($this->service->is_started());
     }
 
+    public function test_suspect_log_uses_metadata_compared_by_the_driver(): void
+    {
+        $this->app->method('get')->willReturnMap([
+            ['SESSION_CONFIG.driver', 'db'],
+            ['SESSION_CONFIG.kill_on_suspect', true],
+        ]);
+        $this->php_session->method('status')->willReturn(PHP_SESSION_NONE);
+        $metadata = [
+            'stored_ip' => '10.0.0.1',
+            'current_ip' => '127.0.0.1',
+            'stored_agent' => 'Old Agent',
+            'current_agent' => 'Current Agent',
+        ];
+        $this->logger->expects($this->once())->method('warning')->with(
+            'Session security warning: IP or User-Agent mismatch',
+            ['session_id' => 'suspect-id'] + $metadata,
+        );
+        $this->session_factory->expects($this->once())->method('start')->willReturnCallback(
+            function (string $driver, callable $onsuspect) use ($metadata): void {
+                $this->assertFalse($onsuspect(new \stdClass(), 'suspect-id', $metadata));
+            },
+        );
+
+        $this->service->start();
+    }
+
     public function test_destroy_clears_session_namespace(): void
     {
         $this->app->expects($this->once())->method('clear')->with('SESSION');

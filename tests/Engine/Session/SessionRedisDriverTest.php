@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Tests\Engine\Session;
 
 use Engine\Atomic\Session\Drivers\Redis as RedisSession;
+use Engine\Atomic\Core\App;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use PHPUnit\Framework\TestCase;
@@ -30,6 +32,9 @@ final class SessionRedisDriverTest extends TestCase
 
     protected function tearDown(): void
     {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_abort();
+        }
         if ($this->redis instanceof \Redis && $this->prefix !== '') {
             $this->cleanup_redis_prefix($this->redis, $this->prefix);
             $this->redis->close();
@@ -45,6 +50,72 @@ final class SessionRedisDriverTest extends TestCase
 
         $this->assertSame('', $driver->read('missing-session'));
         $this->assertSame('missing-session', $driver->sid());
+    }
+
+    public function test_constructor_resumes_matching_session_before_redirect_and_refresh(): void
+    {
+        ini_set('session.serialize_handler', 'php');
+        $this->write_raw_session('session-resume', 'message|s:5:"hello";');
+        $suspects = 0;
+
+        for ($request = 0; $request < 2; $request++) {
+            session_id('session-resume');
+            new RedisSession(function () use (&$suspects): bool {
+                $suspects++;
+                return true;
+            }, 'SESSION.csrf_token');
+
+            $this->assertSame(0, $suspects, 'Matching metadata must be available during constructor-triggered read().');
+            $this->assertSame('hello', $_SESSION['message'] ?? null);
+            $this->assertNotEmpty($_SESSION['csrf_token'] ?? null);
+            session_write_close();
+            $_SESSION = [];
+
+            $payload = $this->decode_session('session-resume');
+            $this->assertSame('127.0.0.1', $payload['ip']);
+            $this->assertSame('Atomic Test Agent', $payload['agent']);
+        }
+    }
+
+    public static function mismatched_metadata(): array
+    {
+        return [
+            'changed IP' => ['10.0.0.1', 'Atomic Test Agent'],
+            'changed agent' => ['127.0.0.1', 'Other Agent'],
+            'empty IP' => ['', 'Atomic Test Agent'],
+            'empty agent' => ['127.0.0.1', ''],
+            'both empty' => ['', ''],
+        ];
+    }
+
+    #[DataProvider('mismatched_metadata')]
+    public function test_mismatched_metadata_is_rejected_and_reported(string $ip, string $agent): void
+    {
+        App::instance()->set('LOGGABLE', []);
+        $this->write_raw_session('session-rejected', 'private-data', $ip, $agent);
+        $reported = null;
+        $driver = new RedisSession(function ($session, $id, array $metadata = []) use (&$reported): bool {
+            $reported = $metadata;
+            return false;
+        });
+
+        ob_start();
+        try {
+            $data = $driver->read('session-rejected');
+        } finally {
+            ob_end_clean();
+        }
+
+        $this->assertSame('', $data);
+        $this->assertSame(403, App::instance()->get('ERROR.code'));
+        $this->assertSame(0, $this->redis()->exists($this->redis_session_key('session-rejected')));
+        $this->assertSame(1, $this->redis()->exists($this->redis_revoked_key('session-rejected')));
+        $this->assertSame([
+            'stored_ip' => $ip,
+            'current_ip' => '127.0.0.1',
+            'stored_agent' => $agent,
+            'current_agent' => 'Atomic Test Agent',
+        ], $reported);
     }
 
     public function test_write_stores_json_payload_with_ttl(): void

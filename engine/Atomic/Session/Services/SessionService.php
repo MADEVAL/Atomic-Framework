@@ -39,13 +39,13 @@ class SessionService
     {
         $app = $this->app;
 
-        $onsuspect = function ($session, $id = null) use ($app) {
+        $onsuspect = function ($session, $id = null, array $metadata = []) use ($app) {
             $this->logger->warning('Session security warning: IP or User-Agent mismatch', [
                 'session_id'    => $id ?? (method_exists($session, 'sid') ? $session->sid() : ''),
-                'stored_ip'     => method_exists($session, 'ip') ? $session->ip() : '',
-                'current_ip'    => $app->get('IP'),
-                'stored_agent'  => method_exists($session, 'agent') ? $session->agent() : '',
-                'current_agent' => $app->get('HEADERS.User-Agent') ?? '',
+                'stored_ip'     => $metadata['stored_ip'] ?? null,
+                'current_ip'    => $metadata['current_ip'] ?? $app->get('IP'),
+                'stored_agent'  => $metadata['stored_agent'] ?? null,
+                'current_agent' => $metadata['current_agent'] ?? $app->get('HEADERS.User-Agent'),
             ]);
 
             return !$app->get('SESSION_CONFIG.kill_on_suspect');
