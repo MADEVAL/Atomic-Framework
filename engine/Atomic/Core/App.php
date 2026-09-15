@@ -526,9 +526,9 @@ class App {
         return $this->atomic->get($key);
     }
 
-    public function set(string $key, mixed $val): void
+    public function set(string $key, mixed $val, int $ttl = 0): void
     {
-        $this->atomic->set($key, $val);
+        $this->atomic->set($key, $val, $ttl);
     }
 
     public function clear(string $key): void
@@ -538,7 +538,7 @@ class App {
 
     public function exists(string $key): bool
     {
-        return $this->atomic->exists($key);
+        return (bool)$this->atomic->exists($key);
     }
 
     public function hive(): array

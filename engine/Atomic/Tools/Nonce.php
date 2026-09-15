@@ -28,7 +28,7 @@ class Nonce
             'expires_at' => time() + $ttl,
             'ip'         => $this->atomic->get('IP'),
             'ua'         => $this->atomic->get('AGENT'),
-        ]);
+        ], $ttl);
         return $token;
     }
 

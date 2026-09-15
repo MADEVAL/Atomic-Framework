@@ -5,6 +5,8 @@ namespace Tests\Engine\Tools;
 
 use Engine\Atomic\Tools\Nonce;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
+use Tests\Support\TempPath;
 
 class NonceTest extends TestCase
 {
@@ -28,6 +30,33 @@ class NonceTest extends TestCase
     {
         $token = $this->nonce->create_nonce('login');
         $this->assertTrue($this->nonce->verify_nonce($token, 'login'));
+    }
+
+    public function test_nonce_survives_a_new_request_hive(): void
+    {
+        $f3 = \Base::instance();
+        $original_cache = \Cache::instance();
+        $cache_path = TempPath::make_dir('atomic_nonce_');
+        $cache = new \Cache('folder=' . $cache_path);
+        \Registry::set(\Cache::class, $cache);
+
+        try {
+            $action = 'cross_request';
+            $token = $this->nonce->create_nonce($action, 60);
+            $key = 'nonce_' . md5($action . '_' . $token);
+
+            // A new HTTP request starts with a fresh Fat-Free hive while the
+            // cache-backed nonce must remain available for verification.
+            $hive = ReflectionHelper::get(\Base::class, 'hive', $f3);
+            unset($hive[$key]);
+            ReflectionHelper::set(\Base::class, 'hive', $hive, $f3);
+
+            $this->assertTrue($this->nonce->verify_nonce($token, $action));
+        } finally {
+            $cache->reset();
+            \Registry::set(\Cache::class, $original_cache);
+            TempPath::remove($cache_path);
+        }
     }
 
     public function test_verify_invalid_nonce(): void
