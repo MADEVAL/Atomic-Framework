@@ -18,10 +18,10 @@ final class AccessMiddleware implements MiddlewareInterface
     {
         $guard = $this->guard();
         $auth = Auth::instance();
-        if (!$auth->has_user_provider()) {
-            $auth->set_user_provider(new ConfigUserProvider($guard));
-        }
-
+        // Access guards authenticate against their own config-user store.
+        // The application may already have registered its database provider,
+        // which must not be reused for access:<guard> credentials.
+        $auth->set_user_provider(new ConfigUserProvider($guard));
         if (Guard::is_authenticated()) {
             return true;
         }
@@ -131,6 +131,10 @@ HTML;
 
     public function process(mixed $request, callable $next): \Engine\Atomic\Http\Response
     {
+        $guard = $this->guard();
+        $auth = Auth::instance();
+        $auth->set_user_provider(new ConfigUserProvider($guard));
+
         if (Guard::is_authenticated()) {
             return $next($request);
         }
@@ -145,13 +149,9 @@ HTML;
             $username = trim((string)($request->input('username') ?? ''));
             $secret = (string)($request->input('key') ?? $request->input('password') ?? $request->input('secret') ?? '');
             if ($username !== '' && $secret !== '') {
-                $auth = Auth::instance();
-                if (!$auth->has_user_provider()) {
-                    $auth->set_user_provider(new ConfigUserProvider($this->guard()));
-                }
                 $user = $auth->login_with_secret([
                     'username' => $username,
-                    'guard'    => $this->guard(),
+                    'guard'    => $guard,
                 ], $secret);
                 if ($user !== null) {
                     return \Engine\Atomic\Http\Response::redirect('/', 303);
