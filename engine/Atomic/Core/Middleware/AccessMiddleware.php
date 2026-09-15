@@ -9,6 +9,7 @@ use Engine\Atomic\Auth\ConfigUserProvider;
 use Engine\Atomic\Core\Guard;
 use Engine\Atomic\Core\Request;
 use Engine\Atomic\Core\Response;
+use Engine\Atomic\Session\Session;
 
 final class AccessMiddleware implements MiddlewareInterface
 {
@@ -22,7 +23,8 @@ final class AccessMiddleware implements MiddlewareInterface
         // The application may already have registered its database provider,
         // which must not be reused for access:<guard> credentials.
         $auth->set_user_provider(new ConfigUserProvider($guard));
-        if (Guard::is_authenticated()) {
+
+        if (Session::is_started() && Guard::is_authenticated()) {
             return true;
         }
 
@@ -73,12 +75,19 @@ final class AccessMiddleware implements MiddlewareInterface
 
     private function safe_redirect(\Base $atomic): string
     {
-        $redirect = (string)$atomic->get('POST.redirect');
-        if ($redirect !== '' && str_starts_with($redirect, '/') && !str_starts_with($redirect, '//')) {
-            return $redirect;
+        return $this->local_redirect((string)$atomic->get('POST.redirect'), $this->current_url($atomic));
+    }
+
+    private function local_redirect(string $redirect, string $fallback): string
+    {
+        foreach ([$redirect, $fallback] as $target) {
+            if (str_starts_with($target, '/') && !str_starts_with($target, '//')
+                && !str_contains($target, '\\') && !preg_match('/[\x00-\x1F\x7F]/', $target)) {
+                return $target;
+            }
         }
 
-        return $this->current_url($atomic);
+        return '/';
     }
 
     private function current_url(\Base $atomic): string
@@ -135,16 +144,13 @@ HTML;
         $auth = Auth::instance();
         $auth->set_user_provider(new ConfigUserProvider($guard));
 
-        if (Guard::is_authenticated()) {
+        if (Session::is_started() && Guard::is_authenticated()) {
             return $next($request);
         }
 
-        if ($request instanceof \Engine\Atomic\Http\Request && ($request->header('Accept') !== null && str_contains((string)$request->header('Accept'), 'application/json'))) {
-            return \Engine\Atomic\Http\Response::json(['error' => 'Unauthorized'], 401);
-        }
-
-        $title = ucfirst($this->guard()) . ' Access';
-        $redirect = '/';
+        $title = ucfirst($guard) . ' Access';
+        $redirect = $this->local_redirect('', $request instanceof \Engine\Atomic\Http\Request ? $request->path() : '/');
+        $error = '';
         if ($request instanceof \Engine\Atomic\Http\Request && $request->method() === 'POST') {
             $username = trim((string)($request->input('username') ?? ''));
             $secret = (string)($request->input('key') ?? $request->input('password') ?? $request->input('secret') ?? '');
@@ -154,12 +160,17 @@ HTML;
                     'guard'    => $guard,
                 ], $secret);
                 if ($user !== null) {
-                    return \Engine\Atomic\Http\Response::redirect('/', 303);
+                    $redirect = $this->local_redirect((string)$request->input('redirect', ''), $redirect);
+                    return \Engine\Atomic\Http\Response::redirect($redirect, 303);
                 }
-                return \Engine\Atomic\Http\Response::html($this->form($title, $redirect, 'Invalid username or key.'), 401);
             }
+            $error = 'Invalid username or key.';
         }
 
-        return \Engine\Atomic\Http\Response::html($this->form($title, $redirect, ''), 401);
+        if ($request instanceof \Engine\Atomic\Http\Request && $request->expectsJson()) {
+            return \Engine\Atomic\Http\Response::json(['error' => 'Unauthorized'], 401);
+        }
+
+        return \Engine\Atomic\Http\Response::html($this->form($title, $redirect, $error), 401);
     }
 }

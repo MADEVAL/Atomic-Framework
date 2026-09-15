@@ -104,6 +104,12 @@ final class AccessMiddlewareTest extends TestCase
         
         $this->atomic->set('POST.redirect', 'https://evil.com');
         $this->assertSame('/telemetry/hive?filter=1', $ref->invoke($middleware, $this->atomic));
+
+        $this->atomic->set('POST.redirect', '/\\evil.com');
+        $this->assertSame('/telemetry/hive?filter=1', $ref->invoke($middleware, $this->atomic));
+
+        $this->atomic->set('POST.redirect', "/telemetry\r\nX-Test: injected");
+        $this->assertSame('/telemetry/hive?filter=1', $ref->invoke($middleware, $this->atomic));
         
         $this->atomic->set('POST.redirect', '');
         $this->assertSame('/telemetry/hive?filter=1', $ref->invoke($middleware, $this->atomic));

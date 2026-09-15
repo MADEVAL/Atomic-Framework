@@ -74,4 +74,26 @@ final class AccessMiddlewareKernelTest extends TestCase
         $this->assertNull(Auth::instance()->get_current_user());
     }
 
+    public function test_login_form_preserves_requested_path_and_query(): void
+    {
+        $response = (new AccessMiddleware('telemetry'))->process(
+            new Request('GET', '/telemetry/logs?level=error'),
+            fn() => Response::text('allowed'),
+        );
+
+        $this->assertSame(401, $response->status());
+        $this->assertStringContainsString('name="redirect" value="/telemetry/logs?level=error"', $response->body());
+    }
+
+    public function test_guest_form_does_not_start_an_unconfigured_session(): void
+    {
+        session_abort();
+        $response = (new AccessMiddleware('telemetry'))->process(
+            new Request('GET', '/telemetry'),
+            fn() => Response::text('allowed'),
+        );
+
+        $this->assertSame(401, $response->status());
+        $this->assertSame(PHP_SESSION_NONE, session_status());
+    }
 }
