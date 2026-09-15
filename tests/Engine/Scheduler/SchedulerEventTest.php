@@ -317,4 +317,18 @@ class SchedulerEventTest extends TestCase
         $this->assertSame(1, $result['summary']['successful']);
         $this->assertSame(0, $result['summary']['failed']);
     }
+
+    public function test_schedule_registration_is_idempotent(): void
+    {
+        Scheduler::reset();
+        $scheduler = Scheduler::instance();
+
+        $scheduler->register_schedule();
+        $registered_count = count($scheduler->events());
+
+        $scheduler->register_schedule();
+
+        $this->assertGreaterThan(0, $registered_count);
+        $this->assertCount($registered_count, $scheduler->events());
+    }
 }

@@ -17,6 +17,8 @@ class Scheduler
     protected array $events = [];
     protected bool $logging = true;
     protected int $max_execution_time = 300;
+    /** @var array<string, true> Canonical paths currently loading or already loaded. */
+    protected array $loaded_schedule_files = [];
 
     public function call(callable|array $callback, array $parameters = []): Event
     {
@@ -138,6 +140,7 @@ class Scheduler
     public function clear(): self
     {
         $this->events = [];
+        $this->loaded_schedule_files = [];
         return $this;
     }
 
@@ -183,27 +186,46 @@ class Scheduler
 
     public function load_from(string $path): self
     {
-        $resolvedPath = realpath($path);
-        if ($resolvedPath !== false && \is_file($resolvedPath) && \is_readable($resolvedPath)) {
-            $scheduler = $this;
-            require $resolvedPath;
+        $resolved_path = \realpath($path);
+        if ($resolved_path === false || !\is_file($resolved_path) || !\is_readable($resolved_path)) {
+            return $this;
         }
-        return $this;
-    }
-
-    public function register_schedule(): self
-    {
-        if (!\defined('ATOMIC_DIR')) {
+        if (isset($this->loaded_schedule_files[$resolved_path])) {
             return $this;
         }
 
-        $path = \ATOMIC_DIR . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'schedule.php';
+        $previous_events = $this->events;
+        $previous_files = $this->loaded_schedule_files;
+        // Guard the file before executing it to stop recursive includes.
+        $this->loaded_schedule_files[$resolved_path] = true;
 
-        if (\is_file($path) && \is_readable($path)) {
-            $this->load_from($path);
+        try {
+            // Keep schedule-local variables separate from the rollback snapshots.
+            (function (string $schedule_path): void {
+                $scheduler = $this;
+                require $schedule_path;
+            })($resolved_path);
+            $this->loaded_schedule_files[$resolved_path] = true;
+        } catch (\Throwable $e) {
+            // Nested loads belong to the same registration attempt.
+            $this->events = $previous_events;
+            $this->loaded_schedule_files = $previous_files;
+            throw $e;
         }
 
         return $this;
     }
-}
 
+    public function register_schedule(?string $path = null): self
+    {
+        if ($path === null) {
+            if (\defined('ATOMIC_APP_ROUTES')) {
+                $path = \ATOMIC_APP_ROUTES . 'schedule.php';
+            } elseif (\defined('ATOMIC_DIR')) {
+                $path = \ATOMIC_DIR . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'schedule.php';
+            }
+        }
+
+        return $path === null ? $this : $this->load_from($path);
+    }
+}

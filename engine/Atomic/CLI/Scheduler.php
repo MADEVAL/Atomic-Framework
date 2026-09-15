@@ -270,8 +270,7 @@ trait Scheduler
      */
     protected function get_scheduler(): SchedulerCore
     {
-        $scheduler = SchedulerCore::instance();
-        $scheduler->register_schedule();
-        return $scheduler;
+        // ScheduleServiceProvider registers tasks during CLI bootstrap.
+        return SchedulerCore::instance();
     }
 }

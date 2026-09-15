@@ -21,6 +21,7 @@ use Engine\Atomic\Hook\ApplicationHook;
 use Engine\Atomic\Security\Middleware\SecurityHeadersMiddleware;
 use Engine\Atomic\Hook\Hook;
 use Engine\Atomic\Session\Session;
+use Engine\Atomic\Scheduler\Scheduler;
 
 class App {
     protected static ?self $instance = null;
@@ -209,11 +210,7 @@ class App {
         if (PHP_SAPI !== 'cli') {
             return $this;
         }
-        $schedule_file = ATOMIC_APP_ROUTES . 'schedule.php';
-        $resolved = realpath($schedule_file);
-        if ($resolved !== false && is_file($resolved) && is_readable($resolved)) {
-            require $resolved;
-        }
+        Scheduler::instance()->register_schedule();
         return $this;
     }
 
