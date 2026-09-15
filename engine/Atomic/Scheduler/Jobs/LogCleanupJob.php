@@ -56,5 +56,38 @@ class LogCleanupJob
                 }
             }
         }
+
+        $this->cleanup_dumps($fs);
+    }
+
+    private function cleanup_dumps(Filesystem $fs): void
+    {
+        $max_days = Log::get_dumps_max_days();
+        $dumps_dir = Log::get_dumps_dir();
+        if ($max_days <= 0 || $dumps_dir === '' || !$fs->is_dir($dumps_dir)) {
+            return;
+        }
+
+        $cutoff = strtotime("-{$max_days} days 00:00:00");
+        if ($cutoff === false) {
+            return;
+        }
+
+        $files = $fs->glob($dumps_dir . '*.json');
+        if (!is_array($files)) {
+            return;
+        }
+
+        foreach ($files as $file) {
+            if (!$fs->is_file($file)) {
+                continue;
+            }
+
+            $modified_at = $fs->modified_time($file);
+            if ($modified_at !== false && $modified_at < $cutoff) {
+                $fs->delete($file);
+                Log::debug('[LogCleanup] deleted dump ' . basename($file));
+            }
+        }
     }
 }

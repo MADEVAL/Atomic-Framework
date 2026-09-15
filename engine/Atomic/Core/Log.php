@@ -16,6 +16,7 @@ class Log
     protected static bool $debug_mode = false;
     protected static string $dumps_dir = '';
     protected static string $logs_dir = '';
+    protected static int $dumps_max_days = 30;
     protected static ?\Base $atomic = null;
 
     /** @var array<string, array{logger: \Log, level: int, path: string}> */
@@ -55,8 +56,10 @@ class Log
         self::$channel_configs = [];
         self::$default_channel = 'atomic';
         $logging_config = $atomic->get('LOG_CHANNELS');
+        self::$dumps_max_days = 30;
         if (is_array($logging_config) && !empty($logging_config)) {
             self::$default_channel = (string)($logging_config['default'] ?? 'atomic');
+            self::$dumps_max_days = max(0, (int)($logging_config['dumps_max_days'] ?? 30));
             $channels = $logging_config['channels'] ?? [];
             foreach ($channels as $name => $cfg) {
                 self::$channel_configs[$name] = [
@@ -88,6 +91,7 @@ class Log
         self::$debug_mode = false;
         self::$dumps_dir = '';
         self::$logs_dir = '';
+        self::$dumps_max_days = 30;
         self::$channels = [];
         self::$channel_configs = [];
         self::$default_channel = 'atomic';
@@ -147,6 +151,16 @@ class Log
     public static function get_logs_dir(): string
     {
         return self::$logs_dir;
+    }
+
+    public static function get_dumps_dir(): string
+    {
+        return self::$dumps_dir;
+    }
+
+    public static function get_dumps_max_days(): int
+    {
+        return self::$dumps_max_days;
     }
 
     public static function get_channel_max_days(string $name, int $default = 30): int

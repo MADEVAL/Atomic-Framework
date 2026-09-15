@@ -171,6 +171,25 @@ class ConfigLoaderTest extends TestCase
         $this->assertSame(['admin', 'support', 'viewer'], $this->f3->get('TELEMETRY_ACCESS_ALLOWED_ROLES'));
     }
 
+    public function test_load_sets_dump_retention_without_creating_a_dump_channel(): void
+    {
+        file_put_contents($this->env_file, implode("\n", [
+            'LOG_DUMPS_MAX_DAYS=11',
+            'LOG_ATOMIC_DRIVER=file',
+            'LOG_ATOMIC_PATH=atomic.log',
+            'LOG_ATOMIC_LEVEL=debug',
+            'LOG_ATOMIC_MAX_DAYS=30',
+            'CACHE_DRIVER=folder',
+        ]));
+
+        $this->loader->load($this->env_file);
+
+        $logging = $this->f3->get('LOG_CHANNELS');
+        $this->assertSame(11, $logging['dumps_max_days']);
+        $this->assertArrayNotHasKey('dumps', $logging['channels']);
+        $this->assertArrayHasKey('atomic', $logging['channels']);
+    }
+
     public function test_load_sets_auth_rate_limit_config_from_env(): void
     {
         file_put_contents($this->env_file, implode("\n", [

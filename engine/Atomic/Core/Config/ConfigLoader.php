@@ -231,8 +231,9 @@ class ConfigLoader {
         ]);
 
         $this->atomic->set('LOG_CHANNELS', [
-            'default'  => $this->get_env('LOG_DEFAULT_CHANNEL', 'atomic'),
-            'channels' => $this->build_log_channels(),
+            'default'        => $this->get_env('LOG_DEFAULT_CHANNEL', 'atomic'),
+            'dumps_max_days' => max(0, (int)$this->get_env('LOG_DUMPS_MAX_DAYS', 30)),
+            'channels'       => $this->build_log_channels(),
         ]);
 
         $this->atomic->set('CONFIG', $this->build_custom_config());
@@ -334,6 +335,10 @@ class ConfigLoader {
     protected function build_log_channels(): array {
         $channels = [];
         foreach ($this->env as $key => $value) {
+            if ($key === 'LOG_DUMPS_MAX_DAYS') {
+                continue;
+            }
+
             if (preg_match('/^LOG_([A-Z][A-Z0-9_]+?)_(DRIVER|PATH|LEVEL|MAX_DAYS)$/', $key, $m)) {
                 $channel = strtolower($m[1]);
                 $field   = strtolower($m[2]);

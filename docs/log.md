@@ -27,7 +27,7 @@ Log::channel('queue_worker')->info('Worker started');
 
 ### Dumps
 
-Dumps are structured JSON snapshots written to a dedicated `dumps/` directory, separate from log files. Each dump is identified by a UUID and can be linked from a log line via `dump_id`. Dumps are only written when debug mode is active.
+Dumps are structured JSON snapshots written to a dedicated `dumps/` directory, separate from log files. Each dump is identified by a UUID and can be linked from a log line via `dump_id`. Dumps are only written when debug mode is active. The built-in `LogCleanupJob` removes dump JSON files older than `LOG_DUMPS_MAX_DAYS` (30 days by default); set it to `0` to disable dump cleanup.
 
 ```php
 Log::dump('label', ['key' => $value]);

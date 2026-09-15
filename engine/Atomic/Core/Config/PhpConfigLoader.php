@@ -326,8 +326,9 @@ class PhpConfigLoader {
         // ── LOG_CHANNELS ──
         $logging = $this->configs['logging'] ?? [];
         $this->atomic->set('LOG_CHANNELS', [
-            'default'  => (string)($logging['default'] ?? 'atomic'),
-            'channels' => $logging['channels'] ?? [],
+            'default'        => (string)($logging['default'] ?? 'atomic'),
+            'dumps_max_days' => max(0, (int)($logging['dumps_max_days'] ?? 30)),
+            'channels'       => $logging['channels'] ?? [],
         ]);
 
         // ── MONOPAY ──

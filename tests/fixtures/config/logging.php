@@ -4,6 +4,7 @@ if (!defined('ATOMIC_START')) exit;
 
 return [
     'default'  => 'atomic',                  // LOG_DEFAULT_CHANNEL
+    'dumps_max_days' => 30,                  // LOG_DUMPS_MAX_DAYS
     'channels' => [
         'atomic' => [
             'driver'    => 'file',              // LOG_ATOMIC_DRIVER
