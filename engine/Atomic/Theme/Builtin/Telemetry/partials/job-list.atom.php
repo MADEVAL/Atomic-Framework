@@ -77,9 +77,9 @@ $build_queue_per_page_url = static function (int $target_per_page) use ($build_q
                                 <div class="atomic-job-meta">
                                     <span><strong>Created:</strong> <?php echo htmlspecialchars($job['created_at_formatted']); ?></span>
                                     <?php if ($job_state == 'running' && !empty($job['process_start_ticks'])): ?>
-                                        <span class="meta-sep">вЂў</span><span><strong>Started:</strong> <?php echo htmlspecialchars($job['process_start_ticks']); ?></span>
+                                        <span class="meta-sep">&bull;</span><span><strong>Started:</strong> <?php echo htmlspecialchars($job['process_start_ticks']); ?></span>
                                     <?php endif; ?>
-                                    <span class="meta-sep">вЂў</span>
+                                    <span class="meta-sep">&bull;</span>
                                     <span>
                                         <?php if ($job['driver'] == 'redis'): ?>
                                             <i class="fa fa-server w3-text-blue"></i> Redis
