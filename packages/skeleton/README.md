@@ -45,12 +45,12 @@ Open `http://localhost:8000` — you should see the Atomic welcome page.
 | `bootstrap/` | App initialization — constants, config loader, error handling |
 | `config/` | Configuration files — database, cache, mail, auth, queue |
 | `routes/` | Route definitions — `web.php`, `api.php`, `cli.php` |
-| `public/` | Web root — entry point, themes (`default`, `ErrorPages`, `Telemetry`), uploads |
+| `public/` | Web root — entry point, custom themes, uploads |
 | `database/` | Migrations and seeds |
 | `resources/` | View templates |
 | `storage/` | Logs, cache, sessions |
 
-**Bundled themes** (in `public/themes/`):
+**Bundled themes** (in `engine/Atomic/Theme/Builtin/`):
 
 | Theme | Purpose | Overridable |
 |-------|---------|-------------|
@@ -58,7 +58,7 @@ Open `http://localhost:8000` — you should see the Atomic welcome page.
 | `ErrorPages` | Error pages (400–503) — styled HTML for every HTTP error | Yes — drop your own `public/themes/ErrorPages/` |
 | `Telemetry` | Telemetry dashboard — queue monitor, log viewer, system info | Yes |
 
-> All themes are optional. The framework falls back to bare HTML if a theme is missing. To customize, copy the theme from `public/themes/` to your own directory and modify.
+> All themes are optional. A custom theme in `public/themes/` overrides a bundled theme with the same name. The framework falls back to bare HTML if neither source is available. Bundled theme assets are served by the framework and do not need to be copied into the public directory.
 
 **Bundled examples:**
 

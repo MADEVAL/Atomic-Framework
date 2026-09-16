@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class TelemetryJobListTemplateTest extends TestCase
 {
-    private const TEMPLATE = ATOMIC_DIR . '/packages/skeleton/public/themes/Telemetry/partials/job-list.atom.php';
+    private const TEMPLATE = ATOMIC_DIR . '/engine/Atomic/Theme/Builtin/Telemetry/partials/job-list.atom.php';
 
     private function render(array $data): string
     {

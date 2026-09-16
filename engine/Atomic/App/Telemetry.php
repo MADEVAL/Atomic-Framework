@@ -557,7 +557,7 @@ class Telemetry extends Controller
         }
         echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Telemetry</title></head><body>';
         echo '<h1>Telemetry Unavailable</h1>';
-        echo '<p>The telemetry theme is not installed. Place it in public/themes/Telemetry/.</p>';
+        echo '<p>The telemetry theme is not installed. Place a custom override in the configured public themes directory.</p>';
         echo '</body></html>';
     }
 }

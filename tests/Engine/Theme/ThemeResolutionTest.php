@@ -33,7 +33,7 @@ final class ThemeResolutionTest extends TestCase
 
     public function test_builtin_theme_falls_back_to_internal_framework_directory(): void
     {
-        App::instance()->set('ENQ_UI_FIX', $this->customRoot);
+        App::instance()->set('ENQ_UI_FIX', ATOMIC_DIR . '/packages/skeleton/public/themes');
 
         $theme = Theme::instance('default');
 

@@ -20,7 +20,7 @@ trait InitScaffold
             'database/migrations',
             'database/seeds',
             'plugins',
-            'public/themes/default',
+            'public/themes',
             'public/uploads',
             'resources/views',
             'routes',

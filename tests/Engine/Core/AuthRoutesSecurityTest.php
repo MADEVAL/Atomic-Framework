@@ -108,8 +108,8 @@ final class AuthRoutesSecurityTest extends TestCase
     public function test_auth_forms_submit_session_csrf_token(): void
     {
         foreach (['login', 'register'] as $form) {
-            $template = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'packages' . DIRECTORY_SEPARATOR . 'skeleton'
-                . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'themes' . DIRECTORY_SEPARATOR . 'default'
+            $template = ATOMIC_DIR . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . 'Atomic' . DIRECTORY_SEPARATOR . 'Theme'
+                . DIRECTORY_SEPARATOR . 'Builtin' . DIRECTORY_SEPARATOR . 'default'
                 . DIRECTORY_SEPARATOR . 'layout' . DIRECTORY_SEPARATOR . 'auth' . DIRECTORY_SEPARATOR . $form . '.atom.php';
 
             $this->assertFileExists($template, "{$form} template must exist");
