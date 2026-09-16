@@ -61,6 +61,7 @@ function get_footer(string $name = 'footer', ?array $data = null): void { AT::ge
 function get_color(): string { return AT::instance()->get_theme_color(); }
 function set_color(string $color = '#ffffff'): string { return AT::instance()->set_theme_color($color); }
 function get_theme_uri(): string { return AT::instance()->get_theme_url(); }
+function get_framework_asset_uri(string $path): string { return AT::internal_url('themes/Shared/assets/' . ltrim($path, '/')); }
 function get_theme_dir(): string { return AT::instance()->get_theme_dir(); }
 function get_public_uri(): string { return AT::instance()->get_public_url(); }
 function get_public_dir(): string { return AT::instance()->get_public_dir(); }

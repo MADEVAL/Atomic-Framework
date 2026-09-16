@@ -163,7 +163,7 @@ final class Schema
             'organization' => [
                 'name' => $this->atomic->get('APP_NAME') ?? 'Organization',
                 'url' => $base,
-                'logo' => $base . '/assets/img/logo.png',
+                'logo' => Theme::internal_url('themes/Shared/assets/img/apple-touch-icon.png'),
                 'description' => '',
             ],
             'website' => [

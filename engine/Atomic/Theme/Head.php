@@ -51,22 +51,24 @@ class Head
     public function favicon(): void
     {
         $base = rtrim(AM::instance()->get_public_url(), '/');
-        $favicon = $this->atomic->get('FAVICON') ?? '/favicon.ico';
-        $favicon = ltrim($favicon, '/');
-        echo '<link rel="icon" href="' . $base . '/' . $favicon . '">' . PHP_EOL;
+        $favicon = $this->atomic->get('FAVICON');
+        $url = $favicon
+            ? $base . '/' . ltrim((string)$favicon, '/')
+            : Theme::internal_url('themes/Shared/assets/favicon.ico');
+        echo '<link rel="icon" href="' . $url . '">' . PHP_EOL;
     }
 
     public function title(string $delimiter = ' | '): void
     {
         $appname = $this->atomic->get('APP_NAME') ?? 'Atomic';
         $title = $this->atomic->get('PAGE.title');
-        
+
         if (empty($title)) {
             $title = $appname;
         } else {
             $title .= $delimiter . $appname;
         }
-        
+
         $encoding = $this->atomic->get('ENCODING') ?? 'UTF-8';
         echo htmlspecialchars($title, ENT_QUOTES | ENT_HTML5, $encoding);
     }
@@ -74,12 +76,9 @@ class Head
     public function iconset(string $path = ''): void
     {
         $base = rtrim(AM::instance()->get_public_url(), '/');
-        
-        if ($path !== '') {
-            $base .= '/' . ltrim($path, '/');
-        } else {
-            $base .= '/assets/img/';
-        }
+        $base .= $path !== ''
+            ? '/' . trim($path, '/') . '/'
+            : '/' . Theme::INTERNAL_URL_PREFIX . '/themes/Shared/assets/img/';
 
         $icons = [
             ['size' => '16x16', 'file' => 'favicon-16x16.png'],
@@ -98,8 +97,7 @@ class Head
     public function manifest(): void
     {
         $base = rtrim(AM::instance()->get_public_url(), '/');
-        $manifest = ltrim('/site.webmanifest', '/');
-        echo '<link rel="manifest" href="' . $base . '/' . $manifest . '">' . PHP_EOL;
+        echo '<link rel="manifest" href="' . Theme::internal_url('themes/Shared/assets/site.webmanifest') . '">' . PHP_EOL;
     }
 
     public function canonical(): void
