@@ -1,0 +1,914 @@
+:root {
+    /* Surface Colors */
+    --atomic-bg: #0b1020;          /* Overall background */
+    --atomic-bg-alt: #11182a;      /* Hover/subtle raised */
+    --atomic-card: #141a2b;        /* Cards & panels */
+    --atomic-header: #1b2235;      /* Header/toolbars */
+    --atomic-border: #27324a;      /* Primary border */
+    --atomic-hover-bg: var(--atomic-bg-alt);
+
+    /* Text Colors */
+    --atomic-text: #e6ecf5;
+    --atomic-text-muted: #9aa8c2;
+    --atomic-text-faint: #5f6c85;
+
+    /* Accent Colors */
+    --atomic-accent: #5965d9;
+    --atomic-accent-hover: #6b79e8;
+    --atomic-focus-ring: #8291ff;
+
+    /* Status Colors (Semantic) */
+    --atomic-state-queued-bg: #1d2e4d;
+    --atomic-state-queued-fg: #4d89ff;
+    --atomic-state-running-bg: #3a2d12;
+    --atomic-state-running-fg: #d7a84a;
+    --atomic-state-success-bg: #123b2a;
+    --atomic-state-success-fg: #36c986;
+    --atomic-state-failed-bg: #3e1822;
+    --atomic-state-failed-fg: #e05268;
+    --atomic-state-cancel-requested-bg: #3b2f13;
+    --atomic-state-cancel-requested-fg: #f0bd4f;
+    --atomic-state-canceled-bg: #2b3040;
+    --atomic-state-canceled-fg: #a8b1c4;
+
+    /* Code & JSON Syntax */
+    --atomic-code-bg: #1e2536;
+    --atomic-code-border: #2c3a55;
+    --atomic-json-key: #82b2ff;
+    --atomic-json-string: #b2c9ff;
+    --atomic-json-number: #82b2ff;
+    --atomic-json-boolean: #ddb16b;
+    --atomic-json-null: #e05268;
+    --atomic-json-punc: #eef3fa;
+
+    /* Component Colors */
+    --atomic-chip-bg: #27324a;
+    --atomic-chip-border: #33415c;
+    --atomic-chip-text: var(--atomic-text-muted);
+    --atomic-chip-empty-bg: #202a3b;
+
+    /* Button Colors */
+    --atomic-btn-bg: #1c2435;
+    --atomic-btn-bg-hover: #242f44;
+    --atomic-btn-border: var(--atomic-border);
+    --atomic-btn-text: var(--atomic-text-muted);
+}
+/* ============================================
+   BASIC ELEMENTS & GLOBAL STYLES
+   ============================================ */
+
+/* Global Base Styles */
+html, body {
+    background-color: var(--atomic-bg);
+    color: var(--atomic-text);
+    font-family: "Lato", sans-serif;
+}
+
+/* W3 buttons on dark telemetry surfaces (aligned with nav tabs + filter panel) */
+.w3-button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    text-decoration: none;
+    transition: background 0.18s, color 0.18s, border-color 0.18s;
+    /* W3.CSS sets overflow:hidden, which makes flex min-size auto compute to 0 and clips labels
+       when a sibling (e.g. width:100% search input) competes for space in a flex row. */
+    overflow: visible;
+}
+
+.atomic-header-actions .w3-button.w3-border,
+.atomic-pagination-actions a.w3-button,
+.atomic-pagination-actions .w3-button.w3-border,
+.atomic-log-pagination-controls .w3-button,
+.filter-panel .w3-button.w3-border {
+    background: transparent !important;
+    border: 1px solid var(--atomic-border) !important;
+    color: var(--atomic-text-muted) !important;
+}
+
+.atomic-header-actions .w3-button.w3-border:hover,
+.atomic-pagination-actions a.w3-button:hover:not(.atomic-btn-disabled),
+.atomic-pagination-actions .w3-button.w3-border:hover,
+.atomic-log-pagination-controls .w3-button:hover:not(:disabled),
+.filter-panel .w3-button.w3-border:hover {
+    background: var(--atomic-bg-alt) !important;
+    color: var(--atomic-text) !important;
+}
+
+.atomic-header-actions .w3-button.w3-blue,
+.filter-panel .w3-button.w3-blue {
+    background: var(--atomic-accent) !important;
+    border-color: var(--atomic-accent) !important;
+    color: #ffffff !important;
+}
+
+.atomic-header-actions .w3-button.w3-blue:hover,
+.filter-panel .w3-button.w3-blue:hover {
+    background: var(--atomic-accent-hover) !important;
+    border-color: var(--atomic-accent-hover) !important;
+}
+
+.atomic-nav .w3-button.atomic-nav-tab {
+    background: transparent !important;
+    border: none !important;
+    color: var(--atomic-text-muted) !important;
+    box-shadow: none !important;
+}
+
+.atomic-nav .w3-button.atomic-nav-tab:hover {
+    background: var(--atomic-bg-alt) !important;
+    color: var(--atomic-text) !important;
+}
+
+/* Focus States */
+.atomic-header-actions .w3-button:focus-visible,
+.atomic-pagination-actions .w3-button:focus-visible,
+.atomic-nav .w3-button:focus-visible,
+.filter-panel .w3-button:focus-visible,
+.atomic-log-pagination-controls .w3-button:focus-visible,
+.atomic-copy-btn:focus-visible,
+.filter-input:focus-visible,
+.filter-select:focus-visible {
+    outline: 2px solid var(--atomic-focus-ring);
+    outline-offset: 2px;
+}
+
+/* Form Elements */
+.filter-input,
+.filter-select {
+    background: var(--atomic-bg-alt);
+    border: 1px solid var(--atomic-border);
+    color: var(--atomic-text);
+    padding: 8px 12px;
+    border-radius: 4px;
+    width: 100%;
+}
+
+.filter-input:focus,
+.filter-select:focus {
+    border-color: var(--atomic-accent);
+    box-shadow: 0 0 0 2px rgba(89,101,217,0.35);
+    outline: none;
+}
+
+.filter-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: var(--atomic-text-faint);
+    font-weight: bold;
+}
+
+/* ============================================
+   CUSTOM ATOMIC COMPONENTS
+   ============================================ */
+
+/* Layout Components (W3.CSS Compatible) */
+.atomic-main-container {
+    background-color: var(--atomic-bg);
+    max-width: 1200px;
+    margin: 20px auto;
+}
+
+.atomic-card,
+.w3-card {
+    background-color: var(--atomic-card);
+    border: 1px solid var(--atomic-border);
+    box-shadow: 0 4px 10px 0 rgba(0,0,0,0.4), 0 4px 20px 0 rgba(0,0,0,0.3);
+    border-radius: 6px;
+}
+
+.atomic-header {
+    background-color: var(--atomic-header);
+    border-bottom: 1px solid var(--atomic-border);
+}
+
+.atomic-content-bg {
+    background-color: var(--atomic-bg);
+}
+
+/* Navigation Components */
+.atomic-nav {
+    background-color: var(--atomic-header);
+    border-bottom: 1px solid var(--atomic-border);
+}
+
+.atomic-nav-tab {
+    background-color: transparent;
+    color: var(--atomic-text-muted);
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.atomic-nav-tab.atomic-active {
+    color: var(--atomic-text);
+    border-bottom-color: var(--atomic-accent);
+}
+
+/* Header Layout */
+.atomic-header-flex {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 12px 8px;
+}
+
+.atomic-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--atomic-text);
+}
+
+.atomic-header-favicon {
+    width: 28px;
+    height: 28px;
+}
+
+.atomic-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.atomic-header-counters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.atomic-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Toolbar Components */
+.atomic-toolbar-flex {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* Status Badges */
+.atomic-state-badge {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.atomic-state-queued { background-color: var(--atomic-state-queued-bg); color: var(--atomic-state-queued-fg); }
+.atomic-state-running { background-color: var(--atomic-state-running-bg); color: var(--atomic-state-running-fg); }
+.atomic-state-success { background-color: var(--atomic-state-success-bg); color: var(--atomic-state-success-fg); }
+.atomic-state-failed { background-color: var(--atomic-state-failed-bg); color: var(--atomic-state-failed-fg); }
+.atomic-state-cancel-requested { background-color: var(--atomic-state-cancel-requested-bg); color: var(--atomic-state-cancel-requested-fg); }
+.atomic-state-canceled { background-color: var(--atomic-state-canceled-bg); color: var(--atomic-state-canceled-fg); }
+
+/* Chip Components */
+.atomic-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--atomic-chip-bg);
+    color: var(--atomic-chip-text);
+    border: 1px solid var(--atomic-chip-border);
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.atomic-chip i { font-size: 12px; }
+.atomic-chip-failed { background: var(--atomic-state-failed-bg); color: var(--atomic-state-failed-fg); }
+.atomic-chip-queued { background: var(--atomic-state-queued-bg); color: var(--atomic-state-queued-fg); }
+.atomic-chip-running { background: var(--atomic-state-running-bg); color: var(--atomic-state-running-fg); }
+.atomic-chip-success { background: var(--atomic-state-success-bg); color: var(--atomic-state-success-fg); }
+.atomic-chip-cancel-requested { background: var(--atomic-state-cancel-requested-bg); color: var(--atomic-state-cancel-requested-fg); }
+.atomic-chip-canceled { background: var(--atomic-state-canceled-bg); color: var(--atomic-state-canceled-fg); }
+.atomic-chip-empty { background: var(--atomic-chip-empty-bg); color: var(--atomic-text-muted); }
+.atomic-chip-neutral {
+    background: var(--atomic-chip-empty-bg);
+    color: var(--atomic-text-muted);
+    border-color: var(--atomic-chip-border);
+}
+
+.atomic-chip-link {
+    text-decoration: none;
+    border-radius: 16px;
+}
+
+.atomic-chip-link .atomic-chip {
+    transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.atomic-chip-link:hover .atomic-chip {
+    transform: translateY(-1px);
+}
+
+.atomic-chip-link.atomic-chip-active .atomic-chip {
+    box-shadow: 0 0 0 1px var(--atomic-focus-ring) inset;
+}
+
+.atomic-search-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.atomic-search-form .w3-button {
+    flex-shrink: 0;
+}
+
+.atomic-search-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 220px;
+    max-width: 320px;
+}
+
+.atomic-total {
+    color: var(--atomic-text-muted);
+    font-size: 12px;
+    padding-left: 4px;
+    align-self: center;
+}
+
+.atomic-pagination-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--atomic-border);
+    border-radius: 6px;
+    background: var(--atomic-card);
+}
+
+.atomic-pagination-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.atomic-pagination-label {
+    color: var(--atomic-text-faint);
+    font-size: 12px;
+}
+
+.atomic-pagination-select {
+    width: auto;
+    min-width: 76px;
+    padding: 5px 8px;
+}
+
+.atomic-pagination-current {
+    color: var(--atomic-text-muted);
+    min-width: 92px;
+    text-align: center;
+}
+
+.atomic-btn-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: default;
+}
+
+.atomic-pagination-actions a.atomic-btn-disabled:hover {
+    background: transparent !important;
+    color: var(--atomic-text-muted) !important;
+}
+
+.w3-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Job List Components */
+.atomic-job-list {
+    background-color: var(--atomic-card);
+    border: 1px solid var(--atomic-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.atomic-job-header {
+    background-color: var(--atomic-card);
+    border-bottom: 1px solid var(--atomic-border);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.atomic-job-header:hover {
+    background: var(--atomic-bg-alt) !important;
+}
+
+.atomic-job-header:last-child {
+    border-bottom: none;
+}
+
+.atomic-job-header.open {
+    background: var(--atomic-bg-alt);
+}
+
+.atomic-job-details-panel {
+    background-color: var(--atomic-bg);
+    border-top: 1px solid var(--atomic-border);
+}
+
+/* Job Row Layout */
+.atomic-job-row {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 10px 16px;
+}
+
+.atomic-job-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+
+.atomic-job-icon-wrapper {
+    flex: 0 0 auto;
+    display: flex;
+}
+
+.atomic-job-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Job Icons - Consistent Size */
+.atomic-job-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.atomic-icon-queued { background-color: var(--atomic-state-queued-bg); color: var(--atomic-state-queued-fg); }
+.atomic-icon-running { background-color: var(--atomic-state-running-bg); color: var(--atomic-state-running-fg); }
+.atomic-icon-success { background-color: var(--atomic-state-success-bg); color: var(--atomic-state-success-fg); }
+.atomic-icon-failed { background-color: var(--atomic-state-failed-bg); color: var(--atomic-state-failed-fg); }
+.atomic-icon-cancel-requested { background-color: var(--atomic-state-cancel-requested-bg); color: var(--atomic-state-cancel-requested-fg); }
+.atomic-icon-canceled { background-color: var(--atomic-state-canceled-bg); color: var(--atomic-state-canceled-fg); }
+
+/* Job Content */
+.atomic-job-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 0 2px 0;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--atomic-text);
+}
+
+.atomic-job-meta {
+    margin-top: 2px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--atomic-text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.atomic-job-meta .meta-sep {
+    opacity: 0.5;
+}
+
+.atomic-job-id {
+    display: none; /* Hidden as per requirements */
+}
+
+/* Expand arrow: closed = chevron right, open = rotate 90° to point down */
+.atomic-job-expand-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    color: var(--atomic-text-muted);
+    transition: color 0.25s;
+}
+
+.atomic-job-expand-icon i {
+    display: inline-block;
+    transform: rotate(0deg);
+    transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
+    font-size: 14px;
+}
+
+.atomic-job-header:hover .atomic-job-expand-icon {
+    color: var(--atomic-accent);
+}
+
+.atomic-job-header.open .atomic-job-expand-icon {
+    color: var(--atomic-accent);
+}
+
+.atomic-job-header.open .atomic-job-expand-icon i {
+    transform: rotate(90deg);
+}
+
+/* Copy Button */
+.atomic-copy-btn {
+    background: var(--atomic-btn-bg);
+    border: 1px solid var(--atomic-btn-border);
+    color: var(--atomic-btn-text);
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.atomic-copy-btn:hover {
+    background: var(--atomic-btn-bg-hover);
+    color: var(--atomic-text);
+}
+
+.atomic-copy-btn.copied {
+    background: var(--atomic-state-success-bg);
+    border-color: var(--atomic-state-success-bg);
+    color: var(--atomic-state-success-fg);
+}
+
+/* Telemetry Timeline */
+.atomic-telemetry-timeline {
+    position: relative;
+}
+
+.atomic-batch-group {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.atomic-batch-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-left: 28px;
+}
+
+.atomic-batch-marker {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 12px;
+    border: 2px solid var(--atomic-bg);
+    flex-shrink: 0;
+}
+
+.atomic-batch-title {
+    font-weight: 500;
+    color: var(--atomic-text-muted);
+    font-size: 13px;
+}
+
+.atomic-event-with-line {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+/*
+.atomic-timeline-line {
+    position: absolute;
+    left: 16px;
+    top: 20px;
+    width: 2px;
+    height: calc(100% + 8px);
+    opacity: 0.6;
+}
+
+.atomic-timeline-line[data-last-event="true"] {
+    height: 20px;
+}
+*/
+.atomic-timeline-line[data-last-event="true"] {
+    height: 5px;
+}
+
+.atomic-timeline-line {
+    position: absolute;
+    left: 3px;
+    top: 12px;
+    width: 3px;
+    height: calc(100% + 8px);
+    opacity: 0.6;
+}
+
+.atomic-timeline-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 16px;
+    margin-top: 12px;
+    border: 2px solid;
+    flex-shrink: 0;
+    z-index: 2;
+    position: relative;
+}
+
+.atomic-batch-separator {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--atomic-border) 50%, transparent);
+    margin: 24px 0;
+    position: relative;
+}
+
+.atomic-batch-separator::after {
+    content: '•••';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--atomic-bg);
+    color: var(--atomic-border);
+    padding: 0 8px;
+    font-size: 12px;
+    letter-spacing: 2px;
+}
+
+/* Info Sections */
+.atomic-info-section {
+    background: var(--atomic-card);
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+
+.atomic-info-header,
+.atomic-telemetry-header {
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--atomic-text-muted);
+}
+
+.atomic-payload-code {
+    background: var(--atomic-code-bg);
+    border: 1px solid var(--atomic-code-border);
+    color: var(--atomic-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-x: auto;
+    border-radius: 6px;
+}
+
+.atomic-telemetry-event {
+    background: var(--atomic-code-bg);
+    border: 1px solid var(--atomic-code-border);
+    border-radius: 6px;
+    padding: 12px;
+    transition: background-color 0.2s;
+    flex: 1;
+    margin-left: 0;
+}
+
+.atomic-telemetry-event:hover {
+    background: var(--atomic-bg-alt) !important;
+}
+
+/* Empty State */
+.atomic-empty-state {
+    background: var(--atomic-card);
+    border: 1px solid var(--atomic-border);
+}
+
+.atomic-total-jobs {
+    color: var(--atomic-text-muted);
+    font-size: 12px;
+}
+
+/* JSON Syntax Highlighting */
+.json-key { color: var(--atomic-json-key); }
+.json-string { color: var(--atomic-json-string); }
+.json-number { color: var(--atomic-json-number); }
+.json-boolean { color: var(--atomic-json-boolean); }
+.json-null { color: var(--atomic-json-null); }
+.json-punctuation { color: var(--atomic-json-punc); }
+
+/* Filter Panel Components */
+.filter-panel {
+    background: var(--atomic-card);
+    border: 1px solid var(--atomic-border);
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.filter-section {
+    border-right: 1px solid var(--atomic-border);
+    padding: 15px;
+}
+
+.filter-section:last-child {
+    border-right: none;
+}
+
+.filter-quick-btn {
+    margin: 2px;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+
+@media (max-width: 700px) {
+    .atomic-job-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .atomic-job-expand-icon {
+        align-self: flex-end;
+    }
+}
+
+@media (max-width: 600px) {
+    .atomic-toolbar-flex {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .atomic-job-title {
+        font-size: 14px;
+    }
+    
+    .atomic-job-meta {
+        font-size: 12px;
+    }
+}
+
+/* Tabs container helpers */
+.tab-pane {
+    background: var(--atomic-card);
+    border: 1px solid var(--atomic-border);
+    border-radius: 6px;
+}
+
+/* Logs viewer */
+.atomic-log-list {
+    background: var(--atomic-card);
+    border: 1px solid var(--atomic-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.atomic-log-line:hover {
+    background: var(--atomic-bg-alt);
+}
+
+/* Level badges reuse chips; ensure compact */
+.atomic-log-line .atomic-chip {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+}
+
+/* Dump preview spacing */
+.atomic-log-line pre.atomic-payload-code {
+    margin: 8px 0 0 0;
+}
+
+.at-border-grey, .at-hover-border-grey:hover, .at-border-gray, .at-hover-border-gray:hover {
+    border-color: #27324a !important;
+}
+
+.at-text-coral, .at-hover-text-coral:hover {
+    color: #e05268 !important;
+}
+
+.at-border-dark-grey, .at-hover-border-dark-grey:hover, .at-border-dark-gray, .at-hover-border-dark-gray:hover
+{
+    border-color: #27324a !important;
+}
+
+.at-log-dump-buttons {
+    margin-top: 11px;
+}
+/* Log Channel Sub-tabs */
+.atomic-log-channels-nav {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 8px 0 0 0;
+    border-bottom: 1px solid var(--atomic-border);
+    margin-bottom: 12px;
+}
+
+.atomic-log-channel-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--atomic-text-muted);
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.18s;
+    border-radius: 4px 4px 0 0;
+}
+
+.atomic-log-channel-tab:hover {
+    color: var(--atomic-text);
+    background: var(--atomic-bg-alt);
+}
+
+.atomic-log-channel-tab.active {
+    color: var(--atomic-text);
+    border-bottom-color: var(--atomic-accent);
+    background: var(--atomic-bg-alt);
+}
+
+/* Log Channel Pane Header */
+.atomic-log-channel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0 8px 0;
+    border-bottom: 1px solid var(--atomic-border);
+    margin-bottom: 8px;
+}
+
+.atomic-log-channel-meta {
+    font-size: 0.82rem;
+    color: var(--atomic-text-faint);
+}
+
+.atomic-log-dates-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.atomic-log-date-label {
+    margin-right: 4px;
+}
+
+.atomic-log-date-tab {
+    background: transparent;
+    border: 1px solid var(--atomic-border);
+    color: var(--atomic-text-muted);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.18s;
+}
+
+.atomic-log-date-tab:hover {
+    color: var(--atomic-text);
+    border-color: var(--atomic-accent-soft);
+    background: var(--atomic-bg-alt);
+}
+
+.atomic-log-date-tab.active {
+    color: var(--atomic-text);
+    border-color: var(--atomic-accent);
+    background: rgba(31, 111, 235, 0.12);
+}
+
+.atomic-log-pagination {
+    margin-bottom: 0;
+}
+
+.atomic-log-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}

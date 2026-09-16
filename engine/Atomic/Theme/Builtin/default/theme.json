@@ -1,0 +1,13 @@
+{
+    "name": "Atomic Default",
+    "package": "default",
+    "version": "1.0.0",
+    "author": "GLOBUS.studio",
+    "copyright": "(c) GLOBUS.studio 2020-2025",
+    "license": "https://opensource.org/license/mit/",
+    "description": "Default theme for Atomic",
+    "link": "https://globus.studio",
+    "slug": "atomic-default",
+    "color": "#3498db",
+    "color-dark": "#2980b9"
+}
