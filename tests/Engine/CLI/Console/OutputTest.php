@@ -11,6 +11,29 @@ use Tests\Support\StreamCapture;
 
 class OutputTest extends TestCase
 {
+    public function test_aligned_rows_aligns_each_column(): void
+    {
+        $stream = StreamCapture::memory();
+        $output = new Output($stream, $stream);
+
+        try {
+            $output->aligned_rows([
+                ['GET', '/users', 'Users->index'],
+                ['POST', '/users/create', 'Users->create'],
+                ['DELETE', '/users/@id', 'Users->delete'],
+            ]);
+
+            $this->assertSame(
+                '  GET     /users        - Users->index' . PHP_EOL
+                    . '  POST    /users/create - Users->create' . PHP_EOL
+                    . '  DELETE  /users/@id    - Users->delete' . PHP_EOL,
+                Output::plain(StreamCapture::read($stream, true)),
+            );
+        } finally {
+            fclose($stream);
+        }
+    }
+
     protected function setUp(): void
     {
         Environment::clear_cli_color();

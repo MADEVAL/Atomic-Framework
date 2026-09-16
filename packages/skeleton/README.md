@@ -94,6 +94,7 @@ php atomic migrations/migrate    # Run database migrations
 php atomic queue/worker          # Start queue worker
 php atomic schedule/run          # Execute due tasks
 php atomic routes                # List all registered routes
+php atomic routes/cli/custom      # List custom CLI routes only
 ```
 
 ---

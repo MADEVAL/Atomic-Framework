@@ -384,6 +384,7 @@ php atomic init/key              # Generate application keys
 php atomic health                # Check configuration and runtime requirements
 php atomic version               # Display framework version
 php atomic routes                # List all registered routes
+php atomic routes/cli/custom      # List custom CLI routes only
 
 php atomic cache/invalidate      # Fast generation invalidation
 php atomic cache/clear           # Physical cache deletion

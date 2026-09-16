@@ -46,6 +46,20 @@ class AppTest extends TestCase
         $this->assertSame(1, $this->app->handle_command(['atomic', 'what']));
     }
 
+    public function test_parameterized_cli_command_is_recognized(): void
+    {
+        $this->app->atomic()->set('ROUTES', [
+            '/routes/@scope' => [],
+            '/routes/@scope/@source' => [],
+        ]);
+
+        $this->assertTrue(ReflectionHelper::invoke(
+            $this->app,
+            'is_registered_cli_command',
+            ['/routes/cli/custom'],
+        ));
+    }
+
     public function test_register_user_provider_resolves_constructor_dependencies_from_container(): void
     {
         $container = Container::global();

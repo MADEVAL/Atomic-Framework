@@ -18,6 +18,8 @@ $this->route('GET /cache/clear [cli]', 'Engine\Atomic\App\System->cache_clear');
 $this->route('GET /cache/prune [cli]', 'Engine\Atomic\App\System->cache_prune');
 $this->route('GET /version [cli]', 'Engine\Atomic\App\System->version');
 $this->route('GET /routes [cli]', 'Engine\Atomic\App\System->routes');
+$this->route('GET /routes/@scope [cli]', 'Engine\Atomic\App\System->routes');
+$this->route('GET /routes/@scope/@source [cli]', 'Engine\Atomic\App\System->routes');
 $this->route('GET /classes [cli]', 'Engine\Atomic\App\System->classes');
 $this->route('GET /custom-hive [cli]', 'Engine\Atomic\App\System->custom_hive');
 

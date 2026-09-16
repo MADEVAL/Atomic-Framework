@@ -35,7 +35,7 @@ final class CommandCatalog
         'help' => ['topic' => 'system', 'arguments' => '[topic]', 'description' => 'View this help (or help <topic>)', 'visible' => true],
         'health' => ['topic' => 'system', 'arguments' => '', 'description' => 'Check application health and configuration', 'visible' => true],
         'version' => ['topic' => 'system', 'arguments' => '', 'description' => 'View versions F3, PHP and Atomic', 'visible' => true],
-        'routes' => ['topic' => 'system', 'arguments' => '', 'description' => 'View routes list', 'visible' => true],
+        'routes' => ['topic' => 'system', 'arguments' => '', 'description' => 'List registered routes by type and source', 'visible' => true],
         'classes' => ['topic' => 'system', 'arguments' => '', 'description' => 'View classes list', 'visible' => true],
         'custom-hive' => ['topic' => 'system', 'arguments' => '', 'description' => 'View custom HIVE', 'visible' => true],
         'db/truncate' => ['topic' => 'system', 'arguments' => '<table_name>', 'description' => 'Truncate a database table', 'visible' => false],

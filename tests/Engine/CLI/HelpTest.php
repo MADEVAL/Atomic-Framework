@@ -25,6 +25,7 @@ class HelpTest extends TestCase
             $this->assertStringContainsString('Queue', $help);
             $this->assertStringContainsString('Scheduler', $help);
             $this->assertStringContainsString('Files', $help);
+            $this->assertSame(1, substr_count($help, 'Available Route Commands'));
         } finally {
             fclose($stream);
         }
@@ -42,6 +43,25 @@ class HelpTest extends TestCase
             $this->assertStringContainsString('queue/worker', $help);
             $this->assertStringContainsString('queue/cancel <job_uuid>', $help);
             $this->assertStringNotContainsString('init/guide', $help);
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function test_system_help_lists_route_commands_once(): void
+    {
+        [$cli, $stream] = $this->cli_with_output();
+
+        try {
+            $cli->help('system');
+            $help = Output::plain(StreamCapture::read($stream, true));
+
+            $this->assertSame(1, substr_count($help, 'Available Route Commands'));
+            $this->assertStringContainsString('php atomic routes/api', $help);
+            $this->assertStringContainsString('List API routes', $help);
+            $this->assertStringContainsString('php atomic routes/all/plugin', $help);
+            $this->assertStringContainsString('List plugin routes from every type', $help);
+            $this->assertStringNotContainsString('routes[/scope[/source]]', $help);
         } finally {
             fclose($stream);
         }

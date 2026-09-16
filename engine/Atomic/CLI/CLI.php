@@ -10,8 +10,35 @@ use Engine\Atomic\CLI\Console\CommandSuggester;
 use Engine\Atomic\CLI\Console\CommandCatalog;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
+use Engine\Atomic\Core\RouteLoader;
 
 class CLI {
+    private const ROUTE_SCOPE_ALL = 'all';
+    private const ROUTE_SCOPE_WEB = 'web';
+    private const ROUTE_SCOPE_API = 'api';
+    private const ROUTE_SCOPE_CLI = 'cli';
+    private const ROUTE_SCOPE_WEBSOCKET = 'websocket';
+    private const ROUTE_SCOPE_TELEMETRY = 'telemetry';
+    private const ROUTE_SOURCE_ALL = 'all';
+    private const ROUTE_SOURCE_FRAMEWORK = 'framework';
+    private const ROUTE_SOURCE_CUSTOM = 'custom';
+    private const ROUTE_SOURCE_APP = 'app';
+    private const ROUTE_SOURCE_PLUGIN = 'plugin';
+    private const ROUTE_SOURCES = [
+        self::ROUTE_SOURCE_ALL,
+        self::ROUTE_SOURCE_FRAMEWORK,
+        self::ROUTE_SOURCE_CUSTOM,
+        self::ROUTE_SOURCE_APP,
+        self::ROUTE_SOURCE_PLUGIN,
+    ];
+    private const ROUTE_SCOPE_LABELS = [
+        self::ROUTE_SCOPE_WEB => 'Web',
+        self::ROUTE_SCOPE_API => 'API',
+        self::ROUTE_SCOPE_CLI => 'CLI',
+        self::ROUTE_SCOPE_WEBSOCKET => 'WebSocket',
+        self::ROUTE_SCOPE_TELEMETRY => 'Telemetry',
+    ];
+
     use Access;
     use DB;
     use File;
@@ -48,10 +75,15 @@ class CLI {
             $this->output->writeln('Usage: php atomic help ' . $topic);
             $this->output->writeln();
             $this->output->section($groups[$topic]['title'] . ' Commands');
+            $command_width = $this->help_command_width([$groups[$topic]]);
             $this->write_help_commands(
                 $groups[$topic]['commands'],
-                $this->help_command_width([$groups[$topic]])
+                $command_width,
             );
+            if ($topic === 'system') {
+                $this->output->writeln();
+                $this->write_route_commands(false, $command_width);
+            }
             return;
         }
 
@@ -60,10 +92,14 @@ class CLI {
         $this->output->writeln();
 
         $command_width = $this->help_command_width($groups);
-        foreach ($groups as $group) {
+        foreach ($groups as $topic => $group) {
             $this->output->section($group['title']);
             $this->write_help_commands($group['commands'], $command_width);
             $this->output->writeln();
+            if ($topic === 'system') {
+                $this->write_route_commands(false, $command_width);
+                $this->output->writeln();
+            }
         }
     }
 
@@ -120,6 +156,10 @@ class CLI {
             }
         }
 
+        foreach ($this->route_command_rows() as [$command]) {
+            $width = max($width, strlen($command));
+        }
+
         return $width;
     }
 
@@ -138,36 +178,262 @@ class CLI {
         $this->output->writeln('Atomic Version: ' . ATOMIC_VERSION);
     }
 
-    public function list_routes(): void {
-        $routes = $this->atomic->get('ROUTES');
-        $groups = [
-            'WEB/CLI'   => [],
-            'WEB ERROR' => [],
-            'API'       => []
-        ];
-        if (is_array($routes)) {
-            foreach ($routes as $pattern => $routeList) {
-                if (stripos($pattern, '/error/') !== false) {
-                    $groups['WEB ERROR'][] = $pattern;
-                } elseif (stripos($pattern, '/api/') !== false) {
-                    $groups['API'][] = $pattern;
-                } else {
-                    $groups['WEB/CLI'][] = $pattern;
+    /**
+     * List registered routes.
+     *
+     * Scope is one of all, web, api, cli, websocket, or telemetry.
+     * Source is one of all, framework, custom, app, or plugin.
+     *
+     * @param list<string> $args
+     */
+    public function list_routes(array $args = []): void {
+        $filters = $this->route_filters($args);
+        if ($filters === null) {
+            return;
+        }
+
+        [$scope, $source] = $filters;
+        $this->load_route_scope($scope);
+        $routes = array_values(array_filter($this->registered_routes(), static function (array $route) use ($scope, $source): bool {
+            $scope_matches = $scope === self::ROUTE_SCOPE_ALL || $route['type'] === $scope;
+            $source_matches = $source === self::ROUTE_SOURCE_ALL
+                || ($source === self::ROUTE_SOURCE_CUSTOM && $route['source'] !== self::ROUTE_SOURCE_FRAMEWORK)
+                || $route['source'] === $source;
+            return $scope_matches && $source_matches;
+        }));
+
+        $this->output->writeln('Atomic Routes');
+        $this->output->writeln('Usage: php atomic ' . CommandCatalog::display('routes'));
+        $this->output->writeln();
+
+        if ($routes === []) {
+            $this->output->writeln('  (no routes)');
+            return;
+        }
+
+        foreach ($this->group_routes($routes) as $group) {
+            $this->output->section($group['title']);
+            $this->output->aligned_rows(array_map(
+                static fn(array $route): array => [$route['method'], $route['path'], $route['handler']],
+                $group['routes'],
+            ));
+            $this->output->writeln();
+        }
+    }
+
+    /**
+     * @param list<array{type: string, source: string, method: string, path: string, handler: string}> $routes
+     * @return list<array{title: string, routes: list<array{type: string, source: string, method: string, path: string, handler: string}>}>
+     */
+    private function group_routes(array $routes): array
+    {
+        $groups = [];
+        foreach ($routes as $route) {
+            $key = $route['type'] . ':' . $route['source'];
+            $groups[$key] ??= [
+                'title' => (self::ROUTE_SCOPE_LABELS[$route['type']] ?? ucfirst($route['type']))
+                    . ' ' . ucfirst($route['source']) . ' Routes',
+                'routes' => [],
+            ];
+            $groups[$key]['routes'][] = $route;
+        }
+        return array_values($groups);
+    }
+
+    private function load_route_scope(string $scope): void
+    {
+        $loader = RouteLoader::instance();
+        $types = $scope === self::ROUTE_SCOPE_ALL ? $loader->get_route_types() : [$scope];
+        foreach ($types as $type) {
+            if ($loader->has_route_type($type)) {
+                $this->atomic->register_routes_for($type);
+            }
+        }
+    }
+
+    /** @return list<array{type: string, source: string, method: string, path: string, handler: string}> */
+    private function registered_routes(): array
+    {
+        $result = [];
+        foreach ((array)$this->atomic->get('ROUTES', []) as $path => $route_types) {
+            foreach ((array)$route_types as $request_type => $methods) {
+                foreach ((array)$methods as $method => $definition) {
+                    $handler = is_array($definition) ? ($definition[0] ?? '') : $definition;
+                    $handler = is_string($handler) ? $handler : get_debug_type($handler);
+                    $result[] = [
+                        'type' => $this->route_type((string)$path, (int)$request_type),
+                        'source' => $this->route_source($handler),
+                        'method' => strtoupper((string)$method),
+                        'path' => '/' . ltrim((string)$path, '/'),
+                        'handler' => $handler,
+                    ];
                 }
             }
         }
 
-        foreach ($groups as $groupName => $routesList) {
-            $this->output->writeln("[{$groupName}]");
-            if (empty($routesList)) {
-                $this->output->writeln('  (no routes)');
-            } else {
-                foreach ($routesList as $r) {
-                    $this->output->writeln('  ' . $r);
-                }
-            }
-            $this->output->writeln();
+        foreach ((array)$this->atomic->get('WS_ROUTES', []) as $path => $definition) {
+            $handler = is_array($definition) ? ($definition['handler'] ?? '') : '';
+            $handler = is_string($handler) ? $handler : get_debug_type($handler);
+            $result[] = [
+                'type' => self::ROUTE_SCOPE_WEBSOCKET,
+                'source' => $this->route_source($handler),
+                'method' => 'MESSAGE',
+                'path' => '/' . ltrim((string)$path, '/'),
+                'handler' => $handler,
+            ];
         }
+
+        usort($result, static fn(array $a, array $b): int => [$a['type'], $a['path'], $a['method']] <=> [$b['type'], $b['path'], $b['method']]);
+        return $result;
+    }
+
+    private function route_type(string $path, int $request_type): string
+    {
+        if ($request_type === \Base::REQ_CLI) {
+            return self::ROUTE_SCOPE_CLI;
+        }
+
+        $segment = strtolower(explode('/', ltrim($path, '/'))[0] ?? '');
+        return in_array($segment, [self::ROUTE_SCOPE_API, self::ROUTE_SCOPE_TELEMETRY], true)
+            ? $segment
+            : self::ROUTE_SCOPE_WEB;
+    }
+
+    private function route_source(string $handler): string
+    {
+        if (str_starts_with($handler, 'App\\')) {
+            return self::ROUTE_SOURCE_APP;
+        }
+        if (str_starts_with($handler, 'Engine\\Atomic\\Plugins\\')) {
+            return self::ROUTE_SOURCE_PLUGIN;
+        }
+        return str_starts_with($handler, 'Engine\\Atomic\\')
+            ? self::ROUTE_SOURCE_FRAMEWORK
+            : self::ROUTE_SOURCE_PLUGIN;
+    }
+
+    /**
+     * @param list<string> $args
+     * @return array{0: string, 1: string}|null
+     */
+    private function route_filters(array $args): ?array
+    {
+        $scopes = $this->route_scopes();
+        $scope = self::ROUTE_SCOPE_ALL;
+        $source = self::ROUTE_SOURCE_ALL;
+
+        foreach ($args as $arg) {
+            $arg = strtolower(trim($arg));
+            if ($arg === '' || $arg === '--') {
+                continue;
+            }
+
+            if (str_starts_with($arg, '--scope=')) {
+                $arg = substr($arg, 8);
+            } elseif (str_starts_with($arg, '--source=')) {
+                $arg = substr($arg, 9);
+                if (!in_array($arg, self::ROUTE_SOURCES, true)) {
+                    $this->invalid_route_filter($arg, 'source');
+                    return null;
+                }
+                $source = $arg;
+                continue;
+            }
+
+            if (in_array($arg, ['ws'], true)) {
+                $arg = self::ROUTE_SCOPE_WEBSOCKET;
+            }
+
+            if (in_array($arg, $scopes, true)) {
+                if ($scope !== self::ROUTE_SCOPE_ALL) {
+                    $this->invalid_route_filter($arg, 'scope');
+                    return null;
+                }
+                $scope = $arg;
+                continue;
+            }
+
+            if (in_array($arg, self::ROUTE_SOURCES, true)) {
+                if ($source !== self::ROUTE_SOURCE_ALL) {
+                    $this->invalid_route_filter($arg, 'source');
+                    return null;
+                }
+                $source = $arg;
+                continue;
+            }
+
+            $this->invalid_route_filter($arg, 'scope or source');
+            return null;
+        }
+
+        return [$scope, $source];
+    }
+
+    private function invalid_route_filter(string $value, string $kind): void
+    {
+        $this->output->failure("Unknown route {$kind} '{$value}'.");
+        $this->output->usage('routes');
+        $this->write_route_commands(true);
+    }
+
+    private function write_route_commands(bool $error = false, int $command_width = 0): void
+    {
+        if ($error) {
+            $this->output->error_list('Available Route Commands:', []);
+            $this->output->aligned_rows($this->route_command_rows(), error: true);
+            return;
+        }
+
+        $this->output->section('Available Route Commands');
+        $this->output->aligned_rows($this->route_command_rows(), [$command_width]);
+    }
+
+    /** @return list<array{0: string, 1: string}> */
+    private function route_command_rows(): array
+    {
+        $descriptions = [
+            self::ROUTE_SCOPE_ALL => 'List routes from every type and source',
+            self::ROUTE_SCOPE_WEB => 'List web routes',
+            self::ROUTE_SCOPE_API => 'List API routes',
+            self::ROUTE_SCOPE_CLI => 'List CLI routes',
+            self::ROUTE_SCOPE_WEBSOCKET => 'List WebSocket routes',
+            self::ROUTE_SCOPE_TELEMETRY => 'List telemetry routes',
+        ];
+        $rows = [['php atomic routes', 'List routes from every type and source']];
+        foreach ($this->route_scopes() as $scope) {
+            $rows[] = ['php atomic routes/' . $scope, $descriptions[$scope] ?? "List {$scope} routes"];
+        }
+
+        $source_descriptions = [
+            self::ROUTE_SOURCE_FRAMEWORK => 'framework',
+            self::ROUTE_SOURCE_CUSTOM => 'custom application and plugin',
+            self::ROUTE_SOURCE_APP => 'application',
+            self::ROUTE_SOURCE_PLUGIN => 'plugin',
+        ];
+        foreach ($source_descriptions as $source => $description) {
+            $rows[] = [
+                'php atomic routes/all/' . $source,
+                "List {$description} routes from every type",
+            ];
+        }
+
+        return $rows;
+    }
+
+    /** @return list<string> */
+    private function route_scopes(): array
+    {
+        return array_values(array_unique(array_merge(
+            [
+                self::ROUTE_SCOPE_ALL,
+                self::ROUTE_SCOPE_WEB,
+                self::ROUTE_SCOPE_API,
+                self::ROUTE_SCOPE_CLI,
+                self::ROUTE_SCOPE_WEBSOCKET,
+                self::ROUTE_SCOPE_TELEMETRY,
+            ],
+            RouteLoader::instance()->get_route_types(),
+        )));
     }
 
     public function classes(): void {

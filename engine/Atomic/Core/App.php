@@ -378,7 +378,17 @@ class App {
     protected function is_registered_cli_command(string $command): bool
     {
         $routes = $this->atomic->get('ROUTES');
-        return is_array($routes) && array_key_exists($command, $routes);
+        if (!is_array($routes)) {
+            return false;
+        }
+
+        foreach (array_keys($routes) as $pattern) {
+            if (is_string($pattern) && $this->atomic->mask($pattern, $command)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // in base route($pattern,$handler,$ttl=0,$kbps=0)

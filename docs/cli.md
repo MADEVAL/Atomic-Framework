@@ -40,6 +40,30 @@ Redis is always reported as highly recommended. Missing or unreachable Redis pro
 
 The command exits with `0` when healthy and `1` when a required or selected dependency fails. For load balancers and uptime monitors, `GET /health` returns only `{"status":"ok"}` with HTTP 200 or `{"status":"unhealthy"}` with HTTP 503; diagnostic details remain CLI-only.
 
+### Route inspection
+
+`routes` lists registered routes in a table with their type, source, method, path, and handler. The preferred syntax uses path-like scopes. With no scope it loads and displays all known route types:
+
+```bash
+php atomic routes
+```
+
+The first optional argument filters by route type. The second filters by source:
+
+```bash
+php atomic routes/cli              # CLI routes
+php atomic routes/web              # web and web error routes
+php atomic routes/api              # API routes
+php atomic routes/websocket        # WebSocket routes
+php atomic routes/cli/custom       # app and plugin CLI routes only
+php atomic routes/all/framework    # framework routes only
+php atomic routes/custom            # all non-framework routes
+```
+
+Valid types are `all`, `web`, `api`, `cli`, `websocket`, and `telemetry`. Valid sources are `all`, `framework`, `custom`, `app`, and `plugin`. `custom` includes both application and plugin routes. The previous space-separated form (`php atomic routes cli custom`) and named options (`--scope=cli --source=custom`) remain accepted.
+
+CLI commands declared in `routes/cli.php` are executable using their route path, with either slash or colon separators. They are intentionally not added to `php atomic help`; that catalog contains documented framework commands, while `php atomic routes/cli/custom` is the authoritative custom-command list.
+
 ### Plugin scaffold
 
 ```bash

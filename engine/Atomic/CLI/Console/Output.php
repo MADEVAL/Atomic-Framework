@@ -54,6 +54,44 @@ class Output
         $this->writeln('  ' . $label . ': ' . $this->string_value($value));
     }
 
+    /**
+     * @param list<list<string|int|float>> $rows
+     * @param list<int> $minimum_widths
+     */
+    public function aligned_rows(array $rows, array $minimum_widths = [], bool $error = false): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        $column_count = count($rows[0]);
+        if ($column_count === 0) {
+            return;
+        }
+        $widths = array_pad(array_slice($minimum_widths, 0, $column_count - 1), $column_count - 1, 0);
+        $rows = array_map(static function (array $row) use ($column_count): array {
+            $row = array_map('strval', array_values($row));
+            return array_pad(array_slice($row, 0, $column_count), $column_count, '');
+        }, $rows);
+
+        foreach ($rows as $row) {
+            foreach ($widths as $column => $width) {
+                $widths[$column] = max($width, self::display_width($row[$column]));
+            }
+        }
+
+        foreach ($rows as $row) {
+            $line = '  ';
+            foreach ($widths as $column => $width) {
+                $line .= $row[$column]
+                    . str_repeat(' ', $width - self::display_width($row[$column]))
+                    . ($column === $column_count - 2 ? ' - ' : '  ');
+            }
+            $line .= $row[$column_count - 1] ?? '';
+            $error ? $this->err($line) : $this->writeln($line);
+        }
+    }
+
     public function success(string $message): void
     {
         $this->writeln('  ' . Style::success_label() . ' ' . $message);

@@ -158,9 +158,14 @@ class System extends Controller
         $this->cli()->version();
     }
 
-    public function routes(): void
+    public function routes(\Base $atomic, array $params = []): void
     {
-        $this->cli()->list_routes();
+        $cli = $this->cli();
+        $filters = array_filter([
+            $params['scope'] ?? null,
+            $params['source'] ?? null,
+        ], static fn(mixed $value): bool => is_string($value) && $value !== '');
+        $cli->list_routes(array_merge(array_values($filters), $cli->get_cli_args()));
     }
 
     public function classes(): void
