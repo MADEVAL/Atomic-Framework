@@ -10,6 +10,7 @@ use Engine\Atomic\Core\ID;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Enums\Driver;
+use Engine\Atomic\Queue\Payload as QueuePayload;
 use Engine\Atomic\Telemetry\Queue\EventType;
 
 trait DB
@@ -72,6 +73,7 @@ trait DB
 
             foreach ($completed_jobs as $job) {
                 $jobs[$job->uuid] = $job->cast();
+                $jobs[$job->uuid]['payload'] = QueuePayload::decode((string)$job->payload);
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
                 $jobs[$job->uuid]['state'] = State::COMPLETED->value;
                 $jobs[$job->uuid]['driver'] = Driver::DB->value;
@@ -117,6 +119,7 @@ trait DB
             foreach ($failed_jobs as $job) {
                 $uuid = $job->uuid;
                 $job_data = $job->cast();
+                $job_data['payload'] = QueuePayload::decode((string)$job->payload);
                 $job_data['uuid'] = $uuid;
                 $job_data['exception'] = $this->deserialize($job->exception);
                 $job_data['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
@@ -164,6 +167,7 @@ trait DB
 
             foreach ($active_jobs as $job) {
                 $jobs[$job->uuid] = $job->cast();
+                $jobs[$job->uuid]['payload'] = QueuePayload::decode((string)$job->payload);
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
                 $jobs[$job->uuid]['state'] = isset($job->process_start_ticks) && $job->process_start_ticks
                     ? State::RUNNING->value
@@ -225,6 +229,7 @@ trait DB
 
             foreach ($rows as $job) {
                 $jobs[$job->uuid] = $job->cast();
+                $jobs[$job->uuid]['payload'] = QueuePayload::decode((string)$job->payload);
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
                 $jobs[$job->uuid]['state'] = $state;
                 $jobs[$job->uuid]['driver'] = Driver::DB->value;
@@ -271,6 +276,7 @@ trait DB
 
             foreach ($pending_jobs as $job) {
                 $jobs[$job->uuid] = $job->cast();
+                $jobs[$job->uuid]['payload'] = QueuePayload::decode((string)$job->payload);
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
                 $jobs[$job->uuid]['state'] = State::PENDING->value;
                 $jobs[$job->uuid]['driver'] = Driver::DB->value;
@@ -341,6 +347,8 @@ trait DB
                 } else {
                     unset($row['exception']);
                 }
+
+                $row['payload'] = QueuePayload::decode((string)$row['payload']);
 
                 $createdAt = (int)($row['created_at'] ?? 0);
                 $row['created_at_formatted'] = date('Y-m-d H:i:s', $createdAt);

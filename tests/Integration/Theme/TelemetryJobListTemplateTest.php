@@ -43,7 +43,7 @@ final class TelemetryJobListTemplateTest extends TestCase
             'cancelled_at' => '',
             'cancelled_at_formatted' => '',
             'reason' => '',
-            'payload' => json_encode(['note' => $malicious]),
+            'payload' => ['note' => $malicious],
             'exception' => [
                 'message' => $malicious,
                 'file' => 'x.php',
@@ -73,5 +73,19 @@ final class TelemetryJobListTemplateTest extends TestCase
 
         $this->assertStringNotContainsString('<script>', $output);
         $this->assertStringContainsString('\u003Cscript\u003E', $output);
+    }
+
+    public function test_structured_payload_is_rendered_as_parseable_json_text(): void
+    {
+        $job = $this->maliciousJob();
+
+        $output = $this->render([
+            'jobs' => ['job-1' => $job],
+            'pagination' => ['page' => 1, 'per_page' => 50, 'total' => 1, 'last_page' => 1],
+        ]);
+
+        $this->assertStringContainsString('{"note":', $output);
+        $this->assertStringNotContainsString('&quot;', $output);
+        $this->assertStringNotContainsString('&amp;quot;', $output);
     }
 }

@@ -7,6 +7,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Enums\Driver;
+use Engine\Atomic\Queue\Payload as QueuePayload;
 use Engine\Atomic\Telemetry\Queue\EventType;
 
 trait Redis
@@ -105,10 +106,7 @@ trait Redis
             $job_data = $this->deserialize($job[1]);
             $jobs[$key] = $job_data;
             
-            // Payload is already a string in registry
-            if (is_array($job_data['payload'] ?? null)) {
-                $jobs[$key]['payload'] = $this->serialize($job_data['payload']);
-            }
+            $jobs[$key]['payload'] = QueuePayload::decode((string)($job_data['payload'] ?? ''));
             
             if (!empty($job_data['exception'] ?? null)) {
                 $jobs[$key]['exception'] = $this->deserialize($job_data['exception']);
@@ -215,15 +213,7 @@ trait Redis
             return null;
         }
 
-        $p = $out['payload'] ?? null;
-        if (\is_array($p)) {
-            $out['payload'] = $this->serialize($p);
-        } elseif (\is_string($p) && $p !== '') {
-            $decoded = \json_decode($p, true);
-            if (\is_array($decoded)) {
-                $out['payload'] = $this->serialize($decoded);
-            }
-        }
+        $out['payload'] = QueuePayload::decode((string)($out['payload'] ?? ''));
 
         $state = $out['state'];
         if (

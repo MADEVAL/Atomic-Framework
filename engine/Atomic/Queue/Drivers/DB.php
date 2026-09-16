@@ -15,6 +15,7 @@ use Engine\Atomic\Queue\Interfaces\Telemetry;
 use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Queue\Managers\Manager;
 use Engine\Atomic\Queue\Managers\ProcessManager;
+use Engine\Atomic\Queue\Payload as QueuePayload;
 use Engine\Atomic\Queue\Monitor\Adapters\DB as DBMonitorAdapter;
 use Engine\Atomic\Telemetry\Queue\EventType;
 use Engine\Atomic\Telemetry\Queue\Adapters\DB as DBTelemetryAdapter;
@@ -85,7 +86,7 @@ class DB implements Base, Management, Telemetry
             $this->jobs_mapper->uuid = $uuid;
             $this->jobs_mapper->queue = $queue;
             $this->jobs_mapper->priority = $priority;
-            $this->jobs_mapper->payload = $this->serialize($job_data);
+            $this->jobs_mapper->payload = QueuePayload::encode($job_data);
             $this->jobs_mapper->max_attempts = $max_attempts;
             $this->jobs_mapper->attempts = 0;
             $this->jobs_mapper->timeout = $timeout;
@@ -254,7 +255,7 @@ class DB implements Base, Management, Telemetry
             $this->jobs_failed_mapper->uuid = $uuid;
             $this->jobs_failed_mapper->queue = $job['queue'];
             $this->jobs_failed_mapper->priority = $job['priority'];
-            $this->jobs_failed_mapper->payload = $this->serialize($job['payload']);
+            $this->jobs_failed_mapper->payload = QueuePayload::encode($job['payload']);
             $this->jobs_failed_mapper->max_attempts = $job['max_attempts'];
             $this->jobs_failed_mapper->attempts = $job['attempts'];
             $this->jobs_failed_mapper->timeout = $job['timeout'];
@@ -299,7 +300,7 @@ class DB implements Base, Management, Telemetry
             $this->jobs_completed_mapper->uuid = $uuid;
             $this->jobs_completed_mapper->queue = $job['queue'];
             $this->jobs_completed_mapper->priority = $job['priority'];
-            $this->jobs_completed_mapper->payload = $this->serialize($job['payload']);
+            $this->jobs_completed_mapper->payload = QueuePayload::encode($job['payload']);
             $this->jobs_completed_mapper->max_attempts = $job['max_attempts'];
             $this->jobs_completed_mapper->attempts = $job['attempts'];
             $this->jobs_completed_mapper->timeout = $job['timeout'];

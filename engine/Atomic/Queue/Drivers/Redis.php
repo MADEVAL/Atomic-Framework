@@ -13,6 +13,7 @@ use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Interfaces\Base;
 use Engine\Atomic\Queue\Interfaces\Management;
 use Engine\Atomic\Queue\Interfaces\Telemetry;
+use Engine\Atomic\Queue\Payload as QueuePayload;
 use Engine\Atomic\Queue\Managers\ProcessManager;
 use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Queue\Monitor\Adapters\Redis as RedisMonitorAdapter;
@@ -233,7 +234,7 @@ class Redis implements Base, Management, Telemetry
         if (isset($options['cancel_handler'])) {
             $payload_data['cancel_handler'] = $options['cancel_handler'];
         }
-        $payload_json = $this->serialize($payload_data);
+        $payload_json = QueuePayload::encode($payload_data);
 
         try {
             return (bool)$this->eval_lua(

@@ -128,8 +128,10 @@ final class QueueTelemetryDbTest extends QueueDbTestCase
 
     private function assertFetchContains(array $result, string $uuid, string $state, int $total): void
     {
-        $this->assertSame($total, $result['total']);
         $this->assertArrayHasKey($uuid, $result['items']);
+        $this->assertIsArray($result['items'][$uuid]['payload']);
+        $this->assertSame(QueueTestHandler::class . '@success', $result['items'][$uuid]['payload']['handler']);
+        $this->assertSame($total, $result['total']);
         $this->assertSame($state, $result['items'][$uuid]['state']);
         $this->assertSame('db', $result['items'][$uuid]['driver']);
         $this->assertArrayHasKey('created_at_formatted', $result['items'][$uuid]);

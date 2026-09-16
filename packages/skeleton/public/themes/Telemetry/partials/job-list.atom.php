@@ -294,7 +294,7 @@ $build_queue_per_page_url = static function (int $target_per_page) use ($build_q
                             </div>
                         </div>
                         <div id="payload-<?php echo htmlspecialchars($uuid); ?>" class="w3-margin-top-off">
-                            <pre class="w3-code w3-round atomic-payload-code"><code class="json-payload"><?php echo htmlspecialchars((string)($job['payload'] ?? '')); ?></code></pre>
+                            <pre class="w3-code w3-round atomic-payload-code"><code class="json-payload"><?php echo htmlspecialchars(json_encode($job['payload'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), ENT_NOQUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'); ?></code></pre>
                         </div>
                     </div>
                     
