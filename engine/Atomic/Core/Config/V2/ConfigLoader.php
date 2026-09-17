@@ -72,7 +72,7 @@ final class ConfigLoader
                 continue;
             }
 
-            $comment_pos = strpos($line, '#');
+            $comment_pos = self::findUnquotedComment($line);
             if ($comment_pos !== false) {
                 $line = trim(substr($line, 0, $comment_pos));
             }
@@ -99,5 +99,40 @@ final class ConfigLoader
         }
 
         return $values;
+    }
+
+    private static function findUnquotedComment(string $line): int|false
+    {
+        $quote = null;
+        $escaped = false;
+
+        for ($i = 0, $length = strlen($line); $i < $length; $i++) {
+            $character = $line[$i];
+
+            if ($quote !== null) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($character === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($character === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+                continue;
+            }
+            if ($character === '#') {
+                return $i;
+            }
+        }
+
+        return false;
     }
 }
