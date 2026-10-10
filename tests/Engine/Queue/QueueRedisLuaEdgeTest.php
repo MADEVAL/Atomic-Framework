@@ -48,7 +48,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->assertSame($kept, $this->redis->hGet($pidMap, '222'));
     }
 
-    public function test_push_load_batch_set_pid_and_release_round_trip(): void
+    public function test_push_load_next_set_pid_and_release_round_trip(): void
     {
         $first = $this->new_uuid();
         $second = $this->new_uuid();
@@ -58,13 +58,13 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->pushWithLua($first, $now, 1);
 
         $loaded = $this->evalLua(
-            'load_batch',
+            'load_next',
             [$this->key('idx.pending'), $this->key('idx.running')],
-            [$this->prefix, $now, 1]
+            [$this->prefix, $now]
         );
 
-        $this->assertCount(1, $loaded);
-        $job = \json_decode($loaded[0], true, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsString($loaded);
+        $job = \json_decode($loaded, true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame($first, $job['uuid']);
         $this->assertSame('running', $this->redis->hGet($this->registryKey($first), 'state'));
         $this->assertFalse($this->redis->zScore($this->key('idx.pending'), $first));
@@ -90,19 +90,19 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->assertNotFalse($this->redis->zScore($this->key('idx.pending'), $first));
     }
 
-    public function test_load_batch_marks_claimed_job_with_pid_placeholder_until_worker_owns_it(): void
+    public function test_load_next_marks_claimed_job_with_pid_placeholder_until_worker_owns_it(): void
     {
         $uuid = $this->new_uuid();
         $now = \time();
         $this->pushWithLua($uuid, $now, 5);
 
         $loaded = $this->evalLua(
-            'load_batch',
+            'load_next',
             [$this->key('idx.pending'), $this->key('idx.running')],
-            [$this->prefix, $now, 1]
+            [$this->prefix, $now]
         );
 
-        $this->assertCount(1, $loaded);
+        $this->assertIsString($loaded);
         $this->assertSame('-1', $this->redis->hGet($this->registryKey($uuid), 'pid'));
     }
 
@@ -123,7 +123,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->assertFalse($this->redis->hGet($this->prefix . 'meta.pid_map', '555'));
     }
 
-    public function test_load_batch_scans_past_limit_to_prefer_higher_priority_jobs(): void
+    public function test_load_next_scans_candidates_to_prefer_higher_priority_job(): void
     {
         $now = \time();
         $lowPriorityUuids = [];
@@ -138,13 +138,13 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->pushWithLua($highPriorityUuid, $now, 1);
 
         $loaded = $this->evalLua(
-            'load_batch',
+            'load_next',
             [$this->key('idx.pending'), $this->key('idx.running')],
-            [$this->prefix, $now, 1]
+            [$this->prefix, $now]
         );
 
-        $this->assertCount(1, $loaded);
-        $job = \json_decode($loaded[0], true, 512, JSON_THROW_ON_ERROR);
+        $this->assertIsString($loaded);
+        $job = \json_decode($loaded, true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame($highPriorityUuid, $job['uuid']);
         $this->assertSame('running', $this->redis->hGet($this->registryKey($highPriorityUuid), 'state'));
         $this->assertFalse($this->redis->zScore($this->key('idx.pending'), $highPriorityUuid));
@@ -471,7 +471,7 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         ));
     }
 
-    public function test_load_batch_fails_on_malformed_numeric_job_fields(): void
+    public function test_load_next_fails_on_malformed_numeric_job_fields(): void
     {
         $uuid = $this->new_uuid();
         $now = \time();
@@ -481,9 +481,9 @@ final class QueueRedisLuaEdgeTest extends QueueRedisTestCase
         $this->assertLuaError(
             'missing or invalid required job field: attempts',
             fn () => $this->evalLua(
-                'load_batch',
+                'load_next',
                 [$this->key('idx.pending'), $this->key('idx.running')],
-                [$this->prefix, $now, 1]
+                [$this->prefix, $now]
             )
         );
     }

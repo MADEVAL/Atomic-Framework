@@ -102,12 +102,8 @@ class DB implements Base, Management, Telemetry
         }
     }
 
-    public function pop_batch(string $queue, int $limit): array
+    public function pop(string $queue): ?array
     {
-        if ($limit <= 0) {
-            return [];
-        }
-
         list($sql, $reconnected) = $this->connection_manager->get_db(true, true);
         $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
         if ($reconnected || !$this->jobs_mapper) {
@@ -115,44 +111,42 @@ class DB implements Base, Management, Telemetry
         }
 
         $now = \time();
-        $jobs = [];
 
         try {
             $sql->begin();
 
-            $available_jobs = $sql->exec(
-                'SELECT * FROM `' . $table . '` WHERE queue = ? AND available_at <= ? AND pid IS NULL ORDER BY priority ASC, available_at ASC LIMIT ? FOR UPDATE SKIP LOCKED',
-                [$queue, $now, $limit]
+            $rows = $sql->exec(
+                'SELECT * FROM `' . $table . '` WHERE queue = ? AND available_at <= ? AND pid IS NULL ORDER BY priority ASC, available_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED',
+                [$queue, $now]
             );
-
-            if ($available_jobs) {
-                foreach ($available_jobs as $row) {
-                    $timeout = (int)$row['timeout'];
-                    $available_at = $now + $timeout;
-
-                    $claimed = (int)$sql->exec(
-                        'UPDATE `' . $table . '` SET pid = ?, attempts = attempts + 1, available_at = ?, process_start_ticks = NULL WHERE id = ? AND pid IS NULL',
-                        [self::PID_PLACEHOLDER, $available_at, $row['id']]
-                    );
-                    if ($claimed !== 1) {
-                        continue;
-                    }
-
-                    $row['attempts'] = (int)$row['attempts'] + 1;
-                    $row['available_at'] = $available_at;
-                    $row['pid'] = self::PID_PLACEHOLDER;
-                    $row['payload'] = $this->deserialize($row['payload']);
-                    $jobs[] = $row;
-                }
+            if (!$rows) {
+                $sql->commit();
+                return null;
             }
 
+            $row = $rows[0];
+            $available_at = $now + (int)$row['timeout'];
+
+            $claimed = (int)$sql->exec(
+                'UPDATE `' . $table . '` SET pid = ?, attempts = attempts + 1, available_at = ?, process_start_ticks = NULL WHERE id = ? AND pid IS NULL',
+                [self::PID_PLACEHOLDER, $available_at, $row['id']]
+            );
             $sql->commit();
+
+            if ($claimed !== 1) {
+                return null;
+            }
+
+            $row['attempts'] = (int)$row['attempts'] + 1;
+            $row['available_at'] = $available_at;
+            $row['pid'] = self::PID_PLACEHOLDER;
+            $row['payload'] = $this->deserialize($row['payload']);
+            return $row;
         } catch (\Exception $e) {
             $sql->rollback();
-            Log::channel(LogChannel::QUEUE_WORKER)->error("SQLQueueDriver popBatch error: " . $e->getMessage() . " - " . $e->getFile() . " - " . $e->getLine() . " | Queue: $queue | Limit: $limit");
-            $jobs = [];
+            Log::channel(LogChannel::QUEUE_WORKER)->error("SQLQueueDriver pop error: " . $e->getMessage() . " - " . $e->getFile() . " - " . $e->getLine() . " | Queue: $queue");
+            return null;
         }
-        return $jobs;
     }
 
     public function release(array $job, int $delay): bool

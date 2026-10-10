@@ -61,7 +61,7 @@ If an option is omitted in `push()`, the manager fills it from the configured qu
 
 The manager also exposes these runtime methods:
 
-- `pop_batch()`
+- `pop()` — claims the next available job, or returns `null`
 - `process_job(array $job)`
 - `release(array $job, int $delay)`
 - `renew_lease(?int $duration = null)`

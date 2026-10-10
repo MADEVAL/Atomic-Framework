@@ -240,20 +240,15 @@ class Worker
             }
 
             try {
-                $jobs = $this->queue_manager->pop_batch();
+                $job = $this->queue_manager->pop();
                 $consecutive_errors = 0;
 
-                if (empty($jobs)) {
+                if ($job === null) {
                     \usleep(self::IDLE_SLEEP_MICROSECONDS_DEFAULT);
                     continue;
                 }
 
-                foreach ($jobs as $job) {
-                    if ($shutdown) {
-                        break;
-                    }
-                    $this->process_single_job($job, $worker_id);
-                }
+                $this->process_single_job($job, $worker_id);
             } catch (\Throwable $e) {
                 $consecutive_errors++;
                 $backoff = \min(

@@ -26,7 +26,7 @@ class Redis implements Base, Management, Telemetry
 
     private const LUA_PUSH = 'push';
     private const LUA_PUSH_TELEMETRY = 'push_telemetry';
-    private const LUA_LOAD_BATCH = 'load_batch';
+    private const LUA_LOAD_NEXT = 'load_next';
     private const LUA_LOAD_EVENTS = 'load_events';
     private const LUA_LOAD_JOBS_BY_STATE = 'load_jobs_by_state';
     private const LUA_LOAD_ACTIVE_MONITOR = 'load_active_monitor';
@@ -264,39 +264,35 @@ class Redis implements Base, Management, Telemetry
         }
     }
 
-    public function pop_batch(string $queue, int $limit): array {
-        $redis = $this->connection_manager->get_redis(true);
+    public function pop(string $queue): ?array {
         $prefix = $this->get_prefix();
-        $now = \time();
-        $jobs = [];
 
-        if (!isset($this->script_shas[self::LUA_LOAD_BATCH])) {
-            Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script '" . self::LUA_LOAD_BATCH . "' not loaded");
-            if (!$this->reload_lua_script(self::LUA_LOAD_BATCH)) {
-                return [];
+        if (!isset($this->script_shas[self::LUA_LOAD_NEXT])) {
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Lua script '" . self::LUA_LOAD_NEXT . "' not loaded");
+            if (!$this->reload_lua_script(self::LUA_LOAD_NEXT)) {
+                return null;
             }
         }
         
         try {
             $result = $this->eval_lua(
-                self::LUA_LOAD_BATCH,
+                self::LUA_LOAD_NEXT,
                 [
                     $prefix . $queue . '.idx.pending',
                     $prefix . $queue . '.idx.running',
                     $prefix,
-                    $now,
-                    $limit
+                    \time(),
                 ],
                 2
             );
 
-            if (\is_array($result)) {
-                $jobs = \array_map(fn ($item) => $this->deserialize($item), $result);
+            if (\is_string($result)) {
+                return $this->deserialize($result);
             }
         } catch (\Exception $e) {
-            Log::channel(LogChannel::QUEUE_WORKER)->error("Error extracting jobs from queue: " . $e->getMessage());
+            Log::channel(LogChannel::QUEUE_WORKER)->error("Error extracting job from queue: " . $e->getMessage());
         }
-        return $jobs;
+        return null;
     }
 
     public function release(array $job, int $delay): bool 

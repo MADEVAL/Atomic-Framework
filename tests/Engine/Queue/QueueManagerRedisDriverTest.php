@@ -38,9 +38,8 @@ final class QueueManagerRedisDriverTest extends QueueRedisTestCase
 
         $uuid_completed = ID::uuid_v4();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'ok'], [], $uuid_completed));
-        $jobs = $manager->pop_batch();
-        $this->assertCount(1, $jobs);
-        $job = $jobs[0];
+        $job = $manager->pop();
+        $this->assertNotNull($job);
         $this->assertSame($uuid_completed, $job['uuid']);
         $job['pid'] = getmypid();
         $this->assertTrue($manager->set_pid($job));
@@ -49,34 +48,32 @@ final class QueueManagerRedisDriverTest extends QueueRedisTestCase
 
         $uuid_release = ID::uuid_v4();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 2], 'smth' => 'release'], [], $uuid_release));
-        $first = $manager->pop_batch();
-        $this->assertCount(1, $first);
-        $released_job = $first[0];
+        $released_job = $manager->pop();
+        $this->assertNotNull($released_job);
         $released_job['pid'] = getmypid();
         $this->assertTrue($manager->set_pid($released_job));
         $this->assertTrue($manager->release($released_job, 0));
-        $repop = $manager->pop_batch();
-        $this->assertCount(1, $repop);
-        $this->assertSame($uuid_release, $repop[0]['uuid']);
-        $this->assertGreaterThanOrEqual(2, (int)$repop[0]['attempts']);
-        $repop_job = $repop[0];
+        $repop = $manager->pop();
+        $this->assertNotNull($repop);
+        $this->assertSame($uuid_release, $repop['uuid']);
+        $this->assertGreaterThanOrEqual(2, (int)$repop['attempts']);
+        $repop_job = $repop;
         $repop_job['pid'] = getmypid();
         $this->assertTrue($manager->set_pid($repop_job));
         $this->assertTrue($manager->mark_completed($repop_job));
 
         $uuid_failed = ID::uuid_v4();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'failure'], ['params' => ['id' => 3], 'smth' => 'fail'], [], $uuid_failed));
-        $failed = $manager->pop_batch();
-        $this->assertCount(1, $failed);
-        $failed_job = $failed[0];
+        $failed_job = $manager->pop();
+        $this->assertNotNull($failed_job);
         $failed_job['pid'] = getmypid();
         $this->assertTrue($manager->set_pid($failed_job));
         $this->assertTrue($manager->mark_failed($failed_job, new \RuntimeException('boom')));
         $this->assertTrue($manager->retry_by_uuid($uuid_failed));
-        $retried = $manager->pop_batch();
-        $this->assertCount(1, $retried);
-        $this->assertSame($uuid_failed, $retried[0]['uuid']);
-        $retried_job = $retried[0];
+        $retried = $manager->pop();
+        $this->assertNotNull($retried);
+        $this->assertSame($uuid_failed, $retried['uuid']);
+        $retried_job = $retried;
         $retried_job['pid'] = getmypid();
         $this->assertTrue($manager->set_pid($retried_job));
         $this->assertTrue($manager->mark_completed($retried_job));
@@ -93,9 +90,8 @@ final class QueueManagerRedisDriverTest extends QueueRedisTestCase
             ['cancel_handler' => 'cancelled'],
             $uuid_cancel_running
         ));
-        $running = $manager->pop_batch();
-        $this->assertCount(1, $running);
-        $running_job = $running[0];
+        $running_job = $manager->pop();
+        $this->assertNotNull($running_job);
         $this->assertSame($uuid_cancel_running, $running_job['uuid']);
         $running_job['pid'] = getmypid();
         $this->assertTrue($manager->set_pid($running_job));
@@ -120,12 +116,12 @@ final class QueueManagerRedisDriverTest extends QueueRedisTestCase
 
         $uuid_delete_blocked = ID::uuid_v4();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 8], 'smth' => 'delete-blocked'], [], $uuid_delete_blocked));
-        $delete_blocked_running = $manager->pop_batch();
-        $this->assertCount(1, $delete_blocked_running);
-        $this->assertSame($uuid_delete_blocked, $delete_blocked_running[0]['uuid']);
+        $delete_blocked_running = $manager->pop();
+        $this->assertNotNull($delete_blocked_running);
+        $this->assertSame($uuid_delete_blocked, $delete_blocked_running['uuid']);
         $this->assertTrue($manager->cancel($uuid_delete_blocked));
         $this->assertFalse($manager->delete_job($uuid_delete_blocked));
-        $this->assertTrue($manager->mark_cancelled($delete_blocked_running[0], 'test cleanup'));
+        $this->assertTrue($manager->mark_cancelled($delete_blocked_running, 'test cleanup'));
         $this->assertFalse($this->redis->zScore($this->prefix . $this->queue . '.idx.cancel_requested', $uuid_delete_blocked));
         $this->assertNotFalse($this->redis->zScore($this->prefix . $this->queue . '.idx.cancelled', $uuid_delete_blocked));
         $this->assertFalse($this->redis->zScore($this->prefix . $this->queue . '.idx.completed', $uuid_delete_blocked));

@@ -26,7 +26,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         parent::tearDown();
     }
 
-    public function test_priority_and_fifo_order_are_stable_for_direct_pop_batch(): void
+    public function test_priority_and_fifo_order_are_stable_for_direct_pop(): void
     {
         $manager = new Manager();
         $driver = $this->manager_driver($manager);
@@ -39,10 +39,10 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 2], 'smth' => 'first'], ['priority' => 1], $first));
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 3], 'smth' => 'second'], ['priority' => 1], $second));
 
-        $jobs = $driver->pop_batch($queue, 3);
-
-        $this->assertSame([$first, $second, $low], \array_column($jobs, 'uuid'));
-        $this->assertCount(3, \array_unique(\array_column($jobs, 'uuid')));
+        $this->assertSame($first, $driver->pop($queue)['uuid']);
+        $this->assertSame($second, $driver->pop($queue)['uuid']);
+        $this->assertSame($low, $driver->pop($queue)['uuid']);
+        $this->assertNull($driver->pop($queue));
     }
 
     public function test_delayed_job_is_not_popped_until_available(): void
@@ -51,7 +51,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'delay'], ['delay' => 2], $uuid));
-        $this->assertSame([], $manager->pop_batch());
+        $this->assertNull($manager->pop());
     }
 
     public function test_large_priority_does_not_delay_available_job(): void
@@ -61,10 +61,10 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'large-priority'], ['priority' => 2500], $uuid));
 
-        $jobs = $manager->pop_batch();
+        $jobs = $manager->pop();
 
-        $this->assertCount(1, $jobs);
-        $this->assertSame($uuid, $jobs[0]['uuid']);
+        $this->assertNotNull($jobs);
+        $this->assertSame($uuid, $jobs['uuid']);
     }
 
     public function test_release_rejects_wrong_pid_and_preserves_running_job(): void
@@ -72,7 +72,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $manager = new Manager();
         $uuid = $this->new_uuid();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'pid'], [], $uuid));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));
 
@@ -90,7 +90,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'pid-reuse'], [], $uuid));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));
 
@@ -118,7 +118,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $manager = new Manager($runningQueue);
         $uuid = $this->new_uuid();
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => [], 'smth' => 'lease-queue'], [], $uuid));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));
 
@@ -151,9 +151,9 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
 
         $this->assertTrue($manager->cancel($cancelUuid));
         $this->assertNotFalse($this->redis->zScore($this->prefix . $manager->get_queue() . '.idx.cancelled', $cancelUuid));
-        $jobs = $driver->pop_batch($manager->get_queue(), 1);
-        $this->assertCount(1, $jobs);
-        $this->assertSame($popUuid, $jobs[0]['uuid']);
+        $job = $driver->pop($manager->get_queue());
+        $this->assertNotNull($job);
+        $this->assertSame($popUuid, $job['uuid']);
     }
 
     public function test_cancel_requested_completion_becomes_cancelled_and_telemetry_search_finds_it(): void
@@ -166,7 +166,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
             ['cancel_handler' => 'cancelled'],
             $uuid
         ));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));
 
@@ -189,7 +189,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'monitor'], [], $uuid));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $this->assertSame($uuid, $job['uuid']);
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));
@@ -200,10 +200,10 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $manager->handle_incomplete_job($activeJobs[0]);
         $this->assertSame([], $manager->load_active_jobs($queue));
 
-        $retried = $manager->pop_batch();
-        $this->assertCount(1, $retried);
-        $this->assertSame($uuid, $retried[0]['uuid']);
-        $this->assertGreaterThanOrEqual(2, (int)$retried[0]['attempts']);
+        $retried = $manager->pop();
+        $this->assertNotNull($retried);
+        $this->assertSame($uuid, $retried['uuid']);
+        $this->assertGreaterThanOrEqual(2, (int)$retried['attempts']);
     }
 
     public function test_monitor_adapter_loads_stuck_jobs_and_marks_cancel_requested_jobs_cancelled(): void
@@ -218,7 +218,7 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
             ['cancel_handler' => 'cancelled'],
             $uuid
         ));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $this->assertSame($uuid, $job['uuid']);
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));
@@ -257,12 +257,12 @@ final class QueueRedisDriverEdgeTest extends QueueRedisTestCase
         $this->assertSame(0, $search['total']);
     }
 
-    public function test_zero_limit_pop_and_missing_uuid_set_pid_return_empty_false(): void
+    public function test_empty_pop_and_missing_uuid_set_pid_return_null_false(): void
     {
         $manager = new Manager();
         $driver = $this->manager_driver($manager);
 
-        $this->assertSame([], $driver->pop_batch($manager->get_queue(), 0));
+        $this->assertNull($driver->pop($manager->get_queue()));
         $this->assertFalse($driver->set_pid(['uuid' => null]));
     }
 

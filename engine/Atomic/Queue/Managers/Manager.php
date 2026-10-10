@@ -210,18 +210,16 @@ class Manager
         return (bool)$push_res;
     }
 
-    public function pop_batch(): array {
-        $pop_res = $this->driver->pop_batch($this->queue, 1);
+    public function pop(): ?array {
+        $job = $this->driver->pop($this->queue);
 
-        if (\is_array($pop_res) && !empty($pop_res)) {
-            foreach ($pop_res as $job) {
-                $this->set_telemetry_data($job['uuid'], $job['payload']['uuid_batch'], $this->queue, EventType::JOB_FETCHED);
-                $this->telemetry_manager->push_telemetry();
-                $this->unset_telemetry_data();
-            }
+        if ($job !== null) {
+            $this->set_telemetry_data($job['uuid'], $job['payload']['uuid_batch'], $this->queue, EventType::JOB_FETCHED);
+            $this->telemetry_manager->push_telemetry();
+            $this->unset_telemetry_data();
         }
 
-        return $pop_res;
+        return $job;
     }
 
     public function release(array $job, int $delay): bool {

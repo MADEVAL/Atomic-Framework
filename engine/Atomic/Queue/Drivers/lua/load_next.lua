@@ -2,29 +2,34 @@
     -- KEYS[2]: {queue}.idx.running key
     -- ARGV[1]: prefix (for registry keys)
     -- ARGV[2]: now (timestamp)
-    -- ARGV[3]: limit
 
     local pending_idx_key = KEYS[1]
     local running_idx_key = KEYS[2]
     local prefix = ARGV[1]
     local now = tonumber(ARGV[2])
-    local limit = tonumber(ARGV[3])
 
     if now == nil then
         error('missing or invalid required argument: now')
     end
-    if limit == nil then
-        error('missing or invalid required argument: limit')
-    end
-    if limit <= 0 then
-        return {}
+
+    local candidate_scan_limit = 1000
+
+    local function precedes(a, b)
+        if a.priority ~= b.priority then
+            return a.priority < b.priority
+        end
+        if a.available_at ~= b.available_at then
+            return a.available_at < b.available_at
+        end
+        if a.pending_sequence ~= b.pending_sequence then
+            return a.pending_sequence < b.pending_sequence
+        end
+        return a.uuid < b.uuid
     end
 
-    local results = {}
-    local candidates = {}
+    local best = nil
 
     local max_score = (now * 1000000) + 999999
-    local candidate_scan_limit = math.min(math.max(limit * 100, 1000), 10000)
     local uuids = redis.call('ZRANGEBYSCORE', pending_idx_key, '-inf', max_score, 'LIMIT', 0, candidate_scan_limit)
 
     for _, uuid in ipairs(uuids) do
@@ -66,7 +71,7 @@
                 pending_sequence = tonumber(redis.call('ZSCORE', pending_idx_key, uuid)) or 0
             end
 
-            table.insert(candidates, {
+            local candidate = {
                 uuid = uuid,
                 registry_key = registry_key,
                 job = job,
@@ -75,50 +80,40 @@
                 priority = priority,
                 available_at = available_at,
                 pending_sequence = pending_sequence
-            })
+            }
+
+            if best == nil or precedes(candidate, best) then
+                best = candidate
+            end
         elseif job.state == nil or job.state == '' then
             error('missing required job field: state')
         end
     end
 
-    table.sort(candidates, function(a, b)
-        if a.priority ~= b.priority then
-            return a.priority < b.priority
-        end
-        if a.available_at ~= b.available_at then
-            return a.available_at < b.available_at
-        end
-        if a.pending_sequence ~= b.pending_sequence then
-            return a.pending_sequence < b.pending_sequence
-        end
-        return a.uuid < b.uuid
-    end)
-
-    for i = 1, math.min(limit, #candidates) do
-        local candidate = candidates[i]
-        local job = candidate.job
-
-        job.attempts = candidate.attempts + 1
-        job.state = 'running'
-        job.available_at = now + candidate.timeout
-        job.updated_at = now
-
-        local running_score = job.available_at * 1000
-
-        redis.call('HMSET', candidate.registry_key,
-            'state', 'running',
-            'attempts', tostring(job.attempts),
-            'available_at', tostring(job.available_at),
-            'updated_at', tostring(job.updated_at),
-            'pid', '-1',
-            'process_start_ticks', ''
-        )
-
-        redis.call('ZREM', pending_idx_key, candidate.uuid)
-        redis.call('ZADD', running_idx_key, running_score, candidate.uuid)
-
-        job.payload = cjson.decode(job.payload)
-        table.insert(results, cjson.encode(job))
+    if best == nil then
+        return false
     end
 
-    return results
+    local job = best.job
+
+    job.attempts = best.attempts + 1
+    job.state = 'running'
+    job.available_at = now + best.timeout
+    job.updated_at = now
+
+    local running_score = job.available_at * 1000
+
+    redis.call('HMSET', best.registry_key,
+        'state', 'running',
+        'attempts', tostring(job.attempts),
+        'available_at', tostring(job.available_at),
+        'updated_at', tostring(job.updated_at),
+        'pid', '-1',
+        'process_start_ticks', ''
+    )
+
+    redis.call('ZREM', pending_idx_key, best.uuid)
+    redis.call('ZADD', running_idx_key, running_score, best.uuid)
+
+    job.payload = cjson.decode(job.payload)
+    return cjson.encode(job)

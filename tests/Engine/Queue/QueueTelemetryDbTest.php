@@ -100,7 +100,7 @@ final class QueueTelemetryDbTest extends QueueDbTestCase
         $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 10], 'smth' => 'events'], [], $uuid));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));
         $this->assertTrue($manager->mark_completed($job));
@@ -119,7 +119,7 @@ final class QueueTelemetryDbTest extends QueueDbTestCase
     private function pushPopAndSetPid(Manager $manager, string $uuid, string $label): array
     {
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 3], 'smth' => $label], [], $uuid));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $this->assertSame($uuid, $job['uuid']);
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));

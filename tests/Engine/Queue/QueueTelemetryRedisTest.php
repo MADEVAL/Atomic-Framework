@@ -112,7 +112,7 @@ final class QueueTelemetryRedisTest extends QueueRedisTestCase
         $uuid = $this->new_uuid();
 
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 10], 'smth' => 'events'], [], $uuid));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));
         $this->assertTrue($manager->mark_completed($job));
@@ -130,7 +130,7 @@ final class QueueTelemetryRedisTest extends QueueRedisTestCase
     private function pushPopAndSetPid(Manager $manager, string $uuid, string $label, array $options = []): array
     {
         $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 3], 'smth' => $label], $options, $uuid));
-        $job = $manager->pop_batch()[0];
+        $job = $manager->pop();
         $this->assertSame($uuid, $job['uuid']);
         $job['pid'] = \getmypid();
         $this->assertTrue($manager->set_pid($job));

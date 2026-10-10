@@ -6,7 +6,7 @@ if (!defined( 'ATOMIC_START' ) ) exit;
 
 interface Base {
     public function push(array $payload, array $options = []): bool;
-    public function pop_batch(string $queue, int $limit): array;
+    public function pop(string $queue): ?array;
     public function release(array $job, int $delay): bool;
     public function renew_lease(array $job, int $duration): bool;
     public function mark_failed(array $job, \Throwable $exception): bool;
