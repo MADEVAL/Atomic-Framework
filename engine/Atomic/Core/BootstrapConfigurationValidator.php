@@ -37,7 +37,7 @@ final class BootstrapConfigurationValidator
     /** @return list<string> */
     public function validate_cli(array $configuration, string $command): array
     {
-        if (in_array($this->normalize_command($command), self::REPAIR_COMMANDS, true)) {
+        if ($this->is_repair_command($command)) {
             return [];
         }
 
@@ -138,6 +138,14 @@ final class BootstrapConfigurationValidator
     {
         $command = strtolower(trim(str_replace(':', '/', $command)));
         return $command === '' ? '' : '/' . ltrim($command, '/');
+    }
+
+    private function is_repair_command(string $command): bool
+    {
+        $command = $this->normalize_command($command);
+
+        return in_array($command, self::REPAIR_COMMANDS, true)
+            || str_starts_with($command, '/help/');
     }
 
     private function is_valid_host(string $host): bool

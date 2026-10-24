@@ -72,10 +72,11 @@ class System extends Controller
         $this->cli()->access_user_list();
     }
 
-    public function help(): void
+    public function help(\Base $atomic, array $params = []): void
     {
         $cli = $this->cli();
-        $cli->help($cli->get_cli_args()[0] ?? null);
+        $topic = $params['topic'] ?? ($cli->get_cli_args()[0] ?? null);
+        $cli->help(is_string($topic) ? $topic : null);
     }
 
     public function cache_clear(): void

@@ -13,6 +13,7 @@ $this->route('GET /access/user/reset [cli]', 'Engine\Atomic\App\System->access_u
 $this->route('GET /access/user/list [cli]', 'Engine\Atomic\App\System->access_user_list');
 
 $this->route('GET /help [cli]', 'Engine\Atomic\App\System->help');
+$this->route('GET /help/@topic [cli]', 'Engine\Atomic\App\System->help');
 $this->route('GET /cache/invalidate [cli]', 'Engine\Atomic\App\System->cache_invalidate');
 $this->route('GET /cache/clear [cli]', 'Engine\Atomic\App\System->cache_clear');
 $this->route('GET /cache/prune [cli]', 'Engine\Atomic\App\System->cache_prune');
