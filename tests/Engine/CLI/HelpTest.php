@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace Tests\Engine\CLI;
 
+use Engine\Atomic\App\System;
 use Engine\Atomic\CLI\CLI;
 use Engine\Atomic\CLI\Console\Output;
+use Engine\Atomic\Core\App;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\ReflectionHelper;
 use Tests\Support\StreamCapture;
@@ -22,6 +24,8 @@ class HelpTest extends TestCase
             $this->assertStringContainsString('Project', $help);
             $this->assertStringContainsString('Authentication', $help);
             $this->assertStringContainsString('Migrations', $help);
+            $this->assertStringContainsString('Database', $help);
+            $this->assertStringContainsString('Seeding', $help);
             $this->assertStringContainsString('Queue', $help);
             $this->assertStringContainsString('Scheduler', $help);
             $this->assertStringContainsString('Files', $help);
@@ -83,6 +87,8 @@ class HelpTest extends TestCase
                     . "    plugins\n"
                     . "    authentication\n"
                     . "    migrations\n"
+                    . "    database\n"
+                    . "    seeding\n"
                     . "    cache\n"
                     . "    system\n"
                     . "    queue\n"
@@ -91,6 +97,59 @@ class HelpTest extends TestCase
                 $output
             );
             $this->assertStringNotContainsString('project, plugins', $output);
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function test_migrations_help_lists_every_migration_command(): void
+    {
+        [$cli, $stream] = $this->cli_with_output();
+
+        try {
+            $cli->help('migrations');
+            $help = Output::plain(StreamCapture::read($stream, true));
+
+            $this->assertStringContainsString('migrations/create <name>', $help);
+            $this->assertStringContainsString('migrations/rollback [steps|batch]', $help);
+            $this->assertStringContainsString('migrations/publish <framework|plugin-name>', $help);
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function test_full_help_lists_database_and_seeding_commands(): void
+    {
+        [$cli, $stream] = $this->cli_with_output();
+
+        try {
+            $cli->help();
+            $help = Output::plain(StreamCapture::read($stream, true));
+
+            $this->assertStringContainsString('db/tables', $help);
+            $this->assertStringContainsString('seed/users', $help);
+            $this->assertStringContainsString('queue/test/monitor [queue_name]', $help);
+            $this->assertStringContainsString('redis/clear', $help);
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function test_help_command_resolves_topic_from_route_parameter(): void
+    {
+        $stream = StreamCapture::memory();
+        $cli = new CLI();
+        ReflectionHelper::set($cli, 'output', new Output($stream, $stream));
+
+        $system = new System();
+        ReflectionHelper::set($system, 'cli', $cli);
+
+        try {
+            $system->help(App::atomic(), ['topic' => 'migrations']);
+            $help = Output::plain(StreamCapture::read($stream, true));
+
+            $this->assertStringContainsString('Migrations Commands', $help);
+            $this->assertStringContainsString('migrations/create <name>', $help);
         } finally {
             fclose($stream);
         }
@@ -198,6 +257,6 @@ class HelpTest extends TestCase
 
     private function set_cli_routes(array $routes): void
     {
-        \Engine\Atomic\Core\App::atomic()->set('ROUTES', $routes);
+        App::atomic()->set('ROUTES', $routes);
     }
 }

@@ -103,6 +103,8 @@ final class BootstrapConfigurationValidatorTest extends TestCase
             'init' => ['/init'],
             'init key' => ['/init/key'],
             'help' => ['/help'],
+            'help topic' => ['/help/migrations'],
+            'help topic colon syntax' => ['/help:migrations'],
             'version' => ['/version'],
             'health' => ['/health'],
         ];
