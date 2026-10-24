@@ -20,7 +20,9 @@ php atomic help migrations
 php atomic help scheduler
 ```
 
-Available topics include `project`, `plugins`, `authentication`, `migrations`, `cache`, `system`, `queue`, `scheduler`, and `files`.
+The slash and colon separator forms used by other commands are accepted as well (`php atomic help/migrations`, `php atomic help:migrations`).
+
+Available topics include `project`, `plugins`, `authentication`, `migrations`, `database`, `seeding`, `cache`, `system`, `queue`, `scheduler`, and `files`.
 
 If a command is not recognized, Atomic reports it as a CLI error, suggests close matches when possible, and points back to `php atomic help`. Unknown commands exit with status `1`.
 
@@ -76,6 +78,9 @@ This creates a user plugin under `USER_PLUGINS` with `plugin.php`, the plugin cl
 
 - `init` prepares a project and framework defaults.
 - `access/user/*` manages config-backed users; full usage and parameters are in [`telemetry.md#config-user-commands`](telemetry.md#config-user-commands), and HTTP `access:<guard>` behavior is in [`middleware.md#config-backed-access-middleware`](middleware.md#config-backed-access-middleware).
+- `migrations/*` creates, runs, rolls back, and publishes migrations.
+- `db/*` inspects tables and creates or truncates the framework tables.
+- `seed/*` runs the bundled seeders.
 - `queue/*` runs and inspects queue workers.
 - `schedule/*` runs and inspects scheduled tasks.
 - `plugin/*` scaffolds and manages plugins.
