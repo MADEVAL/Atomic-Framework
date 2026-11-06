@@ -44,11 +44,26 @@ The scheduler decides which registered tasks are due on each invocation.
 
 ### Execution model
 
-`Scheduler::register_schedule()` loads the application's schedule definition from:
+During CLI bootstrap, `ScheduleServiceProvider` calls `Scheduler::register_schedule()` to load the
+application's schedule definition. Scheduler commands use that registered instance.
 
 ```text
 routes/schedule.php
 ```
+
+The default path uses `ATOMIC_APP_ROUTES`, falling back to `ATOMIC_DIR/routes/` when that constant is
+undefined. Pass a path to `register_schedule($path)` or `load_from($path)` to register additional
+schedule files. Inside a loaded file, `$scheduler` refers to the receiving scheduler instance.
+
+Both loading methods share the same per-instance registration state. Each readable file is included
+once, identified by its canonical `realpath()`, including files that define no tasks. Repeated calls,
+path aliases, and recursive loads of the same file add no further tasks. Missing or unreadable files
+are skipped and can be loaded later when available.
+
+`clear()` removes all events and file registrations, allowing the files to be loaded again. Creating
+a new scheduler instance also starts with no registered files. If a load throws, the exception is
+re-thrown and the event list and file registrations are restored to their previous state, including
+any nested loads. Other side effects performed by a schedule file are outside this rollback.
 
 There are two ways to run scheduled tasks:
 
