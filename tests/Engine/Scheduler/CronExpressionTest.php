@@ -167,23 +167,6 @@ class CronExpressionTest extends TestCase
         $this->assertFalse(CronExpression::matches('bad expression', $date));
     }
 
-    public function test_next_run_search_window_covers_the_longest_leap_year_gap(): void
-    {
-        $method = new \ReflectionMethod(CronExpression::class, 'get_next_run_date');
-        $parameters = $method->getParameters();
-        $window = (int)$parameters[2]->getDefaultValue();
-
-        $this->assertGreaterThanOrEqual(
-            8 * 366 * 24 * 60,
-            $window,
-            sprintf(
-                'The default search window spans %d day(s), but two Feb 29 occurrences can be up to 8 years apart, '
-                . 'so a valid leap-day schedule can never be resolved.',
-                intdiv($window, 1440)
-            )
-        );
-    }
-
     public function test_next_run_date_for_leap_day_expression_is_reachable(): void
     {
         $start = microtime(true);
@@ -198,5 +181,54 @@ class CronExpressionTest extends TestCase
             )
         );
         $this->assertSame('29-02 00:00', $next->format('d-m H:i'));
+    }
+
+    public function test_impossible_dates_return_null_quickly(): void
+    {
+        $start = microtime(true);
+        foreach (['0 0 30 2 *', '0 0 31 2 *'] as $expression) {
+            $this->assertNull(CronExpression::get_next_run_date($expression, 'UTC'));
+        }
+        $this->assertLessThan(1.0, microtime(true) - $start);
+    }
+
+    public function test_next_run_resolves_century_leap_gap(): void
+    {
+        $from = new \DateTimeImmutable('2096-02-29 00:00:00', new \DateTimeZone('UTC'));
+        $next = CronExpression::get_next_run_date('0 0 29 2 *', 'UTC', 527040, $from);
+        $this->assertSame('2104-02-29 00:00', $next?->format('Y-m-d H:i'));
+    }
+
+    public function test_next_run_preserves_day_or_semantics(): void
+    {
+        $from = new \DateTimeImmutable('2024-06-14 23:59:00', new \DateTimeZone('UTC'));
+        foreach (['0 0 15 * 1', '0 0 20 * 6'] as $expression) {
+            $next = CronExpression::get_next_run_date($expression, 'UTC', 527040, $from);
+            $this->assertSame('2024-06-15 00:00', $next?->format('Y-m-d H:i'));
+        }
+    }
+
+    public function test_next_run_matches_brute_force_across_dst_and_fields(): void
+    {
+        $tz = new \DateTimeZone('Europe/Kyiv');
+        foreach (['2024-03-31 02:58:30', '2024-10-27T03:58:30+03:00', '2024-06-15 10:14:30'] as $start) {
+            $from = (new \DateTimeImmutable($start, $tz))->setTimezone($tz);
+            foreach (['* * * * *', '*/15 * * * *', '0 3 * * *', '5 4 * * *', '0 0 * * 1', '0 0 16 * *'] as $expression) {
+                $expected = $from->setTimestamp(intdiv($from->getTimestamp(), 60) * 60 + 60);
+                while (!CronExpression::matches($expression, $expected)) {
+                    $expected = $expected->setTimestamp($expected->getTimestamp() + 60);
+                }
+                $next = CronExpression::get_next_run_date($expression, $tz, 527040, $from);
+                $this->assertSame($expected->getTimestamp(), $next?->getTimestamp(), $expression . ' from ' . $start);
+                $this->assertTrue(CronExpression::matches($expression, $next));
+            }
+        }
+    }
+
+    public function test_next_run_respects_iteration_cap(): void
+    {
+        $from = new \DateTimeImmutable('2024-06-15 10:14:30', new \DateTimeZone('UTC'));
+        $this->assertNull(CronExpression::get_next_run_date('* * * * *', 'UTC', 0, $from));
+        $this->assertSame('10:15', CronExpression::get_next_run_date('*/15 * * * *', 'UTC', 1, $from)?->format('H:i'));
     }
 }

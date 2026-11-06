@@ -13,26 +13,50 @@ class CronExpression
         return self::matches($expression, $now);
     }
 
+    /**
+     * Find the next whole minute after $from (or now), within ten years.
+     * $max_iterations caps field-skipping search steps, not elapsed minutes;
+     * its existing default and explicitly supplied limits remain supported.
+     */
     public static function get_next_run_date(
-        string $expression, 
+        string $expression,
         \DateTimeZone|string|null $timezone = null,
-        int $max_iterations = 527040
+        int $max_iterations = 527040,
+        ?\DateTimeInterface $from = null
     ): ?\DateTimeInterface {
-        $tz = self::resolve_timezone($timezone);
-        $date = new \DateTime('now', $tz);
-        
-        $date->modify('+1 minute');
-        $date->setTime((int)$date->format('H'), (int)$date->format('i'), 0);
-
         if (!self::is_valid($expression)) {
             return null;
         }
 
-        for ($i = 0; $i < $max_iterations; $i++) {
-            if (self::matches_valid_expression($expression, $date)) {
-                return $date;
+        $tz = self::resolve_timezone($timezone);
+        $date = $from === null
+            ? new \DateTime('now', $tz)
+            : \DateTime::createFromInterface($from)->setTimezone($tz);
+        // Elapsed-time advances preserve both occurrences of a repeated DST hour.
+        $date->setTimestamp((int)\floor($date->getTimestamp() / 60) * 60 + 60);
+        $limit = (clone $date)->modify('+10 years');
+        [$minute, $hour, $day_of_month, $month, $day_of_week] =
+            \preg_split('/\s+/', \trim($expression));
+
+        for ($i = 0; $i < $max_iterations && $date <= $limit; $i++) {
+            if (!self::matches_part($month, (int)$date->format('n'), 1, 12)) {
+                $date->setDate((int)$date->format('Y'), (int)$date->format('n') + 1, 1);
+                $date->setTime(0, 0);
+                continue;
             }
-            $date->modify('+1 minute');
+            if (!self::matches_day($day_of_month, $day_of_week, $date)) {
+                $date->modify('+1 day')->setTime(0, 0);
+                continue;
+            }
+            if (!self::matches_part($hour, (int)$date->format('G'), 0, 23)) {
+                $date->setTimestamp($date->getTimestamp() + (60 - (int)$date->format('i')) * 60);
+                continue;
+            }
+            if (!self::matches_part($minute, (int)$date->format('i'), 0, 59)) {
+                $date->setTimestamp($date->getTimestamp() + 60);
+                continue;
+            }
+            return $date;
         }
 
         return null;
@@ -59,9 +83,7 @@ class CronExpression
 
         $current_minute = (int)$date->format('i');
         $current_hour = (int)$date->format('G');
-        $current_day_of_month = (int)$date->format('j');
         $current_month = (int)$date->format('n');
-        $current_day_of_week = (int)$date->format('w');
 
         if (!self::matches_part($minute, $current_minute, 0, 59)) {
             return false;
@@ -73,11 +95,16 @@ class CronExpression
             return false;
         }
 
+        return self::matches_day($day_of_month, $day_of_week, $date);
+    }
+
+    protected static function matches_day(string $day_of_month, string $day_of_week, \DateTimeInterface $date): bool
+    {
         $dom_restricted = ($day_of_month !== '*');
         $dow_restricted = ($day_of_week !== '*');
         
-        $dom_matches = self::matches_part($day_of_month, $current_day_of_month, 1, 31);
-        $dow_matches = self::matches_part($day_of_week, $current_day_of_week, 0, 6);
+        $dom_matches = self::matches_part($day_of_month, (int)$date->format('j'), 1, 31);
+        $dow_matches = self::matches_part($day_of_week, (int)$date->format('w'), 0, 6);
 
         if ($dom_restricted && $dow_restricted) {
             return $dom_matches || $dow_matches;
