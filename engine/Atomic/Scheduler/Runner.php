@@ -15,7 +15,7 @@ class Runner
 
     public function run_due_tasks(bool $force_run = false): array
     {
-        $events = $force_run ? $this->scheduler->events() : $this->scheduler->due_events();
+        $events = $this->scheduler->due_events($force_run);
         
         $response = [
             'due_count' => \count($events),

@@ -65,10 +65,14 @@ class Scheduler
         return $this->events;
     }
 
-    public function due_events(): array
+    public function due_events(bool $force_run = false): array
     {
-        return \array_filter($this->events, function (Event $event) {
-            return $event->is_due() && $event->filters_pass();
+        $maintenance_mode = (bool)App::atomic()->get('MAINTENANCE_MODE');
+
+        return \array_filter($this->events, function (Event $event) use ($force_run, $maintenance_mode) {
+            return ($force_run || $event->is_due())
+                && $event->filters_pass()
+                && (!$maintenance_mode || $event->runs_in_maintenance_mode());
         });
     }
 

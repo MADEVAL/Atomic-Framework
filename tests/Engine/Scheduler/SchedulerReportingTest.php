@@ -218,6 +218,54 @@ final class SchedulerReportingTest extends TestCase
         );
     }
 
+    public function test_worker_reports_only_maintenance_eligible_tasks(): void
+    {
+        App::atomic()->set('MAINTENANCE_MODE', true);
+        $scheduler = Scheduler::instance();
+        $executed = [];
+        $scheduler->call(function () use (&$executed): void {
+            $executed[] = 'blocked';
+        })->description('blocked-task')->every_minute();
+        $scheduler->call(function () use (&$executed): void {
+            $executed[] = 'allowed';
+        })->description('allowed-task')->every_minute()->run_in_maintenance_mode();
+
+        $lines = [];
+        (new Worker($scheduler, 1, 1))->run(function (string $line) use (&$lines): void {
+            $lines[] = $line;
+        });
+
+        $this->assertSame(['allowed'], $executed);
+        $this->assertContains('  Found 1 due task(s)', $lines);
+        $this->assertContains('    [✓] allowed-task', $lines);
+        $this->assertSame(1, count(array_filter($lines, static fn(string $line): bool => str_starts_with($line, '    ['))));
+    }
+
+    public function test_forced_runner_still_honors_maintenance_and_filters(): void
+    {
+        App::atomic()->set('MAINTENANCE_MODE', true);
+        $scheduler = Scheduler::instance();
+        $executed = [];
+        foreach (['blocked', 'filtered', 'allowed'] as $name) {
+            $event = $scheduler->call(function () use (&$executed, $name): void {
+                $executed[] = $name;
+            })->description($name)->cron('0 0 31 2 *');
+            if ($name !== 'blocked') {
+                $event->run_in_maintenance_mode();
+            }
+            if ($name === 'filtered') {
+                $event->when(static fn(): bool => false);
+            }
+        }
+
+        $this->assertSame([], $scheduler->due_events());
+        $result = (new Runner($scheduler))->run_due_tasks(true);
+
+        $this->assertSame(['allowed'], $executed);
+        $this->assertSame(1, $result['due_count']);
+        $this->assertSame(['allowed'], array_column($result['results'], 'description'));
+    }
+
     public function test_worker_prints_overlapping_task_as_skipped(): void
     {
         $driver = new FileMutexDriver();

@@ -286,7 +286,12 @@ $results = $scheduler->run();
 $summary = $scheduler->summary();
 ```
 
-Force all registered events to run, even when they are not due:
+`due_events()` excludes tasks blocked by filters or maintenance mode, so Runner
+and Worker counts reflect maintenance eligibility. `due_events(true)` bypasses
+cron timing while still honoring filters and maintenance mode.
+
+Force registered events to run even when they are not due; filters and maintenance
+mode still apply:
 
 ```php
 $results = $scheduler->run(true);
