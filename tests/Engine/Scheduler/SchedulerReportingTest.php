@@ -196,6 +196,50 @@ final class SchedulerReportingTest extends TestCase
         );
     }
 
+    public function test_worker_filters_are_evaluated_once_per_cycle(): void
+    {
+        $scheduler = Scheduler::instance();
+        $when_evaluations = 0;
+        $skip_evaluations = 0;
+        $executed = 0;
+        $scheduler->call(function () use (&$executed): void {
+            $executed++;
+        })->description('filtered-worker-task')->every_minute()
+            ->when(function () use (&$when_evaluations): bool {
+                return ++$when_evaluations === 1;
+            })
+            ->skip(function () use (&$skip_evaluations): bool {
+                return ++$skip_evaluations > 1;
+            });
+
+        $lines = [];
+        (new Worker($scheduler, 1, 1))->run(function (string $line) use (&$lines): void {
+            $lines[] = $line;
+        });
+
+        $this->assertSame(1, $when_evaluations);
+        $this->assertSame(1, $skip_evaluations);
+        $this->assertSame(1, $executed);
+        $this->assertContains('  Found 1 due task(s)', $lines);
+        $this->assertContains('    [✓] filtered-worker-task', $lines);
+    }
+
+    public function test_standalone_run_filters_are_evaluated_once_per_cycle(): void
+    {
+        $scheduler = Scheduler::instance();
+        $evaluations = 0;
+        $scheduler->call(static fn(): null => null)->every_minute()
+            ->when(function () use (&$evaluations): bool {
+                return ++$evaluations === 1;
+            });
+
+        $rows = $scheduler->run();
+
+        $this->assertSame(1, $evaluations);
+        $this->assertCount(1, $rows);
+        $this->assertSame(true, $rows[0]['success']);
+    }
+
     public function test_reported_due_count_matches_the_executed_tasks_in_maintenance_mode(): void
     {
         App::atomic()->set('MAINTENANCE_MODE', true);

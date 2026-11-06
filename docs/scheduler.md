@@ -282,13 +282,18 @@ $scheduler = Scheduler::instance();
 $scheduler->register_schedule();
 
 $due = $scheduler->due_events();
-$results = $scheduler->run();
+$results = $scheduler->run_events($due);
 $summary = $scheduler->summary();
 ```
 
 `due_events()` excludes tasks blocked by filters or maintenance mode, so Runner
 and Worker counts reflect maintenance eligibility. `due_events(true)` bypasses
 cron timing while still honoring filters and maintenance mode.
+Runner and Worker execute the selected list through `run_events($due)`, so
+`when()` and `skip()` callbacks are evaluated once per cycle. Use `run()` for
+selection and execution in one call; it also evaluates filters only once.
+`run_events()` executes an already selected list without rechecking eligibility
+and retains the maximum execution time limit.
 
 Force registered events to run even when they are not due; filters and maintenance
 mode still apply:

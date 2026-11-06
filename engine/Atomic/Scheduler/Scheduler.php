@@ -70,38 +70,40 @@ class Scheduler
         $maintenance_mode = (bool)App::atomic()->get('MAINTENANCE_MODE');
 
         return \array_filter($this->events, function (Event $event) use ($force_run, $maintenance_mode) {
-            return ($force_run || $event->is_due())
-                && $event->filters_pass()
-                && (!$maintenance_mode || $event->runs_in_maintenance_mode());
+            if (!$force_run && !$event->is_due()) {
+                return false;
+            }
+            if (!$event->filters_pass()) {
+                $this->log("Skipping event (filters failed): " . ($event->get_description() ?? $event->get_id()));
+                return false;
+            }
+            if ($maintenance_mode && !$event->runs_in_maintenance_mode()) {
+                $this->log("Skipping event (maintenance mode): " . ($event->get_description() ?? $event->get_id()));
+                return false;
+            }
+            return true;
         });
     }
 
     public function run(bool $force_run = false): array
     {
+        return $this->run_events($this->due_events($force_run));
+    }
+
+    /**
+     * Execute a previously selected set without re-evaluating eligibility.
+     *
+     * @param Event[] $events Events returned by due_events().
+     */
+    public function run_events(array $events): array
+    {
         $results = [];
         $start_time = \time();
 
-        $atomic = App::atomic();
-        $maintenance_mode = (bool)$atomic->get('MAINTENANCE_MODE');
-
-        foreach ($this->events as $event) {
+        foreach ($events as $event) {
             if ((\time() - $start_time) > $this->max_execution_time) {
                 Log::warning('[Scheduler] Maximum execution time reached, stopping');
                 break;
-            }
-
-            if (!$force_run && !$event->is_due()) {
-                continue;
-            }
-
-            if (!$event->filters_pass()) {
-                $this->log("Skipping event (filters failed): " . ($event->get_description() ?? $event->get_id()));
-                continue;
-            }
-
-            if ($maintenance_mode && !$event->runs_in_maintenance_mode()) {
-                $this->log("Skipping event (maintenance mode): " . ($event->get_description() ?? $event->get_id()));
-                continue;
             }
 
             $event_result = [

@@ -31,7 +31,7 @@ class Runner
             return $response;
         }
 
-        $results = $this->scheduler->run($force_run);
+        $results = $this->scheduler->run_events($events);
         
         $response['results'] = $results;
         $response['summary']['successful'] = \count(\array_filter($results, fn($r) => $r['success']));

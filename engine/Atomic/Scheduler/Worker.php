@@ -72,7 +72,7 @@ class Worker
                 } else {
                     $this->log_output("  Found " . \count($due_events) . " due task(s)", $output_callback);
 
-                    $results = $this->scheduler->run();
+                    $results = $this->scheduler->run_events($due_events);
 
                     foreach ($results as $result) {
                         $status = ($result['skipped'] ?? false) ? 'skipped' : ($result['success'] ? '✓' : '✗');
