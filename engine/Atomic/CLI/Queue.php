@@ -35,7 +35,7 @@ trait Queue {
             if (!\extension_loaded('pdo_mysql')) {
                 return "Queue driver 'db' is unavailable: ext-pdo_mysql is not loaded. Install/enable pdo_mysql and verify DB_* settings.";
             }
-            return "Queue driver 'db' is unavailable: database connection failed or queue tables are missing. Check DB_* and run 'php atomic queue/db'.";
+            return "Queue driver 'db' is unavailable: database connection failed or queue tables are missing. Check DB_* and run 'php atomic db/queue' then 'php atomic migrations/migrate'.";
         }
 
         return "Queue system is unavailable: unsupported QUEUE_DRIVER '{$driver}'.";

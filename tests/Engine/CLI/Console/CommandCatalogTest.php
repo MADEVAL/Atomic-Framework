@@ -48,8 +48,62 @@ final class CommandCatalogTest extends TestCase
     {
         foreach ($this->documented_commands() as $command) {
             $this->assertNotSame('', $command['description'], $command['name'] . ' needs a description');
-            $this->assertSame(1, preg_match('/^[A-Z].*[^.]$/', $command['description']), $command['name'] . ' description must be one plain sentence');
+            $this->assertSame(1, preg_match('/^[A-Z][^\r\n]*[^.]$/', $command['description']), $command['name'] . ' description must be one plain line');
+            $this->assertStringNotContainsString('. ', $command['description'], $command['name'] . ' description must be one sentence');
         }
+    }
+
+    public function test_table_commands_describe_migration_publishing_not_table_creation(): void
+    {
+        foreach (['db/sessions', 'db/queue', 'db/users', 'db/pages', 'db/storage', 'db/mutex'] as $name) {
+            $description = $this->documented_command($name)['description'];
+
+            // These handlers only publish a migration; the table appears after migrations/migrate.
+            $this->assertStringStartsWith('Publish the ', $description, $name);
+            $this->assertStringEndsWith(' migration', $description, $name);
+        }
+    }
+
+    public function test_optional_arguments_parsed_by_handlers_are_documented(): void
+    {
+        $this->assertSame('schedule/work [seconds]', CommandCatalog::display('schedule/work'));
+        $this->assertSame('schedule/test [expression]', CommandCatalog::display('schedule/test'));
+        $this->assertSame('file/csv2pdf <input.csv> <output.pdf> [header]', CommandCatalog::display('file/csv2pdf'));
+        $this->assertSame('file/xls2pdf <input.xls> <output.pdf> [header]', CommandCatalog::display('file/xls2pdf'));
+    }
+
+    public function test_find_returns_one_command_definition(): void
+    {
+        $this->assertSame(
+            ['name' => 'migrations/create', 'topic' => 'migrations', 'arguments' => '<name>', 'description' => 'Create a migration file'],
+            CommandCatalog::find(' Migrations/Create/ ')
+        );
+        $this->assertNull(CommandCatalog::find('no/such/command'));
+    }
+
+    public function test_command_hints_in_engine_sources_name_documented_commands(): void
+    {
+        $documented = array_column($this->documented_commands(), 'name');
+        $unknown = [];
+
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(ATOMIC_ENGINE . 'Atomic', \FilesystemIterator::SKIP_DOTS));
+        $plugins = ATOMIC_ENGINE . 'Atomic' . DIRECTORY_SEPARATOR . 'Plugins' . DIRECTORY_SEPARATOR;
+        foreach ($files as $file) {
+            // Bundled plugins own their commands; they are not in the framework catalog.
+            if ($file->getExtension() !== 'php' || str_starts_with($file->getPathname(), $plugins)) {
+                continue;
+            }
+            preg_match_all('#php atomic ([a-z][a-z0-9_/-]*)#', (string)file_get_contents($file->getPathname()), $matches);
+            foreach ($matches[1] as $command) {
+                $command = rtrim($command, '/');
+                // routes/<scope>/<source> is a parameterised route documented in its own help block.
+                if (!in_array($command, $documented, true) && !str_starts_with($command, 'routes/')) {
+                    $unknown[] = $command . ' in ' . basename($file->getPathname());
+                }
+            }
+        }
+
+        $this->assertSame([], array_values(array_unique($unknown)));
     }
 
     public function test_migration_commands_are_listed_in_migrations_help(): void
@@ -101,20 +155,40 @@ final class CommandCatalogTest extends TestCase
         return $commands;
     }
 
-    /** @return list<string> */
-    private function framework_cli_routes(): array
+    /** @return array{name: string, arguments: string, description: string} */
+    private function documented_command(string $name): array
     {
-        $file = ATOMIC_ENGINE . 'Atomic' . DIRECTORY_SEPARATOR . 'Core' . DIRECTORY_SEPARATOR . 'Routes' . DIRECTORY_SEPARATOR . 'cli.php';
-        $source = (string)file_get_contents($file);
-
-        preg_match_all("/route\\('GET \\/([^'\\[]+?) \\[cli\\]'/", $source, $matches);
-
-        $routes = [];
-        foreach ($matches[1] as $route) {
-            if (!str_contains($route, '@')) {
-                $routes[] = $route;
+        foreach ($this->documented_commands() as $command) {
+            if ($command['name'] === $name) {
+                return $command;
             }
         }
+
+        $this->fail($name . ' is not documented');
+    }
+
+    /**
+     * CLI routes registered by every framework route file.
+     *
+     * Bundled plugin routes (engine/Atomic/Plugins/*) are excluded on purpose:
+     * they exist only when the plugin is enabled, so the framework catalog
+     * cannot list them unconditionally.
+     *
+     * @return list<string>
+     */
+    private function framework_cli_routes(): array
+    {
+        $routes = [];
+        foreach (glob(ATOMIC_ENGINE . 'Atomic' . DIRECTORY_SEPARATOR . 'Core' . DIRECTORY_SEPARATOR . 'Routes' . DIRECTORY_SEPARATOR . '*.php') ?: [] as $file) {
+            preg_match_all("/route\\(\\s*['\"]GET \\/([^'\"\\[]+?) \\[cli\\]['\"]/", (string)file_get_contents($file), $matches);
+            foreach ($matches[1] as $route) {
+                if (!str_contains($route, '@')) {
+                    $routes[] = $route;
+                }
+            }
+        }
+
+        $this->assertNotSame([], $routes, 'No framework CLI routes were found; the route file layout changed.');
 
         return $routes;
     }

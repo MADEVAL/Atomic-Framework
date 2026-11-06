@@ -33,12 +33,12 @@ final class CommandCatalog
         'migrations/upgrade' => ['topic' => 'migrations', 'arguments' => '[--dry-run]', 'description' => 'Adopt legacy migration history'],
         'migrations/publish' => ['topic' => 'migrations', 'arguments' => '<framework|plugin-name>', 'description' => 'Publish framework or plugin migrations'],
         'db/tables' => ['topic' => 'database', 'arguments' => '', 'description' => 'List database tables'],
-        'db/sessions' => ['topic' => 'database', 'arguments' => '', 'description' => 'Create the session table'],
-        'db/queue' => ['topic' => 'database', 'arguments' => '', 'description' => 'Create the queue tables'],
-        'db/users' => ['topic' => 'database', 'arguments' => '', 'description' => 'Create the user tables'],
-        'db/pages' => ['topic' => 'database', 'arguments' => '', 'description' => 'Create the page tables'],
-        'db/storage' => ['topic' => 'database', 'arguments' => '', 'description' => 'Create the storage tables'],
-        'db/mutex' => ['topic' => 'database', 'arguments' => '', 'description' => 'Create the mutex table'],
+        'db/sessions' => ['topic' => 'database', 'arguments' => '', 'description' => 'Publish the session table migration'],
+        'db/queue' => ['topic' => 'database', 'arguments' => '', 'description' => 'Publish the queue tables migration'],
+        'db/users' => ['topic' => 'database', 'arguments' => '', 'description' => 'Publish the user tables migration'],
+        'db/pages' => ['topic' => 'database', 'arguments' => '', 'description' => 'Publish the page tables migration'],
+        'db/storage' => ['topic' => 'database', 'arguments' => '', 'description' => 'Publish the storage tables migration'],
+        'db/mutex' => ['topic' => 'database', 'arguments' => '', 'description' => 'Publish the mutex table migration'],
         'db/truncate' => ['topic' => 'database', 'arguments' => '<table_name>', 'description' => 'Delete all rows from a table'],
         'db/truncate/queue' => ['topic' => 'database', 'arguments' => '', 'description' => 'Delete all rows from the queue tables'],
         'seed/users' => ['topic' => 'seeding', 'arguments' => '', 'description' => 'Seed the bundled users'],
@@ -61,12 +61,12 @@ final class CommandCatalog
         'queue/retry' => ['topic' => 'queue', 'arguments' => '[<job_uuid>|<queue_name>]', 'description' => 'Retry failed tasks'],
         'queue/cancel' => ['topic' => 'queue', 'arguments' => '<job_uuid>', 'description' => 'Request cancellation for a job by UUID'],
         'queue/delete' => ['topic' => 'queue', 'arguments' => '<job_uuid>', 'description' => 'Delete a job by UUID'],
-        'file/csv2pdf' => ['topic' => 'files', 'arguments' => '<input.csv> <output.pdf>', 'description' => 'Convert CSV to PDF'],
-        'file/xls2pdf' => ['topic' => 'files', 'arguments' => '<input.xls> <output.pdf>', 'description' => 'Convert XLS to PDF'],
+        'file/csv2pdf' => ['topic' => 'files', 'arguments' => '<input.csv> <output.pdf> [header]', 'description' => 'Convert CSV to PDF'],
+        'file/xls2pdf' => ['topic' => 'files', 'arguments' => '<input.xls> <output.pdf> [header]', 'description' => 'Convert XLS to PDF'],
         'schedule/run' => ['topic' => 'scheduler', 'arguments' => '', 'description' => 'Run all due scheduled tasks'],
-        'schedule/work' => ['topic' => 'scheduler', 'arguments' => '', 'description' => 'Run scheduler daemon'],
+        'schedule/work' => ['topic' => 'scheduler', 'arguments' => '[seconds]', 'description' => 'Run scheduler daemon'],
         'schedule/list' => ['topic' => 'scheduler', 'arguments' => '', 'description' => 'List all scheduled tasks'],
-        'schedule/test' => ['topic' => 'scheduler', 'arguments' => '', 'description' => 'Test scheduler configuration'],
+        'schedule/test' => ['topic' => 'scheduler', 'arguments' => '[expression]', 'description' => 'Test scheduler configuration'],
         'schedule/help' => ['topic' => 'scheduler', 'arguments' => '', 'description' => 'Show scheduler help'],
     ];
 
@@ -107,6 +107,15 @@ final class CommandCatalog
         }
 
         return $topics;
+    }
+
+    /** @return array{name: string, topic: string, arguments: string, description: string}|null */
+    public static function find(string $command): ?array
+    {
+        $command = self::normalize($command);
+        $definition = self::COMMANDS[$command] ?? null;
+
+        return $definition === null ? null : ['name' => $command] + $definition;
     }
 
     public static function display(string $command): string

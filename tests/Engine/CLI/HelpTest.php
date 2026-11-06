@@ -52,6 +52,23 @@ class HelpTest extends TestCase
         }
     }
 
+    public function test_help_for_a_command_shows_its_usage(): void
+    {
+        [$cli, $stream] = $this->cli_with_output();
+
+        try {
+            $cli->help('migrations/create');
+            $help = StreamCapture::read($stream, true);
+
+            $this->assertStringNotContainsString('Unknown help topic', $help);
+            $this->assertStringContainsString('Usage: php atomic migrations/create <name>', $help);
+            $this->assertStringContainsString('Create a migration file', $help);
+            $this->assertStringContainsString('php atomic help migrations', $help);
+        } finally {
+            fclose($stream);
+        }
+    }
+
     public function test_system_help_lists_route_commands_once(): void
     {
         [$cli, $stream] = $this->cli_with_output();

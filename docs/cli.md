@@ -24,6 +24,17 @@ The slash and colon separator forms used by other commands are accepted as well 
 
 Available topics include `project`, `plugins`, `authentication`, `migrations`, `database`, `seeding`, `cache`, `system`, `queue`, `scheduler`, and `files`.
 
+To see the usage of a single command, pass the command name instead of a topic:
+
+```bash
+php atomic help migrations/create
+# Usage: php atomic migrations/create <name>
+```
+
+In usage lines, `<value>` is required and `[value]` is optional.
+
+Help lists framework commands only. Commands added by an enabled plugin are listed by `php atomic routes/cli/plugin`.
+
 If a command is not recognized, Atomic reports it as a CLI error, suggests close matches when possible, and points back to `php atomic help`. Unknown commands exit with status `1`.
 
 ### Health check
@@ -79,7 +90,7 @@ This creates a user plugin under `USER_PLUGINS` with `plugin.php`, the plugin cl
 - `init` prepares a project and framework defaults.
 - `access/user/*` manages config-backed users; full usage and parameters are in [`telemetry.md#config-user-commands`](telemetry.md#config-user-commands), and HTTP `access:<guard>` behavior is in [`middleware.md#config-backed-access-middleware`](middleware.md#config-backed-access-middleware).
 - `migrations/*` creates, runs, rolls back, and publishes migrations.
-- `db/*` inspects tables and creates or truncates the framework tables.
+- `db/*` lists and truncates tables, and publishes the framework table migrations (apply them with `migrations/migrate`).
 - `seed/*` runs the bundled seeders.
 - `queue/*` runs and inspects queue workers.
 - `schedule/*` runs and inspects scheduled tasks.

@@ -64,6 +64,15 @@ class CLI {
 
         if ($topic !== null) {
             $topic = strtolower(trim($topic));
+            $command = isset($groups[$topic]) ? null : CommandCatalog::find($topic);
+            if ($command !== null) {
+                $this->output->writeln('Usage: php atomic ' . CommandCatalog::display($command['name']));
+                $this->output->writeln();
+                $this->output->writeln('  ' . $command['description']);
+                $this->output->writeln();
+                $this->output->writeln('Related commands: php atomic help ' . $command['topic']);
+                return;
+            }
             if (!isset($groups[$topic])) {
                 $this->output->failure("Unknown help topic '{$topic}'.");
                 $this->output->err('');

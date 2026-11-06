@@ -144,8 +144,9 @@ final class BootstrapConfigurationValidator
     {
         $command = $this->normalize_command($command);
 
+        // Mirrors the single-segment `GET /help/@topic` route, so no other path can skip validation.
         return in_array($command, self::REPAIR_COMMANDS, true)
-            || str_starts_with($command, '/help/');
+            || preg_match('#^/help/[^/]+$#', $command) === 1;
     }
 
     private function is_valid_host(string $host): bool

@@ -96,6 +96,21 @@ final class BootstrapConfigurationValidatorTest extends TestCase
         $this->assertSame([], $this->validator->validate_cli([], $command));
     }
 
+    /** @dataProvider non_repair_help_like_command_provider */
+    public function test_only_single_segment_help_topics_bypass_validation(string $command): void
+    {
+        $this->assertContains('APP_KEY is not configured.', $this->validator->validate_cli([], $command));
+    }
+
+    public static function non_repair_help_like_command_provider(): array
+    {
+        return [
+            'nested help path' => ['/help/migrations/create'],
+            'empty help topic' => ['/help/'],
+            'help prefix without separator' => ['/helpme'],
+        ];
+    }
+
     public static function repair_command_provider(): array
     {
         return [

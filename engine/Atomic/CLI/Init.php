@@ -656,10 +656,10 @@ trait Init
         $o->writeln("    config/database.php  → ['mutex']['driver'] = 'db'");
         $o->writeln("    config/queue.php     → ['driver'] = 'db'");
         $o->writeln();
-        $o->writeln('  Run the three backend migrations (run each command, confirm when prompted):');
-        $o->writeln('    php atomic db/sessions   # creates the sessions table');
-        $o->writeln('    php atomic db/mutex      # creates the mutex table');
-        $o->writeln('    php atomic queue/db      # creates the queue tables');
+        $o->writeln('  Publish the three backend migrations (run each command, confirm when prompted):');
+        $o->writeln('    php atomic db/sessions   # publishes the sessions table migration');
+        $o->writeln('    php atomic db/mutex      # publishes the mutex table migration');
+        $o->writeln('    php atomic db/queue      # publishes the queue tables migration');
         $o->writeln();
         $o->writeln('  Then apply all pending migrations:');
         $o->writeln('    php atomic migrations/migrate');
