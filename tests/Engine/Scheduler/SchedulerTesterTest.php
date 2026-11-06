@@ -28,7 +28,7 @@ final class SchedulerTesterTest extends TestCase
         $this->assertCount(
             5,
             $runs,
-            'get_upcoming_runs() stops after a fixed 1000-minute scan, so any weekly/monthly schedule yields an empty "Upcoming runs" list.'
+            'get_upcoming_runs() must return all requested runs, not stop after a fixed minute-by-minute search window.'
         );
     }
 
@@ -39,7 +39,7 @@ final class SchedulerTesterTest extends TestCase
         $this->assertCount(
             5,
             $runs,
-            'get_upcoming_runs() stops after a fixed 1000-minute scan, so any weekly/monthly schedule yields an empty "Upcoming runs" list.'
+            'get_upcoming_runs() must return all requested runs, not stop after a fixed minute-by-minute search window.'
         );
     }
 }
