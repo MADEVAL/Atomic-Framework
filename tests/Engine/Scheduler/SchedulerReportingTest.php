@@ -8,6 +8,7 @@ use Engine\Atomic\Mutex\FileMutexDriver;
 use Engine\Atomic\Mutex\Mutex;
 use Engine\Atomic\Scheduler\Runner;
 use Engine\Atomic\Scheduler\Scheduler;
+use Engine\Atomic\Scheduler\Worker;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -73,6 +74,10 @@ final class SchedulerReportingTest extends TestCase
         try {
             $rows = $scheduler->run();
 
+            $this->assertSame(true, $rows[0]['skipped']);
+            $this->assertSame(true, $event->was_skipped());
+            $this->assertSame(null, $rows[0]['error']);
+            $this->assertSame('', $rows[0]['output']);
             $this->assertFalse($executed, 'The task must not run while the overlap lock is held.');
             $this->assertFalse(
                 $rows[0]['success'],
@@ -103,6 +108,20 @@ final class SchedulerReportingTest extends TestCase
         try {
             $result = (new Runner($scheduler))->run_due_tasks();
 
+            $stream = fopen('php://temp', 'w+');
+            try {
+                $cli = new \Engine\Atomic\CLI\CLI();
+                \Tests\Support\ReflectionHelper::set($cli, 'output', new \Engine\Atomic\CLI\Console\Output($stream));
+                $cli->schedule_run();
+                rewind($stream);
+                $output = stream_get_contents($stream);
+                $this->assertStringContainsString('[skipped] locked-task', $output);
+                $this->assertStringContainsString('Completed: 0 successful, 0 failed, 1 skipped', $output);
+            } finally {
+                fclose($stream);
+            }
+            $this->assertSame(1, $result['summary']['skipped']);
+            $this->assertSame(0, $result['summary']['failed']);
             $this->assertSame(1, $result['due_count']);
             $this->assertSame(
                 0,
@@ -112,6 +131,45 @@ final class SchedulerReportingTest extends TestCase
         } finally {
             Mutex::release($event->get_mutex_name(), (string)$token);
         }
+    }
+
+    public function test_skip_state_resets_after_lock_release(): void
+    {
+        $driver = new FileMutexDriver();
+        if (!$driver->is_available()) {
+            $this->markTestSkipped('FileMutex driver unavailable.');
+        }
+        Mutex::set_driver($driver);
+        $scheduler = Scheduler::instance();
+        $event = $scheduler->call(static fn(): null => null)->every_minute()->without_overlapping();
+        $token = Mutex::acquire($event->get_mutex_name(), 60);
+        $this->assertNotNull($token);
+        try {
+            $this->assertSame(true, $scheduler->run()[0]['skipped']);
+        } finally {
+            Mutex::release($event->get_mutex_name(), (string)$token);
+        }
+        $row = $scheduler->run()[0];
+        $this->assertSame(false, $row['skipped']);
+        $this->assertSame(true, $row['success']);
+        $this->assertSame(false, $event->was_skipped());
+    }
+
+    public function test_runner_formats_skipped_and_legacy_rows(): void
+    {
+        $runner = new Runner(Scheduler::instance());
+        $row = ['id' => 'task', 'description' => null, 'duration' => 0, 'success' => false, 'skipped' => true];
+        $this->assertSame('[skipped] task (0ms)', $runner->format_result($row));
+        unset($row['skipped']);
+        $this->assertSame('[✗] task (0ms)', $runner->format_result($row));
+        $row['success'] = true;
+        $this->assertSame('[✓] task (0ms)', $runner->format_result($row));
+    }
+
+    public function test_empty_summary_has_skipped_count(): void
+    {
+        $this->assertSame(['successful' => 0, 'failed' => 0, 'skipped' => 0],
+            (new Runner(Scheduler::instance()))->run_due_tasks()['summary']);
     }
 
     public function test_due_filters_are_evaluated_once_per_cycle(): void
@@ -158,5 +216,34 @@ final class SchedulerReportingTest extends TestCase
             $result['due_count'],
             'schedule/run prints "Found {$due_count} due task(s)" while only the executed tasks are listed.'
         );
+    }
+
+    public function test_worker_prints_overlapping_task_as_skipped(): void
+    {
+        $driver = new FileMutexDriver();
+        if (!$driver->is_available()) {
+            $this->markTestSkipped('FileMutex driver is unavailable in this environment.');
+        }
+        Mutex::set_driver($driver);
+
+        $scheduler = Scheduler::instance();
+        $event = $scheduler->call(static function (): void {})
+            ->description('locked-worker-task')
+            ->every_minute()
+            ->without_overlapping(60);
+
+        $token = Mutex::acquire($event->get_mutex_name(), 60);
+        $this->assertNotNull($token, 'Unable to hold the overlap lock for the test.');
+
+        $lines = [];
+        try {
+            (new Worker($scheduler, 1, 1))->run(function (string $line) use (&$lines): void {
+                $lines[] = $line;
+            });
+        } finally {
+            Mutex::release($event->get_mutex_name(), (string)$token);
+        }
+
+        $this->assertContains('    [skipped] locked-worker-task', $lines);
     }
 }

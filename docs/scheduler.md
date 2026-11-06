@@ -310,6 +310,7 @@ The `Scheduler::run()` result is an array of task result rows:
         'expression' => '0 3 * * *',
         'started_at' => '2026-05-14 03:00:00',
         'success' => true,
+        'skipped' => false,
         'output' => "cleanup\n",
         'error' => null,
         'duration' => 12.34,
@@ -327,9 +328,16 @@ The `Runner::run_due_tasks()` response includes counts and summary data:
     'summary' => [
         'successful' => 1,
         'failed' => 0,
+        'skipped' => 0,
     ],
 ]
 ```
+
+An event refused by `without_overlapping()` returns a row with `skipped => true`,
+`success => false`, empty output, and no error. `Event::was_skipped()` reports
+this state for the latest run and resets on each run. Runner counts these rows
+only in `summary.skipped`; `format_result()` and `schedule/run` display
+`[skipped]`, and the CLI completion line includes the skipped count.
 
 ### Introspection
 

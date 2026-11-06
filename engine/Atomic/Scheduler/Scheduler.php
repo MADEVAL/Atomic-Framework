@@ -106,6 +106,7 @@ class Scheduler
                 'expression' => $event->get_expression(),
                 'started_at' => \date('Y-m-d H:i:s'),
                 'success' => false,
+                'skipped' => false,
                 'output' => '',
                 'error' => null,
                 'duration' => 0,
@@ -118,10 +119,11 @@ class Scheduler
                 
                 $event->run();
                 
-                $event_result['success'] = true;
+                $event_result['skipped'] = $event->was_skipped();
+                $event_result['success'] = !$event_result['skipped'];
                 $event_result['output'] = $event->get_output();
                 
-                $this->log("Event completed: " . ($event->get_description() ?? $event->get_id()));
+                $this->log(($event_result['skipped'] ? "Event skipped (overlap): " : "Event completed: ") . ($event->get_description() ?? $event->get_id()));
 
             } catch (\Throwable $e) {
                 $event_result['error'] = $e->getMessage();

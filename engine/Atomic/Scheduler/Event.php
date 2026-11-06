@@ -29,6 +29,7 @@ class Event
     protected int     $expires_at = 1440;
     protected ?int    $exit_code = null;
     protected string  $output = '';
+    protected bool    $skipped = false;
     protected ?string $mutex_name = null;
     protected ?string $mutex_token = null;
 
@@ -188,8 +189,10 @@ class Event
     {
         $this->output = '';
         $this->exit_code = null;
+        $this->skipped = false;
 
         if ($this->without_overlapping && !$this->acquire_mutex()) {
+            $this->skipped = true;
             Log::debug('[Scheduler] Skipping overlapping event: ' . ($this->description ?? $this->get_mutex_name()));
             return null;
         }
@@ -289,6 +292,11 @@ class Event
         }
         
         $this->mutex_token = null;
+    }
+
+    public function was_skipped(): bool
+    {
+        return $this->skipped;
     }
 
     public function get_exit_code(): ?int

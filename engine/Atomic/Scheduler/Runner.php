@@ -23,6 +23,7 @@ class Runner
             'summary' => [
                 'successful' => 0,
                 'failed' => 0,
+                'skipped' => 0,
             ],
         ];
 
@@ -34,14 +35,15 @@ class Runner
         
         $response['results'] = $results;
         $response['summary']['successful'] = \count(\array_filter($results, fn($r) => $r['success']));
-        $response['summary']['failed'] = \count($results) - $response['summary']['successful'];
+        $response['summary']['skipped'] = \count(\array_filter($results, fn($r) => $r['skipped'] ?? false));
+        $response['summary']['failed'] = \count($results) - $response['summary']['successful'] - $response['summary']['skipped'];
 
         return $response;
     }
 
     public function format_result(array $result): string
     {
-        $status = $result['success'] ? '✓' : '✗';
+        $status = ($result['skipped'] ?? false) ? 'skipped' : ($result['success'] ? '✓' : '✗');
         $name = $result['description'] ?? $result['id'];
         $duration = $result['duration'] . 'ms';
 

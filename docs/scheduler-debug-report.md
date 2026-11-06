@@ -12,7 +12,7 @@ as `Scheduler/…` for `engine/Atomic/Scheduler/…`.
 |---|---|---|---|---|
 | S1 | Fixed | App delegates registration; CLI only returns the singleton. Both loader entry points share canonical-path deduplication. Raw `require` still bypasses the loader, which is expected. | `engine/Atomic/Core/App.php:208-214`; `engine/Atomic/CLI/Scheduler.php:271-274`; `Scheduler/Scheduler.php:187-208` | Registration tests at lines 84, 110, 129 and 194 pass. |
 | S2 | Fixed | Registration state is keyed by `realpath`, not a global boolean; a second file loads normally. `load_from()` and `register_schedule()` share this state. | `Scheduler/Scheduler.php:189-200,219-229` | `SchedulerRegistrationTest.php:163` and entry-point combinations at :194 pass. |
-| S3 | Still open | Overlap refusal returns `null`, then the scheduler unconditionally marks the row successful. Runner counts that row as successful although the callback did not execute. | `Scheduler/Event.php:192-195`; `Scheduler/Scheduler.php:119-122`; `Scheduler/Runner.php:37-38` | Reporting tests :52 and :86 fail: `true` instead of `false`; successful count `1` instead of `0`. |
+| S3 | Fixed | Event exposes per-run skip state. Scheduler preserves result keys and adds `skipped`, with `success=false` for overlap refusal. Runner counts skipped rows separately and CLI displays `[skipped]`. | `Scheduler/Event.php:192-195`; `Scheduler/Scheduler.php:119-122`; `Scheduler/Runner.php:37-38` | Both overlap regression tests pass; added coverage checks skip state reset, summary counts, formatting and CLI output. |
 | S4 | Fixed | Next-run search skips month/day/hour fields, with a ten-year horizon. `527040` limits search steps, not elapsed minutes. The old minimum-minute-window assertion is no longer applicable and is absent. | `Scheduler/CronExpression.php:16-68` | Cron tests :170, :186 and :195 pass; century-gap probe returns `2104-02-29 00:00:00` from `2096-02-29`. |
 | S5 | Fixed | `clear()` resets both events and loaded-file state, allowing all schedule files to reload. | `Scheduler/Scheduler.php:140-144` | Registration tests :143 and :217 pass. |
 | S6 | Still open | Runner counts cron/filter-due events before maintenance policy is applied by `run()`, so announced due count can exceed result rows. This is a reporting-policy mismatch; cron eligibility itself remains valid. | `Scheduler/Runner.php:18-22,34`; `Scheduler/Scheduler.php:68-72,98-100`; `engine/Atomic/CLI/Scheduler.php:30` | Reporting test :141 fails: executed count `0`, due count `1`. |
@@ -79,7 +79,7 @@ php vendor/bin/phpunit tests/Engine/Scheduler/CronExpressionTest.php
 php vendor/bin/phpunit tests/Engine/CLI/SchedulerTest.php
 ```
 
-Current isolated results:
+Historical isolated results before the S3 fix:
 
 ```text
 SchedulerRegistrationTest: OK (17 tests, 52 assertions)
@@ -88,14 +88,14 @@ CLI/SchedulerTest:         OK (1 test, 3 assertions)
 Scheduler directory:      Tests: 87, Assertions: 220, Failures: 6.
 ```
 
-The six scheduler failures correspond to S3 (two), S6, S7 and S10 (two).
+The six historical scheduler failures correspond to S3 (two), S6, S7 and S10 (two).
 No failing scheduler test currently asserts the obsolete global latch or
 minute-based leap-window implementation. The result-row error key remains
 present at `Scheduler/Scheduler.php:110`; its reporting test at :35 passes.
 Historical skeleton CLI transcripts and old full-suite/queue-failure counts
 have been removed because they were not evidence from the current code run.
 
-Recommended remaining work: S3 reporting, S10 search reuse, then S6/S7 runner
+Recommended remaining work: S10 search reuse, then S6/S7 runner
 selection consistency. Missing-file diagnostics under S8 are optional policy
 work. No framework code was changed and no commit was made by this review.
 
@@ -107,3 +107,20 @@ failures are queue tests, listed by the full run as
 `QueueTelemetryDbTest::test_public_fetch_methods_report_db_job_states_and_pagination`.
 The review changed no assertions or framework code; scheduler failure counts
 were identical before and after the wording correction (6).
+
+## S3 implementation verification
+
+Overlap refusal now has explicit per-run skip state, a backward-compatible
+`skipped` result key, a separate Runner summary count, and `[skipped]` CLI output.
+The original two overlap assertions remain unchanged and pass.
+
+```text
+php vendor/bin/phpunit tests/Engine/Scheduler tests/Engine/CLI
+Tests: 191, Assertions: 645, Failures: 4.
+
+php vendor/bin/phpunit
+Tests: 2346, Assertions: 13379, Failures: 6, Skipped: 126.
+```
+
+The four remaining scheduler failures are S6, S7 and S10 (two). The full run
+also retains the two queue failures named above. No commit was made.

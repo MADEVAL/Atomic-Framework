@@ -35,7 +35,7 @@ trait Scheduler
         }
 
         $this->output->writeln();
-        $this->output->writeln("Completed: {$result['summary']['successful']} successful, {$result['summary']['failed']} failed");
+        $this->output->writeln("Completed: {$result['summary']['successful']} successful, {$result['summary']['failed']} failed, {$result['summary']['skipped']} skipped");
     }
 
     public function schedule_work(): void

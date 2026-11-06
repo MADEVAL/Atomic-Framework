@@ -75,7 +75,7 @@ class Worker
                     $results = $this->scheduler->run();
 
                     foreach ($results as $result) {
-                        $status = $result['success'] ? '✓' : '✗';
+                        $status = ($result['skipped'] ?? false) ? 'skipped' : ($result['success'] ? '✓' : '✗');
                         $name = $result['description'] ?? $result['id'];
                         $this->log_output("    [{$status}] {$name}", $output_callback);
                     }
