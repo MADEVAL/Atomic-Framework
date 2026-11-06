@@ -166,4 +166,37 @@ class CronExpressionTest extends TestCase
         $date = new \DateTime('2024-06-15 10:30:00');
         $this->assertFalse(CronExpression::matches('bad expression', $date));
     }
+
+    public function test_next_run_search_window_covers_the_longest_leap_year_gap(): void
+    {
+        $method = new \ReflectionMethod(CronExpression::class, 'get_next_run_date');
+        $parameters = $method->getParameters();
+        $window = (int)$parameters[2]->getDefaultValue();
+
+        $this->assertGreaterThanOrEqual(
+            8 * 366 * 24 * 60,
+            $window,
+            sprintf(
+                'The default search window spans %d day(s), but two Feb 29 occurrences can be up to 8 years apart, '
+                . 'so a valid leap-day schedule can never be resolved.',
+                intdiv($window, 1440)
+            )
+        );
+    }
+
+    public function test_next_run_date_for_leap_day_expression_is_reachable(): void
+    {
+        $start = microtime(true);
+        $next = CronExpression::get_next_run_date('0 0 29 2 *');
+        $elapsed = microtime(true) - $start;
+
+        $this->assertNotNull(
+            $next,
+            sprintf(
+                'get_next_run_date() gave up on a valid Feb-29 schedule (yearly_on(2, 29)) after %0.2fs of scanning.',
+                $elapsed
+            )
+        );
+        $this->assertSame('29-02 00:00', $next->format('d-m H:i'));
+    }
 }
