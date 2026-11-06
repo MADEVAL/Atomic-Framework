@@ -9,10 +9,12 @@ use Engine\Atomic\Core\ID;
 
 class MigrationExecutor
 {
-    private const DIRECTION_UP = 'up';
-    private const DIRECTION_DOWN = 'down';
     private const OPERATION_MIGRATION = 'Migration';
     private const OPERATION_ROLLBACK = 'Rollback';
+
+    public function __construct(
+        private readonly MigrationContext $context,
+    ) {}
 
     public function batch_id(): string
     {
@@ -21,21 +23,36 @@ class MigrationExecutor
 
     public function up(array $migration): void
     {
-        $this->execute($migration, self::DIRECTION_UP, self::OPERATION_MIGRATION);
+        $this->execute($migration, MigrationDirection::UP, self::OPERATION_MIGRATION);
     }
 
     public function down(array $migration): void
     {
-        $this->execute($migration, self::DIRECTION_DOWN, self::OPERATION_ROLLBACK);
+        $this->execute($migration, MigrationDirection::DOWN, self::OPERATION_ROLLBACK);
     }
 
-    private function execute(array $migration, string $direction, string $operation): void
+    private function execute(array $migration, MigrationDirection $direction, string $operation): void
     {
         $definition = include $migration['path'];
-        if (!is_array($definition) || !isset($definition[$direction]) || !is_callable($definition[$direction])) {
+
+        if ($definition instanceof Migration) {
+            try {
+                $definition->run($direction, $this->context);
+            } catch (\Throwable $e) {
+                throw new \RuntimeException(
+                    "{$operation} '{$migration['source']}:{$migration['migration']}' failed: {$e->getMessage()}",
+                    0,
+                    $e,
+                );
+            }
+            return;
+        }
+
+        $key = $direction->value;
+        if (!is_array($definition) || !isset($definition[$key]) || !is_callable($definition[$key])) {
             throw new \RuntimeException("Invalid migration structure in {$migration['path']}.");
         }
-        if ($definition[$direction]() === false) {
+        if ($definition[$key]() === false) {
             throw new \RuntimeException(
                 "{$operation} '{$migration['source']}:{$migration['migration']}' returned failure."
             );

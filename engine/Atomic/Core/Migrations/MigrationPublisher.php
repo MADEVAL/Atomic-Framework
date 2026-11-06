@@ -323,23 +323,23 @@ class MigrationPublisher
     {
         return <<<'PHP'
 <?php
-use Engine\Atomic\Core\App;
-use Engine\Atomic\Core\ConnectionManager;
-use DB\Cortex\Schema\Schema;
+declare(strict_types=1);
 
-return [
-    'up' => function () {
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $schema = new Schema($db);
-    },
+if (!defined('ATOMIC_START')) exit;
 
-    'down' => function () {
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $schema = new Schema($db);
+use Engine\Atomic\Core\Migrations\Migration;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        $schema = $this->schema();
     }
-];
+
+    public function down(): void
+    {
+        $schema = $this->schema();
+    }
+};
 PHP;
     }
 }

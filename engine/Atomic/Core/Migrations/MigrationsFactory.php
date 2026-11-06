@@ -35,7 +35,7 @@ final class MigrationsFactory
             $ledger,
             $history,
             new LegacyMigrationAdopter($ledger, $history, $output),
-            new MigrationExecutor(),
+            new MigrationExecutor(new MigrationContext($this->app, $this->connections, $output)),
             new MigrationPublisher($this->app, $this->plugins, $this->files, $ledger, $output, $groups),
             $input,
         );
