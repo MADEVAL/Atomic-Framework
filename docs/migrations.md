@@ -61,30 +61,81 @@ Migration, rollback and upgrade use a database advisory lock. Execution stops on
 
 Migration authors must make `up()` and `down()` safe to retry (idempotent), including after partial execution. Check existing tables, columns and data before changing them. Migration effects and the subsequent history write are not one atomic operation: if the effects succeed but recording history fails, the next attempt can execute the callback again. The framework cannot infer how to repair application-specific partial changes; that responsibility belongs to the migration author.
 
-### Migration file shape
+### Writing a migration
 
-Generated files are stored under the configured `MIGRATIONS` directory and use this structure:
+`migrations/create` generates a file under the configured `MIGRATIONS` directory. The file returns an anonymous class that extends `Migration`:
 
 ```php
 <?php
-use Engine\Atomic\Core\App;
+declare(strict_types=1);
+
+if (!defined('ATOMIC_START')) exit;
+
+use DB\Cortex\Schema\Schema;
+use Engine\Atomic\CLI\Console\CheckStatus;
+use Engine\Atomic\Core\Migrations\Migration;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        $users = $this->table('users');
+
+        if ($this->has_table($users)) {
+            $this->output()->check(CheckStatus::SKIP, $users, 'table already exists');
+            return;
+        }
+
+        $table = $this->schema()->createTable($users);
+        $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
+        $table->build();
+        $this->output()->check(CheckStatus::OK, $users, 'table created');
+    }
+
+    public function down(): void
+    {
+        $this->schema()->dropTable($this->table('users'));
+    }
+};
+```
+
+Helpers available inside `up()` and `down()`:
+
+| Method | Returns |
+| --- | --- |
+| `$this->app()` | `Engine\Atomic\Core\App` |
+| `$this->db(string $connection = 'default')` | `DB\SQL` |
+| `$this->schema(string $connection = 'default')` | `DB\Cortex\Schema\Schema` |
+| `$this->output()` | `Engine\Atomic\CLI\Console\Output` |
+| `$this->table(string $name)` | `string`: `$name` with `DB_CONFIG.prefix` prepended |
+| `$this->has_table(string $table, string $connection = 'default')` | `bool`: exact name match, so pass a `table()` result |
+
+`output()` is the runner's console. Use it to report what the migration did, e.g. `check(CheckStatus::OK|WARN|FAIL|SKIP, $name, $message)`, `warning($message)` or `writeln($message)`. `check()` prints lines such as `[SKIP] app_users - table already exists`.
+
+To fail a migration, throw an exception. The runner rethrows it with the migration identity, e.g. `Migration 'app:20260101000000_create_users' failed: <message>`, and does not record the migration.
+
+Return an instance (`new class`), not a named class: a file can be included more than once per process, and a named class would fatal on redeclare.
+
+### Legacy array format
+
+Files that return an array of `up`/`down` callables keep working unchanged. Both formats can be mixed in one directory and one batch:
+
+```php
+<?php
 use Engine\Atomic\Core\ConnectionManager;
 use DB\Cortex\Schema\Schema;
 
 return [
     'up' => function () {
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $schema = new Schema($db);
+        $schema = new Schema(ConnectionManager::instance()->get_db());
+        // ...
     },
-
     'down' => function () {
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $schema = new Schema($db);
-    }
+        // ...
+    },
 ];
 ```
+
+In this format a callback fails by returning `false`; exceptions propagate unchanged. Use the class format for new migrations.
 
 ### Programmatic usage
 
