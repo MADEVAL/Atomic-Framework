@@ -19,9 +19,26 @@ as `Scheduler/…` for `engine/Atomic/Scheduler/…`.
 | S7 | Fixed | Selection evaluates cron, filters and maintenance once; Runner and Worker execute the same selected events through `run_events()`. Standalone `run()` selects once. | `Scheduler/Scheduler.php`; `Scheduler/Runner.php`; `Scheduler/Worker.php` | Original Runner regression and Worker/standalone single-evaluation tests pass. |
 | S8 | Fixed dependency; silent missing-file behavior remains | App no longer concatenates an undefined routes constant. Scheduler chooses routes constant, directory fallback, or no path. Missing/unreadable files still return silently; that is an informational behavior, not a demonstrated new defect. | `engine/Atomic/Core/App.php:213`; `Scheduler/Scheduler.php:189-191,219-229` | Fresh-process probe without `ATOMIC_APP_ROUTES` returns normally; missing-file retry test at registration :242 passes. |
 | S9 | Fixed | CLI test explicitly asserts the application schedule is non-empty before checking that CLI does not append events. It tests explicit App registration, not the entire service-provider bootstrap chain. | `tests/Engine/CLI/SchedulerTest.php:26-36` | `OK (1 test, 3 assertions)`, including `assertNotEmpty` at :31. |
-| S10 | Still open; old description partly incorrect | Tester has its own bounded minute search and does not call the improved field-skipping next-run method. Weekly/monthly results are zero **or one**, not always zero. | `Scheduler/Tester.php:37-61`; compare `Scheduler/CronExpression.php:40-64` | Tester minute test passes; weekly/monthly count tests fail. Probes below include hourly/daily and near-occurrence examples. |
+| S10 | Fixed | Tester reuses the field-skipping next-run search for each occurrence, advancing strictly after the previous result and stopping on null. Optional start time supports deterministic tests. | `Scheduler/Tester.php`; `Scheduler/CronExpression.php` | Weekly/monthly regressions and daily, spacing, exclusive start, leap-year, impossible and invalid expression tests pass. |
 
-## S10: exact behavior and root cause
+## S10: fix verification
+
+`Tester::get_upcoming_runs()` now calls `CronExpression::get_next_run_date()`
+for each requested occurrence. The search excludes the supplied start minute,
+returns a `DateTimeInterface` or null, and searches up to ten years per occurrence.
+The cursor keeps its timezone and caller-supplied dates are not mutated. Results
+remain `Y-m-d H:i:s` strings. The optional `$from` argument is backward compatible.
+Impossible and invalid expressions return an empty list. Leap-day tests request
+five occurrences across twenty years, using a fresh horizon for each result.
+
+Targeted verification: `OK (201 tests, 680 assertions)` for
+`php vendor/bin/phpunit tests/Engine/Scheduler tests/Engine/CLI`.
+Full-suite verification after S10: `Tests: 2356, Assertions: 12302, Failures: 2,
+Skipped: 126.` The remaining failures are the pre-existing
+`QueueDbDriverEdgeTest::test_monitor_adapter_loads_and_handles_active_jobs` and
+`QueueTelemetryDbTest::test_public_fetch_methods_report_db_job_states_and_pagination`.
+
+## S10: historical behavior and root cause (before fix)
 
 There are two different implementations. `CronExpression::get_next_run_date()`
 skips calendar fields when they cannot match: next month, next day, next hour,
@@ -29,7 +46,7 @@ or next minute (`CronExpression.php:40-64`). That is the method fixed for S4.
 `Tester::test_expression()` uses it for the single `next_run` value (:22-23),
 but uses `get_upcoming_runs()` separately for the list (:25).
 
-`Tester::get_upcoming_runs()` currently **does inspect consecutive minutes**:
+`Tester::get_upcoming_runs()` previously inspected consecutive minutes:
 
 1. Start at the next whole local minute (`Tester.php:37-39`).
 2. For each requested occurrence, clone that cursor (:41-43).
@@ -64,7 +81,7 @@ App without ATOMIC_APP_ROUTES -> returned normally
 ```
 
 The old weekly/monthly assertions expecting five runs remain valid regression
-expectations for the open bug. Their messages were corrected to allow zero or
+expectations, now passing after the fix. Their messages were corrected to allow zero or
 one actual occurrence. They do not assert that the list is always empty.
 The CLI only prints its upcoming-runs section for a non-empty list
 (`engine/Atomic/CLI/Scheduler.php:133-139`). Its single next-run value may be

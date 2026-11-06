@@ -28,36 +28,27 @@ class Tester
         return $result;
     }
 
-    public function get_upcoming_runs(string $expression, int $count = 5): array
+    public function get_upcoming_runs(string $expression, int $count = 5, ?\DateTimeInterface $from = null): array
     {
         if (!CronExpression::is_valid($expression)) {
             return [];
         }
 
         $runs = [];
-        $current = new \DateTime();
-        $current->modify('+1 minute');
-        $current->setTime((int)$current->format('H'), (int)$current->format('i'), 0);
-        
+        $current = $from ?? new \DateTime();
+
         for ($i = 0; $i < $count; $i++) {
-            $next_run = null;
-            $test_date = clone $current;
-            
-            for ($j = 0; $j < 1000; $j++) {
-                if (CronExpression::matches($expression, $test_date)) {
-                    $next_run = $test_date;
-                    break;
-                }
-                $test_date->modify('+1 minute');
-            }
-            
-            if ($next_run) {
-                $runs[] = $next_run->format('Y-m-d H:i:s');
-                $current = clone $next_run;
-                $current->modify('+1 minute');
-            } else {
+            $next_run = CronExpression::get_next_run_date(
+                $expression,
+                $current->getTimezone(),
+                from: $current
+            );
+            if ($next_run === null) {
                 break;
             }
+
+            $runs[] = $next_run->format('Y-m-d H:i:s');
+            $current = $next_run;
         }
 
         return $runs;

@@ -270,7 +270,7 @@ Command behavior:
 - `schedule/work [seconds]` repeatedly checks and runs due tasks.
 - `schedule/list` lists registered tasks, expressions, next run times, and whether each task is due now.
 - `schedule/test` validates the full scheduler configuration.
-- `schedule/test "expr"` validates one cron expression and shows upcoming run times.
+- `schedule/test "expr"` validates one cron expression and shows up to five upcoming run times, strictly after the current minute. Daily, weekly, monthly and leap-day schedules use the same field-skipping search as the next-run calculation. Each occurrence is searched for within ten years of the previous cursor; an unreachable expression has no upcoming runs.
 - `schedule/help` prints command and API examples.
 
 ### Programmatic usage
