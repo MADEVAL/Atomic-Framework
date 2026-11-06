@@ -58,7 +58,10 @@ schedule files. Inside a loaded file, `$scheduler` refers to the receiving sched
 Both loading methods share the same per-instance registration state. Each readable file is included
 once, identified by its canonical `realpath()`, including files that define no tasks. Repeated calls,
 path aliases, and recursive loads of the same file add no further tasks. Missing or unreadable files
-are skipped and can be loaded later when available.
+are skipped and can be loaded later when available. Invalid explicit paths (missing, unreadable, or
+not a file) emit a warning through `Engine\Atomic\Core\Log`, including the path and reason, even
+when scheduler logging is disabled. A missing default schedule is silently skipped, since applications
+without scheduled tasks are valid.
 
 `clear()` removes all events and file registrations, allowing the files to be loaded again. Creating
 a new scheduler instance also starts with no registered files. If a load throws, the exception is

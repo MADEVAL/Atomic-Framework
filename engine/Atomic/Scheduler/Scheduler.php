@@ -194,8 +194,23 @@ class Scheduler
 
     public function load_from(string $path): self
     {
+        return $this->load_schedule_file($path, true);
+    }
+
+    private function load_schedule_file(string $path, bool $explicit): self
+    {
         $resolved_path = \realpath($path);
-        if ($resolved_path === false || !\is_file($resolved_path) || !\is_readable($resolved_path)) {
+        $reason = match (true) {
+            $resolved_path === false => 'does not exist or cannot be resolved',
+            !\is_file($resolved_path) => 'not a file',
+            !\is_readable($resolved_path) => 'not readable',
+            default => null,
+        };
+        if ($reason !== null) {
+            if ($explicit) {
+                // Configuration errors must remain visible even with routine scheduler logging disabled.
+                Log::warning('[Scheduler] Cannot load schedule "' . $path . '": ' . $reason . '.');
+            }
             return $this;
         }
         if (isset($this->loaded_schedule_files[$resolved_path])) {
@@ -226,6 +241,7 @@ class Scheduler
 
     public function register_schedule(?string $path = null): self
     {
+        $explicit = $path !== null;
         if ($path === null) {
             if (\defined('ATOMIC_APP_ROUTES')) {
                 $path = \ATOMIC_APP_ROUTES . 'schedule.php';
@@ -234,6 +250,6 @@ class Scheduler
             }
         }
 
-        return $path === null ? $this : $this->load_from($path);
+        return $path === null ? $this : $this->load_schedule_file($path, $explicit);
     }
 }
