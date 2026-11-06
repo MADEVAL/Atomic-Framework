@@ -246,6 +246,38 @@ class MigrationsTest extends TestCase
         file_put_contents($this->migrations_dir . $file, $content);
     }
 
+    private function write_class_format_migration(string $file, array $up_sql, array $down_sql): void
+    {
+        $up_statements = '';
+        foreach ($up_sql as $sql) {
+            $up_statements .= "\n            \$this->db()->exec(" . var_export($sql, true) . ");";
+        }
+
+        $down_statements = '';
+        foreach ($down_sql as $sql) {
+            $down_statements .= "\n            \$this->db()->exec(" . var_export($sql, true) . ");";
+        }
+
+        $content = <<<PHP
+        <?php
+        declare(strict_types=1);
+
+        if (!defined('ATOMIC_START')) exit;
+
+        use Engine\\Atomic\\Core\\Migrations\\Migration;
+
+        return new class extends Migration {
+            public function up(): void {{$up_statements}
+            }
+
+            public function down(): void {{$down_statements}
+            }
+        };
+        PHP;
+
+        file_put_contents($this->migrations_dir . $file, $content);
+    }
+
     /**
      * Create a Migrations instance, optionally with db() mocked to return true.
      * When $fake_db is true, the mock also overrides create() to do a simple
@@ -759,6 +791,44 @@ class MigrationsTest extends TestCase
         $this->assertSame(['up_one', 'up_two', 'down_two'], $this->log_events());
 
         $this->migrations->rollback('batch');
+        $this->assertFalse($this->table_exists($this->db_prefix . 'migration_lifecycle_log'));
+        $this->assertSame([], $this->migration_rows());
+    }
+
+    public function test_class_and_legacy_migration_formats_mix_in_one_batch_against_mysql(): void
+    {
+        $this->boot_mysql_migrations();
+
+        $log_table = $this->quote_identifier($this->db_prefix . 'migration_lifecycle_log');
+        $this->write_class_format_migration(
+            '20250201000000_create_mixed_format_log.php',
+            ["CREATE TABLE {$log_table} (id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, event VARCHAR(32) NOT NULL) ENGINE=InnoDB"],
+            ["DROP TABLE IF EXISTS {$log_table}"],
+        );
+        $this->write_lifecycle_migration(
+            '20250201000001_insert_mixed_format_log.php',
+            ["INSERT INTO {$log_table} (event) VALUES ('legacy_up')"],
+            ["INSERT INTO {$log_table} (event) VALUES ('legacy_down')"],
+        );
+
+        $this->assertTrue($this->migrations->db());
+
+        $this->migrations->migrate();
+        $rows = $this->migration_rows();
+        $this->assertSame(
+            ['20250201000000_create_mixed_format_log', '20250201000001_insert_mixed_format_log'],
+            array_column($rows, 'migration')
+        );
+        $this->assertSame($rows[0]['batch_uuid'], $rows[1]['batch_uuid']);
+        $this->assertSame(['legacy_up'], $this->log_events());
+        $this->assertStringContainsString('20250201000000_create_mixed_format_log', $this->stdout());
+
+        $this->migrations->rollback(1);
+        $this->assertSame(['legacy_up', 'legacy_down'], $this->log_events());
+        $this->assertSame(['20250201000000_create_mixed_format_log'], array_column($this->migration_rows(), 'migration'));
+        $this->assertTrue($this->table_exists($this->db_prefix . 'migration_lifecycle_log'));
+
+        $this->migrations->rollback(1);
         $this->assertFalse($this->table_exists($this->db_prefix . 'migration_lifecycle_log'));
         $this->assertSame([], $this->migration_rows());
     }

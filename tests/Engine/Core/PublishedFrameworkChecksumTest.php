@@ -10,6 +10,7 @@ use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Core\Migrations;
 use Engine\Atomic\Core\Migrations\LegacyMigrationAdopter;
 use Engine\Atomic\Core\Migrations\MigrationCatalog;
+use Engine\Atomic\Core\Migrations\MigrationContext;
 use Engine\Atomic\Core\Migrations\MigrationExecutor;
 use Engine\Atomic\Core\Migrations\MigrationHistory;
 use Engine\Atomic\Core\Migrations\MigrationLedger;
@@ -80,7 +81,7 @@ PHP;
             $ledger,
             $history,
             new LegacyMigrationAdopter($ledger, $history, $this->output),
-            new MigrationExecutor(),
+            new MigrationExecutor(new MigrationContext($app, ConnectionManager::instance(), $this->output)),
             $this->createMock(MigrationPublisher::class),
         );
     }
@@ -315,7 +316,8 @@ PHP;
             $plugins->method('all')->willReturn([]);
             $service = new Migrations(
                 $this->output, new MigrationCatalog($app, $plugins, $history, $ledger), $ledger, $history,
-                new LegacyMigrationAdopter($ledger, $history, $this->output), new MigrationExecutor(),
+                new LegacyMigrationAdopter($ledger, $history, $this->output),
+                new MigrationExecutor(new MigrationContext($app, $connections, $this->output)),
                 $this->createMock(MigrationPublisher::class),
             );
             file_put_contents($this->published, "\n// mismatch", FILE_APPEND);
