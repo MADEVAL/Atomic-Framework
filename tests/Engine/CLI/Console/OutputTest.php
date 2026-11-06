@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Engine\CLI\Console;
 
+use Engine\Atomic\CLI\Console\CheckStatus;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\CLI\Style;
 use PHPUnit\Framework\TestCase;
@@ -113,6 +114,48 @@ class OutputTest extends TestCase
             $this->assertStringContainsString("\033[36mphp atomic <command> [options]", $raw);
         } finally {
             Environment::clear_cli_color();
+            fclose($stream);
+        }
+    }
+
+    public function test_check_accepts_status_enum_cases(): void
+    {
+        $stream = StreamCapture::memory();
+        $output = new Output($stream, $stream);
+
+        try {
+            $output->check(CheckStatus::OK, 'users', 'table created');
+            $output->check(CheckStatus::WARN, 'cache', 'slow');
+            $output->check(CheckStatus::FAIL, 'redis', 'unreachable');
+            $output->check(CheckStatus::SKIP, 'users', 'table already exists');
+
+            $this->assertSame(
+                '  [OK] users - table created' . PHP_EOL
+                    . '  [WARN] cache - slow' . PHP_EOL
+                    . '  [FAIL] redis - unreachable' . PHP_EOL
+                    . '  [SKIP] users - table already exists' . PHP_EOL,
+                Output::plain(StreamCapture::read($stream, true)),
+            );
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function test_check_keeps_accepting_status_strings(): void
+    {
+        $stream = StreamCapture::memory();
+        $output = new Output($stream, $stream);
+
+        try {
+            $output->check('ok', 'users', 'table created');
+            $output->check('custom', 'queue', 'draining');
+
+            $this->assertSame(
+                '  [OK] users - table created' . PHP_EOL
+                    . '  [CUSTOM] queue - draining' . PHP_EOL,
+                Output::plain(StreamCapture::read($stream, true)),
+            );
+        } finally {
             fclose($stream);
         }
     }

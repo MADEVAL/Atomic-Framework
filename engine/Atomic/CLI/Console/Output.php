@@ -149,15 +149,15 @@ class Output
         $this->err(Style::yellow($border, true));
     }
 
-    public function check(string $status, string $name, string $message): void
+    public function check(CheckStatus|string $status, string $name, string $message): void
     {
-        $label = match (strtolower($status)) {
-            'ok' => Style::green('[OK]', true),
-            'warn' => Style::yellow('[WARN]', true),
-            'fail' => Style::red('[FAIL]', true),
-            'skip' => Style::cyan('[SKIP]', true),
-            default => Style::bold('[' . strtoupper($status) . ']'),
-        };
+        if (is_string($status)) {
+            $status = CheckStatus::tryFrom(strtolower($status)) ?? $status;
+        }
+
+        $label = $status instanceof CheckStatus
+            ? $status->label()
+            : Style::bold('[' . strtoupper($status) . ']');
 
         $this->writeln('  ' . $label . ' ' . Style::cyan($name, true) . ' - ' . $message);
     }
