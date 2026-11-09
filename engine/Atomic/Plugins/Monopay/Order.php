@@ -26,31 +26,39 @@ class Order
         string $destination,
         array $options = []
     ): array {
-        $amount_minor = (int)round($amount * 100);
-
-        try {
-            $payment = Payment::create_preliminary(
-                $amount,
-                $options['ccy'] ?? Monopay::CURRENCY_DEFAULT
-            );
-
-            if (!$payment) {
-                throw new \Exception('Failed to create preliminary payment record.');
-            }
-            
-            $payment_uuid = $payment->get('uuid');
-
-        } catch (\Throwable $e) {
-            Log::error("Monopay: Failed to create payment record - " . $e->getMessage());
+        if ($amount <= 0) {
             return [
                 'ok' => false,
-                'error' => 'Failed to create payment record.',
+                'error' => 'Amount must be greater than zero.',
             ];
         }
-        
+
+        $amount_minor = (int)round($amount * 100);
+        $currency = (int)($options['ccy'] ?? Monopay::CURRENCY_DEFAULT);
+
+        // Idempotency: monobank has no server-side mechanism for it, so the
+        // reference (our preliminary uuid) is the only dedup anchor. It is
+        // reused only when the caller supplies a non-empty idempotency key;
+        // without one, every create() is a fresh payment.
+        $idempotency_key = $options['idempotency_key'] ?? null;
+        if (!is_string($idempotency_key) || $idempotency_key === '') {
+            $idempotency_key = null;
+        }
+
+        $resolved = $idempotency_key === null
+            ? $this->create_unkeyed_payment($amount, $currency, $destination)
+            : $this->resolve_keyed_payment($amount, $amount_minor, $currency, $destination, $idempotency_key);
+
+        if (isset($resolved['response'])) {
+            return $resolved['response'];
+        }
+
+        $payment = $resolved['payment'];
+        $payment_uuid = $payment->get('uuid');
+
         $invoice_data = [
             'amount' => $amount_minor,
-            'ccy' => $options['ccy'] ?? Monopay::CURRENCY_DEFAULT,
+            'ccy' => $currency,
             'merchantPaymInfo' => [
                 'reference' => $payment_uuid,
                 'destination' => $destination,
@@ -117,7 +125,7 @@ class Order
         }
 
         $result = $this->api->create_invoice($invoice_data);
-        
+
         if ($result['ok']) {
             $this->order_data = [
                 'invoiceId' => $result['data']['invoiceId'],
@@ -129,16 +137,19 @@ class Order
                 'destination' => $destination,
                 'created_at' => time(),
             ];
-            
+
             Log::info("Monopay: Invoice created " . json_encode([
                 'invoiceId' => $this->order_data['invoiceId'],
                 'reference' => $payment_uuid,
                 'amount' => $amount
             ]));
 
-            $payment->set('invoice_id', $result['data']['invoiceId']);
-            $payment->set('page_url', $result['data']['pageUrl']);
-            $payment->save();
+            $payment->bind_invoice(
+                (string)$result['data']['invoiceId'],
+                (string)($result['data']['pageUrl'] ?? '')
+            );
+
+            $result['reference'] = $payment_uuid;
 
             Hook::instance()->do_action(
                 MonopayHook::PAYMENT_CREATED,
@@ -156,14 +167,217 @@ class Order
                 $result,
                 $invoice_data
             );
-            $payment->erase();
-            Log::error('Monopay: Invoice creation failed, preliminary payment deleted ' . json_encode([
-                'payment_uuid' => $payment_uuid,
-                'error' => $result['error'] ?? 'Unknown error'
-            ]));
+
+            $result['payment_uuid'] = $payment_uuid;
+
+            if (self::is_ambiguous_failure($result)) {
+                // Ambiguous outcome: monobank may have created the invoice
+                // even though we never saw the response. Keep the row and
+                // its reference — a retry resumes it instead of creating a
+                // second, independently payable invoice.
+                $payment->mark_create_pending();
+                Log::warning('Monopay: Invoice creation outcome ambiguous, payment kept for resume ' . json_encode([
+                    'payment_uuid' => $payment_uuid,
+                    'error' => $result['error'] ?? 'Unknown error'
+                ]));
+            } else {
+                // Monobank rejected the request definitively — no invoice
+                // can exist, the preliminary row is dead weight.
+                $payment->erase();
+                Log::error('Monopay: Invoice creation failed, preliminary payment deleted ' . json_encode([
+                    'payment_uuid' => $payment_uuid,
+                    'error' => $result['error'] ?? 'Unknown error'
+                ]));
+            }
         }
-        
+
         return $result;
+    }
+
+    /** How many times a keyed caller re-reads the row after losing an insert/claim race. */
+    private const MAX_KEY_RESOLVE_ATTEMPTS = 5;
+
+    /**
+     * @return array{payment: Payment}|array{response: array<string, mixed>}
+     */
+    private function create_unkeyed_payment(float $amount, int $currency, string $destination): array
+    {
+        try {
+            $payment = Payment::create_preliminary($amount, $currency, $destination);
+
+            if (!$payment) {
+                throw new \Exception('Failed to create preliminary payment record.');
+            }
+        } catch (\Throwable $e) {
+            Log::error("Monopay: Failed to create payment record - " . $e->getMessage());
+
+            return ['response' => ['ok' => false, 'error' => 'Failed to create payment record.']];
+        }
+
+        return ['payment' => $payment];
+    }
+
+    /**
+     * Resolves which payment row a keyed create() may use.
+     *
+     * The UNIQUE index on idempotency_key decides the first-insert race:
+     * exactly one INSERT wins, losers catch the duplicate-key error and load
+     * the winner's row. From there the row is either replayed (invoice
+     * already bound), rejected (amount/currency conflict), released (the
+     * bound invoice already ended in a terminal non-paid status, so it can
+     * never be paid again), claimed for a resume (no invoice yet, no live
+     * claim) or reported as "in progress" (another caller currently owns
+     * the claim).
+     *
+     * @return array{payment: Payment}|array{response: array<string, mixed>}
+     */
+    private function resolve_keyed_payment(
+        float $amount,
+        int $amount_minor,
+        int $currency,
+        string $destination,
+        string $idempotency_key
+    ): array {
+        for ($attempt = 0; $attempt < self::MAX_KEY_RESOLVE_ATTEMPTS; $attempt++) {
+            $payment = Payment::get_by_idempotency_key($idempotency_key);
+
+            if ($payment) {
+                $response = self::key_conflict_response($payment, $amount_minor, $currency);
+                if ($response !== null) {
+                    return ['response' => $response];
+                }
+
+                if ($payment->is_terminal_non_paid()) {
+                    // The key is bound to an invoice that can never be paid
+                    // (card declined, refunded, expired). Release it and
+                    // retry the normal path so this create mints a fresh,
+                    // payable payment; replays would strand the customer.
+                    $payment->release_idempotency_key();
+                    continue;
+                }
+
+                $response = self::invoice_replay_response($payment);
+                if ($response !== null) {
+                    return ['response' => $response];
+                }
+
+                if ($payment->claim_create()) {
+                    return ['payment' => $payment];
+                }
+
+                // Lost the claim race: the owner may have bound the invoice
+                // in the meantime. Re-read once and replay if so.
+                $payment = Payment::get_by_idempotency_key($idempotency_key);
+
+                if ($payment) {
+                    $response = self::key_conflict_response($payment, $amount_minor, $currency);
+                    if ($response !== null) {
+                        return ['response' => $response];
+                    }
+
+                    if ($payment->is_terminal_non_paid()) {
+                        $payment->release_idempotency_key();
+                        continue;
+                    }
+
+                    $response = self::invoice_replay_response($payment);
+                    if ($response !== null) {
+                        return ['response' => $response];
+                    }
+                }
+
+                return ['response' => self::creation_in_progress_response()];
+            }
+
+            try {
+                $payment = Payment::create_preliminary(
+                    $amount,
+                    $currency,
+                    $destination,
+                    $idempotency_key
+                );
+
+                if ($payment) {
+                    return ['payment' => $payment];
+                }
+            } catch (\Throwable $e) {
+                // Most likely the UNIQUE index rejected us because a racer
+                // inserted first. Fall through to load the winner's row.
+                Log::info('Monopay: keyed preliminary insert lost a race ' . json_encode([
+                    'idempotency_key' => $idempotency_key,
+                    'error' => $e->getMessage(),
+                ]));
+            }
+
+            if (!Payment::get_by_idempotency_key($idempotency_key)) {
+                return ['response' => ['ok' => false, 'error' => 'Failed to create payment record.']];
+            }
+        }
+
+        return ['response' => self::creation_in_progress_response()];
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function key_conflict_response(Payment $payment, int $amount_minor, int $currency): ?array
+    {
+        $stored_minor = (int)round((float)$payment->get('amount') * 100);
+        $stored_currency = (int)$payment->get('currency');
+
+        if ($stored_minor === $amount_minor && $stored_currency === $currency) {
+            return null;
+        }
+
+        return [
+            'ok' => false,
+            'error' => 'The idempotency key was already used with a different amount or currency.',
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function invoice_replay_response(Payment $payment): ?array
+    {
+        $invoice_id = $payment->get('invoice_id');
+
+        if ($invoice_id === null || $invoice_id === '') {
+            return null;
+        }
+
+        return [
+            'ok' => true,
+            'data' => [
+                'invoiceId' => (string)$invoice_id,
+                'pageUrl' => (string)($payment->get('page_url') ?? ''),
+            ],
+            'error' => null,
+            'reference' => (string)$payment->get('uuid'),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private static function creation_in_progress_response(): array
+    {
+        return [
+            'ok' => false,
+            'error' => 'Payment creation for this idempotency key is already in progress. Retry shortly.',
+        ];
+    }
+
+    /**
+     * True unless monobank definitively rejected the request at the HTTP
+     * level.
+     *
+     * Only a 4xx status proves the request was refused without side
+     * effects, so only that may erase the preliminary row. Everything else
+     * — a missing status (Api::request()'s Throwable catch), status 0, a
+     * 5xx, or a 2xx whose body could not be parsed — leaves the outcome
+     * ambiguous: monobank may already hold the invoice, so the row and its
+     * reference must be kept for a resume.
+     */
+    private static function is_ambiguous_failure(array $result): bool
+    {
+        $status = $result['status'] ?? null;
+
+        return !(is_int($status) && $status >= 400 && $status < 500);
     }
     
     public function get_status(string $invoice_id): array

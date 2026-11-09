@@ -24,6 +24,11 @@ class Monopay extends Plugin
     private ?Api $api = null;
     private ?Order $order = null;
     private ?string $public_key = null;
+    private ?int $pubkey_last_fetch_at = null;
+    private bool $pubkey_refetch_allowed = true;
+
+    /** Minimum seconds between public-key refetches once a streak is spent. */
+    public const PUBKEY_REFETCH_MIN_INTERVAL = 60;
 
     protected function get_name(): string
     {
@@ -32,7 +37,7 @@ class Monopay extends Plugin
 
     public function get_migrations_path(): ?string
     {
-        $path = __DIR__ . DIRECTORY_SEPARATOR . DIRECTORY_SEPARATOR . 'Migrations';
+        $path = __DIR__ . DIRECTORY_SEPARATOR . 'Migrations';
         return is_dir($path) ? $path : null;
     }
 
@@ -163,38 +168,33 @@ class Monopay extends Plugin
         }
         
         try {
-            if (!$this->public_key) {
-                $result = $this->api->get_public_key();
-                
-                if (!$result['ok']) {
-                    Log::error('Monopay: Failed to get public key ' . json_encode(['error' => $result['error']]));
-                    return [
-                        'ok' => false,
-                        'error' => 'Failed to verify webhook signature'
-                    ];
-                }
-                
-                $this->public_key = $result['data']['key'];
+            if (!$this->public_key && !$this->fetch_public_key()) {
+                return [
+                    'ok' => false,
+                    'error' => 'Failed to verify webhook signature'
+                ];
             }
-            
+
             $is_valid = $this->api->verify_signature($this->public_key, $x_sign, $raw_body);
 
-            if (!$is_valid) {
+            if (!$is_valid && $this->should_refetch_public_key()) {
                 Log::info('Monopay: Signature verification failed, refreshing public key and retrying');
-                $this->public_key = null;
+                $this->pubkey_refetch_allowed = false;
 
-                $result = $this->api->get_public_key();
-
-                if (!$result['ok']) {
-                    Log::error('Monopay: Failed to refresh public key ' . json_encode(['error' => $result['error']]));
+                if (!$this->fetch_public_key()) {
                     return [
                         'ok' => false,
                         'error' => 'Failed to verify webhook signature'
                     ];
                 }
 
-                $this->public_key = $result['data']['key'];
                 $is_valid = $this->api->verify_signature($this->public_key, $x_sign, $raw_body);
+            }
+
+            if ($is_valid) {
+                // The cached key verifies fine: the next failure streak may
+                // refetch once (e.g. after a monobank key rotation).
+                $this->pubkey_refetch_allowed = true;
             }
 
             if (!$is_valid) {
@@ -244,5 +244,38 @@ class Monopay extends Plugin
     private function register_helpers(): void
     {
         require_once __DIR__ . '/global_functions.php';
+    }
+
+    private function fetch_public_key(): bool
+    {
+        $result = $this->api->get_public_key();
+
+        if (!$result['ok']) {
+            Log::error('Monopay: Failed to get public key ' . json_encode(['error' => $result['error']]));
+            return false;
+        }
+
+        $this->public_key = $result['data']['key'];
+        $this->pubkey_last_fetch_at = time();
+
+        return true;
+    }
+
+    /**
+     * Whether a signature-verification failure may trigger a pubkey refetch
+     * right now. Refetching on EVERY failure lets anyone flood the public
+     * webhook endpoint with garbage signatures and turn it into a lookup
+     * amplifier against api.monobank.ua (whose rate limiting then breaks
+     * legitimate webhooks too), so a refetch is allowed once per failure
+     * streak and at most every PUBKEY_REFETCH_MIN_INTERVAL seconds otherwise.
+     */
+    private function should_refetch_public_key(): bool
+    {
+        if ($this->pubkey_refetch_allowed) {
+            return true;
+        }
+
+        return $this->pubkey_last_fetch_at !== null
+            && (time() - $this->pubkey_last_fetch_at) >= self::PUBKEY_REFETCH_MIN_INTERVAL;
     }
 }

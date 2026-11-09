@@ -107,6 +107,33 @@ class Api
         }
     }
     
+    /**
+     * Maps a decoded 2xx JSON body to the plugin result shape.
+     *
+     * An invoice payload (it carries `status`) is data even when it also
+     * has errCode/failureReason: a declined payment's status reports
+     * status=failure together with the decline code. Only a body without
+     * an invoice status is an API error.
+     */
+    private static function interpret_decoded(array $decoded): array
+    {
+        $is_error_body = isset($decoded['errCode']) || isset($decoded['errText']);
+
+        if ($is_error_body && !isset($decoded['status'])) {
+            return [
+                'ok' => false,
+                'error' => $decoded['errText'] ?? 'API Error',
+                'errorCode' => $decoded['errCode'] ?? null,
+                'data' => $decoded
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'data' => $decoded,
+            'error' => null
+        ];
+    }
     private function request(string $method, string $endpoint, array $data = []): array
     {
         $url = rtrim(self::API_URL, '/') . '/' . ltrim((string)$endpoint, '/');
@@ -179,25 +206,24 @@ class Api
                 return [
                     'ok' => false,
                     'error' => 'Invalid JSON response',
-                    'data' => null
+                    'status' => $response['status'],
+                    'data' => null,
+                    'raw_body' => $body,
+                    'url' => $url
                 ];
             }
             
-            if (isset($decoded['errCode']) || isset($decoded['errText'])) {
+            if (!is_array($decoded)) {
                 return [
-                    'ok' => false,
-                    'error' => $decoded['errText'] ?? 'API Error',
-                    'errorCode' => $decoded['errCode'] ?? null,
-                    'data' => $decoded
+                    'ok' => true,
+                    'data' => $decoded,
+                    'error' => null
                 ];
             }
-            
-            return [
-                'ok' => true,
-                'data' => $decoded,
-                'error' => null
-            ];
-            
+
+            return self::interpret_decoded($decoded);
+
+
         } catch (\Throwable $e) {
             Log::error('Monopay API exception: ' . $e->getMessage() . ' ' . json_encode([
                 'method' => $method,

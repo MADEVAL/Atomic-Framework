@@ -50,44 +50,75 @@ class WebhookHandler
         $data = $result['data'];
         
         try {
-            $payment = self::update_payment_from_webhook($data);
-            
-            $reference = $data['reference'] ?? '';
-            $status = $data['status'] ?? 'unknown';
-            
-            if ($reference && $payment) {
-                $payment_id = (int)$payment->get('id');
-                PaymentHistory::log_operation($payment_id, $reference, $status, $data);
-                Log::info('Monopay: Payment history logged ' . json_encode([
-                    'payment_uuid' => $reference,
-                    'payment_id' => $payment_id,
-                    'status' => $status
-                ]));
-            } elseif ($reference) {
-                Log::warning('Monopay: Skipped payment history logging because payment was not found ' . json_encode([
-                    'payment_uuid' => $reference,
-                    'status' => $status
-                ]));
-            }
-            
+            self::apply_verified_event($data);
+
+            $response->send_json_success();
+
+        } catch (\Throwable $e) {
+            Log::error('Monopay: Webhook processing error - ' . $e->getMessage() . $e->getTraceAsString());
+            $response->send_json_error('Processing failed', 500);
+        }
+    }
+
+    /**
+     * Applies one verified status event (a webhook delivery or a
+     * reconciler poll) through the single transition path: the CAS in
+     * Payment::update_from_webhook() elects one winner, only that winner
+     * logs history and fires PAYMENT_UPDATED / the leaf status hook, and
+     * success fulfilment is claimed atomically before PAYMENT_VERIFIED /
+     * PAYMENT_SUCCESS. Both callers therefore share race semantics: a
+     * webhook and the reconciler racing on the same payment produce one
+     * transition and one hook dispatch.
+     */
+    public static function apply_verified_event(array $data): void
+    {
+        $payment = self::update_payment_from_webhook($data);
+
+        $reference = $data['reference'] ?? '';
+        $status = $data['status'] ?? 'unknown';
+
+        // Audit trail records only accepted transitions: duplicate
+        // (same->same) and stale deliveries return no payment record.
+        if ($reference && $payment) {
+            $payment_id = (int)$payment->get('id');
+            PaymentHistory::log_operation($payment_id, $reference, $status, $data);
+            Log::info('Monopay: Payment history logged ' . json_encode([
+                'payment_uuid' => $reference,
+                'payment_id' => $payment_id,
+                'status' => $status
+            ]));
+        } elseif ($reference) {
+            Log::warning('Monopay: Webhook delivery produced no payment state change ' . json_encode([
+                'payment_uuid' => $reference,
+                'status' => $status
+            ]));
+        }
+
+        // Status-specific handling runs for accepted transitions, and
+        // additionally for success re-deliveries whose fulfillment is
+        // still pending (e.g. the first delivery 500-ed during
+        // re-verification and monobank is retrying). handle_success_
+        // payment() re-resolves the payment and guards on fulfilled_at,
+        // so duplicates stay side-effect free.
+        if ($payment || ($reference && $status === PaymentStatus::SUCCESS->value)) {
             switch ($data['status']) {
                 case PaymentStatus::SUCCESS->value:
                     self::handle_success_payment($data);
                     break;
-                    
+
                 case PaymentStatus::FAILURE->value:
                     self::handle_failed_payment($data);
                     break;
-                    
+
                 case PaymentStatus::PROCESSING->value:
                 case PaymentStatus::CREATED->value:
                     self::handle_pending_payment($data);
                     break;
-                    
+
                 case PaymentStatus::REVERSED->value:
                     self::handle_reversed_payment($data);
                     break;
-                    
+
                 case PaymentStatus::HOLD->value:
                     self::handle_hold_payment($data);
                     break;
@@ -95,15 +126,20 @@ class WebhookHandler
                 default:
                     Log::info('Monopay: Unknown payment status ' . json_encode(['status' => $data['status']]));
             }
-            
-            $response->send_json_success();
-            
-        } catch (\Throwable $e) {
-            Log::error('Monopay: Webhook processing error - ' . $e->getMessage() . $e->getTraceAsString());
-            $response->send_json_error('Processing failed', 500);
         }
     }
     
+    /**
+     * Applies a verified webhook to the payment record.
+     *
+     * Returns the payment ONLY when the delivery carries a state change
+     * (an accepted status transition). Null means "nothing to record":
+     *   - missing reference or unknown payment,
+     *   - a duplicate delivery (same status re-delivered — monobank
+     *     retries up to 3 times until a 200, so this is guaranteed),
+     *   - a stale delivery (an out-of-order status that would downgrade).
+     * Callers must not log history or fire hooks for null results.
+     */
     private static function update_payment_from_webhook(array $data): ?Payment
     {
         $reference = $data['reference'] ?? '';
@@ -116,34 +152,67 @@ class WebhookHandler
         $payment_model = new Payment();
         $payment = $payment_model->get_by_uuid($reference);
 
-        if ($payment) {
-            $old_status = $payment->get('status');
-            $new_status = $data['status'] ?? $old_status;
+        if (!$payment) {
+            return null;
+        }
 
-            if (!Payment::is_valid_status_transition($old_status, $new_status)) {
-                Log::warning('Monopay: Ignored invalid status transition ' . json_encode([
-                    'payment_uuid' => $reference,
-                    'from' => $old_status,
-                    'to' => $new_status
-                ]));
-                return $payment;
-            }
+        $old_status = $payment->get('status');
+        $new_status = $data['status'] ?? $old_status;
 
-            $payment->update_from_webhook($data);
-            Log::info('Monopay: Payment record updated ' . json_encode([
+        if ($new_status === $old_status) {
+            // Duplicate delivery: the payment already carries this status.
+            // Re-saving/re-firing would double every downstream effect
+            // (history rows, update hooks, ERP sync) per monobank retry.
+            Log::info('Monopay: Duplicate webhook ignored, payment already in status ' . json_encode([
+                'payment_uuid' => $reference,
+                'status' => $old_status
+            ]));
+            return null;
+        }
+
+        if (!Payment::is_valid_status_transition($old_status, $new_status)) {
+            Log::warning('Monopay: Ignored invalid status transition ' . json_encode([
+                'payment_uuid' => $reference,
+                'from' => $old_status,
+                'to' => $new_status
+            ]));
+            return null;
+        }
+
+        // A concurrent duplicate delivery may have committed the very same
+        // transition between our SELECT and this UPDATE. The conditional
+        // UPDATE (WHERE status = old) elects exactly one winner; losers
+        // must behave exactly like the duplicate path above.
+        if (!$payment->update_from_webhook($data, $old_status)) {
+            Log::info('Monopay: Webhook transition lost to a concurrent delivery ' . json_encode([
                 'payment_uuid' => $reference,
                 'old_status' => $old_status,
                 'new_status' => $new_status
             ]));
-
-            Hook::instance()->do_action(MonopayHook::PAYMENT_UPDATED, $payment, $data, $old_status, $new_status);
-            Hook::instance()->do_action(MonopayHook::PAYMENT_STATUS, $payment, $data, $new_status, $old_status);
-            Hook::instance()->do_action(MonopayHook::status($new_status), $payment, $data, $old_status);
-
-            return $payment;
+            return null;
         }
 
-        return null;
+        // update_from_webhook() may have replayed the transition from a
+        // status committed by a parallel delivery; report that fresh origin
+        // rather than the stale one read at the start of this delivery.
+        $from_status = $payment->transitioned_from() ?? $old_status;
+
+        Log::info('Monopay: Payment record updated ' . json_encode([
+            'payment_uuid' => $reference,
+            'old_status' => $from_status,
+            'new_status' => $new_status
+        ]));
+
+        Hook::instance()->do_action(MonopayHook::PAYMENT_UPDATED, $payment, $data, $from_status, $new_status);
+
+        // Emit ONLY the leaf tag. Event::emit() is hierarchical: a leaf
+        // emission fires the leaf listeners exactly and the generic
+        // monopay.payment.status listeners exactly once via ancestor
+        // traversal. Emitting the generic tag as well would broadcast to
+        // the child tags and make every leaf listener run twice.
+        Hook::instance()->do_action(MonopayHook::status($new_status), $payment, $data, $new_status, $from_status);
+
+        return $payment;
     }
     
     private static function handle_success_payment(array $data): void
@@ -192,14 +261,6 @@ class WebhookHandler
             return;
         }
 
-        Log::info('Monopay: Payment verified successfully ' . json_encode([
-            'payment_uuid' => $reference
-        ]));
-
-        Hook::instance()->do_action(MonopayHook::PAYMENT_VERIFIED, $payment, $data, $verification);
-
-        Hook::instance()->do_action(MonopayHook::PAYMENT_SUCCESS, $payment, $data, $verification);
-
         $should_mark_fulfilled = Hook::instance()->apply_filters(
             MonopayHook::PAYMENT_SHOULD_MARK_FULFILLED,
             true,
@@ -209,7 +270,28 @@ class WebhookHandler
         );
 
         if ($should_mark_fulfilled) {
-            $payment->mark_fulfilled();
+            // Claim BEFORE announcing: is_fulfilled() above is only a fast
+            // path — two concurrent deliveries can both pass it. The
+            // conditional claim in mark_fulfilled() elects exactly one
+            // winner, so the success hooks below fire for exactly one
+            // delivery even under concurrent monobank retries.
+            if (!$payment->mark_fulfilled()) {
+                Log::info('Monopay: Fulfillment lost the claim race, skipping success hooks ' . json_encode([
+                    'payment_uuid' => $reference
+                ]));
+                return;
+            }
+        }
+
+        Log::info('Monopay: Payment verified successfully ' . json_encode([
+            'payment_uuid' => $reference
+        ]));
+
+        Hook::instance()->do_action(MonopayHook::PAYMENT_VERIFIED, $payment, $data, $verification);
+
+        Hook::instance()->do_action(MonopayHook::PAYMENT_SUCCESS, $payment, $data, $verification);
+
+        if ($should_mark_fulfilled) {
             Log::info('Monopay: Payment fulfilled ' . json_encode([
                 'payment_uuid' => $reference
             ]));
