@@ -25,6 +25,30 @@ class RsLegacyAuthor extends Model
     ];
 }
 
+class RsLegacyOwner extends Model
+{
+    protected $table = 'rs_owner';
+    protected $fieldConf = ['name' => ['type' => 'VARCHAR128']];
+}
+
+class RsLegacyChildOfLegacy extends Model
+{
+    protected $table = 'rs_child';
+    protected $fieldConf = [
+        'name' => ['type' => 'VARCHAR128'],
+        'owner' => ['belongs-to-one' => [RsLegacyOwner::class, 'id']],
+    ];
+}
+
+class RsChildOfUntypedField extends Model
+{
+    protected $table = 'rs_child';
+    protected $fieldConf = [
+        'name' => ['type' => 'VARCHAR128'],
+        'owner' => ['belongs-to-one' => [RsLegacyOwner::class, 'missing']],
+    ];
+}
+
 class RsTypelessField extends Model
 {
     protected $table = 'rs_child';
@@ -71,6 +95,24 @@ final class ModelRelationSaveTest extends TestCase
         $a = new RsLegacyAuthor();
         $a->name = 'a';
         $this->assertNotFalse($a->save(), json_encode($a->get_last_err_data()));
+    }
+
+    public function test_legacy_belongs_to_one_naming_legacy_primary_key_saves(): void
+    {
+        $owner = new RsLegacyOwner();
+        $owner->name = 'o';
+        $this->assertNotFalse($owner->save());
+        $child = new RsLegacyChildOfLegacy();
+        $child->name = 'c';
+        $child->owner = $owner;
+        $this->assertNotFalse($child->save(), json_encode($child->get_last_err_data()));
+    }
+
+    public function test_relation_to_untyped_target_field_fails_loudly(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('RsLegacyOwner.missing');
+        new RsChildOfUntypedField();
     }
 
     public function test_field_without_type_fails_loudly_on_save(): void

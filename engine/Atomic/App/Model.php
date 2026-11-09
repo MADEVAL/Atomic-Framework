@@ -5,6 +5,7 @@ namespace Engine\Atomic\App;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use DB\Cortex;
+use DB\Cortex\Schema\ColumnType;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Validator\PreValidation\NullableEmptyToNullTrait;
@@ -93,6 +94,48 @@ abstract class Model extends Cortex
 			return $valid;
 		};
 		$this->beforesave($saveHandler);
+	}
+
+	/**
+	 * Cortex reads the type of a belongs-to-one target field from the related
+	 * model's fieldConf. Primary keys never live there (legacy or domain), so
+	 * an explicit ['Owner', 'id'] target falls back to the live column type.
+	 * A target that cannot be resolved at all fails loudly.
+	 */
+	protected static function resolveRelationConf($field, $pkey = null) {
+		$rel = $field['belongs-to-one'] ?? null;
+		if (!is_array($rel) || ($rel[1] ?? '_id') === '_id') {
+			return parent::resolveRelationConf($field, $pkey);
+		}
+		[$target, $key] = [$rel[0], $rel[1]];
+		$fc = $target::resolveConfiguration();
+		$type = $fc['fieldConf'][$key]['type'] ?? null;
+		if ($type === null && $key === $fc['primary']) {
+			$db = ConnectionManager::instance()->get_db();
+			$table = (string) $fc['table'];
+			$raw = ColumnType::withDeclaredTypes($db, $table, $db->schema($table, null, 60))[$key]['type'] ?? null;
+			try {
+				$type = is_string($raw) ? ColumnType::describe($raw, $table, $key, $db->driver())['type'] : null;
+			} catch (\InvalidArgumentException) {
+				$type = null;
+			}
+		}
+		if (!is_string($type)) {
+			throw new \LogicException(sprintf(
+				'Model %s belongs-to-one relation targets %s.%s, which has no known column type. Declare it in %s fieldConf, or point the relation at an existing typed column.',
+				static::class,
+				$target,
+				$key,
+				$target
+			));
+		}
+		$field['belongs-to-one']['relPK'] = $fc['primary'];
+		$field['type'] = $type;
+		if (!array_key_exists('nullable', $field)) {
+			$field['nullable'] = true;
+		}
+		$field['relType'] = 'belongs-to-one';
+		return $field;
 	}
 
 	protected function before_validate(): void {
