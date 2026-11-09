@@ -71,8 +71,15 @@ abstract class Model extends Cortex
 			$self->before_validate();
 			$valid = true;
 			foreach ($self->getFieldConfiguration() as $field => $conf) {
-				if (in_array($conf['relType'] ?? null, ['has-many', 'belongs-to-many'], true)) {
+				if (in_array($conf['relType'] ?? null, ['has-one', 'has-many', 'belongs-to-many'], true)) {
 					continue;
+				}
+				if (!isset($conf['type']) || !is_string($conf['type'])) {
+					throw new \LogicException(sprintf(
+						'Model %s field "%s" has no column type; pre-save validation cannot run. Declare a "type" in fieldConf or create the column in a migration.',
+						static::class,
+						$field
+					));
 				}
 				$val = isset($conf['relType']) ? $self->getRaw($field) : $self->get($field);
 				$res = Validator::validate_model($conf, $val, $field, $self);
