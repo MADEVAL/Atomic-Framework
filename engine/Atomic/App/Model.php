@@ -71,6 +71,14 @@ abstract class Model extends Cortex
 					));
 				}
 				$val = isset($conf['relType']) ? $self->getRaw($field) : $self->get($field);
+                // Legacy INT8 has no signedness; use the actual unsigned column
+                // descriptor so validation and the exact string binding agree.
+                if (($conf['type'] ?? null) === 'INT8' && $self->dbsType === 'sql') {
+                    $raw = $self->mapper->schema()[$field]['type'] ?? '';
+                    if (preg_match('/^bigint(?:\(\d+\))?\s+unsigned\b/i', $raw)) {
+                        $conf += ColumnType::describe($raw, $self->table, $field);
+                    }
+                }
 				$res = Validator::validate_model($conf, $val, $field, $self);
 				if (!$res[0]) {
 					$valid = false;
@@ -86,9 +94,10 @@ abstract class Model extends Cortex
 
     public function initMapper() {
         parent::initMapper();
-        if ($this->dbsType === 'sql' && ModelDefinitionManager::instance()->uses_domain_schema(static::class)) {
+        if ($this->dbsType === 'sql') {
             $this->mapper = new \Engine\Atomic\App\Schema\Structure\DefaultSqlMapper(
-                $this->db, $this->table, null, $this->fluid ? 0 : $this->ttl
+                $this->db, $this->table, null, $this->fluid ? 0 : $this->ttl,
+                ModelDefinitionManager::instance()->uses_domain_schema(static::class)
             );
             $this->applyWhitelist();
             $this->reset();
