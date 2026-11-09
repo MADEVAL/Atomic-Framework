@@ -149,7 +149,7 @@ php vendor/bin/phpunit tests/Engine/Core/CryptoTest.php
 - Test methods use `snake_case` naming: `test_<what>_<expected_behavior>`.
 - Platform-specific tests (pcntl, Redis, Memcached) MUST guard with `markTestSkipped()` or `#[RequiresPhpExtension]` in `setUp()` — never let them ERROR on unsupported platforms.
 - After any code change, run the full test suite and verify: `PASS` count does not decrease, `FAIL` and `ERROR` counts do not increase.
-- Current baseline: **1481 PASS, 0 FAIL, 218 SKIP** on Windows with MySQL.
+- Current baseline: **2367 PASS, 2 FAIL, 126 SKIP** (2495 tests; the two known QueueDbDriverEdgeTest/QueueTelemetryDbTest failures) on Windows with MySQL.
 
 ## Test output formats
 
