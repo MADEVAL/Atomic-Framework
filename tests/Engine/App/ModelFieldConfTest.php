@@ -102,7 +102,7 @@ class ModelFieldConfTest extends TestCase
     private function collectFieldConf(string $modelClass): array
     {
         $model = (new ReflectionClass($modelClass))->newInstanceWithoutConstructor();
-        $collect = (new ReflectionClass(Model::class))->getMethod('collect_inherited_field_conf');
+        $collect = (new ReflectionClass(Model::class))->getMethod('collect_field_conf');
 
         return $collect->invoke($model);
     }

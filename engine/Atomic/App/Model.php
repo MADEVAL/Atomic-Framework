@@ -5,6 +5,7 @@ namespace Engine\Atomic\App;
 if (!defined( 'ATOMIC_START' ) ) exit;
 
 use DB\Cortex;
+use Engine\Atomic\App\Schema\ModelDefinitionManager;
 use DB\Cortex\Schema\ColumnType;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
@@ -20,37 +21,24 @@ abstract class Model extends Cortex
 	protected $fieldConf = null;
 	protected ?string $last_err_code = null;
 	protected array $last_err_vars = [];
-	private static array $inherited_field_conf_cache = [];
 
-	private function collect_inherited_field_conf(): array {
-		if (isset(self::$inherited_field_conf_cache[static::class])) {
-			return self::$inherited_field_conf_cache[static::class];
-		}
-
-		$chain = array_reverse(class_parents(static::class));
-		$chain[] = static::class;
-
-		$merged = [];
-		foreach ($chain as $class_name) {
-			$ref = new \ReflectionClass($class_name);
-			if ($ref->hasProperty('fieldConf')) {
-				$prop = $ref->getProperty('fieldConf');
-				if ($prop->getDeclaringClass()->getName() === $class_name) {
-					$defaults = $ref->getDefaultProperties();
-					$conf = $defaults['fieldConf'] ?? null;
-					if (is_array($conf) && !empty($conf)) {
-						$merged = array_replace_recursive($merged, $conf);
-					}
-				}
-			}
-		}
-
-		self::$inherited_field_conf_cache[static::class] = $merged;
-		return $merged;
+	/**
+	 * Merged field configuration across the class hierarchy.
+	 *
+	 * Delegates to the ModelDefinitionManager, which picks exactly one
+	 * strategy per class: legacy ($fieldConf) or domain
+	 * (domain_schema() + live database structure). Child definitions win.
+	 */
+	public function collect_field_conf(): array {
+		$manager = ModelDefinitionManager::instance();
+		$table = $manager->uses_domain_schema(static::class)
+			? \Engine\Atomic\App\Schema\Definition\DomainStrategy::table_of(static::class, $this->table)
+			: null;
+		return $manager->collect(static::class, $table);
 	}
 
 	protected function initialize_field_conf(): void {
-		$base = $this->collect_inherited_field_conf();
+		$base = $this->collect_field_conf();
 		if (!empty($base) || is_array($this->fieldConf)) {
 			$this->fieldConf = $base;
 		}
@@ -95,6 +83,41 @@ abstract class Model extends Cortex
 		};
 		$this->beforesave($saveHandler);
 	}
+
+    public function initMapper() {
+        parent::initMapper();
+        if ($this->dbsType === 'sql' && ModelDefinitionManager::instance()->uses_domain_schema(static::class)) {
+            $this->mapper = new \Engine\Atomic\App\Schema\Structure\DefaultSqlMapper(
+                $this->db, $this->table, null, $this->fluid ? 0 : $this->ttl
+            );
+            $this->applyWhitelist();
+            $this->reset();
+        }
+    }
+
+    /** Static resolution uses the class default table; runtime tables belong to instances. */
+    public static function resolveConfiguration() {
+        if (!ModelDefinitionManager::instance()->uses_domain_schema(static::class)) {
+            return parent::resolveConfiguration();
+        }
+        return ModelDefinitionManager::instance()->resolve_configuration(static::class, static function (): array {
+            $previous = static::$init;
+            static::$init = true;
+            try {
+                $self = new static();
+                return [
+                    'table' => $self->getTable(),
+                    'fieldConf' => $self->getFieldConfiguration(),
+                    'db' => $self->db,
+                    'fluid' => $self->fluid,
+                    'primary' => $self->primary,
+                    'charset' => $self->charset,
+                ];
+            } finally {
+                static::$init = $previous;
+            }
+        });
+    }
 
 	/**
 	 * Cortex reads the type of a belongs-to-one target field from the related
@@ -156,6 +179,17 @@ abstract class Model extends Cortex
 
 	public function get_last_err_data(): array {
 		return [$this->last_err_code, $this->last_err_vars];
+	}
+
+	/**
+	 * Report configuration errors in the merged field definition without
+	 * instantiating the model. Intended for boot-time checks and tests:
+	 * every model should pass with an empty result.
+	 *
+	 * @return string[] human-readable problems, empty when the definition is sound
+	 */
+	public static function lint(): array {
+		return ModelDefinitionManager::instance()->lint(static::class);
 	}
 
     public function update_property(mixed $filter, string $key, mixed $value): bool

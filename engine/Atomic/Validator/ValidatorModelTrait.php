@@ -36,6 +36,11 @@ trait ValidatorModelTrait
 			return [$is_valid];
 		}
 
+		if ($field_val === null && ($field_conf['has_db_default'] ?? false) === true
+            && empty($field_conf['required'])) {
+            return [true];
+        }
+
 		if (self::default($field_conf, $field_val)) {
 			$is_valid = true;
 			return [$is_valid];
@@ -114,6 +119,7 @@ trait ValidatorModelTrait
 
 		$type = strtoupper($field_conf['type']);
 		$is_valid = match ($type) {
+            'DOMAIN_UNTYPED' => ($field_conf['column_kind'] ?? null) === 'unknown' ? true : null,
 			default => null,
 			'BOOLEAN' => self::validate_boolean($field_val),
 			'INT1' => self::validate_integer($field_val, -128, 127),

@@ -4,6 +4,9 @@ declare(strict_types=1);
 namespace Tests\Engine\App\RelationSave;
 
 use Engine\Atomic\App\Model;
+use Engine\Atomic\App\Schema\Domain\DomainDefinition;
+use Engine\Atomic\App\Schema\Domain\DomainSchema;
+use Engine\Atomic\App\Schema\ModelDefinitionManager;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use PHPUnit\Framework\TestCase;
@@ -23,6 +26,52 @@ class RsLegacyAuthor extends Model
         'name' => ['type' => 'VARCHAR128'],
         'profile' => ['has-one' => [RsProfile::class, 'author']],
     ];
+}
+
+class RsDomainAuthorBase extends Model
+{
+    protected $fieldConf = ['profile' => ['has-one' => [RsProfile::class, 'author']]];
+}
+
+class RsDomainAuthor extends RsDomainAuthorBase
+{
+    protected $table = 'rs_author';
+    protected static function domain_schema(DomainSchema $schema): DomainDefinition
+    {
+        return $schema->define(['name' => $schema->field()->required()]);
+    }
+}
+
+class RsDomainOwner extends Model
+{
+    protected $table = 'rs_owner';
+    protected static function domain_schema(DomainSchema $schema): DomainDefinition
+    {
+        return $schema->define(['name' => $schema->field()->required()]);
+    }
+}
+
+class RsLegacyChildOfDomain extends Model
+{
+    protected $table = 'rs_child';
+    protected $fieldConf = [
+        'name' => ['type' => 'VARCHAR128'],
+        'owner' => ['belongs-to-one' => [RsDomainOwner::class, 'id']],
+    ];
+}
+
+class RsDomainChildBase extends Model
+{
+    protected $fieldConf = ['owner' => ['belongs-to-one' => [RsDomainOwner::class, 'id']]];
+}
+
+class RsDomainChild extends RsDomainChildBase
+{
+    protected $table = 'rs_child';
+    protected static function domain_schema(DomainSchema $schema): DomainDefinition
+    {
+        return $schema->define(['name' => $schema->field()->required()]);
+    }
 }
 
 class RsLegacyOwner extends Model
@@ -74,6 +123,7 @@ final class ModelRelationSaveTest extends TestCase
         $this->db->exec("CREATE TABLE `{$p}rs_profile` (id INT AUTO_INCREMENT PRIMARY KEY, bio VARCHAR(128) NULL, author INT NULL)");
         $this->db->exec("CREATE TABLE `{$p}rs_owner` (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NOT NULL)");
         $this->db->exec("CREATE TABLE `{$p}rs_child` (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NOT NULL, owner INT NULL)");
+        ModelDefinitionManager::reset();
     }
 
     protected function tearDown(): void
@@ -81,6 +131,7 @@ final class ModelRelationSaveTest extends TestCase
         if (isset($this->db)) {
             $this->drop();
         }
+        ModelDefinitionManager::reset();
     }
 
     private function drop(): void
@@ -95,6 +146,34 @@ final class ModelRelationSaveTest extends TestCase
         $a = new RsLegacyAuthor();
         $a->name = 'a';
         $this->assertNotFalse($a->save(), json_encode($a->get_last_err_data()));
+    }
+
+    public function test_cross_style_has_one_model_saves(): void
+    {
+        $a = new RsDomainAuthor();
+        $a->name = 'a';
+        $this->assertNotFalse($a->save(), json_encode($a->get_last_err_data()));
+    }
+
+    public function test_legacy_belongs_to_one_naming_domain_primary_key_saves(): void
+    {
+        $this->assert_child_saves(new RsLegacyChildOfDomain());
+    }
+
+    public function test_domain_belongs_to_one_naming_domain_primary_key_saves(): void
+    {
+        $this->assert_child_saves(new RsDomainChild());
+    }
+
+    public function test_belongs_to_one_resolves_domain_primary_key_type(): void
+    {
+        $conf = (new RsDomainChild())->getFieldConfiguration();
+        $this->assertSame('INT4', $conf['owner']['type']);
+    }
+
+    public function test_domain_primary_key_stays_out_of_instance_field_conf(): void
+    {
+        $this->assertArrayNotHasKey('id', (new RsDomainOwner())->getFieldConfiguration());
     }
 
     public function test_legacy_belongs_to_one_naming_legacy_primary_key_saves(): void
@@ -122,5 +201,19 @@ final class ModelRelationSaveTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('field "name" has no column type');
         $m->save();
+    }
+
+    private function assert_child_saves(Model $child): void
+    {
+        $owner = new RsDomainOwner();
+        $owner->name = 'o';
+        $this->assertNotFalse($owner->save(), json_encode($owner->get_last_err_data()));
+        $child->name = 'c';
+        $child->owner = $owner;
+        $this->assertNotFalse($child->save(), json_encode($child->get_last_err_data()));
+        $this->assertSame(
+            (int) $owner->id,
+            (int) $this->db->exec("SELECT owner FROM `{$this->prefix}rs_child` LIMIT 1")[0]['owner']
+        );
     }
 }
