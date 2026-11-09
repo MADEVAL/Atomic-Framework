@@ -13,12 +13,16 @@ Monobank Acquiring API integration plugin for processing payments in Ukrainian H
 
 ## Installation
 
+> **Upgrading?** Run the plugin migrations again after updating — a new
+> migration adds the columns used for safe retries and reconciliation.
+
 The plugin is located at `engine/Atomic/Plugins/Monopay/` and includes:
 
 - `Monopay.php` - Main plugin class
 - `Api.php` - Monobank API client
 - `Order.php` - Order management
 - `WebhookHandler.php` - Webhook processing
+- `Reconciler.php` - Payment reconciliation (webhook safety net)
 - `global_functions.php` - global helper wrappers
 - `Models/Payment.php` - payment record model
 - `Models/PaymentHistory.php` - payment webhook history logging
@@ -135,6 +139,40 @@ $result = monopay_create_payment(
     ]
 );
 ```
+
+### Safe Retries (Idempotency Key)
+
+Monobank has no built-in protection against duplicate invoices. If a create
+request times out or the customer clicks "Pay" twice, a plain retry creates a
+second, separately payable invoice.
+
+Pass your own order id as `idempotency_key` to make retries safe:
+
+```php
+$result = monopay_create_payment(
+    amount: 100.00,
+    destination: 'Payment for order #12345',
+    options: ['idempotency_key' => 'order-12345']
+);
+```
+
+With a key, calling create again for the same order:
+
+- returns the **same invoice** if one already exists (no second charge);
+- **resumes** the original attempt if the first request failed mid-way;
+- creates a **new invoice** if the previous payment failed, expired or was
+  refunded, so the customer can try again;
+- is **rejected** if the amount or currency differs from the first call.
+
+If two requests for the same key arrive at the same time, one creates the
+invoice and the other gets either that invoice or a "retry shortly" error.
+
+Without a key, every call creates a new payment. Keys are case-sensitive.
+
+> **Upgrade note:** earlier versions tried to resume a failed create
+> automatically by matching amount and description. That could mix up two
+> customers buying the same thing, so it was removed — use
+> `idempotency_key` instead.
 
 ### Checking Payment Status
 
@@ -254,14 +292,15 @@ $result = monopay_create_payment(
 $monopay = monopay();
 $order = $monopay->get_order();
 
-// Capture full amount
-$result = $order->finalize_hold($invoiceId);
+// Capture the full amount
+$result = $order->finalize_hold($invoiceId, amount: 200.00);
 
-// Capture partial amount
+// Capture part of it
 $result = $order->finalize_hold($invoiceId, amount: 150.00);
 ```
 
-**Note**: Hold payments expire after 9 days if not finalized.
+**Note**: Always pass the amount — monobank rejects a finalize request without
+one. Hold payments expire after 9 days if not finalized.
 
 ### Webhook Integration
 
@@ -287,11 +326,16 @@ Make sure your webhook URL is:
 #### Webhook Handler
 
 The `WebhookHandler` class automatically:
-- Verifies webhook signature using RSA-SHA256
+- Verifies the webhook signature (ECDSA, monobank's public key)
 - Parses incoming payment data
 - Updates payment records in the database
 - Logs payment history
 - Handles payment status changes (success, failure, hold, reversed, pending)
+
+Monobank may send the same webhook several times and not always in order. The
+plugin handles this for you: duplicates and outdated deliveries are ignored,
+and a successful payment fires `monopay.payment.success` **exactly once**, so
+your fulfilment code (emails, order completion) never runs twice.
 
 The webhook handler processes the following statuses:
 - `success` - Payment completed successfully
@@ -299,6 +343,56 @@ The webhook handler processes the following statuses:
 - `processing` or `created` - Payment pending
 - `reversed` - Payment cancelled/refunded
 - `hold` - Payment authorized but not captured
+
+## Reconciliation
+
+Webhooks can be lost: monobank gives up after a few failed deliveries, and it
+sends no webhook at all when an invoice expires. Without a safety net, a
+customer could pay and never receive their order, or a payment could stay
+"pending" forever.
+
+The reconciler fixes this. It periodically asks monobank for the real status
+of payments that look stuck — paid but not yet fulfilled, or pending for more
+than 10 minutes — and applies it exactly as a webhook would. It never
+fulfils a payment twice, even if a late webhook arrives at the same time.
+
+Run it on a schedule (every 5 minutes is a good default).
+
+### CLI
+
+```bash
+php atomic monopay/reconcile
+```
+
+It prints a short summary and is safe to run as often as you like:
+
+```json
+{"candidates":1,"processed":1,"updated":0,"fulfilled":1,"unchanged":0,"errors":0}
+```
+
+From code: `Reconciler::run()` returns the same summary.
+
+### Scheduling
+
+The plugin does not schedule itself — add it in your application's
+`routes/schedule.php` (see `docs/scheduler.md`):
+
+```php
+use Engine\Atomic\Plugins\Monopay\Reconciler;
+use Engine\Atomic\Scheduler\Scheduler;
+
+Scheduler::instance()
+    ->call(static fn () => Reconciler::run())
+    ->every_five_minutes()
+    ->without_overlapping(240)
+    ->description('Reconcile Monopay payments');
+```
+
+Or call the CLI command from system cron:
+
+```bash
+*/5 * * * * cd /path/to/app && php atomic monopay/reconcile >> storage/logs/monopay-reconcile.log 2>&1
+```
 
 ## Hooks
 
