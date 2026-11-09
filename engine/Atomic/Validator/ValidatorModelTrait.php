@@ -133,6 +133,10 @@ trait ValidatorModelTrait
 			'BLOB' => self::validate_blob($field_val, 65535),
 		};
 
+		if (isset($field_conf['column_kind'])) {
+			$is_valid = self::validate_column_metadata($field_conf, $field_val, $is_valid);
+		}
+
 		if ($is_valid === null) {
 			Log::error("Validation type '$type' is not supported.");
 			return [false, Code::SERVER_ERROR];
@@ -143,6 +147,11 @@ trait ValidatorModelTrait
 				'VARCHAR128', 'VARCHAR256', 'VARCHAR512', 'TEXT', 'LONGTEXT', 'BLOB' => 'MAX',
 				'DATE', 'DATETIME', 'TIMESTAMP' => 'FORMAT',
 				default => 'INVALID',
+			};
+			$suffix = match ($field_conf['column_kind'] ?? '') {
+				'enum' => 'ENUM',
+				'time', 'year', 'json' => 'FORMAT',
+				default => $suffix,
 			};
 			return $error_handler($suffix);
 		}
@@ -156,6 +165,88 @@ trait ValidatorModelTrait
 		return [$is_valid];
 	}	
 
+    /**
+     * Live column fieldConf keys: column_kind, max_length (characters), max_bytes,
+     * integer_bits, unsigned, precision, scale, fractional_precision, enum_values.
+     * Metadata-free legacy fields keep their original validation and error codes.
+     */
+    private static function validate_column_metadata(array $conf, mixed $value, ?bool $legacy): ?bool
+    {
+        $kind = $conf['column_kind'];
+        if (!empty($conf['uuid'])) return is_string($value) && preg_match('/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iD', $value) === 1;
+        if (isset($conf['set_values'])) return is_string($value) && ($value === '' || array_diff(explode(',', $value), $conf['set_values']) === []);
+        if (in_array($kind, ['text','binary'], true) && !isset($conf['max_bytes']) && !in_array($conf['type'], [Cortex::DT_JSON,Cortex::DT_SERIALIZED], true)) return is_string($value);
+        // Cortex encodes arrays as JSON for both casts, including SERIALIZED.
+        // Check storage capacity against that representation, not the PHP array.
+        if (in_array($conf['type'], [Cortex::DT_JSON, Cortex::DT_SERIALIZED], true)
+            && in_array($kind, ['text', 'binary'], true)) {
+            try {
+                $encoded = is_array($value) ? json_encode($value, JSON_THROW_ON_ERROR) : $value;
+                return self::validate_blob($encoded, ($conf['max_bytes'] ?? PHP_INT_MAX));
+            } catch (\JsonException) { return false; }
+        }
+        if ($kind === 'integer') {
+            if (!is_int($value) && !is_string($value)) return false;
+            $number = trim((string)$value);
+            if (!preg_match('/^[+-]?(?:0|[1-9]\d*)$/D', $number)) return false;
+            $negative = str_starts_with($number, '-');
+            $digits = ltrim($number, '+-');
+            $unsigned = $conf['unsigned'];
+            if ($unsigned && $negative && $digits !== '0') return false;
+            $bounds = [8=>['128','127','255'],16=>['32768','32767','65535'],24=>['8388608','8388607','16777215'],32=>['2147483648','2147483647','4294967295'],64=>['9223372036854775808','9223372036854775807','18446744073709551615']];
+            $bound = $bounds[$conf['integer_bits']][$unsigned ? 2 : ($negative ? 0 : 1)];
+            return strlen($digits) < strlen($bound) || strlen($digits) === strlen($bound) && strcmp($digits, $bound) <= 0;
+        }
+        if ($kind === 'decimal') {
+            if (!is_int($value) && !is_float($value) && !is_string($value)) return false;
+            if (!preg_match('/^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/D', trim((string)$value), $m) || ($m[2] === '' && ($m[3] ?? '') === '')) return false;
+            $digits = $m[2] . ($m[3] ?? '');
+            if ($conf['unsigned'] && $m[1] === '-' && trim($digits, '0') !== '') return false;
+            if (trim($digits, '0') === '') return true;
+            // Clamp exponents before integer arithmetic to avoid overflow.
+            $exponent = max(-1000, min(1000, (float)($m[4] ?? 0)));
+            $point = strlen($m[2]) + (int)$exponent;
+            $integer_digits = max(0, $point - (strlen($digits) - strlen(ltrim($digits, '0'))));
+            $fraction_digits = max(0, strlen(rtrim($digits, '0')) - $point);
+            if (!isset($conf['precision'])) return true;
+            if ($integer_digits > $conf['precision'] - $conf['scale'] || $fraction_digits > $conf['scale']) return false;
+            if (isset($conf['scaled_bounds'])) {
+                $units = $point + $conf['scale'];
+                $scaled = ltrim(substr($digits, 0, max(0, $units)) . str_repeat('0', max(0, $units - strlen($digits))), '0');
+                $bound = $conf['scaled_bounds'][$m[1] === '-' ? 0 : 1];
+                return strlen($scaled) < strlen($bound) || strlen($scaled) === strlen($bound) && strcmp($scaled, $bound) <= 0;
+            }
+            return true;
+        }
+        if ($kind === 'year') return (is_int($value) || is_string($value) && ctype_digit($value)) && ((int)$value === 0 || (int)$value >= 1901 && (int)$value <= 2155);
+        if ($kind === 'json') {
+            try {
+                if (is_string($value)) json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+                else json_encode($value, JSON_THROW_ON_ERROR);
+                return true;
+            } catch (\JsonException) { return false; }
+        }
+        if (!empty($conf['clock_time']) || !empty($conf['timezone']) || $kind === 'time' || in_array($kind, ['datetime','timestamp'], true) && $conf['fractional_precision'] > 0) {
+            if (!is_string($value)) return false;
+            $fraction = $conf['fractional_precision'];
+            if (!empty($conf['clock_time']) || !empty($conf['timezone'])) {
+                $zone = !empty($conf['timezone']) ? '(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)' : '';
+                $clock = '(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d' . ($fraction ? '(?:\.\d{1,' . $fraction . '})?' : '') . $zone;
+                if ($kind === 'time') return preg_match('/^' . $clock . '$/D', $value) === 1;
+                if (!preg_match('/^(\d{4}-\d{2}-\d{2})[ T]' . $clock . '$/D', $value, $parts)) return false;
+                return self::validate_date($parts[1]);
+            }
+            $pattern = $fraction > 0 ? '(?:\.\d{1,' . $fraction . '})?' : '';
+            if ($kind === 'time') return preg_match('/^-?(?:[0-7]?\d{1,2}|8[0-2]\d|83[0-8]):[0-5]\d:[0-5]\d' . $pattern . '$/D', $value) === 1;
+            if (!preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})' . $pattern . '$/D', $value, $m)) return false;
+            return $kind === 'datetime' ? self::validate_datetime($m[1]) : self::validate_timestamp($m[1]);
+        }
+        if (isset($conf['enum_values']) && (!is_string($value) || !in_array($value, $conf['enum_values'], true))) return false;
+        if (isset($conf['max_length'])) return self::validate_varchar($value, $conf['max_length']);
+        if (isset($conf['max_bytes'])) return self::validate_blob($value, $conf['max_bytes']);
+        if (($conf['unsigned'] ?? false) && is_numeric($value) && $value < 0) return false;
+        return $legacy;
+    }
 	public static function validate_boolean(mixed $value): bool {
 		return is_bool($value) || $value === 0 || $value === 1 || $value === '0' || $value === '1';
 	}
