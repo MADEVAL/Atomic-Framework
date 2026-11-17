@@ -1179,4 +1179,32 @@ PHP
         }
         rmdir($dir);
     }
+
+    public function test_plugin_route_file_registers_routes_through_this(): void
+    {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_routes_' . uniqid();
+        $plugin_dir = $root . DIRECTORY_SEPARATOR . 'plugin';
+        mkdir($plugin_dir . DIRECTORY_SEPARATOR . 'routes', 0777, true);
+        $plugin_route = $plugin_dir . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR . 'web.php';
+        file_put_contents(
+            $plugin_route,
+            '<?php $this->route("GET /plugin-this-route", "Tests\\\\Engine\\\\App\\\\TestPlugin->boot");'
+        );
+
+        App::atomic()->set('FRAMEWORK_ROUTES', $root . DIRECTORY_SEPARATOR . 'none' . DIRECTORY_SEPARATOR);
+        App::atomic()->set('USER_PLUGINS', $root . DIRECTORY_SEPARATOR . 'user_plugins');
+        LifecycleRoutePlugin::$plugin_path = $plugin_dir;
+        $this->manager->register(new LifecycleRoutePlugin());
+
+        App::instance()->register_plugins();
+        App::instance()->register_routes_for('web');
+
+        $routes = App::atomic()->get('ROUTES');
+        $this->assertArrayHasKey('/plugin-this-route', $routes);
+
+        unlink($plugin_route);
+        rmdir($plugin_dir . DIRECTORY_SEPARATOR . 'routes');
+        rmdir($plugin_dir);
+        rmdir($root);
+    }
 }

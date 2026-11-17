@@ -114,10 +114,15 @@ class PluginManager
         $file_names = $route_loader->get_filenames_for($request_type);
         $loaded_files = [];
 
+        // Plugin route files see the same scope as app route files: $this and $atomic are App.
+        $require_route_file = \Closure::bind(function (string $file): void {
+            $atomic = $this;
+            require $file;
+        }, App::instance(), App::class);
+
         foreach ($this->booted as $name => $_) {
             $plugin = $this->plugins[$name];
             $routes_dir = $plugin->get_plugin_path() . DIRECTORY_SEPARATOR . 'routes' . DIRECTORY_SEPARATOR;
-            $atomic = App::instance();
 
             foreach ($file_names as $file_name) {
                 $file = $routes_dir . $file_name;
@@ -125,7 +130,7 @@ class PluginManager
                 if (!is_file($file)) continue;
 
                 try {
-                    require $file;
+                    $require_route_file($file);
                     $resolved_file = realpath($file);
                     $loaded_files[] = $resolved_file !== false ? $resolved_file : $file;
                 } catch (\Throwable $e) {
