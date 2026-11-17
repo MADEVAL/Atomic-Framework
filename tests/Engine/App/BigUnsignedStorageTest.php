@@ -112,19 +112,96 @@ final class BigUnsignedStorageTest extends TestCase
         }
     }
     #[\PHPUnit\Framework\Attributes\DataProvider('models')]
-    public function test_float_input_throws_before_write(string $class): void
+    public static function invalid_inputs(): array
     {
+        $out = [];
+        foreach (self::models() as [$class]) {
+            foreach (['float' => 18446744073709551615.0, 'garbage' => '12abc', 'negative' => '-1', 'overflow' => '18446744073709551616'] as $name => $value) {
+                $out[$name.' '.substr(strrchr($class, '\\'), 1)] = [$class, $value];
+            }
+        }
+        return $out;
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalid_inputs')]
+    public function test_invalid_input_is_assignable_and_fails_validation_on_save(string $class, mixed $value): void
+    {
+        $m = new $class();
+        $m->amount = $value;
+        $this->assertFalse($m->save());
+        $this->assertNotNull($m->get_last_err_code());
+        $this->assertSame(0, (int) $this->db->exec('SELECT COUNT(*) AS n FROM `'.$this->table.'`')[0]['n']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalid_inputs')]
+    public function test_invalid_input_fails_validation_on_update(string $class, mixed $value): void
+    {
+        $m = new $class();
+        $m->amount = 5;
+        $m->save();
+        $m->amount = $value;
+        $this->assertFalse($m->save());
+        $this->assertSame('5', (string) $this->db->exec('SELECT amount FROM `'.$this->table.'` WHERE id = ?', $m->id)[0]['amount']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('models')]
+    public function test_empty_string_on_nullable_column_saves_null(string $class): void
+    {
+        $m = new $class();
+        $m->amount = '';
+        $this->assertNotFalse($m->save());
+        $this->assertNull($this->db->exec('SELECT amount FROM `'.$this->table.'` WHERE id = ?', $m->id)[0]['amount']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('models')]
+    public function test_input_accepted_by_validation_is_stored_exactly(string $class): void
+    {
+        $m = new $class();
+        foreach ([' 5 ' => 5, '+7' => 7, '-0' => 0] as $input => $expected) {
+            $m->amount = $input;
+            $this->assertNotFalse($m->save());
+            $this->assertSame($expected, $m->amount);
+            $this->assertSame((string) $expected, (string) $this->db->exec('SELECT amount FROM `'.$this->table.'` WHERE id = ?', $m->id)[0]['amount']);
+        }
+    }
+
+    public function test_write_guard_stops_float_that_bypassed_validation(): void
+    {
+        $mapper = new \Engine\Atomic\App\Schema\Structure\DefaultSqlMapper($this->db, $this->table, null, 0);
+        $mapper->amount = 18446744073709551615.0;
         try {
-            $m = new $class();
-            $m->amount = 18446744073709551615.0;
-            $m->save();
+            $mapper->insert();
             $this->fail('Float input must throw before precision can be lost.');
         } catch (\InvalidArgumentException $e) {
             $this->assertStringContainsString('amount', $e->getMessage());
             $this->assertStringContainsString('64-bit signed', $e->getMessage());
-            $this->assertStringContainsString('numeric string', $e->getMessage());
             $this->assertStringContainsString('bcmath or gmp', $e->getMessage());
-            $this->assertSame(0, (int) $this->db->exec('SELECT COUNT(*) AS n FROM `'.$this->table.'`')[0]['n']);
         }
+        $this->assertSame(0, (int) $this->db->exec('SELECT COUNT(*) AS n FROM `'.$this->table.'`')[0]['n']);
+    }
+
+    public function test_write_guard_stops_invalid_update_that_bypassed_validation(): void
+    {
+        $mapper = new \Engine\Atomic\App\Schema\Structure\DefaultSqlMapper($this->db, $this->table, null, 0);
+        $mapper->amount = 5;
+        $mapper->insert();
+        $mapper->amount = '12abc';
+        try {
+            $mapper->update();
+            $this->fail('Invalid BIGINT UNSIGNED must not reach the database.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('amount', $e->getMessage());
+        }
+        $this->assertSame('5', (string) $this->db->exec('SELECT amount FROM `'.$this->table.'`')[0]['amount']);
+    }
+
+    public function test_reset_clears_rejected_input(): void
+    {
+        $mapper = new \Engine\Atomic\App\Schema\Structure\DefaultSqlMapper($this->db, $this->table, null, 0);
+        $mapper->amount = '12abc';
+        $mapper->reset();
+        $mapper->amount = 9;
+        $mapper->insert();
+        $this->assertSame('9', (string) $this->db->exec('SELECT amount FROM `'.$this->table.'`')[0]['amount']);
     }
 }
