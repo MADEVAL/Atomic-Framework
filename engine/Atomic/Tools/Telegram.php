@@ -7,7 +7,13 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Log;
 use Engine\Atomic\Core\Request;
+use Engine\Atomic\Core\Traits\Singleton;
+use Engine\Atomic\Exceptions\TelegramException;
 
+/**
+ * Bot API calls return Telegram's decoded answer (`['ok' => true, 'result' => ...]`)
+ * and throw TelegramException on any failure. verify_* methods return false instead.
+ */
 final class Telegram
 {
     use Singleton;
@@ -44,8 +50,7 @@ final class Telegram
     protected function api(string $method, array $params = []): array
     {
         if ($this->token === '') {
-            Log::error('[Telegram] Token is empty');
-            return ['ok' => false, 'error' => 'empty_token'];
+            throw new TelegramException('Telegram bot token is empty', $method);
         }
 
         $url = 'https://api.telegram.org/bot' . $this->token . '/' . $method;
@@ -64,36 +69,51 @@ final class Telegram
             ]);
         }
 
-        if (!$response['ok']) {
-            $errJson = json_decode($response['body'], true);
-            if (is_array($errJson)) {
-                Log::error('[Telegram] API error: ' . json_encode(['method' => $method, 'response' => $errJson], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-                return $errJson;
-            }
-            Log::error('[Telegram] Request failed: ' . json_encode(['method' => $method, 'error' => $response['error'], 'status' => $response['status']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            return ['ok' => false, 'error' => $response['error'] ?: ('http_' . $response['status'])];
+        // Transport errors can echo the request URL, which contains the token.
+        $response['error'] = str_replace($this->token, '[token]', (string)($response['error'] ?? ''));
+
+        return self::parse_response($method, $response);
+    }
+
+    /**
+     * @param array{ok: bool, status: int, error: string, body: string} $response Request::remote_post() result
+     * @return array Telegram's answer with `ok === true`
+     * @throws TelegramException
+     */
+    private static function parse_response(string $method, array $response): array
+    {
+        $status = (int)($response['status'] ?? 0);
+        $json = json_decode((string)($response['body'] ?? ''), true);
+
+        if (is_array($json) && ($json['ok'] ?? false) === true && !empty($response['ok'])) {
+            return $json;
         }
 
-        $json = json_decode($response['body'], true);
-        if (!is_array($json)) {
-            Log::error('[Telegram] Invalid JSON: ' . json_encode(['method' => $method, 'body' => $response['body']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            return ['ok' => false, 'error' => 'invalid_json'];
+        if (is_array($json) && array_key_exists('ok', $json)) {
+            $code = isset($json['error_code']) ? (int)$json['error_code'] : ($status ?: null);
+            $description = (string)($json['description'] ?? 'unknown error');
+            throw new TelegramException("Telegram {$method} failed: {$description}", $method, $code);
         }
 
-        if (empty($json['ok'])) {
-            Log::error('[Telegram] API error: ' . json_encode(['method' => $method, 'response' => $json], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        if (empty($response['ok'])) {
+            $reason = $response['error'] !== '' ? $response['error'] : 'HTTP ' . $status;
+            throw new TelegramException("Telegram {$method} request failed: {$reason}", $method, $status ?: null);
         }
 
-        return $json;
+        throw new TelegramException("Telegram {$method} returned an invalid response (HTTP {$status})", $method, $status ?: null);
+    }
+
+    private function require_chat_id(string|int|null $chat_id, string $method): string|int
+    {
+        if ($chat_id === null || $chat_id === '') {
+            throw new TelegramException("Telegram {$method}: chat_id is empty", $method);
+        }
+        return $chat_id;
     }
 
     public function send(string $text, ?int $chat_id = null, array $opts = []): array
     {
-        $chat = $chat_id ?? $this->chat_id;
-        if ($chat === null) {
-            Log::error('[Telegram] chat_id is empty');
-            return ['ok' => false, 'error' => 'empty_chat_id'];
-        }
+        $chat = $this->require_chat_id($chat_id ?? $this->chat_id, 'sendMessage');
 
         $params = ['chat_id' => $chat, 'text' => $text] + $opts;
         return $this->api('sendMessage', $params);
@@ -101,11 +121,7 @@ final class Telegram
 
     public function send_photo(string $photo, array $opts = []): array
     {
-        $chat_id = $opts['chat_id'] ?? $this->chat_id;
-        if ($chat_id === null) {
-            Log::error('[Telegram] chat_id is empty for send_photo');
-            return ['ok' => false, 'error' => 'empty_chat_id'];
-        }
+        $chat_id = $this->require_chat_id($opts['chat_id'] ?? $this->chat_id, 'sendPhoto');
         $params = ['chat_id' => $chat_id];
         if (is_file($photo) && is_readable($photo)) {
             $params['photo'] = new \CURLFile($photo, mime_content_type($photo) ?: 'application/octet-stream', basename($photo));
@@ -124,11 +140,7 @@ final class Telegram
 
     public function send_document(string $document, array $opts = []): array
     {
-        $chat_id = $opts['chat_id'] ?? $this->chat_id;
-        if ($chat_id === null) {
-            Log::error('[Telegram] chat_id is empty for send_document');
-            return ['ok' => false, 'error' => 'empty_chat_id'];
-        }
+        $chat_id = $this->require_chat_id($opts['chat_id'] ?? $this->chat_id, 'sendDocument');
         $params = ['chat_id' => $chat_id];
         if (is_file($document) && is_readable($document)) {
             $params['document'] = new \CURLFile($document, mime_content_type($document) ?: 'application/octet-stream', basename($document));
@@ -156,18 +168,12 @@ final class Telegram
             $data['prices'] = json_encode($data['prices'], JSON_UNESCAPED_UNICODE);
         }
         $response = $this->api('createInvoiceLink', $data);
-        return (!empty($response['ok']) && isset($response['result'])) ? (string)$response['result'] : null;
+        return isset($response['result']) ? (string)$response['result'] : null;
     }
 
     public function send_invoice(array $data): array
     {
-        if (!isset($data['chat_id'])) {
-            $data['chat_id'] = $this->chat_id;
-        }
-        if ($data['chat_id'] === null) {
-            Log::error('[Telegram] chat_id is empty for send_invoice');
-            return ['ok' => false, 'error' => 'empty_chat_id'];
-        }
+        $data['chat_id'] = $this->require_chat_id($data['chat_id'] ?? $this->chat_id, 'sendInvoice');
         return $this->api('sendInvoice', $data);
     }
 
