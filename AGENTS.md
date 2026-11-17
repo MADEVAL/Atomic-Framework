@@ -1,5 +1,8 @@
 # AGENTS.md — Atomic Framework
 
+## Hard-Gates
+- Skill `caveman` always on! Mode`ultra`.
+
 ## What is this?
 
 A modular PHP framework built on **Fat-Free Framework (F3)**, not Laravel. Composer package: `globus-studio/atomic-framework`. Designed as a Composer dependency consumed by a separate application skeleton package.
