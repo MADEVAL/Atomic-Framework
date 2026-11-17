@@ -39,7 +39,7 @@ final class ColumnTypeTest extends TestCase
     public function test_real_limits_are_validated(string $raw, mixed $value, bool $valid): void
     {
         $model = (new \ReflectionClass(\DB\Cortex::class))->newInstanceWithoutConstructor();
-        $this->assertSame($valid, Validator::validate_model(ColumnType::describe($raw, 'items', 'value'), $value, 'value', $model)[0]);
+        $this->assertSame($valid, Validator::validate_model(ColumnType::describe($raw, 'items', 'value', 'mysql'), $value, 'value', $model)[0]);
     }
     public function test_legacy_tokens_keep_results_and_error_codes(): void
     {

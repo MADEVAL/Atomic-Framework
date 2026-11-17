@@ -67,7 +67,7 @@ final class DomainSchemaTest extends TestCase
     {
         $structure = \Engine\Atomic\App\Schema\Structure\SchemaStructure::from_columns('probe', [
             'value' => ['type' => $type, 'nullable' => false, 'unique' => true],
-        ]);
+        ], 'mysql');
         return \Engine\Atomic\App\Schema\Definition\StructurePolicyMerger::merge(
             $structure, (new DomainSchema())->define(['value' => $rules]), self::class
         )['value'];

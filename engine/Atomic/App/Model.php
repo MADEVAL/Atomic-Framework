@@ -76,7 +76,7 @@ abstract class Model extends Cortex
                 if (($conf['type'] ?? null) === 'INT8' && $self->dbsType === 'sql') {
                     $raw = $self->mapper->schema()[$field]['type'] ?? '';
                     if (preg_match('/^bigint(?:\(\d+\))?\s+unsigned\b/i', $raw)) {
-                        $conf += ColumnType::describe($raw, $self->table, $field);
+                        $conf += ColumnType::describe($raw, $self->table, $field, $self->db->driver());
                     }
                 }
 				$res = Validator::validate_model($conf, $val, $field, $self);

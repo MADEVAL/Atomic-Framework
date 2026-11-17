@@ -13,7 +13,7 @@ final class SchemaStructure
     private array $fields = [];
     private function __construct(private readonly string $table) {}
 
-    public static function from_columns(string $table, array $columns, ?string $driver = null): self
+    public static function from_columns(string $table, array $columns, string $driver): self
     {
         $structure = new self($table);
         foreach ($columns as $name => $column) {
