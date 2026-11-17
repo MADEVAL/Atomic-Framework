@@ -16,6 +16,10 @@ Monobank Acquiring API integration plugin for processing payments in Ukrainian H
 > **Upgrading?** Run the plugin migrations again after updating — a new
 > migration adds the columns used for safe retries and reconciliation.
 
+> **Required:** schedule the reconciler in your application (see
+> [Reconciliation](#reconciliation)). The plugin does not schedule it, and
+> without it a lost webhook or an expired invoice is never resolved.
+
 The plugin is located at `engine/Atomic/Plugins/Monopay/` and includes:
 
 - `Monopay.php` - Main plugin class
@@ -423,7 +427,8 @@ change whether a successful payment is marked fulfilled.
 - `monopay.payment.status.{status}` - Fired for a specific webhook status.
     - Examples: `monopay.payment.status.success`,
         `monopay.payment.status.failure`, `monopay.payment.status.hold`
-    - Arguments: `($payment, $data, $old_status)`
+    - Arguments: `($payment, $data, $new_status, $old_status)` (same order
+        as `monopay.payment.status`; fired once per transition)
 - `monopay.payment.verification_failed` - Fired when Monobank verification of
     a successful payment fails.
     - Arguments: `($payment, $data, $verification)`
