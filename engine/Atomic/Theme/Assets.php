@@ -130,6 +130,35 @@ final class Assets
         $this->localize[$handle] = ['var' => $var, 'data' => $data];
     }
 
+    /**
+     * Server data for JS: `<script type="application/json" id="…">`, read with
+     * JSON.parse(document.getElementById(id).textContent). Safe for any string
+     * value; add_inline_script() is for code only, never interpolate data into it.
+     *
+     * @throws \JsonException when $data cannot be encoded (e.g. invalid UTF-8)
+     */
+    public function json_script(string $id, array $data): string
+    {
+        return '<script type="application/json" id="' . htmlspecialchars($id, ENT_QUOTES, 'UTF-8') . '">'
+            . self::encode_json_for_html($data)
+            . '</script>';
+    }
+
+    /**
+     * JSON that cannot close a <script> element or break out of an HTML attribute:
+     * < > & ' " are emitted as \u escapes.
+     *
+     * @throws \JsonException
+     */
+    private static function encode_json_for_html(mixed $data): string
+    {
+        return json_encode(
+            $data,
+            JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR
+        );
+    }
+
     public function add_inline_style(string $handle, string $css): void
     {
         $this->inlineStyles[$handle][] = $css;
@@ -215,11 +244,9 @@ final class Assets
         $ver    = $this->build_version_param($script['version'], $src);
 
         if (isset($this->localize[$handle])) {
-            $payload = json_encode($this->localize[$handle]['data'], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-            $var_name = $this->localize[$handle]['var'];
-            if ($payload !== false) {
-                echo '<script>(function(w){w['.json_encode($var_name).']='.$payload.';})(window);</script>'."\n";
-            }
+            $payload = self::encode_json_for_html($this->localize[$handle]['data']);
+            $var_name = self::encode_json_for_html($this->localize[$handle]['var']);
+            echo '<script>(function(w){w['.$var_name.']='.$payload.';})(window);</script>'."\n";
         }
 
         if ($in_footer === false && !empty($this->inlineScripts['header'][$handle])) {

@@ -187,4 +187,60 @@ class AssetsTest extends TestCase
         $this->assertStringContainsString('<link rel="stylesheet"', $output);
         $this->assertStringContainsString('https://example.com/style.css', $output);
     }
+
+    public function test_localize_script_escapes_script_breakout(): void
+    {
+        $this->assets->enqueue_script('xss', 'https://example.com/xss.js');
+        $this->assets->localize_script('xss', ['name' => '</script><script>alert(1)</script>', 'q' => "a'b\"c&d"], 'xssData');
+
+        ob_start();
+        $this->assets->print_scripts(true);
+        $output = ob_get_clean();
+
+        $this->assertStringNotContainsString('<script>alert(1)', $output);
+        $this->assertSame(2, substr_count($output, '</script>'));
+        $u = '\\' . 'u';
+        $this->assertStringContainsString($u . '003C/script' . $u . '003E', $output);
+        $this->assertStringContainsString($u . '0027', $output);
+        $this->assertStringContainsString($u . '0026', $output);
+    }
+
+    public function test_json_script_prints_escaped_json_data_block(): void
+    {
+        $html = $this->assets->json_script('page-data', [
+            'name' => '</script><script>alert(1)</script>',
+            'text' => 'Привет',
+            'price' => 1.0,
+        ]);
+
+        $open = '<script type="application/json" id="page-data">';
+        $this->assertStringStartsWith($open, $html);
+        $this->assertStringEndsWith('</script>', $html);
+        $this->assertSame(1, substr_count($html, '</script>'));
+        $this->assertStringContainsString('Привет', $html);
+        $this->assertStringContainsString('1.0', $html);
+
+        $json = substr($html, strlen($open), -strlen('</script>'));
+        $this->assertSame(
+            '</script><script>alert(1)</script>',
+            json_decode($json, true, 512, JSON_THROW_ON_ERROR)['name']
+        );
+    }
+
+    public function test_json_script_escapes_the_id_attribute(): void
+    {
+        $this->assertStringContainsString('id="a&quot;b"', $this->assets->json_script('a"b', []));
+    }
+
+    public function test_json_script_rejects_invalid_utf8(): void
+    {
+        $this->expectException(\JsonException::class);
+
+        $this->assets->json_script('bad', ['v' => "\xB1\x31"]);
+    }
+
+    public function test_json_script_helper_returns_the_same_markup(): void
+    {
+        $this->assertSame($this->assets->json_script('h', ['a' => 1]), json_script('h', ['a' => 1]));
+    }
 }

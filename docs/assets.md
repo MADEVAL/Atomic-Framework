@@ -1,5 +1,17 @@
 ## Assets ##
 
+### Passing server data to JS
+
+`json_script($id, $data)` returns a `<script type="application/json">` block; read it with `JSON.parse`. `localize_script()` sets a `window` variable from the same encoder. Both escape `<`, `>`, `&`, `'` and `"`, so a value like `</script>` cannot end the element, and both throw `JsonException` on data that cannot be encoded (e.g. invalid UTF-8). `add_inline_script()` is for code only: never interpolate data into it.
+
+```php
+<?= json_script('page-data', ['userId' => $user->id, 'name' => $user->name]) ?>
+```
+
+```js
+const page = JSON.parse(document.getElementById('page-data').textContent);
+```
+
 ```php
 // CSS
 enqueue_style('theme', '~css/style.css'); // ~ => URL theme

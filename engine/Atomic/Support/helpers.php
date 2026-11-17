@@ -88,6 +88,7 @@ function enqueue_style(string $handle, string $src, array $deps = [], ?string $v
 function enqueue_script(string $handle, string $src, array $deps = [], ?string $version = null, bool $in_footer = true, array $attrs = []): void { Assets::instance()->enqueue_script($handle, $src, $deps, $version, $in_footer, $attrs);}
 function set_script_attrs(string $handle, array $attrs): void {Assets::instance()->set_script_attrs($handle, $attrs);}
 function localize_script(string $handle, array $data, ?string $var_name = null): void {Assets::instance()->localize_script($handle, $data, $var_name);}
+function json_script(string $id, array $data): string { return Assets::instance()->json_script($id, $data); }
 function print_styles(): void { Assets::instance()->print_styles(); }
 function print_scripts(string $position = 'header'): void { $in_footer = ($position === 'footer'); Assets::instance()->print_scripts($in_footer);}
 function dequeue_style(string $handle): void { Assets::instance()->dequeue_style($handle); }
