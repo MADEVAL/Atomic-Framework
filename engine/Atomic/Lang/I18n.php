@@ -28,6 +28,12 @@ final class I18n
 
     private array $domains = [];
     private array $pluralRules = [];
+    /** @var array<string, list<string>> form name per plural-rule index */
+    private array $pluralForms = [
+        'en' => ['one', 'other'],
+        'ru' => ['one', 'few', 'many'],
+        'uk' => ['one', 'few', 'many'],
+    ];
     private ?CacheStoreInterface $cache = null;
 
     private function __construct()
@@ -45,14 +51,17 @@ final class I18n
         $this->current   = $this->detect();
         $this->content   = $this->current;
 
+        // East Slavic rule: 1/21 one, 2-4/22-24 few, everything else many.
+        $eastSlavic = function(int $n): int {
+            $n = abs($n) % 100; $n1 = $n % 10;
+            if ($n1 == 1 && $n != 11) return 0;
+            if ($n1 >= 2 && $n1 <= 4 && ($n < 10 || $n >= 20)) return 1;
+            return 2;
+        };
         $this->pluralRules = [
             'en' => fn(int $n): int => $n == 1 ? 0 : 1,
-            'ru' => function(int $n): int {
-                $n = abs($n) % 100; $n1 = $n % 10;
-                if ($n1 == 1 && $n != 11) return 0;
-                if ($n1 >= 2 && $n1 <= 4 && ($n < 10 || $n >= 20)) return 1;
-                return 2;
-            },
+            'ru' => $eastSlavic,
+            'uk' => $eastSlavic,
         ];
     }
 
@@ -114,24 +123,33 @@ final class I18n
         return $v;
     }
 
+    /**
+     * Plural translation.
+     *
+     * The language's plural rule returns a form index. Index 0 uses $singular.
+     * Any other index looks up "<plural>.<form>" (e.g. "items.few" for ru), where
+     * <form> is the CLDR-style name from $pluralForms, and falls back to $plural.
+     * Languages whose only forms are one/other use $plural directly.
+     */
     public function tn(string $singular, string $plural, int $count, array $vars = [], ?string $domain = null, ?string $lang = null): string
     {
         $lang = $lang ?: $this->current;
-        $rule = $this->pluralRules[$lang] ?? $this->pluralRules[$this->default] ?? fn(int $n)=> $n==1?0:1;
+        $ruleLang = isset($this->pluralRules[$lang]) ? $lang : $this->default;
+        $rule = $this->pluralRules[$ruleLang] ?? fn(int $n): int => $n == 1 ? 0 : 1;
         $idx  = $rule($count);
-
-        $keyS = $singular;
-        $keyP = $plural;
+        $vars = $vars + ['count' => $count];
 
         if ($idx === 0) {
-            $txt = $this->t($keyS, $vars + ['count'=>$count], $domain, $lang);
-        } elseif ($lang === 'ru' && $idx === 1) {
-            $txt = $this->t($keyP.'.few', $vars + ['count'=>$count], $domain, $lang);
-            if ($txt === $keyP.'.few') $txt = $this->t($keyP, $vars + ['count'=>$count], $domain, $lang);
-        } else {
-            $txt = $this->t($keyP, $vars + ['count'=>$count], $domain, $lang);
+            return $this->t($singular, $vars, $domain, $lang);
         }
-        return $txt;
+
+        $form = $this->pluralForms[$ruleLang][$idx] ?? 'other';
+        if ($form !== 'other') {
+            $formKey = $plural.'.'.$form;
+            $txt = $this->t($formKey, $vars, $domain, $lang);
+            if ($txt !== $formKey) return $txt;
+        }
+        return $this->t($plural, $vars, $domain, $lang);
     }
 
     public function url(string $path = '/', ?string $lang = null): string
@@ -199,6 +217,19 @@ final class I18n
         return $lang;
     }
 
+    /**
+     * Build the dictionary for a domain/language pair.
+     *
+     * For each base path (LOCALES, app/Lang, theme languages; later bases win),
+     * files are merged in this order, each overriding the previous:
+     *   1. Group files <base>/<lang>/<group>.php|json, sorted by filename, each
+     *      merged under the key <group> (en/auth.php -> "auth.*"). Basenames must
+     *      match [a-z0-9_]+; others and non-array files are skipped. The file named
+     *      after the requested domain is not a group (see 2).
+     *   2. Domain file <base>/<lang>/<domain>.php|json, merged at the root.
+     *   3. Single file <base>/<lang>.php|json, merged at the root.
+     * Finally $dict[$domain], when present, is lifted to the root.
+     */
     private function domain(string $domain, string $lang): array
     {
         $k = $domain.'|'.$lang;
@@ -224,21 +255,16 @@ final class I18n
         ])));
         $dict = [];
         foreach ($paths as $base) {
-            $candidates = $this->candidate_files($base, $domain, $lang);
-            foreach ($candidates as $file) {
+            $base = rtrim((string)$base, '/');
+            foreach ($this->group_files($base.'/'.$lang, $domain) as [$group, $file]) {
+                $arr = $this->load_file($file);
+                if ($arr !== null) $dict = array_replace_recursive($dict, [$group => $arr]);
+            }
+            foreach ($this->candidate_files($base, $domain, $lang) as $file) {
                 $resolvedFile = realpath($file);
-                if ($resolvedFile !== false && is_file($resolvedFile) && is_readable($resolvedFile)) {
-                    $ext = strtolower(pathinfo($resolvedFile, PATHINFO_EXTENSION));
-                    if ($ext === 'php') {
-                        $arr = require $resolvedFile;
-                        if (is_array($arr)) {
-                            $dict = array_replace_recursive($dict, $arr);
-                        }
-                    } elseif ($ext === 'json') {
-                        $arr = json_decode((string)Filesystem::instance()->read($resolvedFile), true);
-                        if (is_array($arr)) $dict = array_replace_recursive($dict, $arr);
-                    }
-                }
+                if ($resolvedFile === false || !is_file($resolvedFile) || !is_readable($resolvedFile)) continue;
+                $arr = $this->load_file($resolvedFile);
+                if ($arr !== null) $dict = array_replace_recursive($dict, $arr);
             }
         }
 
@@ -262,6 +288,44 @@ final class I18n
             Log::warning('I18n cache unavailable: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Group files in a language folder, in filename order.
+     *
+     * @return list<array{0: string, 1: string}> [group, resolved path]
+     */
+    private function group_files(string $dir, string $domain): array
+    {
+        $realDir = realpath($dir);
+        if ($realDir === false || !is_dir($realDir)) return [];
+        $names = scandir($realDir);
+        if ($names === false) return [];
+        sort($names, SORT_STRING);
+
+        $out = [];
+        foreach ($names as $name) {
+            if (!preg_match('/^([a-z0-9_]+)\.(php|json)$/D', $name, $m)) continue;
+            if ($m[1] === $domain) continue;
+            $file = realpath($realDir.DIRECTORY_SEPARATOR.$name);
+            if ($file === false || !is_file($file) || !is_readable($file)) continue;
+            if (dirname($file) !== $realDir) continue;
+            $out[] = [$m[1], $file];
+        }
+        return $out;
+    }
+
+    private function load_file(string $file): ?array
+    {
+        $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        if ($ext === 'php') {
+            $arr = require $file;
+        } elseif ($ext === 'json') {
+            $arr = json_decode((string)Filesystem::instance()->read($file), true);
+        } else {
+            return null;
+        }
+        return is_array($arr) ? $arr : null;
     }
 
     private function candidate_files(string $base, string $domain, string $lang): array
