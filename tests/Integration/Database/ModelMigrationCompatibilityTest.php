@@ -37,7 +37,7 @@ final class ModelMigrationCompatibilityTest extends TestCase
     {
         if (!isset($this->db)) return;
         foreach (['', 'probe_'] as $prefix) {
-            foreach (['matrix_records', 'matrix_owners', 'matrix_children'] as $table) $this->db->exec("DROP TABLE IF EXISTS `{$prefix}{$table}`");
+            foreach (['matrix_records', 'matrix_owners', 'matrix_children', 'matrix_scoped'] as $table) $this->db->exec("DROP TABLE IF EXISTS `{$prefix}{$table}`");
         }
         App::instance()->set('DB_CONFIG.prefix', $this->prefix);
         ModelDefinitionManager::reset();
@@ -172,6 +172,118 @@ final class ModelMigrationCompatibilityTest extends TestCase
         MatrixDomain::resolveConfiguration();
         MatrixDomain::resolveConfiguration();
         $this->assertSame(3, MatrixDomain::$constructions);
+    }
+
+    public static function scoped_matrix(): array
+    {
+        return ['no prefix' => [''], 'prefix' => ['probe_']];
+    }
+
+    /** @return array<string, mixed> */
+    private function scoped_outcomes(string $class): array
+    {
+        $this->db->exec('DELETE FROM `'.App::instance()->get('DB_CONFIG.prefix').'matrix_scoped`');
+        $save = function (?int $store, string $email) use ($class): array {
+            $model = new $class();
+            // Leave store unset for NULL: assigning an empty value hits Cortex's optional Schema class.
+            if ($store !== null) $model->store = $store;
+            $model->email = $email;
+            $model->save();
+            return [$model->dry() ? null : $model->id, $model->get_last_err_data()[0]];
+        };
+        $out = [];
+        [$first, $out['first']] = $save(1, 'a@x.test');
+        [$other, $out['other_scope']] = $save(2, 'a@x.test');
+        [, $out['same_scope']] = $save(1, 'a@x.test');
+        [, $out['null_scope_1']] = $save(null, 'a@x.test');
+        [, $out['null_scope_2']] = $save(null, 'a@x.test');
+        $self = new $class();
+        $self->load(['id = ?', $first]);
+        $self->email = 'a@x.test';
+        $self->save();
+        $out['update_self'] = $self->get_last_err_data()[0];
+        $move = new $class();
+        $move->load(['id = ?', $other]);
+        $move->store = 1;
+        $move->save();
+        $out['update_into_taken_scope'] = $move->get_last_err_data()[0];
+        $out['rows'] = (int) $this->db->exec('SELECT COUNT(*) AS c FROM `'.App::instance()->get('DB_CONFIG.prefix').'matrix_scoped`')[0]['c'];
+        return $out;
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('scoped_matrix')]
+    public function test_unique_by_matches_legacy_scoped_uniqueness(string $prefix): void
+    {
+        App::instance()->set('DB_CONFIG.prefix', $prefix);
+        $this->migrate('class', "CREATE TABLE `{$prefix}matrix_scoped` (id INT AUTO_INCREMENT PRIMARY KEY, store INT NULL, email VARCHAR(128) NOT NULL)");
+        ModelDefinitionManager::reset();
+
+        $legacy = (new ScopedLegacy())->collect_field_conf()['email'];
+        $domain = (new ScopedDomain())->collect_field_conf()['email'];
+        $this->assertSame(['store'], $domain['unique_by']);
+        $this->assertSame(true, $domain['unique']);
+        $this->assertSame([], ScopedDomain::lint());
+
+        $legacy_out = $this->scoped_outcomes(ScopedLegacy::class);
+        $this->assertSame(null, $legacy_out['first']);
+        $this->assertSame(null, $legacy_out['other_scope']);
+        $this->assertSame('500', $legacy_out['same_scope']);
+        $this->assertSame(null, $legacy_out['update_self']);
+        $this->assertSame('500', $legacy_out['update_into_taken_scope']);
+        // Legacy behavior: NULL scopes share one bucket (Cortex emits IS NULL).
+        $this->assertSame(null, $legacy_out['null_scope_1']);
+        $this->assertSame('500', $legacy_out['null_scope_2']);
+        $this->assertSame(3, $legacy_out['rows']);
+        $this->assertSame($legacy_out, $this->scoped_outcomes(ScopedDomain::class));
+
+        foreach ([[1, 'a@x.test'], [2, 'a@x.test'], [1, 'free@x.test'], [null, 'a@x.test']] as [$store, $email]) {
+            $l = new ScopedLegacy();
+            $d = new ScopedDomain();
+            if ($store !== null) {
+                $l->store = $store;
+                $d->store = $store;
+            }
+            $this->assertSame(
+                Validator::validate_model($legacy, $email, 'email', $l),
+                Validator::validate_model($domain, $email, 'email', $d)
+            );
+        }
+    }
+
+    public function test_unique_by_lint_reports_missing_scope_column(): void
+    {
+        App::instance()->set('DB_CONFIG.prefix', '');
+        $this->migrate('class', 'CREATE TABLE `matrix_scoped` (id INT AUTO_INCREMENT PRIMARY KEY, store INT NULL, email VARCHAR(128) NOT NULL)');
+        ModelDefinitionManager::reset();
+        $errors = ScopedDomainBadScope::lint();
+        $this->assertCount(1, $errors);
+        $this->assertStringContainsString('unique_by() scope field "tenant" for field "email"', $errors[0]);
+        $this->assertStringContainsString('has no matching column in table "matrix_scoped"', $errors[0]);
+    }
+}
+
+class ScopedLegacy extends Model
+{
+    protected $table = 'matrix_scoped';
+    protected $fieldConf = [
+        'store' => ['type' => 'INT4', 'nullable' => true],
+        'email' => ['type' => 'VARCHAR128', 'required' => true, 'unique' => true, 'unique_by' => ['store']],
+    ];
+}
+class ScopedDomain extends Model
+{
+    protected $table = 'matrix_scoped';
+    protected static function domain_schema(DomainSchema $schema): DomainDefinition
+    {
+        return $schema->define(['email' => $schema->field()->required()->unique_by(['store'])]);
+    }
+}
+class ScopedDomainBadScope extends Model
+{
+    protected $table = 'matrix_scoped';
+    protected static function domain_schema(DomainSchema $schema): DomainDefinition
+    {
+        return $schema->define(['email' => $schema->field()->unique_by(['tenant'])]);
     }
 }
 

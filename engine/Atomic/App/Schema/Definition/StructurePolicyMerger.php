@@ -101,6 +101,18 @@ final class StructurePolicyMerger
                 ));
             }
 
+            foreach ($policy['unique_by'] ?? [] as $scope) {
+                if ($scope === $name || !$structure->has($scope)) {
+                    throw new \LogicException(sprintf(
+                        'unique_by() scope field "%s" for field "%s" in %s %s.',
+                        $scope,
+                        $name,
+                        $model_class,
+                        $scope === $name ? 'cannot be the field itself' : sprintf('has no matching column in table "%s"', $structure->table())
+                    ));
+                }
+            }
+
             $structural = self::structural_conf($field);
             self::assert_compatible($name, $structural, $policy, $model_class);
             if (isset($policy['type'])) $structural['type'] = $policy['type'];
@@ -147,6 +159,10 @@ final class StructurePolicyMerger
         if (isset($policy['unique'])) {
             $remainder['unique'] = $policy['unique'];
             unset($policy['unique']);
+        }
+        if (isset($policy['unique_by'])) {
+            $remainder['unique_by'] = $policy['unique_by'];
+            unset($policy['unique_by']);
         }
         if (isset($policy['index'])) {
             $remainder['index'] = $policy['index'];

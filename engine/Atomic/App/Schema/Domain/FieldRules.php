@@ -17,6 +17,8 @@ final class FieldRules
 {
     private bool $required = false;
     private bool $unique = false;
+    /** @var string[]|null */
+    private ?array $unique_by = null;
     private ?string $cast = null;
 
     private ?int $str_min = null;
@@ -48,6 +50,32 @@ final class FieldRules
     public function unique(bool $unique = true): self
     {
         $this->unique = $unique;
+        if (!$unique) {
+            $this->unique_by = null;
+        }
+        return $this;
+    }
+
+    /**
+     * Scoped uniqueness: the value must be unique only among rows sharing the
+     * same values in $scope (e.g. ['store'] for per-tenant emails). Same
+     * pre-check semantics as legacy fieldConf 'unique_by'; a composite UNIQUE
+     * index in the migration remains the concurrency guarantee.
+     *
+     * @param string[] $scope
+     */
+    public function unique_by(array $scope): self
+    {
+        if ($scope === []) {
+            throw new \InvalidArgumentException('unique_by() scope fields must not be empty.');
+        }
+        foreach ($scope as $field) {
+            if (!is_string($field) || $field === '') {
+                throw new \InvalidArgumentException(sprintf('unique_by() scope fields must be non-empty strings, %s given.', get_debug_type($field)));
+            }
+        }
+        $this->unique = true;
+        $this->unique_by = array_values(array_unique($scope));
         return $this;
     }
 
@@ -191,6 +219,9 @@ final class FieldRules
         }
         if ($this->unique) {
             $policy['unique'] = true;
+            if ($this->unique_by !== null) {
+                $policy['unique_by'] = $this->unique_by;
+            }
         }
 
         $rules = [];

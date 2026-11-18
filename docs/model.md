@@ -41,6 +41,13 @@ Helpers:
 - `get_last_err_vars()`
 - `get_last_err_data()`
 
+### Scoped uniqueness
+
+Legacy `'unique' => true, 'unique_by' => ['store']` and domain
+`$schema->field()->unique_by(['store'])` both reject a value already used by
+another row with the same `store`. This is a pre-save check only; add a
+composite UNIQUE index in the migration. See `model-schema-split.md`.
+
 ### Bulk property update
 
 ```php

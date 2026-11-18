@@ -64,6 +64,18 @@ configuration lifecycle and clear Cortex's shared column cache. A swapped-in man
   before storage. `unique()` is an optional early validation check; migrations must
   create unique indexes for concurrency guarantees. Structure does not add a
   uniqueness rule automatically.
+- `unique_by(['store'])` is scoped uniqueness, the domain form of legacy
+  `'unique' => true, 'unique_by' => ['store']`: the value must be unique only
+  among rows with the same scope values (e.g. email per store). It compiles to
+  the same fieldConf and runs the same validator check: same `UNIQUE` error code,
+  the current record is excluded on update, and the prefixed table is queried.
+  A NULL scope value is matched with `IS NULL`, so NULL-scoped rows share one
+  bucket in this pre-check (a MySQL composite UNIQUE index would allow those
+  duplicates). Scope fields must be columns of the live table and not the field
+  itself; an empty list throws immediately, a missing column throws at merge
+  time and is reported by `Model::lint()`. Like `unique()`, it is an early check
+  only; the migration must still create the composite index, e.g.
+  `UNIQUE KEY (store, email)`, for concurrency. `unique(false)` clears the scope.
 - Domain rules must suit the live column kind. Impossible string limits, incompatible
   casts, invalid regexes and invalid native-enum subsets throw configuration errors.
   `Model::lint()` reports configuration problems as strings.
