@@ -214,18 +214,24 @@ class Migrations
         }
     }
 
-    public function status(): void
+    /**
+     * Read-only: never calls find_checksum_mismatches(), which throws on missing files.
+     *
+     * @return list<array{source:string,name:string,path:?string,row:object|null,integrity:string,status:string,catalog_index:int}>
+     */
+    public function entries(): array
     {
-        $this->successful = true;
-        if (!$this->db()) {
-            return;
+        try {
+            if (!$this->ledger->ensure()) {
+                return [];
+            }
+        } catch (\Throwable) {
+            return [];
         }
-        $this->warn_if_legacy_mode();
+
         $migrations = $this->catalog->discover();
         $rows = $this->ledger->rows();
 
-        $this->outln();
-        $this->outln(Style::bold('Migration List:'));
         $reported = [];
         $entries = [];
         foreach ($migrations as $catalog_index => $migration) {
@@ -248,6 +254,7 @@ class Migrations
                 'path' => $migration['path'],
                 'row' => $row,
                 'integrity' => $integrity,
+                'status' => $row !== null ? 'applied' : 'pending',
                 'catalog_index' => $catalog_index,
             ];
         }
@@ -261,6 +268,7 @@ class Migrations
                     'path' => null,
                     'row' => $row,
                     'integrity' => $integrity,
+                    'status' => 'applied',
                     'catalog_index' => count($migrations) + $row_index,
                 ];
             }
@@ -285,7 +293,30 @@ class Migrations
             return $left['catalog_index'] <=> $right['catalog_index'];
         });
 
-        foreach ($entries as $entry) {
+        return $entries;
+    }
+
+    /** Legacy ledgers have nullable source/checksum columns. */
+    public function legacy_mode(): bool
+    {
+        try {
+            return $this->ledger->is_legacy_mode();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    public function status(): void
+    {
+        $this->successful = true;
+        if (!$this->db()) {
+            return;
+        }
+        $this->warn_if_legacy_mode();
+
+        $this->outln();
+        $this->outln(Style::bold('Migration List:'));
+        foreach ($this->entries() as $entry) {
             $this->print_status($entry['source'], $entry['name'], $entry['path'], $entry['row'], $entry['integrity']);
         }
     }

@@ -41,3 +41,16 @@ $this->route('GET|POST /telemetry/logs', 'Engine\Atomic\App\Telemetry->logs', $t
 $this->route('GET|POST /telemetry/log-channels', 'Engine\Atomic\App\Telemetry->log_channels', $telemetry_access);
 $this->route('GET|POST /telemetry/log-stat', 'Engine\Atomic\App\Telemetry->log_stat', $telemetry_access);
 $this->route('GET|POST /telemetry/dumps/@dump_id', 'Engine\Atomic\App\Telemetry->dump', $telemetry_access);
+
+$this->route('GET|POST /telemetry/jobs', 'Engine\Atomic\App\Telemetry->jobs', $telemetry_access);
+$this->route('GET|POST /telemetry/summary', 'Engine\Atomic\App\Telemetry->summary', $telemetry_access);
+$this->route('GET|POST /telemetry/schedule', 'Engine\Atomic\App\Telemetry->schedule', $telemetry_access);
+$this->route('GET|POST /telemetry/migrations', 'Engine\Atomic\App\Telemetry->migrations', $telemetry_access);
+$this->route('GET /telemetry/migration-source', 'Engine\Atomic\App\Telemetry->migration_source', $telemetry_access);
+$this->route('GET /telemetry/database', 'Engine\Atomic\App\Telemetry->database', $telemetry_access);
+$this->route('GET|POST /telemetry/plugins', 'Engine\Atomic\App\Telemetry->plugins', $telemetry_access);
+$this->route('GET|POST /telemetry/mutex', 'Engine\Atomic\App\Telemetry->mutex', $telemetry_access);
+$this->route('GET|POST /telemetry/rate-limits', 'Engine\Atomic\App\Telemetry->rate_limits', $telemetry_access);
+$this->route('GET|POST /telemetry/quota', 'Engine\Atomic\App\Telemetry->quota', $telemetry_access);
+$this->route('GET|POST /telemetry/exceptions', 'Engine\Atomic\App\Telemetry->exceptions', $telemetry_access);
+$this->route('GET|POST /telemetry/security', 'Engine\Atomic\App\Telemetry->security', $telemetry_access);

@@ -14,6 +14,19 @@ use Engine\Atomic\Core\Redactor;
 use Engine\Atomic\Queue\Enums\State;
 use Engine\Atomic\Queue\Enums\Driver;
 use Engine\Atomic\Queue\Managers\TelemetryManager;
+use Engine\Atomic\Telemetry\Reporters\ExceptionsReporter;
+use Engine\Atomic\Telemetry\Reporters\DatabaseReporter;
+use Engine\Atomic\Telemetry\Reporters\MigrationsReporter;
+use Engine\Atomic\Telemetry\Reporters\MutexReporter;
+use Engine\Atomic\Telemetry\Reporters\PluginsReporter;
+use Engine\Atomic\Telemetry\Reporters\QueueReporter;
+use Engine\Atomic\Telemetry\Reporters\QuotaReporter;
+use Engine\Atomic\Telemetry\Reporters\RateLimitReporter;
+use Engine\Atomic\Telemetry\Reporters\SchedulerReporter;
+use Engine\Atomic\Telemetry\Reporters\SecurityReporter;
+use Engine\Atomic\Telemetry\Reporters\SummaryReporter;
+use Engine\Atomic\Telemetry\Stats\StatsRecorder;
+use Engine\Atomic\Theme\Assets;
 use Engine\Atomic\Theme\Theme;
 use Engine\Atomic\Tools\Transient;
 
@@ -38,71 +51,42 @@ class Telemetry extends Controller
 
         Redactor::init_from_hive($atomic);
 
+        // Requests without a DB connection spool their stats locally; persist
+        // them before reporting so the dashboard reads current numbers.
+        try {
+            StatsRecorder::instance()->drain();
+        } catch (\Throwable $e) {
+            // Stats must never break the dashboard.
+        }
+
         return true;
+    }
+
+    /**
+     * The API base follows BASE, so apps served from a subdirectory fetch the right URLs.
+     *
+     * @return array{base:string}
+     */
+    public static function client_config(\Base $atomic): array
+    {
+        // Mirrors routes/telemetry.php: unknown modes fall back to 'none'.
+        $mode = strtolower(trim((string)$atomic->get('TELEMETRY_ACCESS_MODE')));
+
+        return [
+            'base' => rtrim((string)$atomic->get('BASE'), '/') . '/telemetry',
+            'publicAccess' => !in_array($mode, ['config', 'auth'], true),
+        ];
     }
 
     public function queue(\Base $atomic, array $params = [], ?string $alias = null): void
     {
-        $queue_manager = new TelemetryManager();
-        $filters = [];
-        $allowed_filters = ['state', 'uuid'];
-        foreach ($allowed_filters as $filter_key) {
-            $value = $atomic->get('GET.' . $filter_key);
-            if (!empty($value)) {
-                $filters[$filter_key] = $atomic->clean($value);
-            }
-        }
-        if (($filters['state'] ?? '') === 'canceled') {
-            $filters['state'] = 'cancelled';
-        }
-        if (isset($filters['state']) && !in_array($filters['state'], State::filterable_states(), true)) {
-            unset($filters['state']);
-        }
+        // Redacted: the first page of jobs lands in the page source.
+        $jobs = Redactor::redact_secrets((new QueueReporter())->jobs());
 
-        $page = max(1, (int)($atomic->get('GET.page') ?? 1));
-        $per_page = min(200, max(1, (int)($atomic->get('GET.per_page') ?? 50)));
-
-        $queue_filters = $filters;
-        $result = $queue_manager->fetch_all_jobs('*', $queue_filters, $page, $per_page);
-        $filtered_items = [];
-        foreach ($result['items'] as $job_uuid => $job) {
-            if (!is_array($job)) {
-                continue;
-            }
-            if (isset($filters['state'])) {
-                $job_state = (string)($job['state'] ?? '');
-                if ($job_state !== $filters['state']) {
-                    continue;
-                }
-            }
-            $filtered_items[$job_uuid] = $job;
-        }
-
-        $all_jobs = (array)Redactor::redact($filtered_items);
-        foreach ($all_jobs as &$job) {
-            if (is_array($job)) {
-                $state = (string)($job['state'] ?? '');
-                $job['state'] = $state;
-                $job['state_display'] = State::display($state);
-            }
-        }
-        unset($job);
-        $state_counts = (array)Redactor::redact($result['state_totals'] ?? []);
-        $filtered_total = (int)($result['total'] ?? count($filtered_items));
-        if (isset($filters['state']) && $filters['state'] !== '') {
-            $filtered_total = (int)($state_counts[$filters['state']] ?? count($filtered_items));
-        }
-        $atomic->set('jobs', $all_jobs);
-        $atomic->set('state_counts', $state_counts);
-        $atomic->set('state_display', State::display_map());
+        $assets = Assets::instance();
+        $assets->localize_script('telemetry', self::client_config($atomic), 'TELEMETRY_CONFIG');
+        $assets->localize_script('telemetry', $jobs, 'TELEMETRY_JOBS');
         $atomic->set('title', 'Atomic Telemetry');
-        $atomic->set('filters', $filters);
-        $atomic->set('pagination', [
-            'page'      => $page,
-            'per_page'  => $per_page,
-            'total'     => $filtered_total,
-            'last_page' => (int)ceil($filtered_total / $per_page),
-        ]);
 
         try {
             echo \View::instance()->render('layout/telemetry-queue.atom.php');
@@ -129,7 +113,7 @@ class Telemetry extends Controller
         Response::instance()->send_json([
             'job_uuid' => $job_uuid,
             'driver'   => $driver,
-            'events'   => Redactor::redact($events),
+            'events'   => Redactor::redact_secrets($events),
         ], terminate: false);
     }
 
@@ -155,18 +139,19 @@ class Telemetry extends Controller
         ];
 
         $atomicInfo = [
-            //'env' => (string)$atomic->get('ENV'),
+            'env'         => (string)$atomic->get('APP_ENV'),
             'debug_mode'  => (bool)filter_var($atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN),
             'debug_level' => (string)$atomic->get('DEBUG_LEVEL'),
-            'logs_dir'    => Redactor::redact_string((string)$atomic->get('LOGS')),
-            'dumps_dir'   => Redactor::redact_string((string)$atomic->get('DUMPS')),
+            'logs_dir'    => Redactor::redact_secrets((string)$atomic->get('LOGS')),
+            'dumps_dir'   => Redactor::redact_secrets((string)$atomic->get('DUMPS')),
             'base'        => (string)$atomic->get('BASE'),
         ];
 
         $system = [
             'os'       => PHP_OS_FAMILY . ' ' . PHP_OS,
-            // 'uname' => function_exists('php_uname') ? php_uname() : null,
+            'hostname' => gethostname() ?: null,
             'timezone' => date_default_timezone_get(),
+            'uptime'   => self::server_uptime(),
         ];
 
         $db = null;
@@ -175,9 +160,9 @@ class Telemetry extends Controller
             if ($conn instanceof \DB\SQL) {
                 $pdo = $conn->pdo();
                 $db = [
-                    'driver'         => Redactor::redact_string((string)$pdo->getAttribute(\PDO::ATTR_DRIVER_NAME)),
-                    'server_version' => Redactor::redact_string((string)$pdo->getAttribute(\PDO::ATTR_SERVER_VERSION)),
-                    'client_version' => Redactor::redact_string((string)$pdo->getAttribute(\PDO::ATTR_CLIENT_VERSION)),
+                    'driver'         => Redactor::redact_secrets((string)$pdo->getAttribute(\PDO::ATTR_DRIVER_NAME)),
+                    'server_version' => Redactor::redact_secrets((string)$pdo->getAttribute(\PDO::ATTR_SERVER_VERSION)),
+                    'client_version' => Redactor::redact_secrets((string)$pdo->getAttribute(\PDO::ATTR_CLIENT_VERSION)),
                 ];
             }
         } catch (\Throwable $e) {}
@@ -195,9 +180,9 @@ class Telemetry extends Controller
     {
         $hive = [];
         try {
-            $hive = Redactor::redact($atomic->hive());
+            $hive = Redactor::redact_secrets($atomic->hive());
         } catch (\Throwable $e) {
-            $hive = ['error' => Redactor::redact_string($e->getMessage())];
+            $hive = ['error' => Redactor::redact_secrets($e->getMessage())];
         }
 
         Response::instance()->send_json($hive, terminate: false);
@@ -205,18 +190,54 @@ class Telemetry extends Controller
 
     public function log_channels(\Base $atomic, array $params = [], ?string $alias = null): void
     {
+        // Contract shape: [{name, count}] — the count feeds the log rail.
         $logs_dir = rtrim((string)$atomic->get('LOGS'), '/\\');
+        $filesystem = Filesystem::instance();
         $channels = Log::get_channel_names();
-        $channel_dates = [];
+
+        $cached = Transient::get('telemetry.log_channel_counts');
+        $cached_counts = is_array($cached) ? $cached : [];
+
+        $out = [];
+        $counts_changed = false;
         foreach ($channels as $channel) {
-            $filename = $this->resolve_channel_filename((string)$channel);
-            $channel_dates[(string)$channel] = $this->list_channel_log_dates($logs_dir, $filename);
+            $channel = (string)$channel;
+            $count = $cached_counts[$channel] ?? null;
+            if (!is_int($count)) {
+                $count = $this->count_channel_lines($filesystem, $logs_dir, $channel);
+                $cached_counts[$channel] = $count;
+                $counts_changed = true;
+            }
+            $out[] = ['name' => $channel, 'count' => $count];
         }
 
-        Response::instance()->send_json([
-            'channels'      => $channels,
-            'channel_dates' => $channel_dates,
-        ], terminate: false);
+        if ($counts_changed) {
+            Transient::set('telemetry.log_channel_counts', $cached_counts, 60);
+        }
+
+        Response::instance()->send_json($out, terminate: false);
+    }
+
+    /** Line count of the newest dated file of a channel (0 when none exists). */
+    private function count_channel_lines(Filesystem $filesystem, string $logs_dir, string $channel): int
+    {
+        $filename = $this->resolve_channel_filename($channel);
+        $dates = $this->list_channel_log_dates($logs_dir, $filename);
+        if ($dates === []) {
+            $path = $logs_dir !== '' ? ($logs_dir . DIRECTORY_SEPARATOR . $filename) : null;
+            if (!$path || !$filesystem->is_file($path)) {
+                return 0;
+            }
+
+            return (int)($filesystem->count_lines($path) ?: 0);
+        }
+        $path = $logs_dir . DIRECTORY_SEPARATOR . $this->build_dated_filename($filename, (string)$dates[0]);
+        if (!$filesystem->is_file($path)) {
+            return 0;
+        }
+        $count = $filesystem->count_lines($path);
+
+        return (int)($count ?: 0);
     }
 
     public function log_stat(\Base $atomic, array $params = [], ?string $alias = null): void
@@ -384,7 +405,7 @@ class Telemetry extends Controller
             $out[] = [
                 'ts'      => $ts,
                 'level'   => $level,
-                'message' => Redactor::redact_string($msg),
+                'message' => Redactor::redact_secrets($msg),
                 'dump_id' => $dumpId,
             ];
         }
@@ -542,10 +563,132 @@ class Telemetry extends Controller
         $decoded = json_decode($raw, true);
         $res = Response::instance();
         if (json_last_error() === JSON_ERROR_NONE) {
-            $res->send_json(Redactor::redact($decoded), terminate: false);
+            $res->send_json(Redactor::redact_secrets($decoded), terminate: false);
         } else {
             $res->send_json(['dump_id' => $dumpId, 'error' => 'dump file could not be decoded'], terminate: false);
         }
+    }
+
+    private function range(\Base $atomic): string
+    {
+        $range = strtolower(trim((string)($atomic->get('GET.range') ?? '24h')));
+
+        return in_array($range, ['24h', '7d', '30d'], true) ? $range : '24h';
+    }
+
+    public function jobs(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new QueueReporter())->jobs()),
+            terminate: false,
+        );
+    }
+
+    public function summary(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new SummaryReporter())->summary()),
+            terminate: false,
+        );
+    }
+
+    public function schedule(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new SchedulerReporter())->report()),
+            terminate: false,
+        );
+    }
+
+    public function migrations(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new MigrationsReporter())->report()),
+            terminate: false,
+        );
+    }
+
+    public function migration_source(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        $source = (new MigrationsReporter())->source(
+            (string)$atomic->get('GET.source'),
+            (string)$atomic->get('GET.name'),
+        );
+        if ($source === null) {
+            $atomic->error(404, 'Migration file not available');
+            return;
+        }
+        Response::instance()->send_json($source, terminate: false);
+    }
+
+    public function database(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json((new DatabaseReporter())->report(), terminate: false);
+    }
+
+    public function plugins(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new PluginsReporter())->report()),
+            terminate: false,
+        );
+    }
+
+    public function mutex(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new MutexReporter())->report()),
+            terminate: false,
+        );
+    }
+
+    public function rate_limits(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new RateLimitReporter())->report()),
+            terminate: false,
+        );
+    }
+
+    public function quota(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new QuotaReporter())->report($this->range($atomic))),
+            terminate: false,
+        );
+    }
+
+    public function exceptions(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new ExceptionsReporter())->report($this->range($atomic))),
+            terminate: false,
+        );
+    }
+
+    public function security(\Base $atomic, array $params = [], ?string $alias = null): void
+    {
+        Response::instance()->send_json(
+            Redactor::redact_secrets((new SecurityReporter())->report($this->range($atomic))),
+            terminate: false,
+        );
+    }
+
+    /** Server uptime when the OS exposes it (null otherwise). */
+    private static function server_uptime(): ?string
+    {
+        if (is_readable('/proc/uptime')) {
+            $raw = @file_get_contents('/proc/uptime');
+            if (is_string($raw) && preg_match('/^(\d+)/', $raw, $m)) {
+                $seconds = (int)$m[1];
+                $days = intdiv($seconds, 86400);
+                $hours = intdiv($seconds % 86400, 3600);
+
+                return $days > 0 ? "{$days}d {$hours}h" : "{$hours}h";
+            }
+        }
+
+        return null;
     }
 
     private function render_fallback(\Base $atomic): void
