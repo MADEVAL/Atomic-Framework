@@ -57,7 +57,7 @@ class Scheduler
             }
             
             return \implode("\n", $output);
-        })->description("Command: {$command}");
+        })->identity("exec:{$command}")->description("Command: {$command}");
     }
 
     public function events(): array
@@ -68,8 +68,9 @@ class Scheduler
     public function due_events(bool $force_run = false): array
     {
         $maintenance_mode = (bool)App::atomic()->get('MAINTENANCE_MODE');
+        $paused = RunLogger::paused_keys();
 
-        return \array_filter($this->events, function (Event $event) use ($force_run, $maintenance_mode) {
+        return \array_filter($this->events, function (Event $event) use ($force_run, $maintenance_mode, $paused) {
             if (!$force_run && !$event->is_due()) {
                 return false;
             }
@@ -81,13 +82,26 @@ class Scheduler
                 $this->log("Skipping event (maintenance mode): " . ($event->get_description() ?? $event->get_id()));
                 return false;
             }
+            if (isset($paused[$event->get_task_key()])) {
+                $this->log("Skipping event (paused): " . ($event->get_description() ?? $event->get_id()));
+                return false;
+            }
             return true;
         });
     }
 
-    public function run(bool $force_run = false): array
+    /**
+     * Run events and return per-run result rows. Results carry a `status`
+     * (ok|failed|timeout|skipped) alongside the legacy `success` boolean —
+     * overlap-skipped runs report `skipped`, not success.
+     *
+     * @param array|null $events Optional pre-filtered event list. When the
+     *   caller already computed the due set (e.g. the Runner), passing it here
+     *   avoids evaluating `when()`/`skip()` predicates a second time.
+     */
+    public function run(bool $force_run = false, ?array $events = null): array
     {
-        return $this->run_events($this->due_events($force_run));
+        return $this->run_events($events ?? $this->due_events($force_run));
     }
 
     /**
@@ -108,10 +122,12 @@ class Scheduler
 
             $event_result = [
                 'id' => $event->get_id(),
+                'task_key' => $event->get_task_key(),
                 'description' => $event->get_description(),
                 'expression' => $event->get_expression(),
                 'started_at' => \date('Y-m-d H:i:s'),
                 'success' => false,
+                'status' => 'ok',
                 'skipped' => false,
                 'output' => '',
                 'error' => null,
@@ -122,27 +138,51 @@ class Scheduler
 
             try {
                 $this->log("Running event: " . ($event->get_description() ?? $event->get_id()));
-                
+
                 $event->run();
-                
-                $event_result['skipped'] = $event->was_skipped();
-                $event_result['success'] = !$event_result['skipped'];
+
                 $event_result['output'] = $event->get_output();
-                
-                $this->log(($event_result['skipped'] ? "Event skipped (overlap): " : "Event completed: ") . ($event->get_description() ?? $event->get_id()));
+                $event_result['duration'] = \round((\microtime(true) - $event_start) * 1000, 2);
+
+                if ($event->was_skipped()) {
+                    $event_result['status'] = 'skipped';
+                    $event_result['skipped'] = true;
+                    $this->log("Event skipped (overlapping): " . ($event->get_description() ?? $event->get_id()));
+                } elseif ($this->overshot_budget($event, $event_result['duration'])) {
+                    $event_result['status'] = 'timeout';
+                    $event_result['error'] = "Run exceeded its {$event->get_timeout()}s wall-clock budget.";
+                    $this->log("Event timed out: " . ($event->get_description() ?? $event->get_id()), 'error');
+                } else {
+                    $event_result['success'] = true;
+                    $this->log("Event completed: " . ($event->get_description() ?? $event->get_id()));
+                }
 
             } catch (\Throwable $e) {
                 $event_result['error'] = $e->getMessage();
+                $event_result['status'] = $e instanceof TaskTimeoutException ? 'timeout' : 'failed';
                 $this->log("Event failed: " . ($event->get_description() ?? $event->get_id()) . " - " . $e->getMessage(), 'error');
             }
 
             $event_result['duration'] = \round((\microtime(true) - $event_start) * 1000, 2);
             $event_result['finished_at'] = \date('Y-m-d H:i:s');
-            
+
+            RunLogger::record($event, $event_result);
+
             $results[] = $event_result;
         }
 
         return $results;
+    }
+
+    /** True when a run outlived its explicit wall-clock budget (pcntl absent or alarm missed). */
+    private function overshot_budget(Event $event, float $duration_ms): bool
+    {
+        $budget = $event->get_timeout();
+        if ($budget === null) {
+            return false;
+        }
+
+        return $duration_ms > $budget * 1000;
     }
 
     public function clear(): self

@@ -32,6 +32,9 @@ class Event
     protected bool    $skipped = false;
     protected ?string $mutex_name = null;
     protected ?string $mutex_token = null;
+    protected ?string $owner = null;
+    protected ?int    $timeout_seconds = null;
+    protected ?string $identity = null;
 
     public function __construct(callable|array $callback, array $parameters = [])
     {
@@ -43,6 +46,17 @@ class Event
     public function get_id(): string
     {
         return $this->id;
+    }
+
+    /**
+     * Stable identity for this task across processes. The per-process UUID id
+     * changes on every request, but the cron expression + callback description
+     * pair is deterministic — this is the key scheduler run history is stored
+     * under (and the pause/enable flag in the task registry).
+     */
+    public function get_task_key(): string
+    {
+        return \sha1($this->expression . '|' . $this->get_callback_description());
     }
 
     public function get_expression(): string
@@ -64,6 +78,34 @@ class Event
     public function name(string $name): self
     {
         return $this->description($name);
+    }
+
+    /** Optional ownership annotation surfaced on the telemetry Scheduled tab. */
+    public function owner(?string $owner): self
+    {
+        $this->owner = $owner;
+        return $this;
+    }
+
+    public function get_owner(): ?string
+    {
+        return $this->owner;
+    }
+
+    /**
+     * Wall-clock budget for one run. When pcntl is available the task is
+     * interrupted at the deadline (status `timeout`); otherwise the run is
+     * recorded as a timeout once it overshoots.
+     */
+    public function timeout(int $seconds): self
+    {
+        $this->timeout_seconds = max(1, $seconds);
+        return $this;
+    }
+
+    public function get_timeout(): ?int
+    {
+        return $this->timeout_seconds;
     }
 
     public function when(callable|bool $callback): self
@@ -164,8 +206,23 @@ class Event
         return 'schedule-' . \sha1($this->expression . $this->get_callback_description());
     }
 
-    protected function get_callback_description(): string
+    /**
+     * Overrides the callback-derived identity. Used by wrappers such as
+     * Scheduler::exec() whose closures all share one file:line.
+     */
+    public function identity(string $identity): self
     {
+        $this->identity = $identity;
+        return $this;
+    }
+
+    /** Human-readable identity of the callback — also the stable task-key material. */
+    public function get_callback_description(): string
+    {
+        if ($this->identity !== null) {
+            return $this->identity;
+        }
+
         if (\is_string($this->callback)) {
             return $this->callback;
         }
@@ -202,7 +259,7 @@ class Event
 
             \ob_start();
 
-            $result = $this->execute_callback();
+            $result = $this->execute_with_timeout();
 
             $this->output = \ob_get_clean() ?: '';
             $this->exit_code = 0;
@@ -251,6 +308,28 @@ class Event
         }
 
         return \call_user_func_array($this->callback, $this->parameters);
+    }
+
+    /** Execute the callback under the optional wall-clock budget (pcntl alarm when available). */
+    protected function execute_with_timeout(): mixed
+    {
+        if ($this->timeout_seconds === null || !\function_exists('pcntl_async_signals') || !\function_exists('pcntl_alarm')) {
+            return $this->execute_callback();
+        }
+
+        \pcntl_async_signals(true);
+        $timeout = $this->timeout_seconds;
+        \pcntl_signal(\SIGALRM, static function () use ($timeout): void {
+            throw new TaskTimeoutException($timeout);
+        });
+        \pcntl_alarm($timeout);
+
+        try {
+            return $this->execute_callback();
+        } finally {
+            \pcntl_alarm(0);
+            \pcntl_signal(\SIGALRM, \SIG_DFL);
+        }
     }
 
     protected function run_callbacks(array $callbacks): void
@@ -307,6 +386,12 @@ class Event
     public function get_output(): string
     {
         return $this->output;
+    }
+
+    /** @return list<\DateTimeImmutable> */
+    public function get_next_run_dates(int $count = 3, ?\DateTimeInterface $after = null): array
+    {
+        return CronExpression::get_next_run_dates($this->expression, $this->timezone, $count, $after);
     }
 
     public function get_next_run_date(): ?\DateTimeInterface

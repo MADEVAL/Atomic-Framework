@@ -62,6 +62,32 @@ class CronExpression
         return null;
     }
 
+    /** @return list<\DateTimeImmutable> */
+    public static function get_next_run_dates(
+        string $expression,
+        \DateTimeZone|string|null $timezone = null,
+        int $count = 3,
+        ?\DateTimeInterface $after = null,
+        int $max_iterations = 527040,
+    ): array {
+        if (!self::is_valid($expression) || $count <= 0) {
+            return [];
+        }
+        $tz = self::resolve_timezone($timezone);
+        $timestamp = $after?->getTimestamp() ?? time();
+        $timestamp = intdiv($timestamp, 60) * 60 + 60;
+        $runs = [];
+        for ($i = 0; $i < $max_iterations && count($runs) < $count; $i++, $timestamp += 60) {
+            $date = (new \DateTimeImmutable('@' . $timestamp))->setTimezone($tz);
+            if (self::matches_valid_expression($expression, $date)) {
+                $runs[] = $date;
+                // Apply the cron engine's search horizon to each next occurrence.
+                $i = -1;
+            }
+        }
+        return $runs;
+    }
+
     public static function matches(string $expression, \DateTimeInterface $date): bool
     {
         if (!self::is_valid($expression)) {
