@@ -138,6 +138,32 @@ final class SessionDbDriverTest extends TestCase
         $this->assertGreaterThan(0, (int)$row['stamp']);
     }
 
+    public function test_write_persists_session_owner_without_starting_a_session(): void
+    {
+        $driver = new DbSession();
+        $had_session = isset($_SESSION);
+        $previous = $_SESSION ?? null;
+        $_SESSION = ['user_uuid' => 'user-123', 'created_at' => 1700000000];
+
+        try {
+            $this->assertTrue($driver->write('session-owner', 'payload=1'));
+            $this->assertSame(PHP_SESSION_NONE, \session_status());
+        } finally {
+            if ($had_session) {
+                $_SESSION = $previous;
+            } else {
+                unset($_SESSION);
+            }
+        }
+
+        $row = $this->db()->exec(
+            'SELECT user_uuid, created_at FROM ' . $this->quoted_session_table() . ' WHERE session_id = ?',
+            ['session-owner']
+        )[0] ?? [];
+        $this->assertSame('user-123', $row['user_uuid'] ?? null);
+        $this->assertSame(1700000000, (int)($row['created_at'] ?? 0));
+    }
+
     public function test_read_returns_stored_payload(): void
     {
         $this->insert_db_session('session-two', 'stored=1');

@@ -67,6 +67,28 @@ final class QueueTelemetryDbTest extends QueueDbTestCase
         $this->assertSame(0, $uuidStateMismatch['total']);
     }
 
+    public function test_running_state_classified_by_pid_when_process_start_ticks_missing(): void
+    {
+        $manager = new Manager();
+        $telemetry = new TelemetryManager();
+        $queue = $manager->get_queue();
+
+        $uuid = $this->new_uuid();
+        $this->pushPopAndSetPid($manager, $uuid, 'no-ticks');
+        $this->clear_process_start_ticks($uuid);
+
+        $running = $telemetry->fetch_running_jobs($queue);
+        $this->assertSame(1, $running['total']);
+        $this->assertSame('running', $running['items'][$uuid]['state']);
+
+        $this->assertSame(0, $telemetry->fetch_pending_jobs($queue)['total']);
+
+        $all = $telemetry->fetch_all_jobs($queue);
+        $this->assertSame('running', $all['items'][$uuid]['state']);
+        $this->assertSame(1, $all['state_totals']['running']);
+        $this->assertSame(0, $all['state_totals']['pending']);
+    }
+
     public function test_fetch_all_jobs_paginates_globally_across_states(): void
     {
         $manager = new Manager();

@@ -92,12 +92,18 @@ class Redis implements SessionHandlerInterface
         try {
             if ($redis->exists($this->revoked_key($id))) return true;
 
+            $fw = \Base::instance();
+            $user_uuid = $fw->get('SESSION.user_uuid');
             $session_data = \json_encode([
                 'session_id' => $id,
                 'data' => $data,
                 'ip' => $this->_ip,
                 'agent' => $this->_agent,
-                'stamp' => \time()
+                'stamp' => \time(),
+                // Session owner metadata for the telemetry security report;
+                // first-seen time doubles as the creation time for guest sessions.
+                'user_uuid' => $user_uuid !== null && $user_uuid !== '' ? (string)$user_uuid : null,
+                'created_at' => (int)($fw->get('SESSION.created_at') ?? ($this->data['created_at'] ?? \time())),
             ], JSON_THROW_ON_ERROR);
 
             return (bool)$redis->setex(
@@ -105,7 +111,7 @@ class Redis implements SessionHandlerInterface
                 $this->ttl,
                 $session_data
             );
-            
+
         } catch (\Exception $e) {
             Log::error("Redis session write error: " . $e->getMessage());
             return false;

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Engine\Queue\Support;
 
+use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use PHPUnit\Framework\TestCase;
 
@@ -37,5 +38,16 @@ abstract class QueueDbTestCase extends TestCase
     protected function new_db_prefix(): string
     {
         return 'atomic_queue_test_' . \bin2hex(\random_bytes(4)) . '_';
+    }
+
+    /**
+     * Simulates a platform that cannot read process start ticks (no /proc,
+     * e.g. Windows): the worker pid is set but start ticks stay NULL.
+     */
+    protected function clear_process_start_ticks(string $uuid): void
+    {
+        $sql = App::instance()->get('DB');
+        $table = App::instance()->get('DB_CONFIG.prefix') . 'jobs';
+        $sql->exec('UPDATE `' . $table . '` SET process_start_ticks = NULL WHERE uuid = ?', [$uuid]);
     }
 }

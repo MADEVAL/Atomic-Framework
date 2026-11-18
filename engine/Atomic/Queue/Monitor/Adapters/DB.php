@@ -58,7 +58,7 @@ trait DB
         }
 
         try {
-            $conditions = ['available_at > ? AND pid IS NOT NULL AND process_start_ticks IS NOT NULL AND process_start_ticks <> 0', \time()];
+            $conditions = ['available_at > ? AND pid IS NOT NULL AND pid > 0', \time()];
             
             if ($queue !== '*' && !empty($queue)) {
                 $conditions[0] .= " AND queue = ?";

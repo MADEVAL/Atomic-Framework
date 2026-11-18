@@ -18,6 +18,9 @@ return new class extends Migration {
 
         $t = $this->schema()->createTable($table);
         $t->addColumn('session_id')->type(Schema::DT_VARCHAR256)->nullable(false)->index(true);
+        // Owner + creation time, read by the telemetry security report.
+        $t->addColumn('user_uuid')->type(Schema::DT_VARCHAR128)->nullable(true)->index();
+        $t->addColumn('created_at')->type(Schema::DT_INT)->nullable(true);
         $t->addColumn('data')->type(Schema::DT_TEXT)->nullable(true);
         $t->addColumn('ip')->type(Schema::DT_VARCHAR128)->nullable(true);
         $t->addColumn('agent')->type(Schema::DT_VARCHAR512)->nullable(true);

@@ -169,7 +169,7 @@ trait DB
                 $jobs[$job->uuid] = $job->cast();
                 $jobs[$job->uuid]['payload'] = QueuePayload::decode((string)$job->payload);
                 $jobs[$job->uuid]['created_at_formatted'] = date('Y-m-d H:i:s', $job->created_at);
-                $jobs[$job->uuid]['state'] = isset($job->process_start_ticks) && $job->process_start_ticks
+                $jobs[$job->uuid]['state'] = isset($job->pid) && (int)$job->pid > 0
                     ? State::RUNNING->value
                     : State::PENDING->value;
                 $jobs[$job->uuid]['driver'] = Driver::DB->value;
@@ -187,7 +187,7 @@ trait DB
             $queue,
             $page,
             $per_page,
-            ['process_start_ticks IS NOT NULL AND process_start_ticks <> 0'],
+            ['pid IS NOT NULL AND pid > 0'],
             State::RUNNING->value
         );
     }
@@ -250,7 +250,7 @@ trait DB
 
         $jobs = [];
         try {
-            $conditions = ['(process_start_ticks IS NULL OR process_start_ticks = 0)'];
+            $conditions = ['(pid IS NULL OR pid <= 0)'];
             $params = [];
 
             if (!empty($queue) && $queue !== '*') {
@@ -319,7 +319,7 @@ trait DB
             'SELECT * FROM (' .
             "SELECT j.id, j.uuid, j.queue, j.priority, j.payload, j.max_attempts, j.attempts, j.timeout, j.retry_delay, j.created_at, " .
             'j.available_at, j.pid, j.process_start_ticks, NULL AS exception, ' .
-            "CASE WHEN j.process_start_ticks IS NOT NULL AND j.process_start_ticks <> 0 THEN '" . State::RUNNING->value . "' ELSE '" . State::PENDING->value . "' END AS job_state " .
+            "CASE WHEN j.pid IS NOT NULL AND j.pid > 0 THEN '" . State::RUNNING->value . "' ELSE '" . State::PENDING->value . "' END AS job_state " .
             "FROM {$qj} AS j WHERE {$whereJobs} " .
             'UNION ALL ' .
             "SELECT f.id, f.uuid, f.queue, f.priority, f.payload, f.max_attempts, f.attempts, f.timeout, f.retry_delay, f.created_at, " .

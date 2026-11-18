@@ -22,6 +22,7 @@ class DB implements SessionHandlerInterface
     /** @var callable|null */
     private mixed $onsuspect;
     private SessionModel $mapper;
+    private static ?bool $user_columns = null;
 
     public function open(string $path, string $name): bool
     {
@@ -95,6 +96,7 @@ class DB implements SessionHandlerInterface
             $this->mapper->set('ip', $this->_ip);
             $this->mapper->set('agent', $this->_agent);
             $this->mapper->set('stamp', \time());
+            $this->set_session_owner();
             $this->mapper->save();
 
             if ($in_transaction) {
@@ -210,6 +212,48 @@ class DB implements SessionHandlerInterface
         if ($key) {
             $fw->set($key, $this->_csrf);
         }
+    }
+
+    /**
+     * Persist the session owner and start time into the optional user_uuid /
+     * created_at columns (added by the framework session migration). Gated by
+     * a one-shot column check so installs that have not migrated yet keep
+     * working; the payload stays the source of truth when columns are absent.
+     * Set on the mapper so they are saved by the same statement as the row.
+     */
+    private function set_session_owner(): void
+    {
+        // Read $_SESSION directly: going through the F3 SESSION hive would
+        // auto-start a session from inside the save handler. Guest sessions
+        // have no owner, so they skip the column check entirely.
+        $user_uuid = $_SESSION['user_uuid'] ?? null;
+        if ($user_uuid === null || $user_uuid === '' || !self::user_columns_available()) {
+            return;
+        }
+        $this->mapper->set('user_uuid', (string)$user_uuid);
+        if (!$this->mapper->get('created_at')) {
+            $this->mapper->set('created_at', (int)($_SESSION['created_at'] ?? \time()));
+        }
+    }
+
+    /** One-shot check (per process) that the optional session owner columns exist. */
+    private static function user_columns_available(): bool
+    {
+        if (self::$user_columns !== null) {
+            return self::$user_columns;
+        }
+        try {
+            $conf = SessionModel::resolveConfiguration();
+            $fields = [];
+            foreach ($conf['db']->exec('SHOW COLUMNS FROM `' . $conf['table'] . '`') ?: [] as $column) {
+                $fields[(string)($column['Field'] ?? '')] = true;
+            }
+            self::$user_columns = isset($fields['user_uuid'], $fields['created_at']);
+        } catch (\Throwable $e) {
+            self::$user_columns = false;
+        }
+
+        return self::$user_columns;
     }
 
     private function is_revoked(string $id): bool

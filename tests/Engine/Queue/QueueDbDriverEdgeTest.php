@@ -183,6 +183,23 @@ final class QueueDbDriverEdgeTest extends QueueDbTestCase
         $this->assertGreaterThanOrEqual(2, (int)$retried['attempts']);
     }
 
+    public function test_monitor_adapter_loads_active_jobs_without_process_start_ticks(): void
+    {
+        $manager = new Manager();
+        $queue = $manager->get_queue();
+        $uuid = $this->new_uuid();
+
+        $this->assertTrue($manager->push([QueueTestHandler::class, 'success'], ['params' => ['id' => 1], 'smth' => 'monitor-no-ticks'], [], $uuid));
+        $job = $manager->pop();
+        $this->assertSame($uuid, $job['uuid']);
+        $job['pid'] = \getmypid();
+        $this->assertTrue($manager->set_pid($job));
+        $this->clear_process_start_ticks($uuid);
+
+        $activeJobs = $manager->load_active_jobs($queue);
+        $this->assertSame([$uuid], \array_column($activeJobs, 'uuid'));
+    }
+
     public function test_monitor_adapter_loads_stuck_jobs_and_marks_exhausted_jobs_failed(): void
     {
         $manager = new Manager();
