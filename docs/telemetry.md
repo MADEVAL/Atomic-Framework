@@ -131,35 +131,51 @@ return [
 
 ### What it provides
 
-**Queue view** - a paginated, filterable list of all queue jobs across drivers (database, Redis). Jobs can be filtered by state (pending, running, cancel_requested, cancelled, completed, failed), UUID, queue name, and time range. The header shows global state totals that remain accurate regardless of which filter is active.
+Thirteen tabs, each also available as a JSON endpoint:
 
-**Log viewer** - paginated log output for any configured log channel. Supports channel switching, per-day file selection, pagination, and live stat polling (line count, last modified). Log lines with an attached dump can be expanded inline.
-
-**Dump viewer** - opens a structured JSON dump by its UUID, as written by `Log::dump()`. Useful for inspecting large payloads that would be impractical to inline in a log message.
-
-**Dashboard** - a snapshot of the current runtime environment: PHP version and configuration, framework version, debug settings, database connection info, and system details.
-
-**Hive inspector** - a sanitized view of the current F3 hive state. Useful for inspecting what is in scope at request time without access to a debugger.
+- **Dashboard** - what needs attention (failed jobs, pending migrations, limited keys, locks) and the runtime environment: PHP, framework, database and system.
+- **Queues** - today's jobs per queue and hour, the job list with state filters, and each job's payload, error, stack trace and event timeline.
+- **Scheduled** - scheduled tasks with their recent runs, durations and failures.
+- **Migrations** - applied and pending migrations by batch, integrity problems, and each migration's source file.
+- **Quota**, **Exceptions**, **Security** - history over the last 24 hours, 7 days or 30 days (the range bar): credit balances and denials; exceptions grouped by fingerprint with trends and the hive dump of an occurrence; failed logins, lockouts, active sessions and the security policy.
+- **Rate limits**, **Plugins**, **Mutex** - keys that were blocked, plugin load state and dependencies, held and expired locks.
+- **Database** - the read-only schema of the default connection: tables, columns, indexes and foreign keys, with a relation diagram. No row data is read.
+- **Hive** - the F3 hive of the request as a tree, with secrets masked.
+- **Logs** - every channel or one, by day, filtered by level and text. Older lines load as you scroll; lines with a hive dump open it inline.
 
 ### How it works
 
-The telemetry panel is a theme (`Telemetry`) that boots alongside the controller. All data is fetched via JSON endpoints and rendered client-side - the queue and log views update without full page reloads. Queue filter changes update the URL and trigger a server-side re-render of the job list, keeping the browser URL shareable and the back button functional.
+The panel is a theme (`Telemetry`) rendered on the server. `GET /telemetry` returns the whole page with the tab named by `?tab=` already rendered; `GET /telemetry/view/@tab` returns one tab, and `GET /telemetry/part/@part` returns a piece loaded on demand (a migration file, a job timeline, a hive dump, older log lines).
 
-Queue state totals in the header are always computed against the full dataset, not just the filtered view. Applying a state filter scopes the job list but never affects the global counts.
+Each tab is a typed template in `views/<tab>.php`: a closure that takes the tab's data objects (`Engine\Atomic\Telemetry\Data`) and composes components from `Engine\Atomic\Telemetry\View\Ui`. Every text is escaped on output. A custom theme can override any template.
 
-Log pages are cached based on file modification time. Unchanged pages are served from cache; a changed file invalidates cached pages for that channel.
+One script, `assets/js/server.js`, swaps tab content in place (prefetching a tab while the pointer rests on its button), filters and searches the rendered rows, opens drawers and popups, and runs refresh, auto refresh, the range bar and the theme switch. It never builds markup from strings.
+
+Secrets are masked twice: reporters redact their data like the JSON endpoints do, and every text the templates print passes through `Redactor::redact_secrets()`. Migration source files are shown as written.
+
+Queue state totals are always computed against the full dataset, not just the loaded page. Log pages are cached based on file modification time; a changed file invalidates the cached pages of that channel.
 
 ### Routes
 
 | Route | Purpose |
 |---|---|
-| `GET /telemetry` | Queue view |
+| `GET /telemetry` | The panel (`?tab=` opens a tab) |
 | `POST /telemetry` | Reserved POST endpoint |
+| `GET /telemetry/view/@tab` | One tab's HTML (`?range=24h\|7d\|30d` for history tabs, `?channel=`, `?date=` for Logs) |
+| `GET /telemetry/part/@part` | HTML loaded on demand: `job-events`, `migration-source`, `dump`, `log-lines` |
+| `GET\|POST /telemetry/summary` | Counts behind the navigation badges |
+| `GET\|POST /telemetry/jobs` | Newest queue jobs |
 | `GET\|POST /telemetry/events/@driver/@job_uuid` | Job event timeline |
+| `GET\|POST /telemetry/schedule` | Scheduled tasks and run history |
+| `GET\|POST /telemetry/migrations` | Migrations by batch |
+| `GET /telemetry/migration-source` | A migration's source file |
+| `GET\|POST /telemetry/quota`, `/exceptions`, `/security` | History tabs (`?range=`) |
+| `GET\|POST /telemetry/rate-limits`, `/plugins`, `/mutex` | Current state |
+| `GET /telemetry/database` | Database schema |
 | `GET\|POST /telemetry/dashboard` | Runtime environment snapshot |
 | `GET\|POST /telemetry/hive` | Sanitized hive dump |
 | `GET\|POST /telemetry/logs` | Paginated log output (`channel`, optional `date=YYYY-MM-DD`) |
-| `GET\|POST /telemetry/log-channels` | List of configured log channels and available dates per channel |
+| `GET\|POST /telemetry/log-channels` | Configured log channels with line counts |
 | `GET\|POST /telemetry/log-stat` | Line count and mtime for a channel/date |
 | `GET\|POST /telemetry/dumps/@dump_id` | Retrieve a JSON dump by UUID |
 

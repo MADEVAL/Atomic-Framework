@@ -12,38 +12,42 @@ use Engine\Atomic\Mutex\FileMutexDriver;
 use Engine\Atomic\Mutex\MemcachedMutexDriver;
 use Engine\Atomic\Mutex\Mutex;
 use Engine\Atomic\Mutex\RedisMutexDriver;
+use Engine\Atomic\Telemetry\Data\LockInfo;
+use Engine\Atomic\Telemetry\Data\MutexDriverInfo;
+use Engine\Atomic\Telemetry\Data\MutexReport;
 
 class MutexReporter implements SnapshotProviderInterface
 {
-    /** @return array{driver:?string, drivers:list<array<string,mixed>>, locks:list<array<string,mixed>>} */
     public function report(): array
     {
-        $drivers = [];
+        return $this->mutex()->to_array();
+    }
+
+    public function mutex(): MutexReport
+    {
         $locks = [];
+        $available = false;
 
         $active = Mutex::get_driver_name();
-        foreach (['redis', 'memcached', 'db', 'file'] as $name) {
-            $drivers[] = ['name' => $name, 'available' => false, 'active' => $name === $active];
-        }
-
         $active_driver = Mutex::get_driver();
         if ($active_driver !== null) {
             try {
                 $locks = $this->enumerate($active, $active_driver);
-                foreach ($drivers as &$row) {
-                    if ($row['name'] === $active) {
-                        $row['available'] = true;
-                    }
-                }
-                unset($row);
+                $available = true;
             } catch (\Throwable $e) {
                 $locks = [];
             }
         }
 
-        return ['driver' => $active, 'drivers' => $drivers, 'locks' => $locks];
+        $drivers = [];
+        foreach (['redis', 'memcached', 'db', 'file'] as $name) {
+            $drivers[] = new MutexDriverInfo($name, $available && $name === $active, $name === $active);
+        }
+
+        return new MutexReport($active, $drivers, $locks);
     }
 
+    /** @return list<LockInfo> */
     private function enumerate(string $driver, object $instance): array
     {
         return match ($driver) {
@@ -65,13 +69,13 @@ class MutexReporter implements SnapshotProviderInterface
             $created = (int)$row['created_at'];
             $expires = (int)$row['expires_at'];
             $now = time();
-            $out[] = [
-                'name' => (string)$row['name'],
-                'token' => (string)$row['token'],
-                'age' => max(0, $now - $created),
-                'ttl' => max(1, $expires - $created),
-                'remaining' => $expires - $now,
-            ];
+            $out[] = new LockInfo(
+                name: (string)$row['name'],
+                token: (string)$row['token'],
+                age: max(0, $now - $created),
+                ttl: max(1, $expires - $created),
+                remaining: $expires - $now,
+            );
         }
 
         return $out;
@@ -97,13 +101,13 @@ class MutexReporter implements SnapshotProviderInterface
             $expires = (int)($meta['expires_at'] ?? 0);
             $now = time();
             $lock_dir = basename(dirname($meta_path));
-            $out[] = [
-                'name' => basename($lock_dir, '.lock'),
-                'token' => (string)($meta['token'] ?? ''),
-                'age' => $created > 0 ? max(0, $now - $created) : null,
-                'ttl' => $created > 0 ? max(1, $expires - $created) : null,
-                'remaining' => $expires - $now,
-            ];
+            $out[] = new LockInfo(
+                name: basename($lock_dir, '.lock'),
+                token: (string)($meta['token'] ?? ''),
+                age: $created > 0 ? max(0, $now - $created) : null,
+                ttl: $created > 0 ? max(1, $expires - $created) : null,
+                remaining: $expires - $now,
+            );
         }
 
         return $out;
@@ -138,13 +142,13 @@ class MutexReporter implements SnapshotProviderInterface
                 }
                 $name = substr($key, strlen($prefix . 'mutex.'));
                 // Redis keeps only the remaining TTL: age and full TTL are unknown.
-                $out[] = [
-                    'name' => $name,
-                    'token' => (string)$token,
-                    'age' => null,
-                    'ttl' => null,
-                    'remaining' => max(0, $remaining),
-                ];
+                $out[] = new LockInfo(
+                    name: $name,
+                    token: (string)$token,
+                    age: null,
+                    ttl: null,
+                    remaining: max(0, (int)$remaining),
+                );
             }
         }
 
@@ -154,21 +158,12 @@ class MutexReporter implements SnapshotProviderInterface
 
     public function snapshot(): array
     {
-        $total = 0;
-        $expired = 0;
         try {
-            $data = $this->report();
+            $report = $this->mutex();
         } catch (\Throwable $e) {
-            $data = ['locks' => []];
-        }
-        foreach ($data['locks'] as $lock) {
-            $total++;
-            $remaining = (int)$lock['remaining'];
-            if ($remaining <= 0) {
-                $expired++;
-            }
+            return ['total' => 0, 'expired' => 0];
         }
 
-        return ['total' => $total, 'expired' => $expired];
+        return ['total' => count($report->locks), 'expired' => count($report->expired())];
     }
 }

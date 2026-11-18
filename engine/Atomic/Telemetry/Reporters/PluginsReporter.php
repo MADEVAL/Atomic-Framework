@@ -6,11 +6,21 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\App\Plugin;
 use Engine\Atomic\App\PluginManager;
+use Engine\Atomic\Telemetry\Data\PluginDependency;
+use Engine\Atomic\Telemetry\Data\PluginInfo;
+use Engine\Atomic\Telemetry\Data\PluginRequirement;
+use Engine\Atomic\Telemetry\Data\PluginState;
+use Engine\Atomic\Telemetry\Data\StepOutcome;
 
 class PluginsReporter implements SnapshotProviderInterface
 {
-    /** @return array{plugins:list<array<string, mixed>>} */
     public function report(): array
+    {
+        return ['plugins' => array_map(static fn (PluginInfo $plugin): array => $plugin->to_array(), $this->plugins())];
+    }
+
+    /** @return list<PluginInfo> registered plugins, in registration order */
+    public function plugins(): array
     {
         $manager = PluginManager::instance();
         $registered = $manager->registered_map();
@@ -38,7 +48,7 @@ class PluginsReporter implements SnapshotProviderInterface
             );
         }
 
-        return ['plugins' => $out];
+        return $out;
     }
 
     /** @param array<string, true> $registered @param array<string, true> $booted */
@@ -49,33 +59,32 @@ class PluginsReporter implements SnapshotProviderInterface
         array $booted,
         array $errors,
         array $load_order,
-    ): array {
+    ): PluginInfo {
         $is_enabled = $plugin->is_enabled();
         $is_registered = isset($registered[$name]);
         $is_booted = isset($booted[$name]);
         $error = $errors[$name] ?? null;
 
         $state = match (true) {
-            !$is_enabled => 'disabled',
-            $is_booted => 'booted',
-            $error !== null => 'failed',
-            $is_registered => 'registered',
-            default => 'skipped',
+            !$is_enabled => PluginState::Disabled,
+            $is_booted => PluginState::Booted,
+            $error !== null => PluginState::Failed,
+            $is_registered => PluginState::Registered,
+            default => PluginState::Skipped,
         };
 
-        $steps = [
-            'construct' => 'ok',
-            'register' => $is_registered ? 'ok' : ($error !== null ? 'failed' : 'skipped'),
-            'boot' => $is_booted ? 'ok' : (!$is_registered || !$is_enabled ? 'skipped' : ($error !== null ? 'failed' : 'registered')),
-        ];
+        $register = $is_registered ? StepOutcome::Ok : ($error !== null ? StepOutcome::Failed : StepOutcome::Skipped);
+        $boot = match (true) {
+            $is_booted => StepOutcome::Ok,
+            !$is_registered || !$is_enabled => StepOutcome::Skipped,
+            $error !== null => StepOutcome::Failed,
+            default => StepOutcome::Pending,
+        };
 
         $deps = [];
         foreach ($plugin->get_dependencies() as $dependency) {
             $dep_name = is_object($dependency) ? get_class($dependency) : (string)$dependency;
-            $deps[] = [
-                'name' => $dep_name,
-                'state' => $this->dependency_state($dep_name, $registered, $booted),
-            ];
+            $deps[] = new PluginDependency($dep_name, $this->dependency_state($dep_name, $registered, $booted));
         }
 
         $requirements = [];
@@ -94,13 +103,12 @@ class PluginsReporter implements SnapshotProviderInterface
                     $missing = true;
                 }
             }
-            $requirements[] = [
-                'package' => (string)($requirement['package'] ?? $requirement['name'] ?? 'unknown'),
-                'missing' => $missing,
-            ];
+            $requirements[] = new PluginRequirement(
+                (string)($requirement['package'] ?? $requirement['name'] ?? 'unknown'),
+                $missing,
+            );
         }
 
-        $plugin_class = get_class($plugin);
         $migrations_path = null;
         try {
             $migrations_path = $plugin->get_migrations_path();
@@ -108,26 +116,28 @@ class PluginsReporter implements SnapshotProviderInterface
             $migrations_path = null;
         }
 
-        return [
-            'name' => $name,
-            'class' => $plugin_class,
-            'version' => $plugin->get_version(),
-            'enabled' => $is_enabled,
-            'state' => $state,
-            'load_order' => $load_order[$name] ?? null,
-            'deps' => $deps,
-            'error' => $error,
-            'requirements' => $requirements,
-            'migration_source' => $plugin->get_migration_source(),
-            'has_migrations' => $migrations_path !== null,
-            'steps' => $steps,
-        ];
+        return new PluginInfo(
+            name: $name,
+            class: get_class($plugin),
+            version: $plugin->get_version(),
+            enabled: $is_enabled,
+            state: $state,
+            load_order: $load_order[$name] ?? null,
+            deps: $deps,
+            error: $error === null ? null : (string)$error,
+            requirements: $requirements,
+            migration_source: $plugin->get_migration_source(),
+            has_migrations: $migrations_path !== null,
+            construct: StepOutcome::Ok,
+            register: $register,
+            boot: $boot,
+        );
     }
 
-    private function dependency_state(string $class, array $registered, array $booted): string
+    private function dependency_state(string $class, array $registered, array $booted): PluginState
     {
         if (!class_exists($class)) {
-            return 'skipped';
+            return PluginState::Skipped;
         }
         $name = null;
         try {
@@ -137,31 +147,24 @@ class PluginsReporter implements SnapshotProviderInterface
             $name = null;
         }
         if ($name !== null && isset($booted[$name])) {
-            return 'booted';
+            return PluginState::Booted;
         }
         if ($name !== null && isset($registered[$name])) {
-            return 'registered';
+            return PluginState::Registered;
         }
 
-        return 'failed';
+        return PluginState::Failed;
     }
 
     public function snapshot(): array
     {
-        $total = 0;
-        $problems = 0;
         try {
-            $data = $this->report();
+            $plugins = $this->plugins();
         } catch (\Throwable $e) {
-            $data = ['plugins' => []];
+            $plugins = [];
         }
-        foreach ($data['plugins'] as $plugin) {
-            $total++;
-            if ($plugin['state'] === 'failed' || $plugin['state'] === 'skipped') {
-                $problems++;
-            }
-        }
+        $problems = array_filter($plugins, static fn (PluginInfo $plugin): bool => $plugin->state->is_problem());
 
-        return ['total' => $total, 'problems' => $problems];
+        return ['total' => count($plugins), 'problems' => count($problems)];
     }
 }

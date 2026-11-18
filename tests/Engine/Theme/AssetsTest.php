@@ -88,8 +88,7 @@ class AssetsTest extends TestCase
         $localize = $ref->getProperty('localize');        $val = $localize->getValue($this->assets);
 
         $this->assertArrayHasKey('loc', $val);
-        $this->assertSame('myVar', $val['loc']['var']);
-        $this->assertSame(['foo' => 'bar'], $val['loc']['data']);
+        $this->assertSame(['myVar' => ['foo' => 'bar']], $val['loc']);
     }
 
     public function test_add_inline_style(): void
@@ -242,5 +241,22 @@ class AssetsTest extends TestCase
     public function test_json_script_helper_returns_the_same_markup(): void
     {
         $this->assertSame($this->assets->json_script('h', ['a' => 1]), json_script('h', ['a' => 1]));
+    }
+
+    public function test_localize_script_keeps_every_variable_for_a_handle(): void
+    {
+        $this->assets->enqueue_script('multi', 'https://example.com/multi.js', [], null, true);
+        $this->assets->localize_script('multi', ['base' => '/t'], 'CFG_A');
+        $this->assets->localize_script('multi', ['n' => 1], 'CFG_B');
+        $this->assets->localize_script('multi', ['n' => 2], 'CFG_B');
+
+        ob_start();
+        $this->assets->print_scripts(true);
+        $output = (string)ob_get_clean();
+
+        $this->assertStringContainsString('w["CFG_A"]={"base":"/t"}', $output);
+        $this->assertStringContainsString('w["CFG_B"]={"n":2}', $output);
+        $this->assertStringNotContainsString('{"n":1}', $output);
+        $this->assertLessThan(strpos($output, '<script src='), strpos($output, 'CFG_A'));
     }
 }

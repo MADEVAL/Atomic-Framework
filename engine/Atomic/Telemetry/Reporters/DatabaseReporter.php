@@ -4,12 +4,18 @@ namespace Engine\Atomic\Telemetry\Reporters;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Telemetry\Data\DatabaseSchema;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 
 /** Reads information_schema only, never table rows. */
 class DatabaseReporter
 {
+    public function schema(): DatabaseSchema
+    {
+        return DatabaseSchema::from_array($this->report());
+    }
+
     /** @return array<string, mixed> */
     public function report(): array
     {

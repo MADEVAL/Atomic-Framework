@@ -6,11 +6,20 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Core\Migrations;
 use Engine\Atomic\Core\Migrations\MigrationsFactory;
+use Engine\Atomic\Telemetry\Data\MigrationEntry;
+use Engine\Atomic\Telemetry\Data\MigrationIntegrity;
+use Engine\Atomic\Telemetry\Data\MigrationSource;
+use Engine\Atomic\Telemetry\Data\MigrationsReport;
 
 class MigrationsReporter implements SnapshotProviderInterface
 {
     /** @return array{legacy_mode:bool, entries:list<array<string, mixed>>} */
     public function report(): array
+    {
+        return $this->migrations()->to_array();
+    }
+
+    public function migrations(): MigrationsReport
     {
         try {
             $migrations = self::build_manager();
@@ -19,34 +28,28 @@ class MigrationsReporter implements SnapshotProviderInterface
             $entries = $migrations->entries();
             $legacy_mode = $migrations->legacy_mode();
         } catch (\Throwable $e) {
-            return ['legacy_mode' => false, 'entries' => []];
+            return new MigrationsReport(false, []);
         }
 
-        $out = [];
-        foreach ($entries as $entry) {
+        return new MigrationsReport($legacy_mode, array_map(static function (array $entry): MigrationEntry {
             $row = $entry['row'];
-            $out[] = [
-                'source' => (string)$entry['source'],
-                'name' => (string)$entry['name'],
-                'file' => $entry['path'] !== null ? basename((string)$entry['path']) : null,
-                'status' => (string)$entry['status'],
-                'integrity' => (string)$entry['integrity'],
-                'batch_uuid' => $row !== null ? (string)($row->batch_uuid ?? '') ?: null : null,
-                'applied_at' => $row !== null ? ((string)($row->applied_at ?? '') ?: null) : null,
-            ];
-        }
 
-        return ['legacy_mode' => $legacy_mode, 'entries' => $out];
+            return new MigrationEntry(
+                source: (string)$entry['source'],
+                name: (string)$entry['name'],
+                file: $entry['path'] !== null ? basename((string)$entry['path']) : null,
+                applied: $entry['status'] === 'applied',
+                integrity: MigrationIntegrity::from((string)$entry['integrity']),
+                batch_uuid: $row !== null ? ((string)($row->batch_uuid ?? '') ?: null) : null,
+                applied_at: $row !== null ? ((string)($row->applied_at ?? '') ?: null) : null,
+            );
+        }, $entries));
     }
 
     private const SOURCE_MAX_BYTES = 262144;
 
-    /**
-     * Resolved from the catalog, never from the request, so only listed migration files can be read.
-     *
-     * @return array{file:string, code:string, truncated:bool}|null
-     */
-    public function source(string $source, string $name): ?array
+    /** Resolved from the catalog, never from the request, so only listed migration files can be read. */
+    public function source(string $source, string $name): ?MigrationSource
     {
         try {
             $entries = self::build_manager()->entries();
@@ -65,11 +68,12 @@ class MigrationsReporter implements SnapshotProviderInterface
             $code = (string)file_get_contents($path, false, null, 0, self::SOURCE_MAX_BYTES + 1);
             $truncated = strlen($code) > self::SOURCE_MAX_BYTES;
 
-            return [
-                'file' => basename($path),
-                'code' => $truncated ? substr($code, 0, self::SOURCE_MAX_BYTES) : $code,
-                'truncated' => $truncated,
-            ];
+            return new MigrationSource(
+                name: $name,
+                file: basename($path),
+                code: $truncated ? substr($code, 0, self::SOURCE_MAX_BYTES) : $code,
+                truncated: $truncated,
+            );
         }
 
         return null;
@@ -77,21 +81,13 @@ class MigrationsReporter implements SnapshotProviderInterface
 
     public function snapshot(): array
     {
-        $data = $this->report();
-        $pending = 0;
-        $attention = 0;
-        foreach ($data['entries'] as $entry) {
-            if ($entry['status'] === 'pending') {
-                $pending++;
-            } elseif ($entry['integrity'] !== 'verified' && $entry['integrity'] !== 'not applied') {
-                $attention++;
-            }
-        }
+        $report = $this->migrations();
+        $attention = array_filter($report->entries, static fn (MigrationEntry $entry): bool => $entry->needs_attention());
 
         return [
-            'pending' => $pending,
-            'attention' => $attention,
-            'legacy_mode' => $data['legacy_mode'],
+            'pending' => count($report->pending()),
+            'attention' => count($attention),
+            'legacy_mode' => $report->legacy_mode,
         ];
     }
 

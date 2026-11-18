@@ -1,0 +1,172 @@
+/* ─────────────────────────────────────────────────────────
+   Atomic Telemetry · Design tokens
+   Every raw value lives here. Other stylesheets use var(--…) only.
+   Dark is the default; [data-theme="light"] overrides colors only.
+   ───────────────────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg:      #000;
+  --surface: #0d0d0d;   /* tracks, empty cells */
+  --card:    #070707;   /* boxes that sit on the page */
+  --head:    #0e0e0e;   /* box headers */
+  --hover:   #121212;
+  --sel:     #1a1a1a;   /* selected row */
+  --chip:    #1a1a1a;
+  --chip-text: #e8e8e8;
+  --line:    rgba(255,255,255,.07);
+  --line-2:  rgba(255,255,255,.16);
+
+  /* Text */
+  --text:  #e8e8e8;
+  --muted: #8a8a8a;
+  --faint: #5c5c5c;
+
+  /* Status. Hue is reserved for status: anything coloured is telling you something. */
+  --ok:           #b0b0b0;
+  --ok-bg:        #151515;
+  --danger:       #f07a7a;
+  --danger-bg:    #1f0e0e;
+  --danger-solid: #b83232;
+  --on-danger:    #fff;
+  --warn:         #cfae5a;
+  --warn-bg:      #1a1608;
+
+  /* Code and syntax */
+  --code-bg:  #000;
+  --code-fg:  #e8e8e8;
+  --syn-key:  #8fb0ff;
+  --syn-str:  #86e0ae;
+  --syn-num:  #f2a0a0;
+  --syn-bool: #f2c46d;
+  --syn-punc: #a1a1aa;
+  --tree-str: var(--syn-str);  /* values on the page background (Hive) */
+  --tree-num: var(--syn-num);
+
+  /* Focus, overlays, depth */
+  --focus:         #e8e8e8;
+  --scrim:         rgba(0,0,0,.55);
+  --shadow-drawer: -1.5rem 0 3rem rgba(0,0,0,.28);
+  --shadow-modal:  0 1.5rem 4rem rgba(0,0,0,.4);
+
+  /* Typography */
+  --ff:   Geist, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-2xs:   .6875rem;  /* 11px  chart axes */
+  --fs-xs:    .75rem;    /* 12px  labels, captions */
+  --fs-sm:    .8125rem;  /* 13px  secondary cells */
+  --fs-base:  .875rem;   /* 14px  body, controls */
+  --fs-md:    .9375rem;  /* 15px  page body */
+  --fs-lg:    1.0625rem; /* 17px  brand */
+  --fs-xl:    1.1875rem; /* 19px  drawer title */
+  --fs-2xl:   1.25rem;   /* 20px  summary line */
+  --fs-stat:  1.875rem;  /* 30px  stat value */
+  --fs-hero:  2.375rem;  /* 38px  dashboard headline */
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+  --lh-body:  1.5;
+  --lh-code:  1.6;
+  --ls-caps:  .06em;
+  --ls-tight: -.02em;
+
+  /* Spacing: one 4px step, --space-N = N × 4px */
+  --space-0-5: .125rem;
+  --space-1:   .25rem;
+  --space-1-5: .375rem;
+  --space-2:   .5rem;
+  --space-2-5: .625rem;
+  --space-3:   .75rem;
+  --space-3-5: .875rem;
+  --space-4:   1rem;
+  --space-5:   1.25rem;
+  --space-6:   1.5rem;
+  --space-7:   1.75rem;
+  --space-8:   2rem;
+  --space-9:   2.25rem;
+  --space-10:  2.5rem;
+  --space-11:  2.75rem;
+  --space-12:  3rem;
+  --space-14:  3.5rem;
+  --space-16:  4rem;
+
+  /* Radii */
+  --r-xs:   .25rem;
+  --r-sm:   .375rem;
+  --r-md:   .625rem;
+  --r-lg:   .875rem;
+  --r-pill: 999px;
+
+  /* Sizes */
+  --bw:       1px;
+  --icon:     1rem;      /* 16px */
+  --icon-lg:  1.125rem;  /* 18px */
+  --icon-stroke: 2.5;
+  --ctl-h-sm: 1.75rem;   /* 28px icon button */
+  --ctl-h:    2.25rem;   /* 36px theme button */
+  --tile-sm:  1.625rem;  /* 26px status icon in rows */
+  --tile:     1.875rem;  /* 30px status icon */
+  --dot:      .5rem;
+  --meter-h:  .375rem;
+  --switch-w: 2.125rem;
+  --switch-h: 1.25rem;
+  --knob:     .875rem;
+
+  /* Layout */
+  --content-max: 97.5rem;  /* 1560px */
+  --sidebar-w:   12.5rem;  /* 200px */
+  --rail-w:      11.875rem;/* 190px log channel rail */
+  --drawer-w:    40rem;    /* 640px */
+  --modal-w:     60rem;    /* 960px */
+  --code-max-h:  16.25rem; /* 260px */
+  --code-tall-h: 60vh;
+  --col-st:      var(--tile);
+
+  /* Layers */
+  --z-sticky: 2;
+  --z-drawer: 30;
+
+  /* Motion */
+  --dur-fast: .15s;
+  --dur-spin: 1.2s;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg:      #fafafa;
+  --surface: #f0f0f1;
+  --card:    #fff;
+  --head:    #f4f4f5;
+  --hover:   #f7f7f8;
+  --sel:     #ececee;
+  --chip:    #e4e4e7;
+  --chip-text: #111113;
+  --line:    rgba(0,0,0,.09);
+  --line-2:  rgba(0,0,0,.18);
+
+  --text:  #111113;
+  --muted: #52525b;
+  --faint: #71717a;
+
+  --ok:           #3f3f46;
+  --ok-bg:        #e4e4e7;
+  --danger:       #b91c1c;
+  --danger-bg:    #ffe8e8;
+  --danger-solid: #dc2626;
+  --warn:         #78350f;
+  --warn-bg:      #fef3c7;
+
+  --code-bg: #111113;
+  --code-fg: #e4e4e7;
+  --tree-str: #15803d;
+  --tree-num: #b45309;
+
+  --focus:         #111113;
+  --scrim:         rgba(17,17,19,.38);
+  --shadow-drawer: -1.5rem 0 3rem rgba(17,17,19,.12);
+  --shadow-modal:  0 1.5rem 4rem rgba(17,17,19,.18);
+}

@@ -1,0 +1,33 @@
+/* ─────────────────────────────────────────────────────────
+   Atomic Telemetry · Base
+   Reset, element defaults, focus, icons, keyframes. Tokens only.
+   ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* The scrollbar gutter is always reserved, so switching between a short and a
+   long tab never shifts the page sideways. */
+html { scrollbar-gutter: stable; }
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ff);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+}
+h1, h2, h3, p { margin: 0; }
+a { color: var(--text); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* Icons: <svg class="ic"><use href="#i-name"/></svg> from the sprite in the layout. */
+.ic {
+  width: var(--icon); height: var(--icon); flex: none;
+  fill: none; stroke: currentColor; stroke-width: var(--icon-stroke);
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.ic-sprite { position: absolute; width: 0; height: 0; }
+
+@keyframes spin { to { transform: rotate(360deg); } }

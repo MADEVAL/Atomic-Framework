@@ -49,9 +49,9 @@ final class MigrationsReporterTest extends StatsDbTestCase
         $source = (new \Engine\Atomic\Telemetry\Reporters\MigrationsReporter())->source('framework', 'create_telemetry_stats_tables');
 
         self::assertNotNull($source);
-        self::assertSame('1_create_telemetry_stats_tables.php', $source['file']);
-        self::assertStringContainsString('telemetry_counters', $source['code']);
-        self::assertFalse($source['truncated']);
+        self::assertSame('1_create_telemetry_stats_tables.php', $source->file);
+        self::assertStringContainsString('telemetry_counters', $source->code);
+        self::assertFalse($source->truncated);
     }
 
     public function test_source_is_null_for_unknown_migrations_and_path_tricks(): void

@@ -20,4 +20,21 @@ final class QueueReporterTest extends TestCase
         self::assertSame(1, $reporter->snapshot()['failed']);
         self::assertSame(200, $reporter->snapshot()['completed']);
     }
+
+    public function test_job_list_masks_secrets_in_payloads_like_the_json_endpoint(): void
+    {
+        $manager = $this->createMock(TelemetryManager::class);
+        $manager->method('fetch_all_jobs')->willReturn(['items' => [
+            'u1' => ['state' => 'failed', 'queue' => 'mail', 'payload' => ['handler' => 'Mail', 'password' => 'hunter2', 'api_key' => 'k-123']],
+        ]]);
+        $manager->method('fetch_events')->willReturn([['event_type_id' => 1, 'event_description' => 'token=abc123', 'created_at_formatted' => 'x', 'uuid_batch' => 'b']]);
+
+        $reporter = new QueueReporter($manager);
+        $job = $reporter->job_list()[0];
+
+        self::assertSame('[MASKED]', $job->payload['password']);
+        self::assertSame('[MASKED]', $job->payload['api_key']);
+        self::assertSame('Mail', $job->title());
+        self::assertStringNotContainsString('abc123', $reporter->events('db', 'u1')[0]->description);
+    }
 }

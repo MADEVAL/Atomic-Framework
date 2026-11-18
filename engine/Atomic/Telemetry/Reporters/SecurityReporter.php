@@ -4,6 +4,9 @@ namespace Engine\Atomic\Telemetry\Reporters;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Core\Redactor;
+use Engine\Atomic\Telemetry\Data\Range;
+use Engine\Atomic\Telemetry\Data\SecurityReport;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Security\PasswordPolicy;
@@ -241,6 +244,11 @@ class SecurityReporter implements SnapshotProviderInterface
         $value = self::payload_value($payload, $key);
 
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    public function security(Range $range): SecurityReport
+    {
+        return SecurityReport::from_array((array)Redactor::redact_secrets($this->report($range->value)));
     }
 
     public function snapshot(): array

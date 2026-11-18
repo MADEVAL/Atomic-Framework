@@ -1,0 +1,13 @@
+/* ─────────────────────────────────────────────────────────
+   Atomic Telemetry · List states
+   States the script toggles on rendered lists.
+   ───────────────────────────────────────────────────────── */
+
+/* Summary details: " · " between the visible parts. Parts that hide when
+   their count drops to zero take their separator with them. */
+.dotted > :not(.hide) ~ :not(.hide)::before { content: " · "; color: var(--muted); }
+
+/* Grouped lists: rows hidden by a filter stay in the DOM, so the first visible
+   group and the first visible row of each group are marked by server.js. */
+.list-group.is-first { padding-top: var(--space-1); }
+.row.is-lead { border-top: 0; }

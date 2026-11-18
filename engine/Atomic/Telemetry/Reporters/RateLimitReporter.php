@@ -7,6 +7,8 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\RateLimit\RateLimiter;
+use Engine\Atomic\Telemetry\Data\RateKey;
+use Engine\Atomic\Telemetry\Data\RateStrategy;
 use Engine\Atomic\Telemetry\Stats\StatsConnection;
 use Engine\Atomic\Telemetry\Stats\StatsQuery;
 
@@ -17,22 +19,24 @@ class RateLimitReporter implements SnapshotProviderInterface
     /** @return array{keys:list<array<string,mixed>>} */
     public function report(): array
     {
-        $keys = [];
-        $db_available = StatsConnection::db() !== null;
+        return ['keys' => array_map(static fn (RateKey $key): array => $key->to_array(), $this->keys())];
+    }
 
-        if ($db_available) {
+    /** @return list<RateKey> keys denied in the last 24 hours */
+    public function keys(): array
+    {
+        $registry = [];
+        if (StatsConnection::db() !== null) {
             try {
                 $store = new \Engine\Atomic\Telemetry\Stats\Adapters\DB();
                 $registry = $store->recent_rate_keys(time() - 86400, self::MAX_KEYS);
             } catch (\Throwable $e) {
                 $registry = [];
             }
-        } else {
-            $registry = [];
         }
 
         if ($registry === []) {
-            return ['keys' => []];
+            return [];
         }
 
         $denied_series = StatsQuery::series('ratelimit.denied', [], '24h');
@@ -44,20 +48,25 @@ class RateLimitReporter implements SnapshotProviderInterface
             $limiter = null;
         }
 
+        $keys = [];
         foreach ($registry as $row) {
+            $strategy = RateStrategy::tryFrom($row['strategy']);
+            if ($strategy === null) {
+                continue;
+            }
             $key = $row['key_name'];
             [$used, $reset_in] = $this->live_state($limiter, $key, $row['strategy']);
-            $keys[] = [
-                'key' => $key,
-                'strategy' => $row['strategy'],
-                'limit' => $row['rate_limit'],
-                'used' => $used,
-                'reset_in' => $reset_in,
-                'blocked_hour' => $blocked_1h_total > 0 ? $this->blocked_hour($key) : 0,
-            ];
+            $keys[] = new RateKey(
+                key: $key,
+                strategy: $strategy,
+                limit: $row['rate_limit'],
+                used: $used,
+                reset_in: $reset_in,
+                blocked_hour: $blocked_1h_total > 0 ? $this->blocked_hour($key) : 0,
+            );
         }
 
-        return ['keys' => $keys];
+        return $keys;
     }
 
     /** @return array{0:int,1:int} used counter + seconds until reset */
@@ -105,15 +114,12 @@ class RateLimitReporter implements SnapshotProviderInterface
         $limited = 0;
         $blocked_1h = 0;
         try {
-            $data = $this->report();
+            $keys = $this->keys();
         } catch (\Throwable $e) {
-            $data = ['keys' => []];
+            $keys = [];
         }
-        foreach ($data['keys'] as $key) {
-            if ($key['limit'] <= 0) {
-                continue;
-            }
-            if ($key['used'] >= $key['limit']) {
+        foreach ($keys as $key) {
+            if ($key->limit > 0 && $key->is_limited()) {
                 $limited++;
             }
         }

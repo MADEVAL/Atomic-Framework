@@ -9,9 +9,16 @@ declare(strict_types=1);
 
 if(!defined('ATOMIC_START')) exit;
 
-enqueue_style('w3css', 'https://www.w3schools.com/w3css/4/w3.css');
-enqueue_style('lato', 'https://fonts.googleapis.com/css?family=Lato');
-enqueue_style('montserrat', 'https://fonts.googleapis.com/css?family=Montserrat');
-enqueue_style('font-awesome', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css');
-enqueue_style('telemetry', '~assets/css/telemetry.css', ['w3css'], '1.0.0');
-enqueue_script('telemetry', '~assets/js/telemetry.js', [], '1.0.0', true, ['defer' => true]);
+$telemetry_version = '3.0.0';
+
+// Styles in cascade order.
+enqueue_style('geist', 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+enqueue_style('telemetry-tokens',     '~assets/css/tokens.css',     ['geist'], $telemetry_version);
+enqueue_style('telemetry-base',       '~assets/css/base.css',       ['telemetry-tokens'], $telemetry_version);
+enqueue_style('telemetry-layout',     '~assets/css/layout.css',     ['telemetry-base'], $telemetry_version);
+enqueue_style('telemetry-components', '~assets/css/components.css', ['telemetry-layout'], $telemetry_version);
+enqueue_style('telemetry-helpers',    '~assets/css/helpers.css',    ['telemetry-components'], $telemetry_version);
+enqueue_style('telemetry-pages',      '~assets/css/pages.css',      ['telemetry-helpers'], $telemetry_version);
+enqueue_style('telemetry-server',     '~assets/css/server.css',     ['telemetry-pages'], $telemetry_version);
+
+enqueue_script('telemetry', '~assets/js/server.js', [], $telemetry_version, true, ['defer' => true]);

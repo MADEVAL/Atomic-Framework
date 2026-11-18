@@ -1,0 +1,62 @@
+/* ─────────────────────────────────────────────────────────
+   Atomic Telemetry · Layout
+   App shell: sidebar with tabs and tools, main column, panes.
+   ───────────────────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  gap: var(--space-14);
+  align-items: start;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-7) var(--space-14);
+}
+
+/* ── Sidebar ── */
+.side {
+  position: sticky; top: var(--space-6);
+  height: calc(100vh - 2 * var(--space-6));
+  display: flex; flex-direction: column; gap: var(--space-7);
+}
+.brand {
+  display: flex; align-items: center; gap: var(--space-2-5);
+  font-size: var(--fs-lg); font-weight: var(--fw-semibold);
+}
+.brand-dot { width: var(--space-2-5); height: var(--space-2-5); border-radius: 50%; background: var(--text); }
+
+.nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
+.nav-tab {
+  display: flex; align-items: center; gap: var(--space-2);
+  width: 100%; padding: var(--space-2) var(--space-3);
+  border: 0; border-radius: var(--r-md); background: transparent;
+  color: var(--muted); font-size: var(--fs-base); font-weight: var(--fw-semibold);
+  white-space: nowrap; text-align: left;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.is-on { background: var(--text); color: var(--bg); }
+.nav-tab .badge { margin-left: auto; }
+
+.side-tools { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.side-tools .select { width: 100%; order: 3; font-size: var(--fs-sm); }
+
+/* ── Main column ── */
+.main { min-width: 0; }
+.pane { display: none; }
+.pane.is-on { display: block; }
+.rangebar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2-5) var(--space-5); margin-bottom: var(--space-5); font-size: var(--fs-sm); }
+
+/* A list with an optional detail drawer. The drawer overlays the page, so the
+   list keeps its columns. */
+.split { display: flex; flex-wrap: wrap; gap: var(--space-10); align-items: flex-start; }
+.split > .list { flex: 1 1 35rem; }
+
+/* A pane section: overview blocks stacked above the list. */
+.section { margin-bottom: var(--space-9); }
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; gap: var(--space-5); padding: var(--space-4); }
+  .side { position: static; height: auto; gap: var(--space-3-5); }
+  .nav { flex-direction: row; flex-wrap: wrap; }
+  .nav-tab { width: auto; }
+  .side-tools { margin-top: 0; }
+}

@@ -4,6 +4,9 @@ namespace Engine\Atomic\Telemetry\Reporters;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Core\Redactor;
+use Engine\Atomic\Telemetry\Data\QuotaReport;
+use Engine\Atomic\Telemetry\Data\Range;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Quota\QuotaLimiter;
 use Engine\Atomic\Quota\QuotaPlan;
@@ -226,6 +229,11 @@ class QuotaReporter implements SnapshotProviderInterface
         } catch (\Throwable $e) {
             return 0;
         }
+    }
+
+    public function quota(Range $range): QuotaReport
+    {
+        return QuotaReport::from_array((array)Redactor::redact_secrets($this->report($range->value)));
     }
 
     public function snapshot(): array

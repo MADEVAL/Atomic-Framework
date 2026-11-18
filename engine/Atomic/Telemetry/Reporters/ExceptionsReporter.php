@@ -4,6 +4,9 @@ namespace Engine\Atomic\Telemetry\Reporters;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Core\Redactor;
+use Engine\Atomic\Telemetry\Data\ExceptionsReport;
+use Engine\Atomic\Telemetry\Data\Range;
 use Engine\Atomic\Telemetry\Stats\StatsConnection;
 use Engine\Atomic\Telemetry\Stats\StatsQuery;
 use Engine\Atomic\Telemetry\Stats\TagHash;
@@ -72,6 +75,11 @@ class ExceptionsReporter implements SnapshotProviderInterface
                 'distinct' => $distinct,
             ],
         ];
+    }
+
+    public function exceptions(Range $range): ExceptionsReport
+    {
+        return ExceptionsReport::from_array((array)Redactor::redact_secrets($this->report($range->value)));
     }
 
     public function snapshot(): array

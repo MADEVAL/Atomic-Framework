@@ -4,6 +4,7 @@ namespace Engine\Atomic\Telemetry\Reporters;
 
 if (!defined('ATOMIC_START')) exit;
 
+use Engine\Atomic\Telemetry\Data\Summary;
 use Engine\Atomic\Tools\Transient;
 
 /** Cached for 60s, so sidebar refreshes don't hit every subsystem. */
@@ -30,6 +31,11 @@ class SummaryReporter
         }
 
         return $summary;
+    }
+
+    public function typed(): Summary
+    {
+        return Summary::from_array($this->summary());
     }
 
     private function compute(): array

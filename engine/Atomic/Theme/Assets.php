@@ -17,7 +17,7 @@ final class Assets
 
     protected array $styles  = [];        // handle => [src,deps,version,media]
     protected array $scripts = [];        // handle => [src,deps,version,inFooter,attrs]
-    protected array $localize = [];       // handle => ['var' => string, 'data' => array]
+    protected array $localize = [];       // handle => [var => data]
     protected array $inlineStyles  = [];  // handle => [css,...]
     protected array $inlineScripts = [    // 'header'|'footer' => handle => [js,...]
         'header' => [],
@@ -127,7 +127,8 @@ final class Assets
     public function localize_script(string $handle, array $data, ?string $var_name = null): void
     {
         $var = $this->normalize_var_name($var_name ?: ($handle.'Data'));
-        $this->localize[$handle] = ['var' => $var, 'data' => $data];
+        // Several variables per handle; re-localizing the same var replaces it.
+        $this->localize[$handle][$var] = $data;
     }
 
     /**
@@ -243,10 +244,11 @@ final class Assets
         $src    = $this->resolve_src($script['src']);
         $ver    = $this->build_version_param($script['version'], $src);
 
-        if (isset($this->localize[$handle])) {
-            $payload = self::encode_json_for_html($this->localize[$handle]['data']);
-            $var_name = self::encode_json_for_html($this->localize[$handle]['var']);
-            echo '<script>(function(w){w['.$var_name.']='.$payload.';})(window);</script>'."\n";
+        foreach ($this->localize[$handle] ?? [] as $var_name => $data) {
+            $payload = self::encode_json_for_html($data);
+            $var_json = self::encode_json_for_html($var_name);
+            echo '<script>(function(w){w['.$var_json.']='.$payload.';})(window);</script>'."
+";
         }
 
         if ($in_footer === false && !empty($this->inlineScripts['header'][$handle])) {

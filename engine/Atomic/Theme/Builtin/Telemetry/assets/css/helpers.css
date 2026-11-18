@@ -1,0 +1,20 @@
+/* ─────────────────────────────────────────────────────────
+   Atomic Telemetry · Helpers
+   Single-purpose classes, so markup never needs a style="" attribute.
+   ───────────────────────────────────────────────────────── */
+.mono      { font-family: var(--mono); }
+.muted     { color: var(--muted); }
+.faint     { color: var(--faint); }
+.danger    { color: var(--danger); }
+.strong    { color: var(--text); font-weight: var(--fw-semibold); }
+.fg        { color: var(--text); }
+.small     { font-size: var(--fs-sm); }
+.xsmall    { font-size: var(--fs-xs); }
+.plain     { text-transform: none; letter-spacing: 0; }
+.nowrap    { white-space: nowrap; }
+.break     { overflow-wrap: anywhere; }
+.inline-flex { display: inline-flex; align-items: center; gap: var(--space-2); }
+.mt-2      { margin-top: var(--space-2); }
+.mb-0      { margin-bottom: 0; }
+.hide      { display: none !important; }
+.offscreen { position: fixed; top: 0; left: 0; opacity: 0; }

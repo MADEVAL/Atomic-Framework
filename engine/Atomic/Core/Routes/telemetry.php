@@ -41,6 +41,8 @@ $this->route('GET|POST /telemetry/logs', 'Engine\Atomic\App\Telemetry->logs', $t
 $this->route('GET|POST /telemetry/log-channels', 'Engine\Atomic\App\Telemetry->log_channels', $telemetry_access);
 $this->route('GET|POST /telemetry/log-stat', 'Engine\Atomic\App\Telemetry->log_stat', $telemetry_access);
 $this->route('GET|POST /telemetry/dumps/@dump_id', 'Engine\Atomic\App\Telemetry->dump', $telemetry_access);
+$this->route('GET /telemetry/view/@tab', 'Engine\Atomic\App\Telemetry->fragment', $telemetry_access);
+$this->route('GET /telemetry/part/@part', 'Engine\Atomic\App\Telemetry->part', $telemetry_access);
 
 $this->route('GET|POST /telemetry/jobs', 'Engine\Atomic\App\Telemetry->jobs', $telemetry_access);
 $this->route('GET|POST /telemetry/summary', 'Engine\Atomic\App\Telemetry->summary', $telemetry_access);
