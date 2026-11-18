@@ -73,7 +73,7 @@ class Redactor
         '/(?:^|[^a-zA-Z0-9])seed(?:$|[^a-zA-Z0-9])/i',
         '/(?:^|[^a-zA-Z0-9])pass(?:$|[^a-zA-Z0-9])/i',
         // ── keys & tokens ────────────────────────────────────────────────
-        '/(?:^|[^a-zA-Z0-9])key(?:$|[^a-zA-Z0-9])/i',     // KEY, APP_KEY, API_KEY
+        '/[^a-zA-Z0-9]key(?:$|[^a-zA-Z0-9])/i',           // APP_KEY, API_KEY
         '/(?:^|[^a-zA-Z0-9])token(?:$|[^a-zA-Z0-9])/i',   // TOKEN, ACCESS_TOKEN
         '/api[_\-]?key/i',                                  // api_key, apikey, api-key
         '/access[_\-]?token/i',
@@ -83,11 +83,7 @@ class Redactor
         '/authorization/i',                                  // unambiguous long word
         '/(?:^|[^a-zA-Z0-9])bearer(?:$|[^a-zA-Z0-9])/i',
         '/credential/i',
-        '/(?:^|[^a-zA-Z0-9])login(?:$|[^a-zA-Z0-9])/i',
-        '/(?:^|[^a-zA-Z0-9])username(?:$|[^a-zA-Z0-9])/i',
-        '/^user$/i',                                         // exact - avoids user_agent
         // ── network / server ─────────────────────────────────────────────
-        '/addr$/i',                                          // REMOTE_ADDR, SERVER_ADDR
         '/^home$/i',                                         // exact
         // ── crypto & signing ─────────────────────────────────────────────
         '/encryption/i',
@@ -103,8 +99,7 @@ class Redactor
         '/(?:^|[^a-zA-Z0-9])dsn(?:$|[^a-zA-Z0-9])/i',
         '/(?:^|[^a-zA-Z0-9])(?:db|database)$/i',
         // ── chat / app ───────────────────────────────────────────────────
-        '/chat[_\-]?id(?:$|[^a-zA-Z0-9])/i',
-        '/^app[_\-]?uuid$/i',                               // APP_UUID - app instance identifier
+        '/^app[_\-]?uuid$/i',                              // APP_UUID - app instance identifier
         '/client[_\-]?id/i',                                // OAuth client_id
         // ── HTTP headers ─────────────────────────────────────────────────
         '/x[_\-]api[_\-]key/i',
@@ -112,6 +107,29 @@ class Redactor
         '/x[_\-]csrf/i',
         '/x[_\-]xsrf/i',
     ];
+
+    /**
+     * Personal / operational identifiers: masked by redact(), which feeds log
+     * files and queue payloads, but left visible by redact_secrets() for
+     * operator views (telemetry) that need to tell users, IPs and keys apart.
+     */
+    protected const PERSONAL_KEYS = [
+        '/^key(?:$|[^a-zA-Z0-9])/i',                        // key - cache / rate-limit key names
+        '/(?:^|[^a-zA-Z0-9])login(?:$|[^a-zA-Z0-9])/i',
+        '/(?:^|[^a-zA-Z0-9])username(?:$|[^a-zA-Z0-9])/i',
+        '/^user$/i',                                         // exact - avoids user_agent
+        '/addr$/i',                                          // REMOTE_ADDR, SERVER_ADDR
+        '/chat[_\-]?id(?:$|[^a-zA-Z0-9])/i',
+    ];
+
+    protected const PERSONAL_VALUE_MAPPING = [
+        // IPv4 addresses
+        '/\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/'
+            => self::MASKED,
+    ];
+
+    /** When true, the PERSONAL_* patterns are skipped (see redact_secrets()). */
+    private static bool $secrets_only = false;
 
     protected const SENSITIVE_VALUE_MAPPING = [
         // Authorization: Bearer / Basic / Token ...
@@ -126,9 +144,6 @@ class Redactor
         // URL credentials  scheme://user:pass@host
         '/(:\\/\\/[^:\\/\s]+:)([^@\s]+)(@)/i'
             => '$1' . self::MASKED . '$3',
-        // IPv4 addresses
-        '/\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/'
-            => self::MASKED,
         // DSN / connection strings
         '/((?:dsn|database|db)\s*[:=]\s*)("?)([^\s"&,;]+)(\2)/i'
             => '$1$2' . self::MASKED . '$4',
@@ -143,7 +158,8 @@ class Redactor
     public static function is_sensitive_key(string|int $key): bool
     {
         if (is_int($key)) return false;
-        foreach (self::SENSITIVE_KEYS as $pattern) {
+        $patterns = self::$secrets_only ? self::SENSITIVE_KEYS : [...self::SENSITIVE_KEYS, ...self::PERSONAL_KEYS];
+        foreach ($patterns as $pattern) {
             if (preg_match($pattern, $key)) return true;
         }
         return false;
@@ -151,11 +167,10 @@ class Redactor
 
     public static function redact_string(string $value): string
     {
-        $value = preg_replace(
-            array_keys(self::SENSITIVE_VALUE_MAPPING),
-            array_values(self::SENSITIVE_VALUE_MAPPING),
-            $value
-        ) ?? $value;
+        $mapping = self::$secrets_only
+            ? self::SENSITIVE_VALUE_MAPPING
+            : self::SENSITIVE_VALUE_MAPPING + self::PERSONAL_VALUE_MAPPING;
+        $value = preg_replace(array_keys($mapping), array_values($mapping), $value) ?? $value;
 
         if (self::$home_variants !== []) {
             $value = str_replace(
@@ -166,6 +181,24 @@ class Redactor
         }
 
         return $value;
+    }
+
+    /**
+     * Mask secrets (passwords, keys, tokens, cookies, session ids, credentials)
+     * but keep personal / operational identifiers such as IPs, users and
+     * cache keys. For operator views that are assumed to be access-protected.
+     */
+    public static function redact_secrets(mixed $data): mixed
+    {
+        $previous = self::$secrets_only;
+        self::$secrets_only = true;
+        try {
+            // Operator reports are structured and nest deeper than log
+            // context (quota tiers → operations → pacing → window).
+            return self::redact($data, max_depth: 16);
+        } finally {
+            self::$secrets_only = $previous;
+        }
     }
 
     public static function redact(mixed $data, int $depth = 0, int $max_depth = 6, int $max_items = 1000, array &$seen = []): mixed

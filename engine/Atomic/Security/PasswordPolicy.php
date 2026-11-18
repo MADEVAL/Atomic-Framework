@@ -19,6 +19,26 @@ final class PasswordPolicy
         return new self(minLength: 12, requireMixedCase: true, requireNumbers: true);
     }
 
+    public function min_length(): int
+    {
+        return $this->minLength;
+    }
+
+    public function require_mixed_case(): bool
+    {
+        return $this->requireMixedCase;
+    }
+
+    public function require_numbers(): bool
+    {
+        return $this->requireNumbers;
+    }
+
+    public function require_symbols(): bool
+    {
+        return $this->requireSymbols;
+    }
+
     /** @param array<string, string> &$violations */
     public function validate(string $password, ?array &$violations = null): bool
     {

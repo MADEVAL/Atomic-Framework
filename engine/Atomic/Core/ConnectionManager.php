@@ -430,6 +430,12 @@ class ConnectionManager
         }
     }
 
+    /** Whether a MySQL connection is already open (does not connect). */
+    public function has_db(string $name = 'default'): bool
+    {
+        return isset($this->mysql_connections[$name]);
+    }
+
     public function close_sql(string $name = 'default'): void
     {
         unset($this->mysql_connections[$name]);

@@ -9,7 +9,9 @@ use Engine\Atomic\Quota\QuotaOperationSpec;
 use Engine\Atomic\Quota\QuotaPacingSpec;
 use Engine\Atomic\Quota\QuotaPlan;
 use Engine\Atomic\Quota\QuotaResult;
+use Engine\Atomic\Telemetry\Stats\StatsRecorder;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\ReflectionHelper;
 use Tests\Support\QuotaPlans;
 use Tests\Support\QuotaSubject;
 use Tests\Support\TestQuotaStore;
@@ -37,6 +39,26 @@ final class QuotaLimiterTest extends TestCase
         $this->assertSame(500, $limiter->quota_set('user:1', 500, 100));
         $this->assertSame(500, $limiter->quota_get('user:1'));
         $this->assertSame(100, $limiter->quota_ttl('user:1'));
+    }
+
+    public function test_allowed_reservation_buffers_no_usage_counters(): void
+    {
+        // Telemetry keeps rare events only: a successful spend registers the
+        // scope (so the tab can list balances) but counts nothing.
+        \Base::instance()->set('TELEMETRY_STATS_ENABLED', true);
+        $recorder = StatsRecorder::instance();
+        $recorder->reset();
+        try {
+            $limiter = new QuotaLimiter(new TestQuotaStore());
+            $limiter->quota_set('user:1', 500, 100);
+            $recorder->reset();
+            $this->assertTrue($limiter->quota_reserve('user:1', 'a', $this->plan(), 'spam_check')->allowed);
+
+            $this->assertSame([], ReflectionHelper::get($recorder, 'counters'));
+            $this->assertArrayHasKey('user:1', ReflectionHelper::get($recorder, 'quota_scopes'));
+        } finally {
+            $recorder->reset();
+        }
     }
 
     public function test_add_quota_tops_up_without_moving_the_end_of_the_period(): void

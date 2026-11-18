@@ -8,6 +8,7 @@ use Engine\Atomic\Theme\Assets;
 use Engine\Atomic\App\Error as ErrorController;
 use Engine\Atomic\CLI\Console\Output;
 use Engine\Atomic\Enums\LogChannel;
+use Engine\Atomic\Telemetry\Stats\ExceptionRecorder;
 
 class ExceptionHandlerRegistrar
 {
@@ -58,6 +59,14 @@ class ExceptionHandlerRegistrar
                 $msg = '[ONERROR][' . $code . '][' . $level . '][' . $status . '][' . $text . ']';
                 if ($dumpId) $msg .= '[dump_id:' . $dumpId . ']';
                 Log::channel(LogChannel::ERROR)->error($msg);
+
+                self::record_exception_stats($atomic, [
+                    'code'    => $code,
+                    'text'    => $text,
+                    'level'   => $level,
+                    'path'    => (string)$atomic->get('PATH'),
+                    'dump_id' => $dumpId,
+                ]);
 
                 $currentPath = (string)$atomic->get('PATH');
                 if (preg_match('#^/error/\d+#', $currentPath)) {
@@ -127,5 +136,47 @@ class ExceptionHandlerRegistrar
                 return;
             }
         });
+    }
+
+    /**
+     * A broken stats store must never affect error handling.
+     *
+     * @param array{code:int, text:string, level:string, path:string, dump_id:?string} $error
+     */
+    private static function record_exception_stats(\Base $atomic, array $error): void
+    {
+        try {
+            $throwable = $atomic->get('EXCEPTION');
+            if (!$throwable instanceof \Throwable) {
+                $throwable = null;
+            }
+
+            $file = null;
+            $line = null;
+            if ($throwable !== null) {
+                $file = (string)$throwable->getFile();
+                $line = (int)$throwable->getLine();
+            } else {
+                $trace = $atomic->get('ERROR.trace');
+                if (is_array($trace) && isset($trace[0])) {
+                    $frame = is_array($trace[0]) ? $trace[0] : [];
+                    $file = isset($frame['file']) ? (string)$frame['file'] : null;
+                    $line = isset($frame['line']) ? (int)$frame['line'] : null;
+                }
+            }
+
+            ExceptionRecorder::capture([
+                'class'   => $throwable !== null ? get_class($throwable) : 'PHP Error',
+                'message' => $throwable !== null ? $throwable->getMessage() : $error['text'],
+                'file'    => $file,
+                'line'    => $line,
+                'code'    => $error['code'],
+                'level'   => strtolower($error['level'] !== '' ? $error['level'] : 'error'),
+                'path'    => $error['path'],
+                'dump_id' => $error['dump_id'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::debug('[Stats] exception stats recording failed: ' . $e->getMessage());
+        }
     }
 }

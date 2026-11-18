@@ -5,6 +5,7 @@ namespace Engine\Atomic\Security;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Cache\Interfaces\CacheStoreInterface;
+use Engine\Atomic\Telemetry\Stats\SecurityStats;
 
 final class AccountLockout
 {
@@ -28,9 +29,15 @@ final class AccountLockout
 
         $this->cache->set($this->key($identifier), $attempts, $this->windowSeconds);
 
+        SecurityStats::login_failed($identifier);
+
         if ($attempts['count'] >= $this->maxAttempts) {
-            $lockData = ['locked_until' => time() + $this->lockoutSeconds];
+            $locked_until = time() + $this->lockoutSeconds;
+            $lockData = ['locked_until' => $locked_until];
             $this->cache->set($this->lockKey($identifier), $lockData, $this->lockoutSeconds);
+            SecurityStats::lockout($identifier, (int)$attempts['count'], (int)($attempts['first_at'] ?? null), $locked_until);
+        } else {
+            SecurityStats::failure_streak($identifier, (int)$attempts['count'], (int)($attempts['first_at'] ?? null));
         }
     }
 

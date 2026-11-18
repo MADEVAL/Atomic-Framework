@@ -335,6 +335,10 @@ class ConfigLoader {
 
         ConfigRegistry::register('TELEMETRY_ACCESS_ALLOWED_ROLES', 'TELEMETRY_ACCESS_ALLOWED_ROLES', 'admin', 'csv');
 
+        ConfigRegistry::register('TELEMETRY_STATS_ENABLED', 'TELEMETRY_STATS_ENABLED', true, 'bool');
+        ConfigRegistry::register('TELEMETRY_STATS_RETENTION_DAYS', 'TELEMETRY_STATS_RETENTION_DAYS', 35, 'int');
+        ConfigRegistry::register('TELEMETRY_STATS_EVENT_RETENTION_DAYS', 'TELEMETRY_STATS_EVENT_RETENTION_DAYS', 30, 'int');
+
         ConfigRegistry::register('SECURITY_HEADERS.ENABLED', 'SECURITY_HEADERS_ENABLED', true, 'bool');
         ConfigRegistry::register('SECURITY_HEADERS.XFO', 'SECURITY_HEADERS_XFO', 'DENY');
         ConfigRegistry::register('SECURITY_HEADERS.HSTS', 'SECURITY_HEADERS_HSTS', '');

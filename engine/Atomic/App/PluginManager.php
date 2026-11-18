@@ -613,6 +613,18 @@ class PluginManager
         return $this->errors;
     }
 
+    /** @return array<string, true> plugin_name => true for plugins that completed register() */
+    public function registered_map(): array
+    {
+        return $this->registered;
+    }
+
+    /** @return array<string, true> plugin_name => true for plugins that completed boot() */
+    public function booted_map(): array
+    {
+        return $this->booted;
+    }
+
     public function all(): array
     {
         return $this->plugins;

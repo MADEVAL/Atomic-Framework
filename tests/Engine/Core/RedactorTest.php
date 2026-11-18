@@ -515,4 +515,69 @@ class RedactorTest extends TestCase
         $this->assertNull($result['items'][3]);
         $this->assertTrue($result['items'][4]);
     }
+
+    private static function telemetry_sample(): array
+    {
+        return [
+            'sessions' => [['session_id' => 'abc123', 'user' => '7f1e-uuid', 'ip' => '203.0.113.5', 'agent' => 'Firefox']],
+            'failed_logins' => [['identifier' => '203.0.113.5|bob@example.com', 'count' => 9]],
+            'ratelimit' => [['key' => 'login:203.0.113.5', 'hits' => 3]],
+            'cache_top' => [['key' => 'products.list', 'hits' => 40]],
+            'hive' => [
+                'APP_KEY' => 'base64:xyz', 'DB_PASS' => 'pw', 'API_TOKEN' => 't0k', 'password' => 'p',
+                'REMOTE_ADDR' => '203.0.113.5', 'login' => 'bob', 'username' => 'bob',
+                'COOKIE' => 'sid=1', 'SEED' => 's33d',
+            ],
+            'message' => 'GET /x from 203.0.113.5 Authorization: Bearer abc.def password=hunter2',
+        ];
+    }
+
+    public function test_redact_secrets_keeps_operational_identifiers_visible(): void
+    {
+        $out = Redactor::redact_secrets(self::telemetry_sample());
+
+        $this->assertSame('7f1e-uuid', $out['sessions'][0]['user']);
+        $this->assertSame('203.0.113.5', $out['sessions'][0]['ip']);
+        $this->assertSame('203.0.113.5|bob@example.com', $out['failed_logins'][0]['identifier']);
+        $this->assertSame('login:203.0.113.5', $out['ratelimit'][0]['key']);
+        $this->assertSame('products.list', $out['cache_top'][0]['key']);
+        $this->assertSame('203.0.113.5', $out['hive']['REMOTE_ADDR']);
+        $this->assertSame('bob', $out['hive']['login']);
+        $this->assertSame('bob', $out['hive']['username']);
+        $this->assertStringContainsString('from 203.0.113.5', $out['message']);
+    }
+
+    public function test_redact_secrets_still_masks_secrets_and_credentials(): void
+    {
+        $out = Redactor::redact_secrets(self::telemetry_sample());
+
+        // A session id is a bearer credential.
+        $this->assertSame(Redactor::MASKED, $out['sessions'][0]['session_id']);
+        foreach (['APP_KEY', 'DB_PASS', 'API_TOKEN', 'password', 'COOKIE', 'SEED'] as $key) {
+            $this->assertSame(Redactor::MASKED, $out['hive'][$key], $key);
+        }
+        $this->assertStringNotContainsString('abc.def', $out['message']);
+        $this->assertStringNotContainsString('hunter2', $out['message']);
+    }
+
+    public function test_redact_secrets_keeps_deeply_nested_report_data(): void
+    {
+        // Quota report: tiers → plan → operations → op → pacing → window.
+        $report = ['tiers' => [['operations' => ['ai.generate' => ['pacing' => [['limit' => 10, 'window' => 60]]]]]]];
+
+        $out = Redactor::redact_secrets($report);
+
+        $this->assertSame($report, $out);
+    }
+
+    public function test_default_redact_is_unchanged_by_secrets_mode(): void
+    {
+        Redactor::redact_secrets(self::telemetry_sample());
+        $out = Redactor::redact(self::telemetry_sample());
+
+        $this->assertSame(Redactor::MASKED, $out['sessions'][0]['ip']);
+        $this->assertSame(Redactor::MASKED, $out['sessions'][0]['user']);
+        $this->assertSame(Redactor::MASKED, $out['cache_top'][0]['key']);
+        $this->assertStringNotContainsString('203.0.113.5', $out['message']);
+    }
 }

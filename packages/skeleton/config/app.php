@@ -26,6 +26,16 @@ return [
     'debug'        => false,
     'debug_level'  => 'error',
     'escape'       => true,
+    'telemetry' => [
+        'access_mode'          => 'none',
+        'access_allowed_roles' => ['admin'],
+        // Statistics feeding the telemetry dashboard history tabs.
+        'stats' => [
+            'enabled'              => true,
+            'retention_days'       => 35,
+            'event_retention_days' => 30,
+        ],
+    ],
     'paths' => [
         'ui'                  => 'public/themes/',
         'temp'                => 'storage/framework/cache/data/',

@@ -10,6 +10,7 @@ use Engine\Atomic\Core\Log;
 use Engine\Atomic\Enums\LogChannel;
 use Engine\Atomic\Queue\Exceptions\JobCancelledException;
 use Engine\Atomic\Queue\Managers\Manager;
+use Engine\Atomic\Telemetry\Stats\StatsRecorder;
 
 class Worker
 {
@@ -249,6 +250,9 @@ class Worker
                 }
 
                 $this->process_single_job($job, $worker_id);
+                // Long-lived workers never reach shutdown between jobs:
+                // persist each job's statistics (if any) right away.
+                StatsRecorder::instance()->flush_if_pending();
             } catch (\Throwable $e) {
                 $consecutive_errors++;
                 $backoff = \min(

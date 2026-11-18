@@ -148,6 +148,8 @@ class AuthService implements LoginInterface
             'credentials'   => $sanitized,
         ]);
 
+        \Engine\Atomic\Telemetry\Stats\SecurityStats::login_success();
+
         $this->current_user = $user;
         return $user;
     }

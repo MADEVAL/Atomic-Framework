@@ -164,6 +164,11 @@ final class Bootstrap
         ConfigSchema::int('AUTH_RATE_LIMIT_MAX_ATTEMPTS')->default(5);
         ConfigSchema::int('AUTH_RATE_LIMIT_WINDOW_SECONDS')->default(300);
         ConfigSchema::int('AUTH_RATE_LIMIT_LOCKOUT_SECONDS')->default(900);
+        ConfigSchema::string('TELEMETRY_ACCESS_MODE')->default('none');
+        ConfigSchema::csv('TELEMETRY_ACCESS_ALLOWED_ROLES')->default('admin');
+        ConfigSchema::bool('TELEMETRY_STATS_ENABLED')->default(true);
+        ConfigSchema::int('TELEMETRY_STATS_RETENTION_DAYS')->default(35);
+        ConfigSchema::int('TELEMETRY_STATS_EVENT_RETENTION_DAYS')->default(30);
     }
 
     public static function configure_error_logging(): void

@@ -6,6 +6,7 @@ namespace Tests\Engine\RateLimit;
 use Engine\Atomic\RateLimit\Middleware\RateLimitMiddleware;
 use Engine\Atomic\RateLimit\RateLimitStoreInterface;
 use Engine\Atomic\RateLimit\RateLimiter;
+use Engine\Atomic\Telemetry\Stats\StatsRecorder;
 use PHPUnit\Framework\TestCase;
 
 final class RateLimitMiddlewareTest extends TestCase
@@ -49,6 +50,32 @@ final class RateLimitMiddlewareTest extends TestCase
         $this->assertFalse($denied->allowed);
         $this->assertSame(0, $denied->remaining);
         $this->assertSame(2, $store->get('api.api/items.203.0.113.10'));
+    }
+
+    public function test_only_denied_requests_record_statistics(): void
+    {
+        // Telemetry keeps rare events only: an allowed request must not buffer
+        // anything, so normal traffic never pays for a stats write.
+        $atomic = \Base::instance();
+        $atomic->set('TELEMETRY_STATS_ENABLED', true);
+        $atomic->set('RATE_LIMITER.policies.api', [
+            'strategy' => RateLimiter::STRATEGY_FIXED,
+            'key' => RateLimitMiddleware::KEY_IP,
+            'limit' => 1,
+            'window' => 60,
+        ]);
+        $recorder = StatsRecorder::instance();
+        $recorder->reset();
+        $limiter = new RateLimiter(new MiddlewareRateLimitStore());
+        try {
+            $this->check(new RateLimitMiddleware('api'), $limiter, $atomic);
+            $this->assertFalse($recorder->has_pending());
+
+            $this->check(new RateLimitMiddleware('api'), $limiter, $atomic);
+            $this->assertTrue($recorder->has_pending());
+        } finally {
+            $recorder->reset();
+        }
     }
 
     public function test_user_key_prefers_user_uuid_then_nested_session_user_id_then_legacy(): void

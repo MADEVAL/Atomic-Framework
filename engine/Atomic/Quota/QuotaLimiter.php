@@ -55,12 +55,14 @@ final class QuotaLimiter
     /** Renewal. Overwrites the balance, so nothing rolls over, and writes a new epoch uid. */
     public function quota_set(string $scope, int $credits, int $ttl): int
     {
+        $this->record_renewal($scope);
         return $this->store->set_quota(QuotaKeyBuilder::balance_key($scope), QuotaKeyBuilder::epoch_key($scope), $credits, $ttl);
     }
 
     /** Top-up. Adds credit and leaves the end of the period where it is. */
     public function quota_add(string $scope, int $credits, int $ttl): int
     {
+        $this->record_renewal($scope);
         return $this->store->add_quota(QuotaKeyBuilder::balance_key($scope), $credits, $ttl);
     }
 
@@ -162,12 +164,15 @@ final class QuotaLimiter
         }
 
         if (!$plan->has_operation($operation)) {
-            return QuotaResult::not_entitled($this->quota_get($scope));
+            $result = QuotaResult::not_entitled($this->quota_get($scope));
+            $this->record_stats($scope, $plan, $operation, $result);
+
+            return $result;
         }
 
         $cost = $cost ?? $plan->cost($operation);
 
-        return $this->store->quota_reserve(
+        $result = $this->store->quota_reserve(
             QuotaKeyBuilder::balance_key($scope),
             QuotaKeyBuilder::epoch_key($scope),
             QuotaKeyBuilder::reservation_key($scope, $reservation_id),
@@ -177,6 +182,39 @@ final class QuotaLimiter
             QuotaKeyBuilder::pacing_keys($scope, $plan, $operation),
             time()
         );
+        $this->record_stats($scope, $plan, $operation, $result);
+
+        return $result;
+    }
+
+    /** Statistics only: successful spends are not counted, and failures never affect enforcement. */
+    private function record_stats(string $scope, QuotaPlan $plan, string $operation, QuotaResult $result): void
+    {
+        try {
+            $recorder = \Engine\Atomic\Telemetry\Stats\StatsRecorder::instance();
+            $recorder->observe_quota_scope($scope, $plan->name);
+            if ($result->allowed) {
+                return;
+            }
+            $recorder->record('quota.denied', 1, ['scope' => $scope, 'reason' => $result->reason]);
+            $recorder->record_event('quota.denial', ['scope' => $scope], [
+                'scope' => $scope,
+                'operation' => $operation,
+                'reason' => $result->reason,
+                'balance' => $result->balance,
+            ]);
+        } catch (\Throwable $e) {
+            // Statistics must never break enforcement.
+        }
+    }
+
+    private function record_renewal(string $scope): void
+    {
+        try {
+            \Engine\Atomic\Telemetry\Stats\StatsRecorder::instance()->record('quota.renewal', 1, ['scope' => $scope]);
+        } catch (\Throwable $e) {
+            // Statistics must never break enforcement.
+        }
     }
 
     /** Drops the reservation record. In this model the charge stands. */

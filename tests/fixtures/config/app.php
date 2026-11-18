@@ -27,6 +27,11 @@ return [
     'telemetry' => [
         'access_mode'          => 'none',
         'access_allowed_roles' => ['admin'],
+        'stats' => [
+            'enabled'               => true,
+            'retention_days'        => 35,
+            'event_retention_days'  => 30,
+        ],
     ],
     'paths' => [
         'ui'                  => 'public/themes/',

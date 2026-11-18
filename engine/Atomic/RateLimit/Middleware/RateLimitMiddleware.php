@@ -9,6 +9,7 @@ use Engine\Atomic\Core\Middleware\MiddlewareInterface;
 use Engine\Atomic\Core\Response;
 use Engine\Atomic\RateLimit\RateLimiter;
 use Engine\Atomic\RateLimit\RateLimitResult;
+use Engine\Atomic\Telemetry\Stats\StatsRecorder;
 
 final class RateLimitMiddleware implements MiddlewareInterface
 {
@@ -68,6 +69,13 @@ final class RateLimitMiddleware implements MiddlewareInterface
             RateLimiter::STRATEGY_CONCURRENCY => $limiter->acquire($key, $limit, $window),
             default => $limiter->fixed($key, $limit, $window),
         };
+
+        // Telemetry sees denials only (key registry + hourly counter), so
+        // allowed traffic never pays for a statistics write.
+        if (!$result->allowed) {
+            StatsRecorder::instance()->observe_rate_key($key, $strategy, $limit, $window);
+            StatsRecorder::instance()->record('ratelimit.denied', 1, ['key' => $key]);
+        }
 
         if ($strategy === RateLimiter::STRATEGY_CONCURRENCY && $result->allowed) {
             register_shutdown_function(static fn() => $limiter->release($key));
