@@ -37,7 +37,7 @@ if (!$post->save()) {
 
 Helpers:
 
-- `get_last_err_code()`
+- `get_last_err_code()` — `null` when the last save passed validation (reset on every save)
 - `get_last_err_vars()`
 - `get_last_err_data()`
 

@@ -57,6 +57,8 @@ abstract class Model extends Cortex
 		ConnectionManager::instance()->get_db(false);
 		parent::__construct();
 		$saveHandler = function(self $self): bool {
+			$self->last_err_code = null;
+			$self->last_err_vars = [];
 			$self->before_validate();
 			$valid = true;
 			foreach ($self->getFieldConfiguration() as $field => $conf) {
@@ -178,7 +180,7 @@ abstract class Model extends Cortex
 		return $this->getFieldConfiguration();
 	}
 
-	public function get_last_err_code(): false|string {
+	public function get_last_err_code(): ?string {
 		return $this->last_err_code;
 	}
 
