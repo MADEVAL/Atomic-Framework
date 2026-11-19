@@ -13,6 +13,7 @@ use Engine\Atomic\Hook\ApplicationHook;
 use Engine\Atomic\Hook\Hook;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\ReflectionHelper;
+use Tests\Support\StreamCapture;
 
 class AppTest extends TestCase
 {
@@ -43,7 +44,11 @@ class AppTest extends TestCase
     {
         $this->app->atomic()->set('ROUTES', ['/help' => 'handler']);
 
-        $this->assertSame(1, $this->app->handle_command(['atomic', 'what']));
+        [$output, $stderr] = StreamCapture::output_with_stderr();
+        $app = new App(\Base::instance(), Container::global(), $output);
+
+        $this->assertSame(1, $app->handle_command(['atomic', 'what']));
+        $this->assertStringContainsString("Unknown command 'what'.", StreamCapture::read($stderr));
     }
 
     public function test_parameterized_cli_command_is_recognized(): void
@@ -93,7 +98,7 @@ class AppTest extends TestCase
         $app->handle_command(['atomic']);
 
         rewind($stderr);
-        self::assertSame("Usage: php atomic <command> [options]" . PHP_EOL, stream_get_contents($stderr));
+        self::assertSame("Usage: php atomic <command> [options]" . PHP_EOL, Output::plain(stream_get_contents($stderr)));
     }
 
     public function test_detect_request_type_returns_web_by_default(): void

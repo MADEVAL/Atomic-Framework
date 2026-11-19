@@ -357,7 +357,7 @@ class App {
             $raw_command = strtolower(trim($argv[1]));
             $command = '/' . ltrim(str_replace(':', '/', $raw_command), '/');
 
-            $cli = $this->container->resolve_class(CLI::class);
+            $cli = $this->container->make(CLI::class, ['output' => $this->output]);
             if ($cli->check_root_warning($raw_command, $command)) {
                 return 1;
             }

@@ -91,6 +91,8 @@ The configured source include path is:
 - defines the core `ATOMIC_*` constants used by the framework during tests
 - loads Composer autoloading and framework helpers
 - creates temporary `LOGS` and `TEMP` directories under the system temp directory
+- sets `LOGGABLE` to empty, as `Log::init()` does, so F3 errors go to the Log system instead of PHP `error_log()` (stderr in CLI)
+- keeps the progress dots clean: code that prints should take an injected `Output`; tests pass one backed by `Tests\Support\StreamCapture::memory()`, and run migrations through `Tests\Support\MigrationRunner`, which discards their output
 - seeds `REDIS` and `MEMCACHED` hive config with test defaults
 - seeds `DB_CONFIG` from PHPUnit environment defaults
 - connects the shared `DB` handle used by DB-backed tests

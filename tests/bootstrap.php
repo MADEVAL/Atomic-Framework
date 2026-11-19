@@ -43,6 +43,9 @@ $logs_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_logs' . DIRE
 $temp_dir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'atomic_test_temp' . DIRECTORY_SEPARATOR;
 if (!is_dir($logs_dir)) { @mkdir($logs_dir, 0777, true); }
 if (!is_dir($temp_dir)) { @mkdir($temp_dir, 0777, true); }
+
+// Same as Log::init(): errors go to the Log system, not PHP error_log() (stderr in CLI).
+$atomic->set('LOGGABLE', '');
 $atomic->set('LOGS', $logs_dir);
 $atomic->set('TEMP', $temp_dir);
 

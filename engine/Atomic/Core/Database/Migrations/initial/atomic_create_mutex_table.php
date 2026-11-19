@@ -4,45 +4,36 @@ declare(strict_types=1);
 if (!defined('ATOMIC_START')) exit;
 
 use DB\Cortex\Schema\Schema;
-use Engine\Atomic\CLI\Console\Output;
-use Engine\Atomic\App\Models\MutexLock;
+use Engine\Atomic\CLI\Console\CheckStatus;
+use Engine\Atomic\Core\Migrations\Migration;
 
-return [
-    'up' => function () {
-        $out = new Output();
-        $conf = MutexLock::resolveConfiguration();
-        $db = $conf['db'];
-        $table = $conf['table'];
-        $schema = new Schema($db);
-        $tables = $schema->getTables();
-
-        if (is_array($tables) && in_array($table, $tables, true)) {
-            $out->writeln("Table '{$table}' already exists. Skipping creation.");
+return new class extends Migration {
+    public function up(): void
+    {
+        $table = $this->table('mutex_locks');
+        if ($this->has_table($table)) {
+            $this->output()->check(CheckStatus::SKIP, $table, 'table already exists');
             return;
         }
 
-        $t = $schema->createTable($table);
+        $t = $this->schema()->createTable($table);
         $t->addColumn('name')->type(Schema::DT_VARCHAR256)->nullable(false)->index(true);
         $t->addColumn('token')->type(Schema::DT_VARCHAR128)->nullable(false);
         $t->addColumn('expires_at')->type(Schema::DT_INT)->nullable(false)->index();
         $t->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
         $t->build();
-
-        $out->writeln("Table '{$table}' created successfully.");
-    },
-
-    'down' => function () {
-        $out = new Output();
-        $conf = MutexLock::resolveConfiguration();
-        $schema = new Schema($conf['db']);
-        $table = $conf['table'];
-        $tables = $schema->getTables();
-
-        if (is_array($tables) && in_array($table, $tables, true)) {
-            $schema->dropTable($table);
-            $out->writeln("Table '{$table}' dropped successfully.");
-        } else {
-            $out->writeln("Table '{$table}' does not exist. Skipping drop.");
-        }
+        $this->output()->check(CheckStatus::OK, $table, 'table created');
     }
-];
+
+    public function down(): void
+    {
+        $table = $this->table('mutex_locks');
+        if (!$this->has_table($table)) {
+            $this->output()->check(CheckStatus::SKIP, $table, 'table does not exist');
+            return;
+        }
+
+        $this->schema()->dropTable($table);
+        $this->output()->check(CheckStatus::OK, $table, 'table dropped');
+    }
+};

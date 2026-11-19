@@ -3,116 +3,90 @@ declare(strict_types=1);
 
 if (!defined('ATOMIC_START')) exit;
 
-use Engine\Atomic\Core\App;
-use Engine\Atomic\Core\ConnectionManager;
 use DB\Cortex\Schema\Schema;
-use Engine\Atomic\CLI\Console\Output;
+use DB\Cortex\Schema\TableCreator;
+use Engine\Atomic\CLI\Console\CheckStatus;
+use Engine\Atomic\Core\Migrations\Migration;
 
-return [
-    'up' => function () {
-        $out = new Output();
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $schema = new Schema($db);
-        $prefix = $atomic->get('DB_CONFIG.prefix');
+return new class extends Migration {
+    private const TABLES = ['jobs', 'jobs_failed', 'jobs_completed', 'telemetry'];
 
-        $tables = $schema->getTables();
-
-            // --- jobs table ---
-            $jobsTable = $prefix . 'jobs';
-            if (in_array($jobsTable, $tables)) {
-                $out->writeln("Table '{$jobsTable}' already exists. Skipping creation.");
-            } else {
-                $table = $schema->createTable($jobsTable);
-                $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
-                $table->addColumn('queue')->type(Schema::DT_VARCHAR256)->nullable(false);
-                $table->addColumn('priority')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('payload')->type(Schema::DT_TEXT)->nullable(false);
-                $table->addColumn('max_attempts')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('attempts')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('timeout')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('retry_delay')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('available_at')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('process_start_ticks')->type(Schema::DT_INT)->nullable(true);
-                $table->addColumn('pid')->type(Schema::DT_INT)->nullable(true);
-                $table->build();
-                $out->writeln("Table '{$jobsTable}' created.");
+    public function up(): void
+    {
+        foreach (self::TABLES as $name) {
+            $table_name = $this->table($name);
+            if ($this->has_table($table_name)) {
+                $this->output()->check(CheckStatus::SKIP, $table_name, 'table already exists');
+                continue;
             }
 
-            // --- jobs_failed table ---
-            $jobsFailedTable = $prefix . 'jobs_failed';
-            if (in_array($jobsFailedTable, $tables)) {
-                $out->writeln("Table '{$jobsFailedTable}' already exists. Skipping creation.");
-            } else {
-                $table = $schema->createTable($jobsFailedTable);
-                $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
-                $table->addColumn('queue')->type(Schema::DT_VARCHAR256)->nullable(false);
-                $table->addColumn('priority')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('payload')->type(Schema::DT_TEXT)->nullable(false);
-                $table->addColumn('max_attempts')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('attempts')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('timeout')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('retry_delay')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('exception')->type(Schema::DT_TEXT)->nullable(false);
-                $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
-                $table->build();
-                $out->writeln("Table '{$jobsFailedTable}' created successfully.");
-            }
-
-            // --- jobs_completed table ---
-            $jobsCompletedTable = $prefix . 'jobs_completed';
-            if (in_array($jobsCompletedTable, $tables)) {
-                $out->writeln("Table '{$jobsCompletedTable}' already exists. Skipping creation.");
-            } else {
-                $table = $schema->createTable($jobsCompletedTable);
-                $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
-                $table->addColumn('queue')->type(Schema::DT_VARCHAR256)->nullable(false);
-                $table->addColumn('priority')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('payload')->type(Schema::DT_TEXT)->nullable(false);
-                $table->addColumn('max_attempts')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('attempts')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('timeout')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('retry_delay')->type(Schema::DT_INT)->nullable(false);
-                $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
-                $table->build();
-                $out->writeln("Table '{$jobsCompletedTable}' created successfully.");
-            }
-
-            // --- telemetry table ---
-            $telemetryTable = $prefix . 'telemetry';
-            if (in_array($telemetryTable, $tables)) {
-                $out->writeln("Table '{$telemetryTable}' already exists. Skipping creation.");
-            } else {
-                $table = $schema->createTable($telemetryTable);
-                $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
-                $table->addColumn('uuid_batch')->type(Schema::DT_VARCHAR128)->nullable(true);
-                $table->addColumn('uuid_job')->type(Schema::DT_VARCHAR128)->nullable(true);
-                $table->addColumn('event_type_id')->type(Schema::DT_INT)->nullable(true);
-                $table->addColumn('message')->type(Schema::DT_TEXT)->nullable(false);
-                $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
-                $table->build();
-                $out->writeln("Table '{$telemetryTable}' created successfully.");
-            }
-    },
-
-    'down' => function () {
-        $out = new Output();
-        $atomic = App::instance();
-        $db = ConnectionManager::instance()->get_db();
-        $schema = new Schema($db);
-        $prefix = $atomic->get('DB_CONFIG.prefix');
-
-        $tables = $schema->getTables();
-
-            foreach (['jobs', 'jobs_failed', 'jobs_completed', 'telemetry'] as $name) {
-                $tableName = $prefix . $name;
-                if (is_array($tables) && in_array($tableName, $tables)) {
-                    $schema->dropTable($tableName);
-                    $out->writeln("Table '{$tableName}' dropped.");
-                } else {
-                    $out->writeln("Table '{$tableName}' does not exist. Skipping drop.");
-                }
-            }
+            $table = $this->schema()->createTable($table_name);
+            match ($name) {
+                'jobs' => $this->define_jobs($table),
+                'jobs_failed' => $this->define_jobs_failed($table),
+                'jobs_completed' => $this->define_jobs_completed($table),
+                'telemetry' => $this->define_telemetry($table),
+            };
+            $table->build();
+            $this->output()->check(CheckStatus::OK, $table_name, 'table created');
+        }
     }
-];
+
+    public function down(): void
+    {
+        foreach (self::TABLES as $name) {
+            $table_name = $this->table($name);
+            if (!$this->has_table($table_name)) {
+                $this->output()->check(CheckStatus::SKIP, $table_name, 'table does not exist');
+                continue;
+            }
+
+            $this->schema()->dropTable($table_name);
+            $this->output()->check(CheckStatus::OK, $table_name, 'table dropped');
+        }
+    }
+
+    private function define_job_columns(TableCreator $table): void
+    {
+        $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
+        $table->addColumn('queue')->type(Schema::DT_VARCHAR256)->nullable(false);
+        $table->addColumn('priority')->type(Schema::DT_INT)->nullable(false);
+        $table->addColumn('payload')->type(Schema::DT_TEXT)->nullable(false);
+        $table->addColumn('max_attempts')->type(Schema::DT_INT)->nullable(false);
+        $table->addColumn('attempts')->type(Schema::DT_INT)->nullable(false);
+        $table->addColumn('timeout')->type(Schema::DT_INT)->nullable(false);
+        $table->addColumn('retry_delay')->type(Schema::DT_INT)->nullable(false);
+    }
+
+    private function define_jobs(TableCreator $table): void
+    {
+        $this->define_job_columns($table);
+        $table->addColumn('available_at')->type(Schema::DT_INT)->nullable(false);
+        $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
+        $table->addColumn('process_start_ticks')->type(Schema::DT_INT)->nullable(true);
+        $table->addColumn('pid')->type(Schema::DT_INT)->nullable(true);
+    }
+
+    private function define_jobs_failed(TableCreator $table): void
+    {
+        $this->define_job_columns($table);
+        $table->addColumn('exception')->type(Schema::DT_TEXT)->nullable(false);
+        $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
+    }
+
+    private function define_jobs_completed(TableCreator $table): void
+    {
+        $this->define_job_columns($table);
+        $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
+    }
+
+    private function define_telemetry(TableCreator $table): void
+    {
+        $table->addColumn('uuid')->type(Schema::DT_VARCHAR128)->nullable(false);
+        $table->addColumn('uuid_batch')->type(Schema::DT_VARCHAR128)->nullable(true);
+        $table->addColumn('uuid_job')->type(Schema::DT_VARCHAR128)->nullable(true);
+        $table->addColumn('event_type_id')->type(Schema::DT_INT)->nullable(true);
+        $table->addColumn('message')->type(Schema::DT_TEXT)->nullable(false);
+        $table->addColumn('created_at')->type(Schema::DT_INT)->nullable(false);
+    }
+};

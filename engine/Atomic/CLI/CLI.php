@@ -53,9 +53,9 @@ class CLI {
     protected Output $output;
     protected Input  $input;
 
-    public function __construct() {
+    public function __construct(?Output $output = null) {
         $this->atomic = App::instance();
-        $this->output = new Output();
+        $this->output = $output ?? new Output();
         $this->input  = new Input($this->output);
     }
 

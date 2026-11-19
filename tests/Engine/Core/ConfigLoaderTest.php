@@ -875,6 +875,8 @@ class ConfigLoaderTest extends TestCase
         file_put_contents($config_dir . 'database.php', "<?php\nreturn ['default' => 'sqlite', 'connections' => ['sqlite' => ['driver' => 'sqlite']]];\n");
         file_put_contents($config_dir . 'index.php', "<?php\nreturn ['ignored' => true];\n");
         file_put_contents($config_dir . 'bad.php', "<?php\nreturn 'not-an-array';\n");
+        $error_log = $config_dir . 'errors.log';
+        $previous_error_log = ini_set('error_log', $error_log);
 
         try {
             $loader = new class($this->f3) extends PhpConfigLoader {
@@ -894,8 +896,13 @@ class ConfigLoaderTest extends TestCase
             $this->assertArrayNotHasKey('bad', $this->f3->get('CONFIG'));
             $this->assertArrayNotHasKey('index', $this->f3->get('CONFIG'));
             $this->assertArrayNotHasKey('database', $this->f3->get('CONFIG'));
+            $this->assertStringContainsString(
+                "Atomic custom config 'bad' must return an array",
+                (string)file_get_contents($error_log),
+            );
         } finally {
-            foreach (glob($config_dir . '*.php') ?: [] as $file) {
+            ini_set('error_log', $previous_error_log === false ? '' : $previous_error_log);
+            foreach (glob($config_dir . '*') ?: [] as $file) {
                 @unlink($file);
             }
             @rmdir($config_dir);
