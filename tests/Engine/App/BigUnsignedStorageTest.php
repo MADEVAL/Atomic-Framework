@@ -26,7 +26,6 @@ final class BigUnsignedStorageTest extends TestCase
     protected function setUp(): void
     {
         if (!extension_loaded('pdo_mysql')) $this->markTestSkipped('pdo_mysql required');
-        class_exists('DB\Cortex\Schema\Schema');
         $this->db = ConnectionManager::instance()->get_db();
         $this->table = App::instance()->get('DB_CONFIG.prefix').'big_unsigned_regression';
         $this->db->exec('DROP TABLE IF EXISTS `'.$this->table.'`');

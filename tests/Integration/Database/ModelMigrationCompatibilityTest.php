@@ -185,8 +185,7 @@ final class ModelMigrationCompatibilityTest extends TestCase
         $this->db->exec('DELETE FROM `'.App::instance()->get('DB_CONFIG.prefix').'matrix_scoped`');
         $save = function (?int $store, string $email) use ($class): array {
             $model = new $class();
-            // Leave store unset for NULL: assigning an empty value hits Cortex's optional Schema class.
-            if ($store !== null) $model->store = $store;
+            $model->store = $store;
             $model->email = $email;
             $model->save();
             return [$model->dry() ? null : $model->id, $model->get_last_err_data()[0]];
@@ -239,10 +238,8 @@ final class ModelMigrationCompatibilityTest extends TestCase
         foreach ([[1, 'a@x.test'], [2, 'a@x.test'], [1, 'free@x.test'], [null, 'a@x.test']] as [$store, $email]) {
             $l = new ScopedLegacy();
             $d = new ScopedDomain();
-            if ($store !== null) {
-                $l->store = $store;
-                $d->store = $store;
-            }
+            $l->store = $store;
+            $d->store = $store;
             $this->assertSame(
                 Validator::validate_model($legacy, $email, 'email', $l),
                 Validator::validate_model($domain, $email, 'email', $d)
