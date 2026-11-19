@@ -98,8 +98,10 @@ Integration coverage: `tests/Integration/Database/ModelMigrationCompatibilityTes
 Non-null columns with database defaults carry only `has_db_default => true`
 (no literal `default`). Untouched values pass pre-save validation so SQL applies
 its default, including CURRENT_TIMESTAMP. Explicit `required()` still rejects null.
-Explicitly assigning null to a non-nullable column still throws in the Cortex
-setter; omit the assignment to use its default.
+Assigning null to a non-nullable column never throws; the check runs on save.
+Model validation answers first (`required()` returns `false` with an error code),
+otherwise Cortex throws on save and stores nothing. Omit the assignment to use
+the column's default.
 
 Unrecognized raw column types do not prevent domain model construction. Without
 a domain rule the column is omitted from `fieldConf`: Cortex can still read/write

@@ -90,12 +90,30 @@ final class DomainSchemaRegressionTest extends TestCase
         $this->assertSame(false, $m->save());
     }
 
-    public function test_explicit_null_still_throws(): void
+    public function test_explicit_null_is_rejected_on_save_not_on_assignment(): void
     {
         $this->db->exec("CREATE TABLE `{$this->prefix}vf_defaults` (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NOT NULL DEFAULT 'anon')");
         $m = new VfDefaultsModel();
-        $this->expectException(\Exception::class);
         $m->name = null;
+        try {
+            $m->save();
+            $this->fail('save() must reject NULL in a NOT NULL column');
+        } catch (\Exception $e) {
+            $this->assertSame(sprintf(\DB\Cortex::E_NULLABLE_COLLISION, 'name'), $e->getMessage());
+        }
+        $this->assertTrue($m->dry());
+        $this->assertSame([], $this->db->exec("SELECT * FROM `{$this->prefix}vf_defaults`"));
+        $m->name = 'fixed';
+        $this->assertNotFalse($m->save());
+    }
+
+    public function test_required_validation_answers_null_before_cortex(): void
+    {
+        $this->db->exec("CREATE TABLE `{$this->prefix}vf_defaults` (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(64) NOT NULL DEFAULT 'anon')");
+        $m = new VfRequiredDefaultsModel();
+        $m->name = null;
+        $this->assertSame(false, $m->save());
+        $this->assertNotNull($m->get_last_err_code());
     }
 
     // 2. unknown column type the model never mentions crashes the model
