@@ -176,5 +176,6 @@ final class HistoryViewsTest extends TestCase
         self::assertSame('plan', $xpath->query('//template//*[@class="quota-pace"]/span')->item(0)->textContent);
         self::assertSame('Insufficient balance', $xpath->query('//template//*[@class="kv is-bad"]/*[@class="kv-v"]')->item(0)->textContent);
         self::assertStringContainsString('3 denied', $xpath->query('//*[@class="summary"]')->item(0)->textContent);
+        self::assertSame('-', trim($xpath->query('//*[@data-row="acme"]//*[contains(@class, "quota-den")]')->item(0)->textContent));
     }
 }

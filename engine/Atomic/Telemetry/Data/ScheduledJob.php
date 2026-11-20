@@ -24,6 +24,7 @@ final class ScheduledJob
         public readonly ?float $duration,
         public readonly array $next_runs,
         public readonly array $runs,
+        public readonly bool $internal = false,
     ) {}
 
     public function never_run(): bool
@@ -48,6 +49,7 @@ final class ScheduledJob
             'human' => $this->human,
             'target' => $this->command,
             'owner' => $this->owner,
+            'internal' => $this->internal,
             'enabled' => $this->enabled,
             'state' => $this->enabled ? 'enabled' : 'paused',
             'last_outcome' => $this->last_outcome->value,

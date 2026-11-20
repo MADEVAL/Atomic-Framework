@@ -45,6 +45,15 @@ final class DatabaseReporterTest extends StatsDbTestCase
         self::fail("table {$name} missing from the report");
     }
 
+    public function test_marks_framework_tables(): void
+    {
+        $report = (new DatabaseReporter())->report();
+        $prefix = (string)App::instance()->get('DB_CONFIG.prefix');
+
+        self::assertTrue($this->table($report, $prefix . 'telemetry_counters')['framework']);
+        self::assertFalse($this->table($report, $this->parent)['framework']);
+    }
+
     public function test_reports_tables_with_column_types_and_indexes(): void
     {
         $report = (new DatabaseReporter())->report();

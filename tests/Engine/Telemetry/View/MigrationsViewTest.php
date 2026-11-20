@@ -50,6 +50,17 @@ final class MigrationsViewTest extends TestCase
         self::assertStringContainsString('compare the file with version control', $xpath->query('//*[@data-row="app|new"]/template')->item(0)->textContent);
     }
 
+    public function test_framework_migrations_carry_a_tag(): void
+    {
+        $xpath = $this->render('migrations', new MigrationsReport(false, [
+            new MigrationEntry('framework', 'create_telemetry_stats_tables', 'f.php', true, MigrationIntegrity::Verified, 'b', '2026-01-01 10:00:00'),
+            self::entry('mine', 'b', MigrationIntegrity::Verified, '2026-01-01 10:00:00'),
+        ]), new Links('/telemetry'));
+
+        self::assertSame('Framework', $xpath->query('//*[@data-row="framework|create_telemetry_stats_tables"]//*[@class="tag"]')->item(0)->textContent);
+        self::assertSame(0, $xpath->query('//*[@data-row="app|mine"]//*[@class="tag"]')->length);
+    }
+
     public function test_the_view_button_opens_the_source_popup(): void
     {
         $xpath = $this->render('migrations', new MigrationsReport(true, [self::entry('one', 'b', MigrationIntegrity::Verified, '2026-01-01 10:00:00')]), new Links('/tl'));

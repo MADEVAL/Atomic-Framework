@@ -71,7 +71,7 @@
 .quota-bal { width: 13.125rem; flex: none; }
 .quota-bal .row-sub { margin-top: var(--space-1); }
 .quota-ren { width: 5.25rem; flex: none; }
-.quota-den { width: 4.75rem; flex: none; }
+.quota-den { width: 5.75rem; flex: none; }
 .quota-pace { display: grid; grid-template-columns: 5.625rem 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-1-5) 0; font-size: var(--fs-sm); }
 .quota-plans { margin-top: var(--space-10); }
 .quota-plan { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-5); padding: var(--space-3); border-top: var(--bw) solid var(--line); font-size: var(--fs-base); }

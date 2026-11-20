@@ -36,6 +36,11 @@ final class Ui
         return Html::el('span', ['class' => 'danger'], $text);
     }
 
+    public function tag(string $text): Html
+    {
+        return Html::el('span', ['class' => 'tag'], $text);
+    }
+
     public function label(string $text): Html
     {
         return Html::el('div', ['class' => 'label'], $text);

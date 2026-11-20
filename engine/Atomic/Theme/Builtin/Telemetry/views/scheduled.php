@@ -50,7 +50,7 @@ return static function (Ui $ui, ScheduledJob ...$jobs): void {
                 Html::el('div', ['class' => 'muted small'], 'took ' . Fmt::dur((float)$job->duration)),
             )),
             $ui->fact('Cron', $job->cron, mono: true, copy: $job->cron, copy_title: 'Copy cron expression'),
-            $ui->fact('Owner', $job->owner ?: $ui->muted('Not set')),
+            $ui->fact('Owner', $job->internal ? 'Atomic framework' : ($job->owner ?: $ui->muted('Not set'))),
             $ui->fact('Task key', $job->id, wide: true, mono: true, copy: $job->id, copy_title: 'Copy task key'),
         ),
         $ui->label('Next 3 runs'),
@@ -67,7 +67,7 @@ return static function (Ui $ui, ScheduledJob ...$jobs): void {
     $row = static fn (ScheduledJob $job): Html => $ui->row(
         id: $job->id,
         cells: [
-            $ui->main($job->display_name(), $job->command, sub_mono: true),
+            $ui->main(Html::join($job->display_name(), $job->internal ? $ui->tag('Framework') : null), $job->command, sub_mono: true),
             Html::el('span', ['class' => 'sched-sch col-dim'],
                 Html::el('div', [], $job->human),
                 Html::el('div', ['class' => 'row-sub mono'], $job->cron)),
@@ -82,7 +82,7 @@ return static function (Ui $ui, ScheduledJob ...$jobs): void {
                 ? Html::el('div', ['title' => Fmt::utc($job->next_runs[0] ?? null)], Fmt::short($job->next_runs[0] ?? null))
                 : $ui->muted('Paused')),
         ],
-        filters: [$filter_key($job)],
+        filters: [$filter_key($job), $job->internal ? 'framework' : null],
         search: [$job->name, $job->command, $job->command],
         drawer: $drawer($job),
         off: !$job->enabled,
@@ -104,6 +104,7 @@ return static function (Ui $ui, ScheduledJob ...$jobs): void {
             new Pill(JobOutcome::Unknown->key(), 'Unknown outcome', $count(JobOutcome::Unknown->key())),
             new Pill(JobOutcome::Skipped->key(), 'Skipped', $count(JobOutcome::Skipped->key())),
             new Pill('paused', 'Paused', $count('paused')),
+            new Pill('framework', 'Framework', count(array_filter($jobs, static fn (ScheduledJob $job): bool => $job->internal))),
         ],
         search_placeholder: 'Search jobs or commands',
         columns: [

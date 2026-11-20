@@ -72,7 +72,7 @@ return static function (Ui $ui, QuotaReport $report, Range $range): void {
                 $ui->meter($scope->share()),
                 Html::el('div', ['class' => 'row-sub mono'], Fmt::n($scope->balance) . ' / ' . Fmt::n($scope->credits)))),
             $ui->cell('quota-ren cell', Fmt::age($scope->ttl)),
-            $ui->cell($scope->denied_total() ? 'quota-den cell danger' : 'quota-den cell', $scope->denied_total() ?: ''),
+            $ui->cell($scope->denied_total() ? 'quota-den cell danger' : 'quota-den cell', $scope->denied_total() ?: $ui->muted('-')),
         ],
         filters: [$scope->denied_total() > 0 ? 'denied' : null],
         search: [$scope->scope, $scope->tier],

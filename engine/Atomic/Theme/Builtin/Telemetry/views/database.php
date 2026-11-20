@@ -122,7 +122,7 @@ return static function (Ui $ui, DatabaseSchema $schema): void {
         return $ui->row(
             id: $table->name,
             cells: [
-                $ui->main($name($table->name), $details, mono: true),
+                $ui->main(Html::join($name($table->name), $table->framework ? $ui->tag('Framework') : null), $details, mono: true),
                 $ui->cell('db-links cell', $links, title: 'Foreign keys out → / in ←'),
                 $ui->cell('db-rows', $table->rows !== null ? '~' . Fmt::n($table->rows) : '-', title: 'Estimate from information_schema'),
                 $ui->cell('db-size muted', Fmt::bytes($table->size)),

@@ -62,6 +62,23 @@ final class DatabaseViewTest extends TestCase
         self::assertSame('1.5 GB', Fmt::bytes(1610612736));
     }
 
+    public function test_framework_tables_carry_a_tag_without_moving(): void
+    {
+        $table = static fn (string $name, bool $framework): array => [
+            'name' => $name, 'engine' => 'InnoDB', 'rows' => 1, 'size' => 1, 'collation' => null, 'comment' => '',
+            'columns' => [self::column('id', 'PRI')], 'indexes' => [], 'references' => [], 'referenced_by' => [], 'framework' => $framework,
+        ];
+        $xpath = $this->render(DatabaseSchema::from_array([
+            'available' => true, 'database' => 'shop', 'host' => null, 'prefix' => 'app_',
+            'tables' => [$table('app_jobs', true), $table('app_orders', false), $table('app_sessions', true)],
+        ]));
+
+        self::assertSame('Framework', $xpath->query('//*[@data-row="app_jobs"]//*[@class="tag"]')->item(0)->textContent);
+        self::assertSame(0, $xpath->query('//*[@data-row="app_orders"]//*[@class="tag"]')->length);
+        $order = array_map(static fn (\DOMElement $row): string => $row->getAttribute('data-row'), iterator_to_array($xpath->query('//*[@data-row]')));
+        self::assertSame(['app_jobs', 'app_orders', 'app_sessions'], array_slice($order, 0, 3));
+    }
+
     public function test_drawer_links_related_tables_and_draws_the_diagram(): void
     {
         $xpath = $this->render(self::schema());

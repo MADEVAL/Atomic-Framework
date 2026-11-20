@@ -130,6 +130,7 @@ final class TelemetryDataTest extends TestCase
             'human' => 'At 03:00',
             'target' => 'App\\Jobs\\Prune::handle',
             'owner' => null,
+            'internal' => false,
             'enabled' => true,
             'state' => 'enabled',
             'last_outcome' => 'failed',

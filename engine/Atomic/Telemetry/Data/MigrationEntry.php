@@ -16,6 +16,11 @@ final class MigrationEntry
         public readonly ?string $applied_at,
     ) {}
 
+    public function is_framework(): bool
+    {
+        return $this->source === 'framework';
+    }
+
     public function is_pending(): bool
     {
         return !$this->applied;

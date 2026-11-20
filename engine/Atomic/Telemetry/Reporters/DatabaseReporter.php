@@ -7,6 +7,7 @@ if (!defined('ATOMIC_START')) exit;
 use Engine\Atomic\Telemetry\Data\DatabaseSchema;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
+use Engine\Atomic\Telemetry\Stats\StatsConnection;
 
 /** Reads information_schema only, never table rows. */
 class DatabaseReporter
@@ -58,9 +59,36 @@ class DatabaseReporter
         return $out;
     }
 
+    /** Tables the framework's own migrations create, named as config sets them. */
+    private const FRAMEWORK_TABLES = ['migrations', 'jobs', 'jobs_completed', 'jobs_failed', 'telemetry'];
+    private const FRAMEWORK_MODELS = [
+        \Engine\Atomic\Session\Models\Session::class,
+        \Engine\Atomic\App\Models\MutexLock::class,
+        \Engine\Atomic\App\Models\Meta::class,
+        \Engine\Atomic\App\Models\Options::class,
+    ];
+
+    /** @return list<string> */
+    private static function framework_tables(string $prefix): array
+    {
+        $names = self::FRAMEWORK_TABLES;
+        foreach ((new \ReflectionClass(StatsConnection::class))->getConstants() as $key => $value) {
+            if (str_starts_with($key, 'TABLE_')) {
+                $names[] = $value;
+            }
+        }
+        foreach (self::FRAMEWORK_MODELS as $model) {
+            // Read the class default, so no model is built or connected.
+            $names[] = (string)(new \ReflectionProperty($model, 'table'))->getDefaultValue();
+        }
+
+        return array_map(static fn (string $name): string => $prefix . $name, $names);
+    }
+
     /** @return list<array<string, mixed>> */
     private function tables(\DB\SQL $db, string $schema): array
     {
+        $framework = self::framework_tables((string)App::instance()->get('DB_CONFIG.prefix'));
         $tables = [];
         foreach ($db->exec(
             'SELECT TABLE_NAME AS name, ENGINE AS engine, TABLE_ROWS AS row_estimate, DATA_LENGTH AS data_bytes, INDEX_LENGTH AS index_bytes, TABLE_COLLATION AS collation, TABLE_COMMENT AS comment
@@ -74,6 +102,7 @@ class DatabaseReporter
                 'size' => (int)$row['data_bytes'] + (int)$row['index_bytes'],
                 'collation' => $row['collation'],
                 'comment' => (string)$row['comment'],
+                'framework' => in_array((string)$row['name'], $framework, true),
                 'columns' => [],
                 'indexes' => [],
                 'references' => [],

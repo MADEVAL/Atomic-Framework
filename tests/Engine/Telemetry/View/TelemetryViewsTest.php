@@ -167,6 +167,8 @@ final class TelemetryViewsTest extends TestCase
         self::assertStringContainsString('is-static', $xpath->query('//*[@data-row="half"]')->item(0)->getAttribute('class'));
         self::assertStringContainsString('3 requests blocked in the last hour', self::text($xpath, '//*[@class="summary"]'));
         self::assertSame('1', $xpath->query('//*[@data-badge="rl-badge"]')->item(0)->getAttribute('data-value'));
+        self::assertSame('-', self::text($xpath, '//*[@data-row="full"]//*[contains(@class, "quota-ren")]'));
+        self::assertSame('-', self::text($xpath, '//*[@data-row="half"]//*[contains(@class, "quota-den")]'));
     }
 
     public function test_rate_limits_without_keys_say_nothing_was_blocked(): void
@@ -207,6 +209,23 @@ final class TelemetryViewsTest extends TestCase
         self::assertStringContainsString('1 with a failed last run', self::text($xpath, '//*[@class="summary"]'));
         self::assertStringContainsString('next run 2026-11-21 03:00:00 UTC', self::text($xpath, '//*[@class="summary"]'));
         self::assertSame('Prune::handle', self::text($xpath, '//*[@data-row="Prune"]//*[contains(@class, "row-title")]'));
+    }
+
+    public function test_scheduled_marks_framework_jobs(): void
+    {
+        $internal = new ScheduledJob(
+            id: 'trim', name: 'Engine\Atomic\Telemetry\Stats\TrimJob::handle', command: 'Engine\Atomic\Telemetry\Stats\TrimJob::handle',
+            cron: '20 3 * * *', human: 'Daily at 03:20', owner: null, enabled: true,
+            last_outcome: JobOutcome::Never, last_status: null, last_run_at: null, duration: null,
+            next_runs: [new \DateTimeImmutable('2026-11-21T03:20:00+00:00')], runs: [], internal: true,
+        );
+        $xpath = $this->render('scheduled', $internal, self::job('Mail', true, JobOutcome::Ok));
+
+        self::assertSame('Framework', self::text($xpath, '//*[@data-row="trim"]//*[@class="tag"]'));
+        self::assertSame(0, $xpath->query('//*[@data-row="Mail"]//*[@class="tag"]')->length);
+        self::assertSame('all never framework', $xpath->query('//*[@data-row="trim"]')->item(0)->getAttribute('data-keys'));
+        self::assertSame(1, $xpath->query('//button[@data-filter="framework"]')->length);
+        self::assertStringContainsString('Atomic framework', self::text($xpath, '//*[@data-row="trim"]/template'));
     }
 
     public function test_scheduled_drawer_lists_runs_with_their_errors(): void

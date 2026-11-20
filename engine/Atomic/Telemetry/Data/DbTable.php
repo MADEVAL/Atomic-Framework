@@ -23,6 +23,7 @@ final class DbTable
         public readonly array $indexes,
         public readonly array $references,
         public readonly array $referenced_by,
+        public readonly bool $framework = false,
     ) {}
 
     /** @param array<string, mixed> $table */
@@ -41,6 +42,7 @@ final class DbTable
             indexes: $list('indexes', DbIndex::from_array(...)),
             references: $list('references', DbForeignKey::from_array(...)),
             referenced_by: $list('referenced_by', DbForeignKey::from_array(...)),
+            framework: (bool)($table['framework'] ?? false),
         );
     }
 

@@ -113,6 +113,12 @@
   font-size: var(--fs-xs); font-weight: var(--fw-semibold);
   letter-spacing: var(--ls-caps); text-transform: uppercase; color: var(--muted);
 }
+/* ── Tag: small marker next to a row title ── */
+.tag {
+  margin-left: var(--space-2); padding: 0 var(--space-1-5);
+  border: var(--bw) solid var(--line); border-radius: var(--r-pill);
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted);
+}
 /* ── Section head: label on the left, actions on the right ── */
 .sec-h { display: flex; align-items: center; gap: var(--space-3); min-height: var(--ctl-h-sm); margin-bottom: var(--space-1-5); }
 .sec-h .label { margin: 0; }

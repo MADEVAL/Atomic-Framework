@@ -65,7 +65,7 @@ return static function (Ui $ui, MigrationsReport $report, Links $links): void {
         id: $entry->source . '|' . $entry->name,
         cells: [
             $ui->cell('col-st', $ui->status($entry->status())),
-            $ui->main($entry->name, $entry->source, mono: true, title_class: 'mig-name'),
+            $ui->main(Html::join($entry->name, $entry->is_framework() ? $ui->tag('Framework') : null), $entry->source, mono: true, title_class: 'mig-name'),
             Html::el('span', ['class' => 'mig-int', 'data-tone' => $entry->integrity->tone()->value ?: null],
                 $entry->is_pending() ? '' : $entry->integrity->label()),
             Html::el('span', ['class' => 'mig-at muted'], $minutes($entry->applied_at)),

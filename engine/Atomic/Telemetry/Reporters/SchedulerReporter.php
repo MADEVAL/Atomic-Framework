@@ -77,6 +77,7 @@ class SchedulerReporter implements SnapshotProviderInterface
                 $event->get_next_run_dates(self::NEXT_RUNS),
             ) : [],
             runs: $runs,
+            internal: $event->is_internal(),
         );
     }
 
