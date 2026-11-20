@@ -78,6 +78,37 @@ class LogTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function test_error_writes_redacted_context_to_default_log(): void
+    {
+        Log::error('Tariff purchase exception', [
+            'seller_id' => 42,
+            'tariff_id' => 17,
+            'trace' => "first frame\nsecond frame",
+            'payment' => ['password' => 'private-payment-value'],
+        ]);
+
+        $log = file_get_contents(self::dated_log_path('atomic.log'));
+        $this->assertStringContainsString(
+            '[ERROR] Tariff purchase exception {"seller_id":42,"tariff_id":17,"trace":"first frame\\nsecond frame","payment":{"password":"[MASKED]"}}',
+            $log
+        );
+        $this->assertStringNotContainsString('private-payment-value', $log);
+    }
+
+    public function test_channel_writes_exception_and_context(): void
+    {
+        Log::add_channel('context', 'context.log');
+        Log::channel('context')->warning('Purchase failed for {seller_id}', [
+            'seller_id' => 42,
+            'exception' => new \RuntimeException('payment failed'),
+        ]);
+
+        $log = file_get_contents(self::dated_log_path('context.log'));
+        $this->assertStringContainsString('[WARNING] Purchase failed for 42 {"seller_id":42,"exception":{', $log);
+        $this->assertStringContainsString('"message":"payment failed"', $log);
+        $this->assertStringContainsString('"trace":', $log);
+    }
+
     public function test_empty_message_does_not_throw(): void
     {
         Log::error('');

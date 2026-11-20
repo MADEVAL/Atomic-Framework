@@ -202,7 +202,7 @@ class Log
         return $dirname . DIRECTORY_SEPARATOR . $dated;
     }
 
-    public static function write_to_channel(string $channel, LogLevel $level, string $message): void
+    public static function write_to_channel(string $channel, LogLevel $level, string $message, array $context = []): void
     {
         if (empty($message)) return;
 
@@ -214,13 +214,39 @@ class Log
 
         if ($level->to_int() > $ch['level']) return;
 
-        $ch['logger']->write('[' . strtoupper($level->value) . '] ' . Redactor::redact_string($message));
+        if ($context !== []) {
+            $exception = $context['exception'] ?? null;
+            if ($exception instanceof \Throwable) {
+                $context['exception'] = [
+                    'class' => get_class($exception),
+                    'message' => $exception->getMessage(),
+                    'file' => $exception->getFile(),
+                    'line' => $exception->getLine(),
+                    'trace' => $exception->getTraceAsString(),
+                ];
+            }
+
+            $context = Redactor::redact($context);
+            $replacements = [];
+            foreach ($context as $key => $value) {
+                if (is_scalar($value)) {
+                    $replacements['{' . $key . '}'] = str_replace(["\r", "\n"], ['\r', '\n'], (string)$value);
+                }
+            }
+            $message = strtr($message, $replacements);
+        }
+
+        $message = Redactor::redact_string($message);
+        if ($context !== []) {
+            $message .= ' ' . json_encode($context, JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+        }
+        $ch['logger']->write('[' . strtoupper($level->value) . '] ' . $message);
     }
 
-    protected static function write(LogLevel $level, string $message): void
+    protected static function write(LogLevel $level, string $message, array $context = []): void
     {
         if (empty($message)) return;
-        self::write_to_channel(self::$default_channel, $level, $message);
+        self::write_to_channel(self::$default_channel, $level, $message, $context);
     }
 
     protected static function ensure_dumps_dir(): bool
@@ -293,12 +319,12 @@ class Log
         return $path;
     }
 
-    public static function emergency(string $msg): void { self::write(LogLevel::EMERGENCY, $msg); }
-    public static function alert(string $msg): void     { self::write(LogLevel::ALERT, $msg); }
-    public static function critical(string $msg): void  { self::write(LogLevel::CRITICAL, $msg); }
-    public static function error(string $msg): void     { self::write(LogLevel::ERROR, $msg); }
-    public static function warning(string $msg): void   { self::write(LogLevel::WARNING, $msg); }
-    public static function notice(string $msg): void    { self::write(LogLevel::NOTICE, $msg); }
-    public static function info(string $msg): void      { self::write(LogLevel::INFO, $msg); }
-    public static function debug(string $msg): void     { self::write(LogLevel::DEBUG, $msg); }
+    public static function emergency(string $msg, array $context = []): void { self::write(LogLevel::EMERGENCY, $msg, $context); }
+    public static function alert(string $msg, array $context = []): void     { self::write(LogLevel::ALERT, $msg, $context); }
+    public static function critical(string $msg, array $context = []): void  { self::write(LogLevel::CRITICAL, $msg, $context); }
+    public static function error(string $msg, array $context = []): void     { self::write(LogLevel::ERROR, $msg, $context); }
+    public static function warning(string $msg, array $context = []): void   { self::write(LogLevel::WARNING, $msg, $context); }
+    public static function notice(string $msg, array $context = []): void    { self::write(LogLevel::NOTICE, $msg, $context); }
+    public static function info(string $msg, array $context = []): void      { self::write(LogLevel::INFO, $msg, $context); }
+    public static function debug(string $msg, array $context = []): void     { self::write(LogLevel::DEBUG, $msg, $context); }
 }

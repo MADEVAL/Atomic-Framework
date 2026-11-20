@@ -1,6 +1,6 @@
 ## Log ##
 
-The Atomic logger provides structured, channel-based logging with built-in output sanitization. All log output passes through the Redactor before being written, ensuring sensitive values are never persisted to disk.
+The Atomic logger provides structured, channel-based logging with built-in output sanitization. The Redactor masks recognized sensitive values before log entries are written.
 
 ### Channels
 
@@ -21,9 +21,15 @@ Each channel has its own minimum level. Messages below the channel's level are s
 Standard PSR-3 levels are supported: `emergency`, `alert`, `critical`, `error`, `warning`, `notice`, `info`, `debug`.
 
 ```php
-Log::error('Something failed');
-Log::channel('queue_worker')->info('Worker started');
+Log::error('Tariff purchase failed for seller {seller_id}', [
+    'seller_id' => $seller->_id,
+    'tariff_id' => $tariff_id,
+    'exception' => $e,
+]);
+Log::channel('queue_worker')->info('Worker started', ['worker_id' => $worker_id]);
 ```
+
+Every level method accepts an optional context array on both the default logger and named channels. Atomic appends redacted context as single-line JSON and replaces matching `{key}` placeholders with redacted scalar values. A throwable under the `exception` key adds its class, message, file, line, and stack trace.
 
 ### Dumps
 
