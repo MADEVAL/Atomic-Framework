@@ -172,7 +172,7 @@ final class RelationTranslator
                 $name
             ));
         }
-        if ($rules->has_policy()) {
+        if ($rules->has_policy($name)) {
             throw self::error($model_class, $name, sprintf(
                 'combines a virtual %s relation with validation or cast policy; a virtual relation has no column to validate',
                 $relation->kind

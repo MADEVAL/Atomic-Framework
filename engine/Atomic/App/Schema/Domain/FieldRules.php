@@ -275,9 +275,9 @@ final class FieldRules
     }
 
     /** Whether any non-relation policy (validation, cast, uniqueness) is declared. */
-    public function has_policy(): bool
+    public function has_policy(?string $field = null): bool
     {
-        return $this->to_policy() !== [];
+        return $this->to_policy($field) !== [];
     }
 
     /**

@@ -514,6 +514,13 @@ final class DomainRelationTest extends TestCase
         }
     }
 
+    public function test_lint_reports_contradicting_relation_sides(): void
+    {
+        $errors = BadInverseOnManyToMany::lint();
+        $this->assertCount(1, $errors);
+        $this->assertStringContainsString('declare pivot() for a many-to-many', $errors[0]);
+    }
+
     public function test_domain_class_cannot_redeclare_inherited_legacy_relation(): void
     {
         $this->expectException(\LogicException::class);

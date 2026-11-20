@@ -184,6 +184,7 @@ final class ModelDefinitionManager
     {
         try {
             $conf = $this->collect($class_name);
+            $this->verify_relations($class_name);
         } catch (\Throwable $e) {
             return [$e->getMessage()];
         }
