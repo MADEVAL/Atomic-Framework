@@ -55,13 +55,19 @@ return static function (Ui $ui, Shell $shell): void {
       <?= $ui->icon_button('x', 'Dismiss on this browser', ['data-dismiss' => 'public-note']) ?>
     </div>
 <?php endif ?>
+<?php if ($shell->stats_missing): ?>
+    <div class="note" role="alert" id="stats-note">
+      <?= $ui->icon('alert') ?>
+      <div class="note-body"><b>Statistics tables are missing.</b> History charts stay empty until you run <span class="mono">php atomic migrations/migrate</span>.</div>
+    </div>
+<?php endif ?>
     <div class="rangebar hide" id="rangebar">
       <div class="pills">
 <?php foreach ($ranges as $range => $label): ?>
         <button class="pill<?= $range === $shell->range ? ' is-on' : '' ?>" data-range="<?= $range ?>"><?= $ui->e($label) ?></button>
 <?php endforeach ?>
       </div>
-      <span class="muted">History is kept for 30 days. All-time figures are lifetime counters.</span>
+      <span class="muted">History is kept for <?= $shell->retention_days ?> days (<span class="mono">TELEMETRY_STATS_RETENTION_DAYS</span>). All-time figures are lifetime counters.</span>
     </div>
 <?php foreach ($nav as [$tab]): ?>
     <section class="pane<?= $tab === $shell->tab ? ' is-on' : '' ?>" id="tab-<?= $tab ?>"><?= $tab === $shell->tab ? $shell->pane : '' ?></section>

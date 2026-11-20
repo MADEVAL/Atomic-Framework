@@ -68,6 +68,21 @@ final class StatsConnection
         return self::$available ? $db : null;
     }
 
+    /** True when stats are on and MySQL is reachable, but the stats tables were never migrated. */
+    public static function needs_migration(): bool
+    {
+        if (!self::enabled()) {
+            return false;
+        }
+        try {
+            $db = ConnectionManager::instance()->get_db(false);
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return $db instanceof \DB\SQL && self::db() === null;
+    }
+
     public static function table(string $name): string
     {
         $prefix = (string)(App::instance()->get('DB_CONFIG.prefix') ?? 'atomic_');

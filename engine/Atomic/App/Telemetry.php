@@ -31,6 +31,7 @@ use Engine\Atomic\Telemetry\Reporters\RateLimitReporter;
 use Engine\Atomic\Telemetry\Reporters\SchedulerReporter;
 use Engine\Atomic\Telemetry\Reporters\SecurityReporter;
 use Engine\Atomic\Telemetry\Reporters\SummaryReporter;
+use Engine\Atomic\Telemetry\Stats\StatsConnection;
 use Engine\Atomic\Telemetry\Stats\StatsRecorder;
 use Engine\Atomic\Telemetry\View\Html;
 use Engine\Atomic\Telemetry\View\Links;
@@ -105,6 +106,8 @@ class Telemetry extends Controller
                 badges: (new SummaryReporter())->typed()->badges(),
                 public_access: $config['publicAccess'],
                 range: $this->range($atomic),
+                stats_missing: StatsConnection::needs_migration(),
+                retention_days: StatsConnection::retention_days(),
             );
             Assets::instance()->localize_script('telemetry', $config + ['history' => self::HISTORY_TABS], 'TELEMETRY_CONFIG');
             $atomic->set('title', 'Atomic Telemetry');

@@ -156,4 +156,24 @@ final class TelemetryThemeContractTest extends TestCase
         self::assertStringContainsString('$shell->public_access', $shell);
         self::assertStringContainsString('TELEMETRY_ACCESS_MODE=auth', $shell);
     }
+
+    public function test_shell_renders_missing_stats_tables_notice(): void
+    {
+        $shell = $this->file(self::THEME_DIR . 'views/shell.php');
+        $controller = $this->file('/engine/Atomic/App/Telemetry.php');
+
+        self::assertStringContainsString('$shell->stats_missing', $shell);
+        self::assertStringContainsString('migrations/migrate', $shell);
+        self::assertStringContainsString('StatsConnection::needs_migration()', $controller);
+    }
+
+    public function test_shell_states_the_configured_retention(): void
+    {
+        $shell = $this->file(self::THEME_DIR . 'views/shell.php');
+        $controller = $this->file('/engine/Atomic/App/Telemetry.php');
+
+        self::assertStringContainsString('$shell->retention_days', $shell);
+        self::assertStringNotContainsString('kept for 30 days', $shell);
+        self::assertStringContainsString('StatsConnection::retention_days()', $controller);
+    }
 }
