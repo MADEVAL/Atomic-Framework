@@ -283,6 +283,7 @@ class Scheduler
     {
         $explicit = $path !== null;
         if ($path === null) {
+            $this->load_schedule_file(\dirname(__DIR__) . '/Core/Routes/schedule.php', true);
             if (\defined('ATOMIC_APP_ROUTES')) {
                 $path = \ATOMIC_APP_ROUTES . 'schedule.php';
             } elseif (\defined('ATOMIC_DIR')) {

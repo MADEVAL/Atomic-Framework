@@ -33,6 +33,7 @@ class Event
     protected ?string $mutex_name = null;
     protected ?string $mutex_token = null;
     protected ?string $owner = null;
+    protected bool    $internal = false;
     protected ?int    $timeout_seconds = null;
     protected ?string $identity = null;
 
@@ -85,6 +86,18 @@ class Event
     {
         $this->owner = $owner;
         return $this;
+    }
+
+    /** Marks a task the framework registers itself, not the app's schedule file. */
+    public function internal(): self
+    {
+        $this->internal = true;
+        return $this;
+    }
+
+    public function is_internal(): bool
+    {
+        return $this->internal;
     }
 
     public function get_owner(): ?string

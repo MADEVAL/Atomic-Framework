@@ -156,10 +156,10 @@ final class StatsSpoolTest extends StatsDbTestCase
         self::assertSame(0, (int)@\filesize($this->spool_dir . 'telemetry-stats.spool'));
     }
 
-    public function test_skeleton_schedule_flushes_stats_every_minute(): void
+    public function test_framework_schedule_flushes_stats_every_minute(): void
     {
-        $schedule = (string)\file_get_contents(\dirname(__DIR__, 4) . '/packages/skeleton/routes/schedule.php');
+        $schedule = (string)\file_get_contents(\dirname(__DIR__, 4) . '/engine/Atomic/Core/Routes/schedule.php');
 
-        self::assertMatchesRegularExpression('/->job\(\\\\Engine\\\\Atomic\\\\Telemetry\\\\Stats\\\\FlushJob::class\)\s*->every_minute\(\)/', $schedule);
+        self::assertMatchesRegularExpression('/->job\(FlushJob::class\)\s*->every_minute\(\)/', $schedule);
     }
 }

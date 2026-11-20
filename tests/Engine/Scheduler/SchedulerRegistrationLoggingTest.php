@@ -42,7 +42,7 @@ final class SchedulerRegistrationLoggingTest extends TestCase
             . '\\Engine\\Atomic\\Core\\Log::init($base);'
             . '$scheduler = \\Engine\\Atomic\\Scheduler\\Scheduler::instance()->logging(false);'
             . '$scheduler->' . $method . '(' . ($kind === 'default' ? '' : var_export($path, true)) . ');'
-            . 'echo count($scheduler->events());';
+            . 'echo count(array_filter($scheduler->events(), static fn ($event): bool => !$event->is_internal()));';
         file_put_contents($script, $source);
         try {
             exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' 2>&1', $output, $status);
