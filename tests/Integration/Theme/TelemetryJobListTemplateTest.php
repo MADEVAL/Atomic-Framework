@@ -52,7 +52,6 @@ final class TelemetryJobListTemplateTest extends TestCase
         $assets->localize_script('telemetry', $jobs, 'TELEMETRY_JOBS');
         ob_start();
         $method = new \ReflectionMethod(Assets::class, 'print_script_recursive');
-        $method->setAccessible(true);
         $method->invoke($assets, 'telemetry', true, []);
         $html = (string)ob_get_clean();
         $assets->dequeue_script('telemetry');

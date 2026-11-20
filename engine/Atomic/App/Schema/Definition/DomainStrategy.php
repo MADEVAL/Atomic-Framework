@@ -46,7 +46,6 @@ final class DomainStrategy
 
         $ref = new \ReflectionClass($class_name);
         $method = $ref->getMethod('domain_schema');
-        $method->setAccessible(true);
         $result = $method->invoke(null, DomainSchema::create());
 
         if (!$result instanceof DomainDefinition) {

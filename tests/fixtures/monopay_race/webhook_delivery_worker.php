@@ -95,7 +95,6 @@ if ($status_enum === PaymentStatus::SUCCESS) {
 
 $reflection = new ReflectionClass(WebhookHandler::class);
 $method = $reflection->getMethod('update_payment_from_webhook');
-$method->setAccessible(true);
 
 $payment = $method->invoke(null, $data);
 
