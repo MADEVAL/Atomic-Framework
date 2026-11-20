@@ -5,6 +5,7 @@ namespace Engine\Atomic\App\Schema\Definition;
 if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\App\Schema\Domain\DomainDefinition;
+use Engine\Atomic\App\Schema\Domain\Relation;
 use Engine\Atomic\App\Schema\Structure\SchemaStructure;
 
 /**
@@ -18,10 +19,22 @@ final class StructurePolicyMerger
     /** Process-wide warning deduplication is independent of manager resets. */
     private static array $warned = [];
     private static array $skipped = [];
+    /** @var array<string, array<string, array{relation: Relation, options: array<string, string|null>}>> */
+    private static array $relations = [];
 
     public static function skipped(string $model_class): array
     {
         return self::$skipped[$model_class] ?? [];
+    }
+
+    /**
+     * Relations declared by the definition merged last for $model_class.
+     *
+     * @return array<string, array{relation: Relation, options: array<string, string|null>}>
+     */
+    public static function relations(string $model_class): array
+    {
+        return self::$relations[$model_class] ?? [];
     }
 
     public static function warn_skipped(string $model_class, array $problems): void
@@ -57,6 +70,14 @@ final class StructurePolicyMerger
     {
         $conf = [];
         self::$skipped[$model_class] = [];
+        self::$relations[$model_class] = [];
+        $declarations = [];
+        foreach ($domain->fields() as $name => $rules) {
+            $declaration = RelationTranslator::declaration($model_class, (string) $name, $rules);
+            if ($declaration !== null) {
+                $declarations[(string) $name] = $declaration;
+            }
+        }
 
         foreach ($structure->fields() as $name => $field) {
             $rules = $domain->field($name);
@@ -93,6 +114,11 @@ final class StructurePolicyMerger
 
             $policy = $rules->to_policy($name);
 
+            if ($policy !== [] && ($declarations[$name]['relation'] ?? null)?->kind === Relation::BELONGS_TO_MANY) {
+                // Atomic's pre-save validation skips belongs-to-many fields.
+                throw RelationTranslator::error($model_class, $name, 'combines a belongs-to-many relation with validation or cast policy, which is never applied to belongs-to-many fields');
+            }
+
             if (!empty($policy['required']) && $field->nullable) {
                 throw new \LogicException(sprintf(
                     'Cannot mark field "%s" as required in %s: the database declares it nullable.',
@@ -114,12 +140,23 @@ final class StructurePolicyMerger
             }
 
             $structural = self::structural_conf($field);
+            $declaration = $declarations[$name] ?? null;
+            if ($declaration !== null) {
+                $conf[$name] = RelationTranslator::column_conf($model_class, $field, $structural + self::policy_remainder($policy), $declaration, $policy);
+                self::assert_compatible($name, $structural, $policy, $model_class);
+                continue;
+            }
             self::assert_compatible($name, $structural, $policy, $model_class);
             if (isset($policy['type'])) $structural['type'] = $policy['type'];
             $conf[$name] = $structural + self::policy_remainder($policy);
         }
 
-        foreach (array_keys($domain->fields()) as $name) {
+        foreach ($domain->fields() as $name => $rules) {
+            $name = (string) $name;
+            if (isset($declarations[$name]) && !$structure->has($name)) {
+                $conf[$name] = RelationTranslator::virtual_conf($model_class, $name, $rules, $declarations[$name], $structure);
+                continue;
+            }
             if (!$structure->has((string) $name)) {
                 throw new \LogicException(sprintf(
                     'Domain policy for field "%s" in %s has no matching column in the database schema for table "%s".',
@@ -130,6 +167,7 @@ final class StructurePolicyMerger
             }
         }
 
+        self::$relations[$model_class] = $declarations;
         return $conf;
     }
 

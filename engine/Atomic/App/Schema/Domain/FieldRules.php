@@ -184,6 +184,102 @@ final class FieldRules
         return $this;
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Relations (Cortex). Recorded as written; RelationTranslator validates
+    // them against the live structure and the related model.
+    // ─────────────────────────────────────────────────────────────
+
+    /** @var Relation[] */
+    private array $relations = [];
+    /** @var array<int, array{0: string, 1: string|null}> [option, value] pairs in call order */
+    private array $relation_options = [];
+
+    /**
+     * Column-backed many-to-one. Without $field the relation targets the
+     * related model's primary key (Cortex string form); with $field it
+     * targets that column ([class, field] form).
+     */
+    public function belongs_to_one(string $model, ?string $field = null): self
+    {
+        $this->relations[] = new Relation(Relation::BELONGS_TO_ONE, $model, $field);
+        return $this;
+    }
+
+    /** Column-backed one-way many-to-many, stored as a JSON list of keys. */
+    public function belongs_to_many(string $model, ?string $field = null): self
+    {
+        $this->relations[] = new Relation(Relation::BELONGS_TO_MANY, $model, $field);
+        return $this;
+    }
+
+    /** Virtual inverse of $model's belongs-to-one field $field. */
+    public function has_one(string $model, string $field): self
+    {
+        $this->relations[] = new Relation(Relation::HAS_ONE, $model, $field);
+        return $this;
+    }
+
+    /**
+     * Virtual inverse of $model's belongs-to-one field $field, or — with
+     * pivot() — one side of a many-to-many with $model's has-many $field.
+     */
+    public function has_many(string $model, string $field): self
+    {
+        $this->relations[] = new Relation(Relation::HAS_MANY, $model, $field);
+        return $this;
+    }
+
+    /**
+     * Declare a has-many as many-to-many through a pivot table. Without a
+     * table name Cortex computes it; both sides must then agree on that.
+     */
+    public function pivot(?string $table = null): self
+    {
+        return $this->relation_option('pivot', $table);
+    }
+
+    /** m:m: pivot column holding this side's key (Cortex 'relField'). */
+    public function rel_field(string $column): self
+    {
+        return $this->relation_option('relField', $column);
+    }
+
+    /** m:m: this model's key stored in the pivot (Cortex 'relPK'). */
+    public function rel_pk(string $column): self
+    {
+        return $this->relation_option('relPK', $column);
+    }
+
+    /** m:m: this model's column used to look up pivot rows (Cortex 'localKey'). */
+    public function local_key(string $column): self
+    {
+        return $this->relation_option('localKey', $column);
+    }
+
+    private function relation_option(string $name, ?string $value): self
+    {
+        $this->relation_options[] = [$name, $value];
+        return $this;
+    }
+
+    /** @return Relation[] */
+    public function relations(): array
+    {
+        return $this->relations;
+    }
+
+    /** @return array<int, array{0: string, 1: string|null}> */
+    public function relation_options(): array
+    {
+        return $this->relation_options;
+    }
+
+    /** Whether any non-relation policy (validation, cast, uniqueness) is declared. */
+    public function has_policy(): bool
+    {
+        return $this->to_policy() !== [];
+    }
+
     /**
      * Export validation policy and an optional Cortex encoding type.
      * The structural merger combines this with the live column type.

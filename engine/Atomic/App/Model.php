@@ -95,6 +95,11 @@ abstract class Model extends Cortex
 	}
 
     public function initMapper() {
+        $manager = ModelDefinitionManager::instance();
+        if ($manager->uses_domain_schema(static::class)) {
+            // Before Cortex resolves relations, which assumes both sides agree.
+            $manager->verify_relations(static::class);
+        }
         parent::initMapper();
         if ($this->dbsType === 'sql') {
             $this->mapper = new \Engine\Atomic\App\Schema\Structure\DefaultSqlMapper(
@@ -137,6 +142,16 @@ abstract class Model extends Cortex
 	 * A target that cannot be resolved at all fails loudly.
 	 */
 	protected static function resolveRelationConf($field, $pkey = null) {
+		$resolved = self::resolveRelationTarget($field, $pkey);
+		// A live-schema column (domain definition) keeps its real type: Cortex
+		// would otherwise assume INT4 for a primary-key target.
+		if (isset($field['belongs-to-one'], $field['column_kind'], $field['type'])) {
+			$resolved['type'] = $field['type'];
+		}
+		return $resolved;
+	}
+
+	private static function resolveRelationTarget($field, $pkey) {
 		$rel = $field['belongs-to-one'] ?? null;
 		if (!is_array($rel) || ($rel[1] ?? '_id') === '_id') {
 			return parent::resolveRelationConf($field, $pkey);

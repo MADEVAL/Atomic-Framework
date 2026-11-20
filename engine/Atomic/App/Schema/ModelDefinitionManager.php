@@ -29,6 +29,12 @@ final class ModelDefinitionManager
     /** @var array<class-string, string[]> */
     private array $problems = [];
 
+    /** @var array<class-string, array<string, array{relation: \Engine\Atomic\App\Schema\Domain\Relation, options: array<string, string|null>}>> */
+    private array $relations = [];
+
+    /** @var array<class-string, true> models whose domain relations were checked against their targets */
+    private array $verified = [];
+
     public function resolve_configuration(string $class_name, callable $factory): array
     {
         return $this->resolved[$class_name] ??= $factory();
@@ -49,6 +55,8 @@ final class ModelDefinitionManager
             $manager->collected = [];
             $manager->resolved = [];
             $manager->problems = [];
+            $manager->relations = [];
+            $manager->verified = [];
         }
         \DB\Cortex::$schema_cache = [];
         self::$instance = $manager;
@@ -91,6 +99,7 @@ final class ModelDefinitionManager
 
         $merged = [];
         $problems = [];
+        $relations = [];
         foreach ($chain as $class) {
             if (DomainStrategy::contributes($class)) {
                 if (LegacyStrategy::contributes($class)) {
@@ -99,18 +108,73 @@ final class ModelDefinitionManager
                         $class
                     ));
                 }
-                $merged = array_replace_recursive($merged, DomainStrategy::collect($class, $this->source, $class_name, $table));
+                $contribution = DomainStrategy::collect($class, $this->source, $class_name, $table);
+                $declared = \Engine\Atomic\App\Schema\Definition\StructurePolicyMerger::relations($class_name);
+                foreach (array_keys($declared) as $field) {
+                    // Recursive merging would mix the old and new relation arrays.
+                    if (isset($merged[$field]) && self::relation_kind($merged[$field]) !== null) {
+                        throw new \LogicException(sprintf(
+                            'Model %s field "%s": %s redeclares the %s relation inherited from a parent class. Declare each relation once.',
+                            $class_name,
+                            $field,
+                            $class,
+                            self::relation_kind($merged[$field])
+                        ));
+                    }
+                }
+                $merged = array_replace_recursive($merged, $contribution);
+                $relations = array_replace($relations, $declared);
                 $problems = array_replace($problems, \Engine\Atomic\App\Schema\Definition\StructurePolicyMerger::skipped($class_name));
             } elseif (LegacyStrategy::contributes($class)) {
-                $merged = array_replace_recursive($merged, LegacyStrategy::collect($class));
+                $contribution = LegacyStrategy::collect($class);
+                foreach ($contribution as $field => $conf) {
+                    if (isset($relations[$field]) && is_array($conf) && self::relation_kind($conf) !== null) {
+                        throw new \LogicException(sprintf(
+                            'Model %s field "%s": %s redeclares in fieldConf the %s relation declared in a parent domain_schema(). Declare each relation once.',
+                            $class_name,
+                            $field,
+                            $class,
+                            $relations[$field]['relation']->kind
+                        ));
+                    }
+                }
+                $merged = array_replace_recursive($merged, $contribution);
             }
         }
 
         $problems = array_diff_key($problems, $merged);
         \Engine\Atomic\App\Schema\Definition\StructurePolicyMerger::warn_skipped($class_name, $problems);
         $this->problems[$class_name] = array_values($problems);
+        $this->relations[$class_name] = $relations;
         $this->collected[$key] = $merged;
         return $merged;
+    }
+
+    /**
+     * Check relations declared in domain_schema() against the related models.
+     * Runs once per model class, on first instantiation, because it needs the
+     * related models' resolved configuration.
+     */
+    public function verify_relations(string $class_name): void
+    {
+        if (isset($this->verified[$class_name])) {
+            return;
+        }
+        if (!array_key_exists($class_name, $this->relations)) {
+            $this->collect($class_name);
+        }
+        \Engine\Atomic\App\Schema\Definition\RelationVerifier::verify($class_name, $this->relations[$class_name]);
+        $this->verified[$class_name] = true;
+    }
+
+    private static function relation_kind(array $conf): ?string
+    {
+        foreach (['belongs-to-one', 'belongs-to-many', 'has-one', 'has-many'] as $kind) {
+            if (array_key_exists($kind, $conf)) {
+                return $kind;
+            }
+        }
+        return null;
     }
 
     /**

@@ -83,11 +83,10 @@ configuration lifecycle and clear Cortex's shared column cache. A swapped-in man
   rejected. Native MySQL JSON automatically selects Cortex JSON. MariaDB can expose
   its JSON alias as LONGTEXT, requiring an explicit `json()` cast. Cortex deprecates
   SERIALIZED: current writes use JSON, while legacy serialized reads remain supported.
-- Relations remain legacy fieldConf declarations, including declarations inherited
-  by domain models from a separate parent. There is no domain relation builder.
-  Cross-style belongs-to-one and has-many resolution is supported through Cortex's
-  static configuration API. A single class cannot declare legacy relations and its
-  own domain schema together.
+- Relations can be declared in `domain_schema()`; see "Relations" below. Legacy
+  relations inherited from a separate fieldConf parent still work. A single class
+  still cannot declare fieldConf and its own domain schema together, and a
+  relation may be declared only once per hierarchy (redeclaring throws).
 - Live schema requires an active SQL connection. This is runtime introspection, not an offline
   migration interpreter or DDL generator. Charset, collation, SQL mode and timezone
   coercions are not reproduced by validation. Legacy token-only validation retains
@@ -127,3 +126,35 @@ Domain instances use their current table assigned before parent construction, pr
 Explicit policies on non-auto-increment primary keys are included in fieldConf and run through normal pre-save validation; Cortex retains its primary-key mapper behavior. Primary keys without policy remain excluded. Policies on auto-increment primary keys throw a clear LogicException rather than validating an identifier generated only after insert.
 
 Legacy lint accepts JSON and SERIALIZED tokens and relation declarations (has-many, has-one, belongs-to-one, belongs-to-many). It checks relation targets for an empty or invalid shape without requiring a scalar column type. Unknown live-column warnings remain part of lint output.
+
+## Relations
+
+`domain_schema()` declares Cortex relations on the field builder. The translator
+emits exactly the legacy fieldConf keys Cortex reads; nothing is inferred.
+
+```php
+return $schema->define([
+    'author'  => $schema->field()->required()->belongs_to_one(User::class),
+    'owner'   => $schema->field()->belongs_to_one(User::class, 'uuid'),   // [class, field]
+    'tags'    => $schema->field()->belongs_to_many(Tag::class),           // JSON key list
+    'profile' => $schema->field()->has_one(Profile::class, 'user'),
+    'posts'   => $schema->field()->has_many(Post::class, 'author'),       // inverse of belongs-to-one
+    'teams'   => $schema->field()->has_many(Team::class, 'members')->pivot('user_teams'),
+]);
+```
+
+- `belongs_to_one` / `belongs_to_many` need a column; the live type is kept (a
+  BIGINT foreign key stays INT8). `belongs_to_many` needs text, blob or native JSON
+  storage and takes no validation policy (Atomic never validates those fields).
+- `has_one` / `has_many` are virtual: no column of that name may exist and no
+  policy may be attached.
+- `has_many` is an inverse of belongs-to-one unless `pivot(?string $table)` marks it
+  many-to-many. `rel_field()`, `rel_pk()` and `local_key()` require `pivot()`.
+- Foreign-key constraints and their ON DELETE action belong in migrations; the
+  model only declares how the relation is navigated.
+- Structural checks run when the definition is collected. Checks against the
+  related model (inverse field exists, points back, same kind, same pivot table on
+  both sides) run once per class on first instantiation, so two models that point
+  at each other never resolve each other recursively.
+- Every contradiction throws a `LogicException` naming the model and field.
+
