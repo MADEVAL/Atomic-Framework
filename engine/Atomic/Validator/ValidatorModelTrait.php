@@ -160,7 +160,25 @@ trait ValidatorModelTrait
 				'time', 'year', 'json' => 'FORMAT',
 				default => $suffix,
 			};
-			return $error_handler($suffix);
+			$vars = [];
+			if ($suffix === 'MAX') {
+				// Report the limit the check enforced: live metadata first, then the type limit.
+				// max_length counts characters; max_bytes and TEXT/LONGTEXT/BLOB count bytes.
+				[$max, $unit] = match (true) {
+					isset($field_conf['max_length']) => [$field_conf['max_length'], 'chars'],
+					isset($field_conf['max_bytes']) => [$field_conf['max_bytes'], 'bytes'],
+					default => match ($type) {
+						'VARCHAR128' => [128, 'chars'],
+						'VARCHAR256' => [255, 'chars'],
+						'VARCHAR512' => [512, 'chars'],
+						'TEXT', 'BLOB' => [65535, 'bytes'],
+						'LONGTEXT' => [4294967295, 'bytes'],
+						default => [null, null],
+					},
+				};
+				if ($max !== null) $vars = ['max' => $max, 'unit' => $unit];
+			}
+			return $error_handler($suffix, $vars);
 		}
 
 		if (isset($field_conf['unique']) && $field_conf['unique'] === true) {

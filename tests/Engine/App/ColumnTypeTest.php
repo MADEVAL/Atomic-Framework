@@ -47,6 +47,6 @@ final class ColumnTypeTest extends TestCase
         foreach (['BOOLEAN'=>true,'INT1'=>127,'INT2'=>32767,'INT4'=>2147483647,'INT8'=>PHP_INT_MAX,'FLOAT'=>1.5,'DOUBLE'=>1.5,'DECIMAL'=>1.5,'VARCHAR128'=>'a','VARCHAR256'=>'a','VARCHAR512'=>'a','TEXT'=>'a','LONGTEXT'=>'a','DATE'=>'2026-01-01','DATETIME'=>'2026-01-01 12:00:00','TIMESTAMP'=>1,'BLOB'=>'a'] as $type=>$value) {
             $this->assertSame([true], Validator::validate_model(['type'=>$type], $value, 'value', $model));
         }
-        $this->assertSame([false, \Engine\Atomic\Codes\Code::SERVER_ERROR, []], Validator::validate_model(['type'=>'VARCHAR256'], str_repeat('a',256), 'value', $model));
+        $this->assertSame([false, \Engine\Atomic\Codes\Code::SERVER_ERROR, ['max'=>255, 'unit'=>'chars']], Validator::validate_model(['type'=>'VARCHAR256'], str_repeat('a',256), 'value', $model));
     }
 }

@@ -52,6 +52,16 @@ if (!$product->save()) {
 }
 ```
 
+`vars` by failure:
+
+- explicit `str_min`/`str_max`/`mb_min`/`mb_max`/`num_min`/`num_max` — `['min' => …]` or `['max' => …]` from the field's `min`/`max`
+- column-type `MAX` (value too long for the column) — `['max' => …, 'unit' => 'chars'|'bytes']`, the limit the check enforced:
+  - live `max_length` or `VARCHAR128`/`VARCHAR256`/`VARCHAR512` (128/255/512) — `chars`
+  - live `max_bytes` or `TEXT`/`BLOB` (65535), `LONGTEXT` (4294967295) — `bytes`; multibyte text hits it sooner than the number suggests
+- other failures (`REQUIRED`, `FORMAT`, `ENUM`, `INVALID`, `UNIQUE`) — `[]`
+
+Use `{max}` and `{unit}` in the translated message, or pick wording per `unit`.
+
 ### Code messages (`CodeCatalog`)
 
 `Engine\Atomic\Codes\CodeCatalog` wraps any class holding code constants

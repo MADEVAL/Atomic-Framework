@@ -482,4 +482,50 @@ class ValidatorModelTraitTest extends TestCase
         $this->assertTrue(Validator::unique($model, 'user@example.com', 'email'));
     }
 
+    // ────────────────────────────────────────
+    //  Column-type MAX errors carry the enforced limit
+    // ────────────────────────────────────────
+
+    private function bareModel(): \DB\Cortex
+    {
+        return (new \ReflectionClass(\DB\Cortex::class))->newInstanceWithoutConstructor();
+    }
+
+    public function test_varchar_overflow_reports_type_max(): void
+    {
+        Validator::validate_model(['type' => 'VARCHAR128'], str_repeat('a', 129), 'sku', $this->bareModel(), $error);
+        $this->assertSame('MAX', $error->rule);
+        $this->assertSame(['max' => 128, 'unit' => 'chars'], $error->vars);
+    }
+
+    public function test_metadata_max_length_overflow_reports_column_max(): void
+    {
+        $conf = ['type' => 'VARCHAR128', 'column_kind' => 'string', 'max_length' => 20];
+        Validator::validate_model($conf, str_repeat('é', 21), 'sku', $this->bareModel(), $error);
+        $this->assertSame('MAX', $error->rule);
+        $this->assertSame(['max' => 20, 'unit' => 'chars'], $error->vars);
+    }
+
+    public function test_metadata_max_bytes_overflow_reports_byte_max(): void
+    {
+        $conf = ['type' => 'TEXT', 'column_kind' => 'text', 'max_bytes' => 255];
+        Validator::validate_model($conf, str_repeat('a', 256), 'note', $this->bareModel(), $error);
+        $this->assertSame('MAX', $error->rule);
+        $this->assertSame(['max' => 255, 'unit' => 'bytes'], $error->vars);
+    }
+
+    public function test_column_format_error_has_no_max(): void
+    {
+        Validator::validate_model(['type' => 'DATE'], 'not-a-date', 'day', $this->bareModel(), $error);
+        $this->assertSame('FORMAT', $error->rule);
+        $this->assertSame([], $error->vars);
+    }
+
+    public function test_explicit_str_max_still_reports_rule_max(): void
+    {
+        $conf = ['type' => 'VARCHAR256', 'rules' => [\Engine\Atomic\Enums\Rule::STR_MAX], 'max' => 50];
+        Validator::validate_model($conf, str_repeat('a', 51), 'sku', $this->bareModel(), $error);
+        $this->assertSame('MAX', $error->rule);
+        $this->assertSame(['max' => 50], $error->vars);
+    }
 }
