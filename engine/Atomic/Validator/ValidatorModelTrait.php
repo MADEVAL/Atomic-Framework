@@ -28,7 +28,7 @@ trait ValidatorModelTrait
 			$is_valid = false;
 			$error = new ValidationError($class_short, $field_name, $suffix, $vars);
 			$code = $error->code_in(Code::class);
-			Log::warning('Validation failed: ' . $class_short . '.' . $field_name . ' ' . $error->code_name() . ' Code ' . $code);
+			Log::warning('Validation failed: ' . $class_short . '.' . $field_name . ' ' . $error->code_name());
 			return [$is_valid, $code, $vars];
 		};
 

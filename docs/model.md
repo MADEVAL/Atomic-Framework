@@ -52,6 +52,45 @@ if (!$product->save()) {
 }
 ```
 
+### Code messages (`CodeCatalog`)
+
+`Engine\Atomic\Codes\CodeCatalog` wraps any class holding code constants
+(constants from its traits count) and maps a value to its translation key by
+convention, `errors.codes.` + lowercase constant name, so no hand-written
+`match` is needed. The codes class stays plain constants; inject the catalog:
+
+```php
+$codes = new CodeCatalog(\App\Codes\Code::class);           // default: Engine\Atomic\Codes\Code
+$codes = new CodeCatalog(Code::class, prefix: 'api.codes.'); // custom prefix
+$codes = new CodeCatalog(Code::class, i18n: $i18n);          // custom I18n (default I18n::instance())
+```
+
+- `code_name($code)` — constant name, e.g. `'1571'` → `PRODUCT_PRICE_MIN`; `null` when unknown. Only string/int constants count; on duplicate values the first declared wins.
+- `duplicate_codes()` — `[value => [NAMES...]]` for values shared by several constants; assert it is empty in an app test.
+- `translation_key($code)` — `errors.codes.product_price_min`; unknown values give `errors.codes.server_error`.
+- `message($code, $vars = [], $lang = null)` — `I18n::t()` of that key; `null` lang = current language.
+
+`ValidationError::message(?CodeCatalog $catalog = null, ?string $lang = null)`
+resolves `code_in($catalog->codes_class)` and translates it with the rule vars;
+no catalog = framework `Code`.
+
+```php
+$codes = new CodeCatalog(Code::class);
+
+if (!$product->save()) {
+    $error = $product->get_last_validation_error();
+    // object
+    $error->field; $error->rule; $error->vars; $error->code_name();
+    $code = $error->code_in(Code::class);
+    $codes->translation_key($code);
+    // message
+    $error->message($codes);              // current language
+    $error->message($codes, lang: 'ru');
+}
+$codes->message(Code::FORBIDDEN);
+$codes->message('1571', ['min' => 0], lang: 'ru');
+```
+
 Validation failures are logged as warnings; rule configuration errors as errors.
 
 ### Scoped uniqueness
