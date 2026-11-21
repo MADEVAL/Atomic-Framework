@@ -10,6 +10,7 @@ use DB\Cortex\Schema\ColumnType;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\ConnectionManager;
 use Engine\Atomic\Validator\PreValidation\NullableEmptyToNullTrait;
+use Engine\Atomic\Validator\ValidationError;
 use Engine\Atomic\Validator\Validator;
 
 abstract class Model extends Cortex 
@@ -21,6 +22,7 @@ abstract class Model extends Cortex
 	protected $fieldConf = null;
 	protected ?string $last_err_code = null;
 	protected array $last_err_vars = [];
+	protected ?ValidationError $last_validation_error = null;
 
 	/**
 	 * Merged field configuration across the class hierarchy.
@@ -59,6 +61,7 @@ abstract class Model extends Cortex
 		$saveHandler = function(self $self): bool {
 			$self->last_err_code = null;
 			$self->last_err_vars = [];
+			$self->last_validation_error = null;
 			$self->before_validate();
 			$valid = true;
 			foreach ($self->getFieldConfiguration() as $field => $conf) {
@@ -81,11 +84,12 @@ abstract class Model extends Cortex
                         $conf += ColumnType::describe($raw, $self->table, $field, $self->db->driver());
                     }
                 }
-				$res = Validator::validate_model($conf, $val, $field, $self);
+				$res = Validator::validate_model($conf, $val, $field, $self, $error);
 				if (!$res[0]) {
 					$valid = false;
 					$self->last_err_code = $res[1];
 					$self->last_err_vars = $res[2] ?? [];
+					$self->last_validation_error = $error;
 					break;
 				}
 			}
@@ -203,8 +207,21 @@ abstract class Model extends Cortex
 		return $this->last_err_vars;
 	}
 
+	/**
+	 * @deprecated Use get_last_validation_error(); it carries model, field,
+	 *             rule and vars, and resolves the code against the app's class.
+	 */
 	public function get_last_err_data(): array {
 		return [$this->last_err_code, $this->last_err_vars];
+	}
+
+	/**
+	 * The failed field validation of the last save; null when the last save
+	 * passed, or failed for a configuration reason (then get_last_err_code()
+	 * is Code::SERVER_ERROR).
+	 */
+	public function get_last_validation_error(): ?ValidationError {
+		return $this->last_validation_error;
 	}
 
 	/**

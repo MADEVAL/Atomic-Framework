@@ -18,16 +18,17 @@ trait ValidatorModelTrait
 		mixed $field_val,
 		string $field_name,
 		Cortex $model,
+		?ValidationError &$error = null,
 	): array {
+		$error = null;
 		$ref = new \ReflectionClass($model);
 		$class_short = $ref->getShortName();
-		$const_prefix = Code::class . '::' . strtoupper($class_short) . '_' . strtoupper($field_name) . '_';
 
-		$error_handler = function(string $suffix, array $vars = []) use ($const_prefix): array {
+		$error_handler = function(string $suffix, array $vars = []) use ($class_short, $field_name, &$error): array {
 			$is_valid = false;
-			$const_name = $const_prefix . $suffix;
-			$code = defined($const_name) ? constant($const_name) : Code::SERVER_ERROR;
-			Log::error('Validation failed: ' . $const_name . ' Code ' . $code);
+			$error = new ValidationError($class_short, $field_name, $suffix, $vars);
+			$code = $error->code_in(Code::class);
+			Log::warning('Validation failed: ' . $class_short . '.' . $field_name . ' ' . $error->code_name() . ' Code ' . $code);
 			return [$is_valid, $code, $vars];
 		};
 

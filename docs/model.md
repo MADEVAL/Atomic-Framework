@@ -37,9 +37,22 @@ if (!$post->save()) {
 
 Helpers:
 
+- `get_last_validation_error()` — `?ValidationError` (`model`, `field`, `rule`, `vars`); `null` when the last save passed, or failed for a configuration reason (then `get_last_err_code()` is `Code::SERVER_ERROR`)
 - `get_last_err_code()` — `null` when the last save passed validation (reset on every save)
 - `get_last_err_vars()`
-- `get_last_err_data()`
+- `get_last_err_data()` — deprecated, use `get_last_validation_error()`
+
+The framework resolves codes only against `Engine\Atomic\Codes\Code`, so app
+field codes need the typed error:
+
+```php
+if (!$product->save()) {
+    $error = $product->get_last_validation_error();   // Product, price, MIN, ['min' => 0]
+    $code = $error?->code_in(\App\Codes\Code::class) ?? Code::SERVER_ERROR; // PRODUCT_PRICE_MIN or SERVER_ERROR
+}
+```
+
+Validation failures are logged as warnings; rule configuration errors as errors.
 
 ### Scoped uniqueness
 
