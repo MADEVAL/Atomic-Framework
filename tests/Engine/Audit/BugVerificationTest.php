@@ -139,7 +139,8 @@ final class BugVerificationTest extends TestCase
 
     public function testDownloadImageFromUrlHasUrlValidation(): void
     {
-        $ref = new \ReflectionMethod(Upload::class, 'download_image_from_url');
+        // The check runs once per hop, in the helper download_image_from_url() delegates to.
+        $ref = new \ReflectionMethod(Upload::class, 'fetch_image_to_stream');
         $start = $ref->getStartLine();
         $end = $ref->getEndLine();
         $source = implode('', array_slice(file($ref->getFileName()), $start - 1, $end - $start + 1));

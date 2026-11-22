@@ -16,16 +16,26 @@ class Upload
     use Singleton;
 
     protected ?App $atomic = null;
+    protected FS $fs;
+    protected PublicUrlGuard $url_guard;
     protected string $uploadPath;
     protected string $uploadSystem;
     protected string $uploadUser;
+
+    /** Limits for download_image_from_url(); subclasses may change them. */
+    protected int $download_max_bytes = 10 * 1024 * 1024;
+    protected int $download_connect_timeout = 5;
+    protected int $download_timeout = 20;
+    protected int $download_max_redirects = 3;
 
     private const META_ACCESS_TOKEN_PREFIX = 'file_access_token:';
     private const META_USER_TOKEN_PREFIX = 'upload_user_token:';
     private const META_PROJECT_TOKEN_PREFIX = 'upload_project_token:';
 
-    protected function __construct()
+    protected function __construct(?FS $fs = null, ?PublicUrlGuard $url_guard = null)
     {
+        $this->fs = $fs ?? FS::instance();
+        $this->url_guard = $url_guard ?? new PublicUrlGuard();
         $this->atomic = App::instance();
         $this->uploadPath = $this->atomic->get('UPLOADS');
         $this->uploadSystem = $this->uploadPath . 'system' . DIRECTORY_SEPARATOR;
@@ -116,19 +126,19 @@ class Upload
         $srcDir = $projectDir . 'src' . DIRECTORY_SEPARATOR;
         $distDir = $projectDir . 'dist' . DIRECTORY_SEPARATOR;
 
-        if (!is_dir($userDir) && !FS::instance()->make_dir($userDir)) {
+        if (!is_dir($userDir) && !$this->fs->make_dir($userDir)) {
             return ['ok' => false, 'error' => 'Failed to create user directory'];
         }
 
-        if (!is_dir($projectDir) && !FS::instance()->make_dir($projectDir)) {
+        if (!is_dir($projectDir) && !$this->fs->make_dir($projectDir)) {
             return ['ok' => false, 'error' => 'Failed to create project directory'];
         }
 
-        if (!is_dir($srcDir) && !FS::instance()->make_dir($srcDir)) {
+        if (!is_dir($srcDir) && !$this->fs->make_dir($srcDir)) {
             return ['ok' => false, 'error' => 'Failed to create src directory'];
         }
 
-        if (!is_dir($distDir) && !FS::instance()->make_dir($distDir)) {
+        if (!is_dir($distDir) && !$this->fs->make_dir($distDir)) {
             return ['ok' => false, 'error' => 'Failed to create dist directory'];
         }
 
@@ -228,9 +238,9 @@ class Upload
         }
 
         try {
-            FS::instance()->remove_dir($projectDir . 'src', true);
-            FS::instance()->remove_dir($projectDir . 'dist', true);
-            FS::instance()->remove_dir($projectDir, false);
+            $this->fs->remove_dir($projectDir . 'src', true);
+            $this->fs->remove_dir($projectDir . 'dist', true);
+            $this->fs->remove_dir($projectDir, false);
             return true;
         } catch (\Throwable $e) {
             Log::error('Failed to delete project files: ' . $e->getMessage());
@@ -249,7 +259,7 @@ class Upload
         }
 
         try {
-            FS::instance()->remove_dir($userDir, true);
+            $this->fs->remove_dir($userDir, true);
             return true;
         } catch (\Throwable $e) {
             Log::error('Failed to delete user files: ' . $e->getMessage());
@@ -311,86 +321,89 @@ class Upload
 
     protected function is_url_allowed(string $url): bool
     {
-        return $this->public_url_guard()->is_allowed($url);
+        return $this->url_guard->is_allowed($url);
     }
 
-    protected function public_url_guard(): PublicUrlGuard
+    /**
+     * Validated addresses for one download hop; the connection is pinned to the first one.
+     *
+     * @return list<string>
+     */
+    protected function resolve_download_addresses(string $url): array
     {
-        return new PublicUrlGuard();
+        return $this->url_guard->resolve($url);
     }
 
-    /** @return array{string|false, int} */
+    /**
+     * Runs one request. The body and headers reach the caller through the
+     * CURLOPT_WRITEFUNCTION and CURLOPT_HEADERFUNCTION callbacks in $options.
+     *
+     * @return array{bool, int, int} Transfer success, HTTP status and curl error number.
+     */
     protected function execute_image_request(string $url, array $options): array
     {
         $handle = curl_init($url);
         if ($handle === false || !curl_setopt_array($handle, $options)) {
-            return [false, 0];
+            return [false, 0, 0];
         }
 
-        $body = curl_exec($handle);
-        return [$body, (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE)];
+        $ok = curl_exec($handle) !== false;
+        return [$ok, (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE), curl_errno($handle)];
     }
 
     public function download_image_from_url(string $url, string $destination_dir, string $default_filename = 'image.jpg'): array
     {
-        // Keep subclass policy checks, then require validated addresses for the connection.
-        if (!$this->is_url_allowed($url) || ($addresses = $this->public_url_guard()->resolve($url)) === []) {
-            return ['ok' => false, 'error' => 'URL not allowed: only public http/https URLs are permitted'];
-        }
-
-        $address = $addresses[0];
-        if (str_contains($address, ':')) {
-            $address = '[' . $address . ']';
-        }
-        [$imageData, $status] = $this->execute_image_request($url, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_PROXY => '',
-            CURLOPT_TIMEOUT => max(0, (int) ini_get('default_socket_timeout')),
-            // Pin the socket address while preserving the URL port and hostname.
-            CURLOPT_CONNECT_TO => ["::{$address}:"],
-        ]);
-        if ($imageData === false || $status < 200 || $status >= 300) {
-            return ['ok' => false, 'error' => 'Failed to download file from URL'];
-        }
-
         $tmpFile = tempnam(sys_get_temp_dir(), 'img_');
         if ($tmpFile === false) {
             return ['ok' => false, 'error' => 'Failed to create temp file'];
         }
 
-        if (FS::instance()->write($tmpFile, $imageData, false) === false) {
-            FS::instance()->delete($tmpFile);
-            return ['ok' => false, 'error' => 'Failed to write to temp file'];
+        try {
+            $stream = fopen($tmpFile, 'w+b');
+            if ($stream === false) {
+                return ['ok' => false, 'error' => 'Failed to write to temp file'];
+            }
+            try {
+                $error = $this->fetch_image_to_stream($url, $stream);
+            } finally {
+                fclose($stream);
+            }
+            if ($error !== null) {
+                return ['ok' => false, 'error' => $error];
+            }
+
+            $extension = $this->detect_image_extension($tmpFile);
+            if ($extension === null) {
+                return ['ok' => false, 'error' => 'Downloaded file is not a supported image (JPEG, PNG, GIF, WebP)'];
+            }
+
+            // The name comes from the URL, the extension only from the detected type.
+            $name = pathinfo(basename(parse_url($url, PHP_URL_PATH) ?? ''), PATHINFO_FILENAME);
+            if ($name === '') {
+                $name = pathinfo($default_filename, PATHINFO_FILENAME);
+            }
+            if ($name === '') {
+                $name = 'image';
+            }
+
+            if (!is_dir($destination_dir) && !$this->fs->make_dir($destination_dir)) {
+                return ['ok' => false, 'error' => 'Failed to create destination directory'];
+            }
+
+            $slugName = $this->generate_unique_slug_name($destination_dir, $name . '.' . $extension);
+            $file_path = $destination_dir . $slugName;
+
+            if (!$this->fs->copy($tmpFile, $file_path)) {
+                return ['ok' => false, 'error' => 'Failed to save file'];
+            }
+        } finally {
+            $this->fs->delete($tmpFile);
         }
-
-        $urlPath = parse_url($url, PHP_URL_PATH) ?? '';
-        $originalName = basename($urlPath);
-        
-        if (empty($originalName)) {
-            $originalName = $default_filename;
-        }
-
-        if (!is_dir($destination_dir) && !FS::instance()->make_dir($destination_dir)) {
-            FS::instance()->delete($tmpFile);
-            return ['ok' => false, 'error' => 'Failed to create destination directory'];
-        }
-
-        $slugName = $this->generate_unique_slug_name($destination_dir, $originalName);
-        $file_path = $destination_dir . $slugName;
-
-        if (!FS::instance()->copy($tmpFile, $file_path)) {
-            FS::instance()->delete($tmpFile);
-            return ['ok' => false, 'error' => 'Failed to save file'];
-        }
-
-        FS::instance()->delete($tmpFile);
 
         $fileUrl = $this->build_public_url($file_path);
 
         if ($fileUrl === false) {
-            FS::instance()->delete($file_path);
+            $this->fs->delete($file_path);
             return ['ok' => false, 'error' => 'Failed to generate public URL'];
         }
 
@@ -402,6 +415,167 @@ class Upload
             'size' => filesize($file_path),
             'mime' => $this->get_mime_type($file_path)
         ];
+    }
+
+    /**
+     * Downloads into $stream, validating and pinning every hop. Returns an error message or null.
+     *
+     * @param resource $stream
+     */
+    private function fetch_image_to_stream(string $url, $stream): ?string
+    {
+        $deadline = microtime(true) + $this->download_timeout;
+        $limit = $this->download_max_bytes;
+
+        for ($hop = 0; ; $hop++) {
+            // Keep subclass policy checks, then require validated addresses for the connection.
+            if (!$this->is_url_allowed($url) || ($addresses = $this->resolve_download_addresses($url)) === []) {
+                return 'URL not allowed: only public http/https URLs are permitted';
+            }
+            $remaining = (int) (($deadline - microtime(true)) * 1000);
+            if ($remaining <= 0) {
+                return 'Failed to download file from URL';
+            }
+
+            $address = $addresses[0];
+            if (str_contains($address, ':')) {
+                $address = '[' . $address . ']';
+            }
+
+            ftruncate($stream, 0);
+            rewind($stream);
+            $received = 0;
+            $exceeded = false;
+            $location = null;
+
+            $response = $this->execute_image_request($url, [
+                CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_PROXY => '',
+                CURLOPT_CONNECTTIMEOUT => $this->download_connect_timeout,
+                CURLOPT_TIMEOUT_MS => $remaining,
+                CURLOPT_MAXFILESIZE => $limit,
+                // Pin the socket address while preserving the URL port and hostname.
+                CURLOPT_CONNECT_TO => ["::{$address}:"],
+                CURLOPT_HEADERFUNCTION => static function ($handle, string $line) use (&$location): int {
+                    if (preg_match('/\A(?:HTTP\/|location:\s*(.*?)\s*\z)/i', $line, $match) === 1) {
+                        // A status line starts a new header block and clears any earlier Location.
+                        $location = isset($match[1]) && $match[1] !== '' ? $match[1] : null;
+                    }
+                    return strlen($line);
+                },
+                CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use ($stream, $limit, &$received, &$exceeded): int {
+                    $received += strlen($chunk);
+                    if ($received > $limit) {
+                        $exceeded = true;
+                        return 0;
+                    }
+                    return fwrite($stream, $chunk) === strlen($chunk) ? strlen($chunk) : 0;
+                },
+                // Content-Length can be missing or lie, so also check announced and received sizes.
+                CURLOPT_NOPROGRESS => false,
+                CURLOPT_PROGRESSFUNCTION => static function ($handle, $total, $now) use ($limit, &$exceeded): int {
+                    if ($total > $limit || $now > $limit) {
+                        $exceeded = true;
+                        return 1;
+                    }
+                    return 0;
+                },
+            ]);
+
+            [$ok, $status] = $response;
+            if ($exceeded || ($response[2] ?? 0) === CURLE_FILESIZE_EXCEEDED) {
+                return 'Downloaded file exceeds the size limit';
+            }
+            if (!$ok) {
+                return 'Failed to download file from URL';
+            }
+            if ($status >= 200 && $status < 300) {
+                return $received > 0 ? null : 'Failed to download file from URL';
+            }
+            if (!in_array($status, [301, 302, 303, 307, 308], true) || $location === null) {
+                return 'Failed to download file from URL';
+            }
+            if ($hop >= $this->download_max_redirects) {
+                return 'Too many redirects';
+            }
+            $next = $this->resolve_redirect_url($url, $location);
+            if ($next === null) {
+                return 'URL not allowed: only public http/https URLs are permitted';
+            }
+            $url = $next;
+        }
+    }
+
+    private function detect_image_extension(string $file): ?string
+    {
+        $types = [
+            IMAGETYPE_JPEG => ['jpg', 'image/jpeg'],
+            IMAGETYPE_PNG => ['png', 'image/png'],
+            IMAGETYPE_GIF => ['gif', 'image/gif'],
+            IMAGETYPE_WEBP => ['webp', 'image/webp'],
+        ];
+        $info = @getimagesize($file);
+        if ($info === false || !isset($types[$info[2]])) {
+            return null;
+        }
+        [$extension, $mime] = $types[$info[2]];
+
+        // The image parser and libmagic must agree on the type.
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $detected = $finfo === false ? false : finfo_file($finfo, $file);
+        return $detected === $mime ? $extension : null;
+    }
+
+    /** Resolves a Location header against the current URL (RFC 3986 section 5.2). */
+    private function resolve_redirect_url(string $base, string $reference): ?string
+    {
+        $reference = (string) preg_replace('/#.*\z/s', '', $reference);
+        if (preg_match('/\A[a-z][a-z0-9+.\-]*:/i', $reference) === 1) {
+            return $reference;
+        }
+
+        $parts = parse_url($base);
+        if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+            return null;
+        }
+        if (str_starts_with($reference, '//')) {
+            return $parts['scheme'] . ':' . $reference;
+        }
+
+        $origin = $parts['scheme'] . '://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '');
+        $basePath = $parts['path'] ?? '/';
+        if ($reference === '' || str_starts_with($reference, '?')) {
+            $query = $reference !== '' ? $reference : (isset($parts['query']) ? '?' . $parts['query'] : '');
+            return $origin . $basePath . $query;
+        }
+
+        $query = '';
+        if (($position = strpos($reference, '?')) !== false) {
+            $query = substr($reference, $position);
+            $reference = substr($reference, 0, $position);
+        }
+        $path = str_starts_with($reference, '/')
+            ? $reference
+            : substr($basePath, 0, (int) strrpos($basePath, '/') + 1) . $reference;
+
+        $input = explode('/', $path);
+        $segments = [];
+        foreach ($input as $index => $segment) {
+            $last = $index === count($input) - 1;
+            if ($segment === '..' || $segment === '.') {
+                if ($segment === '..' && count($segments) > 1) {
+                    array_pop($segments);
+                }
+                if ($last) {
+                    $segments[] = '';
+                }
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        return $origin . implode('/', $segments) . $query;
     }
 
     public function download_user_image(string $user_id, string $user_uuid, string $project_id, string $project_uuid, string $url, string $default_filename = 'image.jpg'): array
