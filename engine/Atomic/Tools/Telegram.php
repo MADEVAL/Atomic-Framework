@@ -18,6 +18,10 @@ final class Telegram
 {
     use Singleton;
 
+    public const LOGIN_DEFAULT_MAX_AGE = 300;
+    public const LOGIN_MAX_AGE_LIMIT = 86400;
+    public const LOGIN_CLOCK_SKEW = 60;
+
     protected App $atomic;
 
     protected string $token = '';
@@ -196,8 +200,17 @@ final class Telegram
         return $data;
     }
 
-    public function verify_login_widget(array $auth_data, ?string $bot_token = null): array|false
+    /**
+     * @param int $max_age Seconds signed login data stays valid; must be positive.
+     *                     auth_date further than LOGIN_CLOCK_SKEW seconds in the future is rejected.
+     */
+    public function verify_login_widget(array $auth_data, ?string $bot_token = null, int $max_age = self::LOGIN_DEFAULT_MAX_AGE): array|false
     {
+        if ($max_age <= 0) {
+            Log::error('[Telegram] verify_login_widget: max age must be positive');
+            return false;
+        }
+
         $token = $bot_token ?: $this->token;
         if (empty($token)) {
             Log::error('[Telegram] Bot token is empty for verify_login_widget');
@@ -209,10 +222,13 @@ final class Telegram
             return false;
         }
 
-        $auth_date = (int)$auth_data['auth_date'];
-        $expiry = DAY_IN_SECONDS;
-        if ((time() - $auth_date) > $expiry) {
+        $age = time() - (int)$auth_data['auth_date'];
+        if ($age > $max_age) {
             Log::error('[Telegram] verify_login_widget: auth data is outdated');
+            return false;
+        }
+        if ($age < -self::LOGIN_CLOCK_SKEW) {
+            Log::error('[Telegram] verify_login_widget: auth_date is in the future');
             return false;
         }
 

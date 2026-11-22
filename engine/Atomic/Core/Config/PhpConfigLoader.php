@@ -323,6 +323,7 @@ class PhpConfigLoader {
                 'bot_username'  => (string)($oauth['telegram']['bot_username'] ?? ''),
                 'bot_token'     => (string)($oauth['telegram']['bot_token'] ?? ''),
                 'callback_url'  => (string)($oauth['telegram']['callback_url'] ?? '/auth/telegram/callback'),
+                'auth_max_age'  => (int)($oauth['telegram']['auth_max_age'] ?? 300),
             ],
         ]);
 

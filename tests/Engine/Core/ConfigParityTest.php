@@ -135,6 +135,12 @@ class ConfigParityTest extends TestCase
 
     // ── Sanity: loaders actually loaded real values (not empty stubs) ─────────
 
+    public function test_oauth_telegram_auth_max_age_defaults_to_300_in_both_loaders(): void
+    {
+        $this->assertSame(300, self::$env_data['OAUTH']['telegram']['auth_max_age'] ?? null);
+        $this->assertSame(300, self::$php_data['OAUTH']['telegram']['auth_max_age'] ?? null);
+    }
+
     public function test_app_name_is_non_empty(): void
     {
         $this->assertNotEmpty(self::$env_data['APP_NAME'], 'ENV APP_NAME must not be empty');

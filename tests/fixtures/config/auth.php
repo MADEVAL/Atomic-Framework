@@ -21,6 +21,7 @@ return [
             'bot_username'  => '',  // OAUTH_TELEGRAM_BOT_USERNAME from .env
             'bot_token'     => '',  // OAUTH_TELEGRAM_BOT_TOKEN from .env
             'callback_url'  => '/auth/telegram/callback',
+            'auth_max_age'  => 300, // OAUTH_TELEGRAM_AUTH_MAX_AGE from .env; seconds signed login data stays valid (1..86400)
         ],
     ],
 ];

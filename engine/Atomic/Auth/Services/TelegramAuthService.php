@@ -10,6 +10,7 @@ use Engine\Atomic\Auth\Adapters\LogAdapter;
 use Engine\Atomic\Auth\Adapters\TelegramClientAdapter;
 use Engine\Atomic\Auth\Interfaces\LoginInterface;
 use Engine\Atomic\Auth\Interfaces\OAuthUserResolverInterface;
+use Engine\Atomic\Tools\Telegram;
 
 class TelegramAuthService
 {
@@ -48,7 +49,18 @@ class TelegramAuthService
     public function verify_auth_data(array $auth_data): array|false
     {
         $bot_token = $this->config()['bot_token'] ?? null;
-        return $this->telegram_client->verify_login_widget($auth_data, (string) $bot_token);
+        return $this->telegram_client->verify_login_widget($auth_data, (string) $bot_token, $this->auth_max_age());
+    }
+
+    /** OAUTH.telegram.auth_max_age: non-positive falls back to the default, values above one day are capped. */
+    private function auth_max_age(): int
+    {
+        $max_age = (int) ($this->config()['auth_max_age'] ?? Telegram::LOGIN_DEFAULT_MAX_AGE);
+        if ($max_age <= 0) {
+            $this->logger->warning('[TelegramAuth] Invalid auth_max_age, using default', ['auth_max_age' => $max_age]);
+            return Telegram::LOGIN_DEFAULT_MAX_AGE;
+        }
+        return min($max_age, Telegram::LOGIN_MAX_AGE_LIMIT);
     }
 
     public function handle_callback(array $auth_data): ?string

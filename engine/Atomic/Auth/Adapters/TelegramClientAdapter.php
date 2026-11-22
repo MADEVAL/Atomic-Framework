@@ -8,9 +8,9 @@ use Engine\Atomic\Tools\Telegram;
 
 class TelegramClientAdapter
 {
-    public function verify_login_widget(array $auth_data, string $bot_token): array|false
+    public function verify_login_widget(array $auth_data, string $bot_token, int $max_age = Telegram::LOGIN_DEFAULT_MAX_AGE): array|false
     {
-        return Telegram::instance()->verify_login_widget($auth_data, $bot_token);
+        return Telegram::instance()->verify_login_widget($auth_data, $bot_token, $max_age);
     }
 
     public function get_widget_attributes(string $size, bool $request_access, bool $use_avatar, int $corner_radius): array

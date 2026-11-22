@@ -131,10 +131,40 @@ class TelegramAuthServiceTest extends TestCase
 
         $this->app->method('get')->with('OAUTH.telegram')->willReturn(['bot_token' => 'tok']);
         $this->telegram_client->method('verify_login_widget')
-            ->with($auth_data, 'tok')
+            ->with($auth_data, 'tok', 300)
             ->willReturn($verified);
 
         $this->assertSame($verified, $this->service->verify_auth_data($auth_data));
+    }
+
+    public function test_verify_auth_data_passes_configured_max_age(): void
+    {
+        $this->app->method('get')->with('OAUTH.telegram')->willReturn(['bot_token' => 'tok', 'auth_max_age' => 120]);
+        $this->telegram_client->expects($this->once())->method('verify_login_widget')
+            ->with(['id' => '1'], 'tok', 120)
+            ->willReturn(false);
+
+        $this->service->verify_auth_data(['id' => '1']);
+    }
+
+    public function test_verify_auth_data_falls_back_to_default_for_non_positive_max_age(): void
+    {
+        $this->app->method('get')->with('OAUTH.telegram')->willReturn(['bot_token' => 'tok', 'auth_max_age' => 0]);
+        $this->telegram_client->expects($this->once())->method('verify_login_widget')
+            ->with(['id' => '1'], 'tok', 300)
+            ->willReturn(false);
+
+        $this->service->verify_auth_data(['id' => '1']);
+    }
+
+    public function test_verify_auth_data_caps_absurd_max_age_at_one_day(): void
+    {
+        $this->app->method('get')->with('OAUTH.telegram')->willReturn(['bot_token' => 'tok', 'auth_max_age' => 10 * 86400]);
+        $this->telegram_client->expects($this->once())->method('verify_login_widget')
+            ->with(['id' => '1'], 'tok', 86400)
+            ->willReturn(false);
+
+        $this->service->verify_auth_data(['id' => '1']);
     }
 
     public function test_verify_auth_data_returns_false_when_verification_fails(): void

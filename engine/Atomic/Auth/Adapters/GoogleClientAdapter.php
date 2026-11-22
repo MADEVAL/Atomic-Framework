@@ -45,15 +45,20 @@ class GoogleClientAdapter
         }
 
         $client->setAccessToken($token);
-        $info = (new GoogleOauth2($client))->userinfo->get();
+        return self::map_user_info((new GoogleOauth2($client))->userinfo->get());
+    }
 
+    /** @param object $info Google\Service\Oauth2\Userinfo (or anything with the same getters) */
+    public static function map_user_info(object $info): array
+    {
         return [
-            'id'          => (string) $info->getId(),
-            'email'       => $info->getEmail(),
-            'name'        => $info->getName(),
-            'given_name'  => $info->getGivenName(),
-            'family_name' => $info->getFamilyName(),
-            'picture'     => $info->getPicture(),
+            'id'             => (string) $info->getId(),
+            'email'          => $info->getEmail(),
+            'name'           => $info->getName(),
+            'given_name'     => $info->getGivenName(),
+            'family_name'    => $info->getFamilyName(),
+            'picture'        => $info->getPicture(),
+            'email_verified' => $info->getVerifiedEmail() === true,
         ];
     }
 }

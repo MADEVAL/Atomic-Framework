@@ -69,6 +69,12 @@ class GoogleAuthService
 
             $claims = $this->normalize_claims($info);
 
+            // Resolvers may match accounts by email, so an email Google has not verified is never trusted.
+            if (!empty($claims['email']) && $claims['email_verified'] !== true) {
+                $this->logger->warning('[GoogleAuth] Email not verified by Google', ['google_id' => $claims['google_id']]);
+                return null;
+            }
+
             $user_identifier = $this->user_resolver->resolve_oauth_user($claims);
             if (!$user_identifier || !$this->id_validator->is_valid_uuid_v4($user_identifier)) {
                 $this->logger->error('[GoogleAuth] User resolution failed', ['google_id' => $claims['google_id']]);
@@ -105,6 +111,7 @@ class GoogleAuthService
         return [
             'google_id'   => $google_id,
             'email'       => $email,
+            'email_verified' => ($info['email_verified'] ?? false) === true,
             'full_name'   => $info['name'] ?: ($email ? explode('@', $email)[0] : 'Google User'),
             'first_name'  => $info['given_name'],
             'last_name'   => $info['family_name'],

@@ -262,6 +262,7 @@ class ConfigLoader {
                 'bot_username'  => $this->get_env('OAUTH_TELEGRAM_BOT_USERNAME', ''),
                 'bot_token'     => $this->get_env('OAUTH_TELEGRAM_BOT_TOKEN', ''),
                 'callback_url'  => $this->get_env('OAUTH_TELEGRAM_CALLBACK_URL', '/auth/telegram/callback'),
+                'auth_max_age'  => (int)$this->get_env('OAUTH_TELEGRAM_AUTH_MAX_AGE', 300),
             ],
         ]);
 

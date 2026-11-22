@@ -152,6 +152,57 @@ class GoogleAuthServiceTest extends TestCase
         $this->assertNull($this->service->handle_callback('code', 'known-state'));
     }
 
+    public function test_handle_callback_rejects_unverified_email(): void
+    {
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
+        $this->google_client->method('fetch_user_info_by_code')
+            ->willReturn(['email_verified' => false] + $this->valid_google_info());
+        $this->logger->expects($this->once())->method('warning');
+        $this->auth->expects($this->never())->method('login_by_id');
+
+        $resolver = $this->createMock(OAuthUserResolverInterface::class);
+        $resolver->expects($this->never())->method('resolve_oauth_user');
+        $this->service->set_user_resolver($resolver);
+
+        $this->assertNull($this->service->handle_callback('code', 'known-state'));
+    }
+
+    public function test_handle_callback_rejects_email_without_verified_flag(): void
+    {
+        $info = $this->valid_google_info();
+        unset($info['email_verified']);
+
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
+        $this->google_client->method('fetch_user_info_by_code')->willReturn($info);
+        $this->logger->expects($this->once())->method('warning');
+
+        $resolver = $this->createMock(OAuthUserResolverInterface::class);
+        $resolver->expects($this->never())->method('resolve_oauth_user');
+        $this->service->set_user_resolver($resolver);
+
+        $this->assertNull($this->service->handle_callback('code', 'known-state'));
+    }
+
+    public function test_handle_callback_passes_email_verified_claim_to_resolver(): void
+    {
+        $user_id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+        $this->app->method('get')->with('SESSION.auth_challenges.google.state')->willReturn('known-state');
+        $this->expect_state_cleared();
+        $this->google_client->method('fetch_user_info_by_code')->willReturn($this->valid_google_info());
+        $this->id_validator->method('is_valid_uuid_v4')->willReturn(true);
+
+        $resolver = $this->createMock(OAuthUserResolverInterface::class);
+        $resolver->expects($this->once())->method('resolve_oauth_user')
+            ->with($this->callback(fn(array $c) => $c['email_verified'] === true && $c['email'] === 'user@example.com'))
+            ->willReturn($user_id);
+        $this->service->set_user_resolver($resolver);
+
+        $this->assertSame($user_id, $this->service->handle_callback('code', 'known-state'));
+    }
+
     public function test_handle_callback_calls_login_by_id_and_returns_identifier_on_success(): void
     {
         $user_id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
@@ -225,6 +276,7 @@ class GoogleAuthServiceTest extends TestCase
             'given_name'  => 'Test',
             'family_name' => 'User',
             'picture'     => 'https://example.com/pic.jpg',
+            'email_verified' => true,
         ];
     }
 
