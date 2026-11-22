@@ -311,45 +311,47 @@ class Upload
 
     protected function is_url_allowed(string $url): bool
     {
-        $parsed = parse_url($url);
-        if ($parsed === false || !isset($parsed['scheme'], $parsed['host'])) {
-            return false;
+        return $this->public_url_guard()->is_allowed($url);
+    }
+
+    protected function public_url_guard(): PublicUrlGuard
+    {
+        return new PublicUrlGuard();
+    }
+
+    /** @return array{string|false, int} */
+    protected function execute_image_request(string $url, array $options): array
+    {
+        $handle = curl_init($url);
+        if ($handle === false || !curl_setopt_array($handle, $options)) {
+            return [false, 0];
         }
 
-        $scheme = strtolower($parsed['scheme']);
-        if (!in_array($scheme, ['http', 'https'], true)) {
-            return false;
-        }
-
-        $host = strtolower($parsed['host']);
-        if (in_array($host, ['localhost', '127.0.0.1', '::1', '0.0.0.0'], true)) {
-            return false;
-        }
-
-        if (filter_var($host, FILTER_VALIDATE_IP)) {
-            $ip = $host;
-        } else {
-            $ip = gethostbyname($host);
-            if ($ip === $host) {
-                return false;
-            }
-        }
-
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-            return false;
-        }
-
-        return true;
+        $body = curl_exec($handle);
+        return [$body, (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE)];
     }
 
     public function download_image_from_url(string $url, string $destination_dir, string $default_filename = 'image.jpg'): array
     {
-        if (!$this->is_url_allowed($url)) {
+        // Keep subclass policy checks, then require validated addresses for the connection.
+        if (!$this->is_url_allowed($url) || ($addresses = $this->public_url_guard()->resolve($url)) === []) {
             return ['ok' => false, 'error' => 'URL not allowed: only public http/https URLs are permitted'];
         }
 
-        $imageData = @file_get_contents($url);
-        if ($imageData === false) {
+        $address = $addresses[0];
+        if (str_contains($address, ':')) {
+            $address = '[' . $address . ']';
+        }
+        [$imageData, $status] = $this->execute_image_request($url, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROXY => '',
+            CURLOPT_TIMEOUT => max(0, (int) ini_get('default_socket_timeout')),
+            // Pin the socket address while preserving the URL port and hostname.
+            CURLOPT_CONNECT_TO => ["::{$address}:"],
+        ]);
+        if ($imageData === false || $status < 200 || $status >= 300) {
             return ['ok' => false, 'error' => 'Failed to download file from URL'];
         }
 
@@ -363,7 +365,7 @@ class Upload
             return ['ok' => false, 'error' => 'Failed to write to temp file'];
         }
 
-        $urlPath = parse_url($url, PHP_URL_PATH);
+        $urlPath = parse_url($url, PHP_URL_PATH) ?? '';
         $originalName = basename($urlPath);
         
         if (empty($originalName)) {
