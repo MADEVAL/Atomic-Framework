@@ -216,7 +216,7 @@ Auth::instance()->stop_impersonation();
 
 **OAuth hardening:**
 - Google: claims passed to your `OAuthUserResolverInterface` include `email_verified` (bool). `handle_callback()` refuses the login (returns `null`, logs a warning) when Google returns an email it has not verified, so resolvers that match accounts by email are not open to takeover.
-- Telegram: signed Login Widget data is accepted for `OAUTH.telegram.auth_max_age` seconds (env `OAUTH_TELEGRAM_AUTH_MAX_AGE`, default `300`; non-positive falls back to `300`, values above `86400` are capped). `auth_date` more than 60 s in the future is rejected.
+- Telegram: signed Login Widget data is accepted for `OAUTH.telegram.auth_max_age` seconds (env `OAUTH_TELEGRAM_AUTH_MAX_AGE`, default `300`; non-positive falls back to `300`, values above `86400` are capped). `auth_date` more than 60 s in the future is rejected. Direct callers of `Tools\Telegram::verify_login_widget()` are affected too: its `$max_age` argument now defaults to 300 s (was 24 h).
 
 ---
 

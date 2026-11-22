@@ -125,6 +125,13 @@ final class Bootstrap
         ConfigSchema::string('MAIL_FROM_NAME')->default('Atomic');
         ConfigSchema::string('TELEGRAM_BOT_TOKEN')->default('');
         ConfigSchema::string('TELEGRAM_CHAT_ID')->default('');
+        ConfigSchema::string('OAUTH_GOOGLE_CLIENT_ID')->default('');
+        ConfigSchema::string('OAUTH_GOOGLE_CLIENT_SECRET')->default('');
+        ConfigSchema::string('OAUTH_GOOGLE_REDIRECT_URI')->default('');
+        ConfigSchema::string('OAUTH_TELEGRAM_BOT_USERNAME')->default('');
+        ConfigSchema::string('OAUTH_TELEGRAM_BOT_TOKEN')->default('');
+        ConfigSchema::string('OAUTH_TELEGRAM_CALLBACK_URL')->default('/auth/telegram/callback');
+        ConfigSchema::int('OAUTH_TELEGRAM_AUTH_MAX_AGE')->default(300);
         ConfigSchema::string('QUEUE_DRIVER')->default('redis');
         ConfigSchema::string('QUEUE_NAME')->default('default');
         ConfigSchema::string('CORS_ORIGIN')->required();

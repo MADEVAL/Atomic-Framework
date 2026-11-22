@@ -135,10 +135,15 @@ class ConfigParityTest extends TestCase
 
     // ── Sanity: loaders actually loaded real values (not empty stubs) ─────────
 
-    public function test_oauth_telegram_auth_max_age_defaults_to_300_in_both_loaders(): void
+    public function test_oauth_values_are_read_from_fixtures_not_defaults(): void
     {
-        $this->assertSame(300, self::$env_data['OAUTH']['telegram']['auth_max_age'] ?? null);
-        $this->assertSame(300, self::$php_data['OAUTH']['telegram']['auth_max_age'] ?? null);
+        foreach (['ENV' => self::$env_data, 'PHP' => self::$php_data] as $loader => $data) {
+            $this->assertSame(120, $data['OAUTH']['telegram']['auth_max_age'] ?? null, "{$loader} auth_max_age");
+            $this->assertSame('fixture_bot', $data['OAUTH']['telegram']['bot_username'] ?? null, "{$loader} bot_username");
+            $this->assertSame('/auth/telegram/fixture-callback', $data['OAUTH']['telegram']['callback_url'] ?? null, "{$loader} callback_url");
+            $this->assertSame('fixture-google-client-id', $data['OAUTH']['google']['client_id'] ?? null, "{$loader} client_id");
+        }
+        $this->assertSame(self::$env_data['OAUTH'], self::$php_data['OAUTH']);
     }
 
     public function test_app_name_is_non_empty(): void
