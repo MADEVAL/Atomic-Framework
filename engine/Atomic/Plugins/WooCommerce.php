@@ -67,6 +67,8 @@ class WooCommerce extends Plugin
                 'Authorization' => 'Basic ' . base64_encode($this->key . ':' . $this->secret),
             ],
             'timeout' => 30,
+            // The shop URL is seller-supplied: validate and pin every hop (SSRF).
+            'public_only' => true,
         ];
 
         $result = match($method) {
