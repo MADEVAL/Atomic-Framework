@@ -132,6 +132,11 @@ class WooCommerce extends Plugin
         return $this->request("products/categories?per_page={$per_page}&page={$page}");
     }
 
+    public function get_coupons(int $page = 1, int $per_page = 100): array
+    {
+        return $this->request("coupons?per_page={$per_page}&page={$page}");
+    }
+
     public function get_all_products(): array
     {
         $all = [];
