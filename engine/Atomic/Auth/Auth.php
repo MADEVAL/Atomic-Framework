@@ -99,7 +99,7 @@ class Auth implements LoginInterface
     }
 
 
-    public function login_with_secret(array $credentials, string $secret): ?AuthenticatableInterface
+    public function login_with_secret(array $credentials, string $secret): LoginResult
     {
         return $this->service()->login_with_secret($credentials, $secret);
     }

@@ -6,6 +6,8 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Auth\Auth;
 use Engine\Atomic\Auth\ConfigUserProvider;
+use Engine\Atomic\Auth\LoginResult;
+use Engine\Atomic\Auth\LoginStatus;
 use Engine\Atomic\Core\Guard;
 use Engine\Atomic\Core\Request;
 use Engine\Atomic\Core\Response;
@@ -32,23 +34,61 @@ final class AccessMiddleware implements MiddlewareInterface
             $username = trim((string)$atomic->get('POST.username'));
             $secret = (string)($atomic->get('POST.key') ?: $atomic->get('POST.password') ?: $atomic->get('POST.secret'));
 
-            if ($username !== '' && $secret !== '') {
-                $user = $auth->login_with_secret([
-                    'username' => $username,
-                    'guard'    => $guard,
-                ], $secret);
-
-                if ($user !== null) {
-                    $response = Response::instance();
-                    $response->redirect($this->safe_redirect($atomic), Response::STATUS_SEE_OTHER, false);
-                    return false;
-                }
+            $result = $this->attempt_login($auth, $guard, $username, $secret);
+            if ($result?->status === LoginStatus::Success) {
+                Response::instance()->redirect($this->safe_redirect($atomic), Response::STATUS_SEE_OTHER, false);
+                return false;
             }
 
-            return $this->deny($atomic, 'Invalid username or key.');
+            return $this->deny($atomic, $this->failure($result));
         }
 
-        return $this->deny($atomic);
+        return $this->deny($atomic, $this->failure(null, false));
+    }
+
+    private function attempt_login(Auth $auth, string $guard, string $username, string $secret): ?LoginResult
+    {
+        if ($username === '' || $secret === '') {
+            return null;
+        }
+
+        return $auth->login_with_secret([
+            'username' => $username,
+            'guard'    => $guard,
+        ], $secret);
+    }
+
+    /**
+     * @return array{status: int, message: string, json: array<string, mixed>, headers: array<string, string>}
+     */
+    private function failure(?LoginResult $result, bool $attempted = true): array
+    {
+        if ($result?->status === LoginStatus::LockedOut) {
+            $seconds = $result->retry_after_seconds;
+            return [
+                'status'  => Response::STATUS_TOO_MANY_REQUESTS,
+                'message' => 'Too many login attempts. Try again in ' . $this->retry_delay($seconds) . '.',
+                'json'    => ['error' => 'Too many login attempts', 'retry_after_seconds' => $seconds],
+                'headers' => ['Retry-After' => (string)$seconds],
+            ];
+        }
+
+        return [
+            'status'  => Response::STATUS_UNAUTHORIZED,
+            'message' => $attempted ? 'Invalid username or key.' : '',
+            'json'    => ['error' => 'Unauthorized'],
+            'headers' => [],
+        ];
+    }
+
+    private function retry_delay(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return $seconds . ($seconds === 1 ? ' second' : ' seconds');
+        }
+
+        $minutes = (int)ceil($seconds / 60);
+        return $minutes . ($minutes === 1 ? ' minute' : ' minutes');
     }
 
     private function guard(): string
@@ -57,19 +97,27 @@ final class AccessMiddleware implements MiddlewareInterface
         return $guard !== '' ? $guard : 'dashboard';
     }
 
-    private function deny(\Base $atomic, string $error = ''): bool
+    /**
+     * @param array{status: int, message: string, json: array<string, mixed>, headers: array<string, string>} $failure
+     */
+    private function deny(\Base $atomic, array $failure): bool
     {
         $request = Request::instance();
         $response = Response::instance();
+        if (!headers_sent()) {
+            foreach ($failure['headers'] as $name => $value) {
+                header($name . ': ' . $value);
+            }
+        }
+
         if ($request->wants_json($atomic)) {
-            $response->send_json_error('Unauthorized', Response::STATUS_UNAUTHORIZED, [], false);
+            $response->json_response($failure['json'], $failure['status'], false);
             return false;
         }
 
         $title = ucfirst($this->guard()) . ' Access';
         $redirect = $this->current_url($atomic);
-        $html = $this->form($title, $redirect, $error);
-        $response->send_html($html, Response::STATUS_UNAUTHORIZED, false);
+        $response->send_html($this->form($title, $redirect, $failure['message']), $failure['status'], false);
         return false;
     }
 
@@ -150,27 +198,22 @@ HTML;
 
         $title = ucfirst($guard) . ' Access';
         $redirect = $this->local_redirect('', $request instanceof \Engine\Atomic\Http\Request ? $request->path() : '/');
-        $error = '';
+        $failure = $this->failure(null, false);
         if ($request instanceof \Engine\Atomic\Http\Request && $request->method() === 'POST') {
             $username = trim((string)($request->input('username') ?? ''));
             $secret = (string)($request->input('key') ?? $request->input('password') ?? $request->input('secret') ?? '');
-            if ($username !== '' && $secret !== '') {
-                $user = $auth->login_with_secret([
-                    'username' => $username,
-                    'guard'    => $guard,
-                ], $secret);
-                if ($user !== null) {
-                    $redirect = $this->local_redirect((string)$request->input('redirect', ''), $redirect);
-                    return \Engine\Atomic\Http\Response::redirect($redirect, 303);
-                }
+            $result = $this->attempt_login($auth, $guard, $username, $secret);
+            if ($result?->status === LoginStatus::Success) {
+                $redirect = $this->local_redirect((string)$request->input('redirect', ''), $redirect);
+                return \Engine\Atomic\Http\Response::redirect($redirect, 303);
             }
-            $error = 'Invalid username or key.';
+            $failure = $this->failure($result);
         }
 
         if ($request instanceof \Engine\Atomic\Http\Request && $request->expectsJson()) {
-            return \Engine\Atomic\Http\Response::json(['error' => 'Unauthorized'], 401);
+            return \Engine\Atomic\Http\Response::json($failure['json'], $failure['status'], $failure['headers']);
         }
 
-        return \Engine\Atomic\Http\Response::html($this->form($title, $redirect, $error), 401);
+        return \Engine\Atomic\Http\Response::html($this->form($title, $redirect, $failure['message']), $failure['status'], $failure['headers']);
     }
 }

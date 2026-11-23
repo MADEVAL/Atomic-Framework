@@ -13,6 +13,7 @@ use Engine\Atomic\Auth\Interfaces\AuthSessionInterface;
 use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
 use Engine\Atomic\Auth\Interfaces\HasRolesInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
+use Engine\Atomic\Auth\LoginStatus;
 use Engine\Atomic\Auth\Services\AuthService;
 use Engine\Atomic\Core\Hash;
 use Engine\Atomic\Enums\Role;
@@ -89,7 +90,8 @@ class AuthServiceTest extends TestCase
 
         $result = $this->service->login_with_secret(['email' => 'a@b.com'], 'secret');
 
-        $this->assertNull($result);
+        $this->assertSame(LoginStatus::InvalidCredentials, $result->status);
+        $this->assertNull($result->user);
     }
 
     public function test_login_with_secret_returns_null_on_wrong_password(): void
@@ -122,7 +124,7 @@ class AuthServiceTest extends TestCase
 
         $result = $this->service->login_with_secret(['email' => 'a@b.com'], 'wrong');
 
-        $this->assertNull($result);
+        $this->assertSame(LoginStatus::InvalidCredentials, $result->status);
     }
 
     public function test_login_with_secret_starts_session_on_success(): void
@@ -151,7 +153,8 @@ class AuthServiceTest extends TestCase
         $this->service->set_user_provider($provider);
         $result = $this->service->login_with_secret(['email' => 'a@b.com'], 'correct');
 
-        $this->assertSame($user, $result);
+        $this->assertSame(LoginStatus::Success, $result->status);
+        $this->assertSame($user, $result->user);
     }
 
     public function test_login_with_secret_regenerates_session_id_on_success(): void
@@ -441,7 +444,7 @@ class AuthServiceTest extends TestCase
         $this->service->set_user_provider($provider);
         $result = $this->service->login_with_secret(['email' => 'a@b.com'], 'pass');
 
-        $this->assertNull($result);
+        $this->assertSame(LoginStatus::InvalidCredentials, $result->status);
     }
 
     // ── logout (additional) ───────────────────────────────────────────────────
@@ -870,17 +873,25 @@ class AuthServiceTest extends TestCase
         return $provider;
     }
 
-    public function test_login_with_secret_blocks_after_max_attempts(): void
+    private function login_status(string $email, string $secret): LoginStatus
+    {
+        return $this->service->login_with_secret(['email' => $email], $secret)->status;
+    }
+
+    public function test_login_with_secret_reports_lockout_even_with_correct_secret(): void
     {
         $email = 'blocks_' . bin2hex(random_bytes(3)) . '@example.com';
         $this->lockout_app_mock($email);
         $this->service->set_user_provider($this->lockout_provider(true));
 
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong1'));
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong2'));
+        $this->assertSame(LoginStatus::InvalidCredentials, $this->login_status($email, 'wrong1'));
+        $this->assertSame(LoginStatus::InvalidCredentials, $this->login_status($email, 'wrong2'));
 
-        // Locked out: even correct credentials are rejected
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'correct'));
+        $result = $this->service->login_with_secret(['email' => $email], 'correct');
+        $this->assertSame(LoginStatus::LockedOut, $result->status);
+        $this->assertNull($result->user);
+        $this->assertGreaterThan(0, $result->retry_after_seconds);
+        $this->assertLessThanOrEqual(900, $result->retry_after_seconds);
     }
 
     public function test_login_with_secret_resets_attempts_on_success(): void
@@ -889,15 +900,12 @@ class AuthServiceTest extends TestCase
         $this->lockout_app_mock($email);
         $this->service->set_user_provider($this->lockout_provider(true));
 
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong1'));
+        $this->assertSame(LoginStatus::InvalidCredentials, $this->login_status($email, 'wrong1'));
+        $this->assertSame(LoginStatus::Success, $this->login_status($email, 'correct'), 'A successful login must reset the failure counter.');
 
-        $user = $this->service->login_with_secret(['email' => $email], 'correct');
-        $this->assertNotNull($user, 'A successful login must reset the failure counter.');
-
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong1'));
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong2'));
-
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'correct'));
+        $this->assertSame(LoginStatus::InvalidCredentials, $this->login_status($email, 'wrong1'));
+        $this->assertSame(LoginStatus::InvalidCredentials, $this->login_status($email, 'wrong2'));
+        $this->assertSame(LoginStatus::LockedOut, $this->login_status($email, 'correct'));
     }
 
     public function test_login_with_secret_never_blocks_when_rate_limit_config_absent(): void
@@ -909,11 +917,9 @@ class AuthServiceTest extends TestCase
         ]);
         $this->service->set_user_provider($this->lockout_provider(true));
 
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong1'));
-        $this->assertNull($this->service->login_with_secret(['email' => $email], 'wrong2'));
-
-        $user = $this->service->login_with_secret(['email' => $email], 'correct');
-        $this->assertNotNull($user, 'Without configuration the defaults (5 attempts) apply and 2 failures must not lock.');
+        $this->assertSame(LoginStatus::InvalidCredentials, $this->login_status($email, 'wrong1'));
+        $this->assertSame(LoginStatus::InvalidCredentials, $this->login_status($email, 'wrong2'));
+        $this->assertSame(LoginStatus::Success, $this->login_status($email, 'correct'), 'Without configuration the defaults (5 attempts) apply and 2 failures must not lock.');
     }
 
 }

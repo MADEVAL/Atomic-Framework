@@ -191,12 +191,15 @@ class User extends Model
 ```php
 use Engine\Atomic\Auth\Auth;
 use Engine\Atomic\Auth\GoogleAuth;
+use Engine\Atomic\Auth\LoginStatus;
 
-// Password-based login
-$user = Auth::instance()->login_with_secret(
-    ['email' => $email],
-    $password
-);
+// Password-based login returns a LoginResult (since 0.3; previously ?User)
+$result = Auth::instance()->login_with_secret(['email' => $email], $password);
+match ($result->status) {
+    LoginStatus::Success            => $user = $result->user,
+    LoginStatus::LockedOut          => $retryAfter = $result->retry_after_seconds, // respond 429 + Retry-After
+    LoginStatus::InvalidCredentials => null,                                       // respond 401
+};
 
 // OAuth login
 $url = GoogleAuth::instance()->get_login_url();

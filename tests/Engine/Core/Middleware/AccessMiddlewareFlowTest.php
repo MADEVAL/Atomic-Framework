@@ -7,6 +7,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\Auth\Auth;
 use Engine\Atomic\Auth\ConfigUser;
+use Engine\Atomic\Auth\LoginResult;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Core\Container;
 use Engine\Atomic\Core\Middleware\AccessMiddleware;
@@ -67,7 +68,7 @@ final class AccessMiddlewareFlowTest extends TestCase
             ->onlyMethods(['login_with_secret'])->getMock();
         $auth->expects($this->once())->method('login_with_secret')
             ->with(['username' => 'viewer', 'guard' => 'telemetry'], 'secret')
-            ->willReturn(new ConfigUser('11111111-1111-4111-8111-111111111111', 'viewer', 'unused', ['admin']));
+            ->willReturn(LoginResult::success(new ConfigUser('11111111-1111-4111-8111-111111111111', 'viewer', 'unused', ['admin'])));
         Container::global_or_create()->instance(Auth::class, $auth);
         Auth::reset();
 
@@ -109,7 +110,7 @@ final class AccessMiddlewareFlowTest extends TestCase
         $auth = $this->getMockBuilder(Auth::class)->disableOriginalConstructor()
             ->onlyMethods(['login_with_secret'])->getMock();
         $auth->expects($body === [] ? $this->never() : $this->once())->method('login_with_secret')
-            ->with(['username' => 'viewer', 'guard' => 'telemetry'], 'wrong')->willReturn(null);
+            ->with(['username' => 'viewer', 'guard' => 'telemetry'], 'wrong')->willReturn(LoginResult::invalid_credentials());
         Container::global_or_create()->instance(Auth::class, $auth);
         Auth::reset();
 
@@ -126,6 +127,41 @@ final class AccessMiddlewareFlowTest extends TestCase
             } else {
                 $this->assertStringNotContainsString('Invalid username or key.', $response->body());
             }
+        }
+    }
+
+    public static function lockout_requests(): iterable
+    {
+        foreach (['kernel' => true, 'legacy' => false] as $path => $kernel) {
+            foreach (['HTML' => 'text/html', 'JSON' => 'application/json'] as $format => $accept) {
+                yield "$path $format" => [$kernel, $accept];
+            }
+        }
+    }
+
+    #[DataProvider('lockout_requests')]
+    public function test_locked_out_login_reports_retry_delay_instead_of_invalid_credentials(bool $kernel, string $accept): void
+    {
+        $auth = $this->getMockBuilder(Auth::class)->disableOriginalConstructor()
+            ->onlyMethods(['login_with_secret'])->getMock();
+        $auth->expects($this->once())->method('login_with_secret')
+            ->with(['username' => 'viewer', 'guard' => 'telemetry'], 'correct')
+            ->willReturn(LoginResult::locked_out(120));
+        Container::global_or_create()->instance(Auth::class, $auth);
+        Auth::reset();
+
+        $response = $this->dispatch($kernel, 'POST', '/telemetry/logs', $accept, ['username' => 'viewer', 'key' => 'correct']);
+
+        $this->assertSame(429, $response->status());
+        $this->assertSame(PHP_SESSION_NONE, session_status());
+        if ($kernel) {
+            $this->assertSame('120', $response->header('Retry-After'));
+        }
+        if ($accept === 'application/json') {
+            $this->assertSame(['error' => 'Too many login attempts', 'retry_after_seconds' => 120], json_decode($response->body(), true));
+        } else {
+            $this->assertStringContainsString('Too many login attempts. Try again in 2 minutes.', $response->body());
+            $this->assertStringNotContainsString('Invalid username or key.', $response->body());
         }
     }
 

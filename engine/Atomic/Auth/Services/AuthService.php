@@ -16,6 +16,7 @@ use Engine\Atomic\Auth\Interfaces\AuthenticatableInterface;
 use Engine\Atomic\Auth\Interfaces\HasRolesInterface;
 use Engine\Atomic\Auth\Interfaces\LoginInterface;
 use Engine\Atomic\Auth\Interfaces\UserProviderInterface;
+use Engine\Atomic\Auth\LoginResult;
 use Engine\Atomic\Core\Hash;
 use Engine\Atomic\Enums\Role;
 use Engine\Atomic\Security\AccountLockout;
@@ -92,7 +93,7 @@ class AuthService implements LoginInterface
         $this->session->validate_auth_session();
     }
 
-    public function login_with_secret(array $credentials, string $secret): ?AuthenticatableInterface
+    public function login_with_secret(array $credentials, string $secret): LoginResult
     {
         if (!$this->user_provider) {
             throw new \RuntimeException('User provider not configured. Call set_user_provider() first.');
@@ -100,11 +101,12 @@ class AuthService implements LoginInterface
 
         $identifier = $this->login_identifier();
 
-        if ($this->is_login_rate_limited($identifier)) {
+        $lockout_remaining = $this->login_lockout_remaining($identifier);
+        if ($lockout_remaining !== null) {
             $this->logger->warning('Auth login rate limited', [
                 'ip' => $this->app->get('IP'),
             ]);
-            return null;
+            return LoginResult::locked_out($lockout_remaining);
         }
 
         $credential_keys = array_keys(array_diff_key($credentials, array_flip(['password', 'secret', 'token'])));
@@ -116,7 +118,7 @@ class AuthService implements LoginInterface
                 'ip' => $this->app->get('IP'),
                 'credential_keys' => $credential_keys,
             ]);
-            return null;
+            return LoginResult::invalid_credentials();
         }
 
         $password_hash = $user->get_password_hash();
@@ -126,7 +128,7 @@ class AuthService implements LoginInterface
                 'ip' => $this->app->get('IP'),
                 'credential_keys' => $credential_keys,
             ]);
-            return null;
+            return LoginResult::invalid_credentials();
         }
 
         if (Hash::password_needs_rehash($password_hash)) {
@@ -151,7 +153,7 @@ class AuthService implements LoginInterface
         \Engine\Atomic\Telemetry\Stats\SecurityStats::login_success();
 
         $this->current_user = $user;
-        return $user;
+        return LoginResult::success($user);
     }
 
     public function logout(): void
@@ -343,12 +345,13 @@ class AuthService implements LoginInterface
         return $this->user_provider->find_by_id($admin_uuid);
     }
 
-    private function is_login_rate_limited(string $identifier): bool
+    private function login_lockout_remaining(string $identifier): ?int
     {
         try {
-            return $this->lockout()->isLocked($identifier);
+            $lockout = $this->lockout();
+            return $lockout->isLocked($identifier) ? $lockout->lockoutRemaining($identifier) : null;
         } catch (\Throwable) {
-            return false;
+            return null;
         }
     }
 

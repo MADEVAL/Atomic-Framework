@@ -6,6 +6,7 @@ if (!defined('ATOMIC_START')) exit;
 
 use Engine\Atomic\App\Controller;
 use Engine\Atomic\Auth\Auth;
+use Engine\Atomic\Auth\LoginStatus;
 use Engine\Atomic\Core\Hash;
 use Engine\Atomic\Core\Response;
 
@@ -33,9 +34,17 @@ class LoginController extends Controller
         }
 
         $auth = Auth::instance();
-        $user = $auth->login_with_secret(['email' => $email], $password);
+        $result = $auth->login_with_secret(['email' => $email], $password);
 
-        if ($user === null) {
+        if ($result->status === LoginStatus::LockedOut) {
+            header('Retry-After: ' . $result->retry_after_seconds);
+            $response->send_json_error('Too many login attempts. Please try again later.', Response::STATUS_TOO_MANY_REQUESTS, [
+                'retry_after_seconds' => $result->retry_after_seconds,
+            ]);
+            return;
+        }
+
+        if ($result->status !== LoginStatus::Success) {
             Hash::dummy_timing_mitigation();
             $response->send_json_error('Invalid credentials.', 401);
             return;
