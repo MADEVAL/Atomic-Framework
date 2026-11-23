@@ -64,10 +64,13 @@ define('ATOMIC_HTTP_RETRIES', 3);
 define('ATOMIC_HTTP_TIMEOUT', 15);
 define('ATOMIC_HTTP_ENGINE', 'curl');
 
+// Deprecated: image settings now live in config/images.php (or CONFIG_IMAGES_* in .env).
+// These constants are still honoured as a fallback for keys the config does not set.
 define('ATOMIC_JPEG_QUALITY', 85);
 define('ATOMIC_PNG_COMPRESSION_LEVEL', 6);
 define('ATOMIC_WEBP_QUALITY', 85);
 define('ATOMIC_AVIF_QUALITY', 50);
+define('ATOMIC_IMAGE_MAX_SIZE', 1600);
 define('ATOMIC_SVG_PRECISION', 3);
 
 define('ATOMIC_THUMBNAIL_SIZE', 150);
