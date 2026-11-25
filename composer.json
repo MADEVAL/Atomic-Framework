@@ -16,6 +16,14 @@
     "globus-studio/cortex-atomic": "^2.0.31",
     "psr/container": "^2.0"
   },
+  "suggest": {
+    "ext-sodium": "Required by the Crypto class (encryption).",
+    "ext-redis": "Redis queue, cache, mutex, sessions and the rate limiter.",
+    "ext-memcached": "Memcached cache driver.",
+    "ext-gd": "Image resizing and format conversion (or ext-imagick).",
+    "ext-imagick": "Image resizing and format conversion (or ext-gd).",
+    "ext-iconv": "Character set conversion fallback."
+  },
   "repositories": [
     {
       "type": "path",
