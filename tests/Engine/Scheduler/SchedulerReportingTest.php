@@ -6,6 +6,7 @@ namespace Tests\Engine\Scheduler;
 use Engine\Atomic\Core\App;
 use Engine\Atomic\Mutex\FileMutexDriver;
 use Engine\Atomic\Mutex\Mutex;
+use Engine\Atomic\Mutex\MutexDriverInterface;
 use Engine\Atomic\Scheduler\Runner;
 use Engine\Atomic\Scheduler\Scheduler;
 use Engine\Atomic\Scheduler\Worker;
@@ -48,6 +49,43 @@ final class SchedulerReportingTest extends TestCase
             'A successful result row must keep the documented shape (error => null).'
         );
         $this->assertNull($rows[0]['error']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalid_overlap_ttls')]
+    public function test_overlap_mutex_rejects_a_nonpositive_ttl(int $ttl): void
+    {
+        $event = Scheduler::instance()->call(static fn(): null => null);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $event->without_overlapping($ttl);
+    }
+
+    public static function invalid_overlap_ttls(): array
+    {
+        return [[0], [-1]];
+    }
+
+    public function test_overlap_mutex_uses_an_explicit_ttl_in_seconds(): void
+    {
+        $event = Scheduler::instance()->call(static fn(): null => null)->without_overlapping(300);
+        $driver = $this->createMock(MutexDriverInterface::class);
+        $driver->expects($this->once())->method('acquire')
+            ->with($event->get_mutex_name(), $this->isType('string'), 300)
+            ->willReturn(true);
+        $driver->method('release')->willReturn(true);
+        Mutex::set_driver($driver);
+
+        $event->run();
+    }
+
+    public function test_overlap_mutex_summary_reports_seconds(): void
+    {
+        Mutex::set_driver($this->createStub(MutexDriverInterface::class));
+        $event = Scheduler::instance()->call(static fn(): null => null)->without_overlapping(300);
+
+        $summary = $event->get_summary();
+        $this->assertSame(300, $summary['mutex_ttl_seconds']);
+        $this->assertArrayNotHasKey('mutex_ttl_minutes', $summary);
     }
 
     public function test_overlapping_task_is_not_reported_as_successful(): void
@@ -141,7 +179,7 @@ final class SchedulerReportingTest extends TestCase
         }
         Mutex::set_driver($driver);
         $scheduler = Scheduler::instance();
-        $event = $scheduler->call(static fn(): null => null)->every_minute()->without_overlapping();
+        $event = $scheduler->call(static fn(): null => null)->every_minute()->without_overlapping(60);
         $token = Mutex::acquire($event->get_mutex_name(), 60);
         $this->assertNotNull($token);
         try {

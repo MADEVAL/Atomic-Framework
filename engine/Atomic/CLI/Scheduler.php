@@ -251,7 +251,7 @@ trait Scheduler
 
         $this->output->writeln();
         $this->output->writeln('Options:');
-        $this->output->writeln('  without_overlapping() Prevent overlapping runs');
+        $this->output->writeln('  without_overlapping(seconds) Prevent overlapping runs for a positive TTL');
         $this->output->writeln('  run_in_maintenance_mode() Run while maintenance mode is enabled');
         $this->output->writeln("  description('name')  Set task name");
 

@@ -231,7 +231,7 @@ $scheduler->call('App\Tasks\ImportFeed->handle')
     ->description('Import feed');
 ```
 
-The argument is a lock TTL in seconds. The scheduler uses `Engine\Atomic\Mutex\Mutex` and releases the lock after the task finishes. If the process dies before release, the TTL limits how long the lock can block future runs.
+Pass a positive lock TTL in seconds. The scheduler releases the mutex when the task finishes. Choose a TTL that covers the longest expected run, since another run can start once the lock expires. If the process dies before release, the TTL limits how long the lock can block future runs.
 
 By default, the lock name is derived from the cron expression and callback description. You can inspect lock details through `Event::get_summary()`.
 
@@ -366,12 +366,12 @@ Use `summary()` or `Event::get_summary()` to inspect registered events:
     'without_overlapping' => true,
     'runs_in_maintenance_mode' => false,
     'mutex_name' => 'schedule-...',
-    'mutex_ttl_minutes' => 300,
+    'mutex_ttl_seconds' => 300,
     'mutex_is_locked' => false,
 ]
 ```
 
-Note: `mutex_ttl_minutes` is the current summary key name, but the stored value comes from `without_overlapping()` and is passed to the mutex layer as seconds.
+`mutex_ttl_seconds` is the argument passed to `without_overlapping()`.
 
 ### Troubleshooting
 

@@ -26,7 +26,7 @@ class Event
     protected bool    $without_overlapping = false;
     protected bool    $run_in_maintenance_mode = false;
     protected array   $environments = [];
-    protected int     $expires_at = 1440;
+    protected int     $expires_at;
     protected ?int    $exit_code = null;
     protected string  $output = '';
     protected bool    $skipped = false;
@@ -133,8 +133,13 @@ class Event
         return $this;
     }
 
-    public function without_overlapping(int $expires_at = 60): self
+    /** Set the overlap lock TTL in seconds. */
+    public function without_overlapping(int $expires_at): self
     {
+        if ($expires_at <= 0) {
+            throw new \InvalidArgumentException('The overlap lock TTL must be positive (in seconds).');
+        }
+
         $this->without_overlapping = true;
         $this->expires_at = $expires_at;
         return $this;
@@ -426,7 +431,7 @@ class Event
         
         if ($this->without_overlapping) {
             $summary['mutex_name'] = $this->get_mutex_name();
-            $summary['mutex_ttl_minutes'] = $this->expires_at;
+            $summary['mutex_ttl_seconds'] = $this->expires_at;
             $summary['mutex_is_locked'] = Mutex::exists($this->get_mutex_name());
         }
         

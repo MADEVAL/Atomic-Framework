@@ -13,5 +13,5 @@ $schedule->job(\Engine\Atomic\Scheduler\Jobs\LogCleanupJob::class)->daily()->at(
 // Process next queue job every 5 minutes
 $schedule->exec('php atomic queue:work --once')
     ->every_five_minutes()
-    ->without_overlapping()
+    ->without_overlapping(60)
     ->name('queue:process-next');
