@@ -24,6 +24,7 @@ return [
     'language'       => 'en',
     'debug'          => false,
     'debug_level'    => 'error',
+    'http'           => ['allowed_private_hosts' => ['Atomic-Woo.local', ' ', 'shop.test', '']],
     'telemetry' => [
         'access_mode'          => 'none',
         'access_allowed_roles' => ['admin'],

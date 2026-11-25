@@ -21,7 +21,28 @@ class RequestPublicOnlyTest extends TestCase
         'shop.example.test'  => ['93.184.216.34'],
         'cdn.example.test'   => ['2606:4700::1111'],
         'intranet.example.test' => ['192.168.1.5'],
+        'atomic-woo.local'   => ['127.0.0.1'],
+        'shop.test'          => ['10.0.0.7', 'fd00::7'],
     ];
+
+    private static function dns(string $host): array
+    {
+        return self::DNS[rtrim($host, '.')] ?? [];
+    }
+
+    private static function config_guard(bool $debug, mixed $hosts): PublicUrlGuard
+    {
+        $atomic = \Base::instance();
+        $saved = [$atomic->get('DEBUG_MODE'), $atomic->get('HTTP_ALLOWED_PRIVATE_HOSTS')];
+        $atomic->set('DEBUG_MODE', $debug);
+        $atomic->set('HTTP_ALLOWED_PRIVATE_HOSTS', $hosts);
+        try {
+            return PublicUrlGuard::from_config($atomic, self::dns(...));
+        } finally {
+            $atomic->set('DEBUG_MODE', $saved[0]);
+            $atomic->set('HTTP_ALLOWED_PRIVATE_HOSTS', $saved[1]);
+        }
+    }
 
     /** @param list<callable(string, array): array> $responses */
     private function client(array $responses, ?callable $public_addresses = null): Request
@@ -435,5 +456,57 @@ http_response_code(404);
             }
             @rmdir($docroot);
         }
+    }
+
+    public function test_listed_private_host_is_allowed_in_debug(): void
+    {
+        $guard = self::config_guard(true, ['atomic-woo.local', 'shop.test']);
+
+        self::assertSame(['127.0.0.1'], $guard->resolve('http://atomic-woo.local/wp-json/wc/v3'));
+        self::assertSame(['10.0.0.7', 'fd00::7'], $guard->resolve('https://shop.test/'));
+    }
+
+    public function test_listed_private_host_is_refused_with_debug_off(): void
+    {
+        $guard = self::config_guard(false, ['atomic-woo.local']);
+
+        self::assertSame([], $guard->resolve('http://atomic-woo.local/'));
+    }
+
+    public function test_unlisted_private_host_and_private_literals_stay_refused(): void
+    {
+        $guard = self::config_guard(true, ['atomic-woo.local', '127.0.0.1', 'localhost']);
+
+        self::assertSame([], $guard->resolve('https://intranet.example.test/'));
+        self::assertSame([], $guard->resolve('http://127.0.0.1/'));
+        self::assertSame([], $guard->resolve('http://localhost/'));
+        self::assertSame(['93.184.216.34'], $guard->resolve('https://shop.example.test/'));
+    }
+
+    public function test_private_host_match_is_case_insensitive(): void
+    {
+        $guard = self::config_guard(true, ['Atomic-WOO.Local']);
+
+        self::assertSame(['127.0.0.1'], $guard->resolve('http://ATOMIC-woo.local./'));
+    }
+
+    public function test_empty_and_trailing_comma_entries_are_ignored(): void
+    {
+        self::assertSame(['atomic-woo.local', 'shop.test'], PublicUrlGuard::host_list(['atomic-woo.local', '', ' ', 'SHOP.test', 7, '']));
+
+        $guard = self::config_guard(true, ['', ' ', '.']);
+        self::assertSame([], $guard->resolve('http://atomic-woo.local/'));
+    }
+
+    public function test_redirect_from_allowed_private_host_to_unlisted_private_host_is_refused(): void
+    {
+        $guard = new PublicUrlGuard(self::dns(...), ['atomic-woo.local']);
+        $result = $this->client([
+            self::reply(302, '', ['Location: http://intranet.example.test/secret']),
+        ], $guard->resolve(...))->remote_get('http://atomic-woo.local/', ['public_only' => true]);
+
+        self::assertSame(self::NOT_ALLOWED, $result['error']);
+        self::assertCount(1, $this->calls);
+        self::assertSame(['::127.0.0.1:'], $this->calls[0][1][CURLOPT_CONNECT_TO]);
     }
 }

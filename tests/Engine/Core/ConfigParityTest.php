@@ -34,7 +34,7 @@ class ConfigParityTest extends TestCase
         // ── Flat scalars ──────────────────────────────────────────────────────
         'APP_UUID', 'CACHE', 'CACHE_CONFIG', 'CACHE_PREFIX', 'DOMAIN', 'LANGUAGE',
         'ENCODING', 'TZ', 'APP_NAME', 'APP_KEY', 'APP_ENCRYPTION_KEY', 'DEBUG_MODE', 'DEBUG_LEVEL',
-        'TELEMETRY_ACCESS_MODE', 'TELEMETRY_ACCESS_ALLOWED_ROLES',
+        'TELEMETRY_ACCESS_MODE', 'TELEMETRY_ACCESS_ALLOWED_ROLES', 'HTTP_ALLOWED_PRIVATE_HOSTS',
         'TELEMETRY_STATS_ENABLED', 'TELEMETRY_STATS_RETENTION_DAYS', 'TELEMETRY_STATS_EVENT_RETENTION_DAYS',
         'QUEUE_DRIVER', 'QUEUE_NAME',
         'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
@@ -134,6 +134,13 @@ class ConfigParityTest extends TestCase
     }
 
     // ── Sanity: loaders actually loaded real values (not empty stubs) ─────────
+
+    public function test_http_allowed_private_hosts_env_string_and_php_array_give_same_list(): void
+    {
+        foreach (['ENV' => self::$env_data, 'PHP' => self::$php_data] as $loader => $data) {
+            $this->assertSame(['Atomic-Woo.local', 'shop.test'], $data['HTTP_ALLOWED_PRIVATE_HOSTS'], $loader);
+        }
+    }
 
     public function test_oauth_values_are_read_from_fixtures_not_defaults(): void
     {

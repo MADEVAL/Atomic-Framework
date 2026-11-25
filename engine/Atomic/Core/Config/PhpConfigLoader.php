@@ -182,6 +182,7 @@ class PhpConfigLoader {
         // explicitly, so mirror that for the keys whose empty default matters.
         $this->atomic->set('TELEGRAM_BOT_TOKEN', (string)$this->cfg_nested('tools', 'telegram.bot_token', ''));
         $this->atomic->set('TELEGRAM_CHAT_ID', (string)$this->cfg_nested('tools', 'telegram.chat_id', ''));
+        $this->atomic->set('HTTP_ALLOWED_PRIVATE_HOSTS', $this->role_list($this->cfg_nested('app', 'http.allowed_private_hosts', [])));
 
         // ── MUTEX ──
         $mutex = $this->cfg('database', 'mutex', []);

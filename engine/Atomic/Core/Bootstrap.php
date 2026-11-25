@@ -86,6 +86,7 @@ final class Bootstrap
         ConfigSchema::string('I18N_SESSION')->default('lang');
         ConfigSchema::bool('DEBUG_MODE')->default(false);
         ConfigSchema::string('DEBUG_LEVEL')->default('error');
+        ConfigSchema::csv('HTTP_ALLOWED_PRIVATE_HOSTS')->default('');
         ConfigSchema::string('DOMAIN')->required();
         ConfigSchema::string('DB_DRIVER')->default('mysql');
         ConfigSchema::string('DB_HOST')->default('127.0.0.1');

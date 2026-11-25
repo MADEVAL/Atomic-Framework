@@ -25,6 +25,11 @@ return [
     'fallback'     => 'en',
     'debug'        => false,
     'debug_level'  => 'error',
+    'http' => [
+        // Exact hostnames public-only HTTP requests may reach on private addresses,
+        // e.g. ['atomic-woo.local']. Only applies while 'debug' is true.
+        'allowed_private_hosts' => [],
+    ],
     'escape'       => true,
     'telemetry' => [
         'access_mode'          => 'none',

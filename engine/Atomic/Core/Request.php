@@ -39,7 +39,7 @@ final class Request
 
     /**
      * @param (callable(string): list<string>)|null $public_addresses
-     *        Validated addresses for one public-only hop, or [] to refuse it; defaults to PublicUrlGuard::resolve().
+     *        Validated addresses for one public-only hop, or [] to refuse it; defaults to PublicUrlGuard::from_config()->resolve().
      * @param (callable(string, array<int, mixed>): array{headers: list<string>, body: string, error: string, exceeded?: bool})|null $transport
      *        Runs one public-only hop with the given cURL options; defaults to cURL.
      *        `exceeded` reports a body larger than CURLOPT_MAXFILESIZE.
@@ -47,7 +47,7 @@ final class Request
     private function __construct(?callable $public_addresses = null, ?callable $transport = null)
     {
         $this->public_addresses = $public_addresses === null
-            ? (new PublicUrlGuard())->resolve(...)
+            ? static fn(string $url): array => PublicUrlGuard::from_config()->resolve($url)
             : \Closure::fromCallable($public_addresses);
         $this->transport = $transport === null ? self::curl_transport(...) : \Closure::fromCallable($transport);
         $this->ua      = \defined('ATOMIC_HTTP_USERAGENT') ? (string)\ATOMIC_HTTP_USERAGENT : ('AtomicHTTP PHP/'.PHP_VERSION);

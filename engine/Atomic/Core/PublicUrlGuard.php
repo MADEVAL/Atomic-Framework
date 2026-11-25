@@ -41,10 +41,50 @@ final class PublicUrlGuard
 
     private readonly Closure $resolver;
 
-    /** @param (callable(string): list<string>)|null $resolver Resolves all A and AAAA addresses. */
-    public function __construct(?callable $resolver = null)
+    /** @var array<string, true> */
+    private readonly array $private_hosts;
+
+    /**
+     * @param (callable(string): list<string>)|null $resolver Resolves all A and AAAA addresses.
+     * @param iterable<mixed> $private_hosts Exact hostnames that may resolve to private addresses.
+     */
+    public function __construct(?callable $resolver = null, iterable $private_hosts = [])
     {
         $this->resolver = $resolver === null ? self::lookup(...) : Closure::fromCallable($resolver);
+        $this->private_hosts = array_fill_keys(self::host_list($private_hosts), true);
+    }
+
+    /**
+     * Guard for the running app: HTTP_ALLOWED_PRIVATE_HOSTS is honoured only while DEBUG_MODE is on.
+     *
+     * @param (callable(string): list<string>)|null $resolver
+     */
+    public static function from_config(?\Base $atomic = null, ?callable $resolver = null): self
+    {
+        $atomic ??= \Base::instance();
+        $debug = filter_var($atomic->get('DEBUG_MODE'), FILTER_VALIDATE_BOOLEAN);
+        $hosts = $atomic->get('HTTP_ALLOWED_PRIVATE_HOSTS');
+
+        return new self($resolver, $debug && is_iterable($hosts) ? $hosts : []);
+    }
+
+    /**
+     * @param iterable<mixed> $hosts
+     * @return list<string> Lowercased, without trailing dots, empty entries dropped.
+     */
+    public static function host_list(iterable $hosts): array
+    {
+        $list = [];
+        foreach ($hosts as $host) {
+            if (!is_string($host)) {
+                continue;
+            }
+            $host = rtrim(strtolower(trim($host)), '.');
+            if ($host !== '') {
+                $list[] = $host;
+            }
+        }
+        return array_values(array_unique($list));
     }
 
     public function is_allowed(string $url): bool
@@ -89,8 +129,10 @@ final class PublicUrlGuard
         }
 
         $addresses = ($this->resolver)($host);
+        $private_ok = isset($this->private_hosts[$hostname]);
         foreach ($addresses as $address) {
-            if (!is_string($address) || !self::is_public_address($address)) {
+            if (!is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false
+                || (!$private_ok && !self::is_public_address($address))) {
                 return [];
             }
         }

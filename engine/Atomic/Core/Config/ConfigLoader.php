@@ -335,6 +335,7 @@ class ConfigLoader {
         ConfigRegistry::register('ai.globus.api_key', 'AI_GLOBUS_API_KEY', '');
 
         ConfigRegistry::register('TELEMETRY_ACCESS_ALLOWED_ROLES', 'TELEMETRY_ACCESS_ALLOWED_ROLES', 'admin', 'csv');
+        ConfigRegistry::register('HTTP_ALLOWED_PRIVATE_HOSTS', 'HTTP_ALLOWED_PRIVATE_HOSTS', '', 'csv');
 
         ConfigRegistry::register('TELEMETRY_STATS_ENABLED', 'TELEMETRY_STATS_ENABLED', true, 'bool');
         ConfigRegistry::register('TELEMETRY_STATS_RETENTION_DAYS', 'TELEMETRY_STATS_RETENTION_DAYS', 35, 'int');
