@@ -81,9 +81,7 @@ final class ImageProcessor
             return false;
         }
         $image = $gd($image);
-        $result = $format->gd_save($image, $destination, $level);
-        imagedestroy($image);
-        return $result;
+        return $format->gd_save($image, $destination, $level);
     }
 
     public function copy(string $source, string $destination, ImageFormat $format): bool

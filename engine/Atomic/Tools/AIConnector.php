@@ -241,12 +241,10 @@ class AIConnector {
         
         if (curl_errno($ch)) {
             $err = curl_error($ch);
-            curl_close($ch);
             throw new \Exception('cURL error: ' . $err);
         }
         
         $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
         
         $decoded = json_decode($response);
 

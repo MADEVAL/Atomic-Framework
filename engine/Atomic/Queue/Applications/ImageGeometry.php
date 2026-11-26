@@ -95,7 +95,6 @@ final class ImageGeometry
         imagesavealpha($canvas, true);
         imagefilledrectangle($canvas, 0, 0, $width, $height, imagecolorallocatealpha($canvas, 0, 0, 0, 127));
         imagecopyresampled($canvas, $image, 0, 0, $sourceX, $sourceY, $width, $height, $sourceWidth, $sourceHeight);
-        imagedestroy($image);
         return $canvas;
     }
 }
